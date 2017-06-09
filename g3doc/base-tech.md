@@ -5,10 +5,10 @@ information about these libraries is available in their respective header files.
 
 [TOC]
 
-## TypeId {#typeid}
+## TypeId
 
 Lullaby's TypeId framework is a light-weight mechanism for getting [runtime type
-information (RTTI)](https://en.wikipedia.org/wiki/Run-time_type_information).
+information (RTTI)](https://en.wikipedia.org/wiki/Run-time_type_information.md).
 Classes have to explicitly opt-in to the framework by using the
 LULLABY_SETUP_TYPE macro.  For example:
 
@@ -31,7 +31,7 @@ GetTypeName<T>().  For example:
 std::cout << lull::GetTypeName<MyClass>();
 ```
 
-## Registry {#registry}
+## Registry
 
 The Registry is used as a light-weight [dependency injection]
 (https://en.wikipedia.org/wiki/Dependency_injection) framework.  All
@@ -55,11 +55,11 @@ TransformSystem* transform_system = registry.Get<TransformSystem>();
 
 Because the Registry owns all these high-level runtime objects, it can be
 considered the primary representation of Lullaby in an application's runtime.
-All [Systems](ecs#system) and most other key libraries depend on the Registry
+All [Systems](./ecs.md#system) and most other key libraries depend on the Registry
 to interact with each other.
 
 
-## Dispatcher {#dispatcher}
+## Dispatcher
 
 The Dispatcher is Lullaby's [message passing]
 (https://en.wikipedia.org/wiki/Message_passing) framework and is used to enable

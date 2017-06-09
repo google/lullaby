@@ -1,7 +1,7 @@
 # List of Systems
 
-The following is a list of [Systems](ecs#system) that are available in the
-Lullaby repository.  Detailed documentation for individual [Systems](ecs#system)
+The following is a list of [Systems](ecs.md#system) that are available in the
+Lullaby repository.  Detailed documentation for individual [Systems](ecs.md#system)
 is available in their respective folders.
 
 System                                              | Description

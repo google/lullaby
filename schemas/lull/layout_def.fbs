@@ -1,0 +1,109 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// This component will control all direct children's transforms to place them
+/// in a row-column or column-row layout.
+table LayoutDef {
+  /// The virtual "canvas" on which the entities will be positioned.
+  canvas_size: Vec2;
+
+  /// If true, then the AABB of the layout will be set to the extent of the
+  /// layout's children. If false, then it will be set to the size of the
+  /// canvas.
+  shrink_to_fit: bool = false;
+
+  /// The spacing between entities.
+  spacing: Vec2;
+
+  /// The order in which elements will be added to the canvas.
+  /// A fill_order is a combination of a "primary" and a "secondary"
+  /// direction.  E.g. RightDown is right primary, and down secondary.
+  fill_order: LayoutFillOrder = RightDown;
+
+  /// The anchor at which the entities will be aligned relative to the canvas
+  /// horizontally.
+  horizontal_alignment: LayoutHorizontalAlignment = Left;
+
+  /// The anchor at which the completed layout aligns relative to the canvas.
+  vertical_alignment: LayoutVerticalAlignment = Top;
+
+  /// The anchor at which the entities will be aligned within their row.
+  /// Only for horizontal-first fill orders, e.g. RightDown, LeftDown
+  row_alignment: LayoutVerticalAlignment = Top;
+
+  /// The number of elements in the orders primary direction before wrapping.
+  /// Unlimited if left as 0.
+  elements_per_wrap: int;
+
+  /// The maximum total number of elements the layout can hold.  Unlimited if
+  /// left as 0.
+  max_elements: int;
+
+  /// If this and |max_elements| are set, then empty slots will be filled by
+  /// instances of this blueprint.
+  empty_blueprint: string;
+
+  /// The anchor at which the entities will be aligned within their column.
+  /// Only for vertical-first fill orders, e.g. DownRight
+  column_alignment: LayoutHorizontalAlignment = Left;
+}
+
+/// This component is attached to a child of LayoutDef if the child wishes to be
+/// resizable.  This only works on child elements that have a Def for a System
+/// that supports LayoutResizeEvent.  As of 4/2017 these are supported:
+///   LayoutDef
+///   TextDef (flatui)
+///   NinePatchDef
+///
+/// If the sum of all the sizes of non-weighted elements is greater than the
+/// available canvas_size, then the weighted elements in that direction will be
+/// hidden, including when canvas_size.y = 0 or canvas_size.x = 0.
+table LayoutElementDef {
+  /// If horizontal_weight is non-zero, then this element will fill up available
+  /// space proportional to the total weight of all other weighted elements
+  /// horizontally up to canvas_size.x if non-zero.
+  horizontal_weight: float = 0.0;
+
+  /// If vertical_weight is non-zero, then this element will fill up available
+  /// space proportional to the total weight of all other weighted elements
+  /// vertically up to canvas_size.y if non-zero.
+  vertical_weight: float = 0.0;
+}
+// Note that for a LayoutDef to properly resize by its weight, all of its
+// children will also need to have LayoutElementDefs with weight if they wish
+// to resize along with their parent Layout.
+// A (LayoutDef) -> B (LayoutElementDef)(LayoutDef) -> C (LayoutElementDef)
+//
+// This weight will apply intuitively to the primary direction, whereas the
+// the secondary direction weight will look at the max of all the elements in
+// each primary's row.  Any weighted elements in the secondary direction will
+// all get set to the same size even if they have different weights because
+// they just fill space available to them, allocated by some larger element in
+// their row.  You can check examples/layout_weighted or
+// tests/layout_test:WeightedElements_OuterWeight for examples.
+
+table RadialLayoutDef {
+  /// The number of degrees of rotations between elements.  A value of 45 means
+  /// 8 elements would fit on the circle.
+  degrees_per_element: float;
+
+  /// The first axis of the circle.  The first element will be placed at
+  /// major_axis.  Defaults to (1,0,0) if not set.
+  major_axis: Vec3;
+
+  /// The second axis of the circle.  Should be perpendicular to |major_axis|.
+  /// If an element is placed at 90 degrees, its pos will be minor_axis.
+  /// Defaults to (0,1,0) if not set.
+  minor_axis: Vec3;
+
+  /// The maximum total number of elements the layout can hold.  Unlimited if
+  /// left as 0.
+  max_elements: int;
+
+  /// If this and |max_elements| are set, then empty slots will be filled by
+  /// instances of this blueprint.
+  empty_blueprint: string;
+}
+
+root_type LayoutDef;

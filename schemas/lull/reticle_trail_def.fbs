@@ -1,0 +1,21 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// Configures the reticle trail.
+/// In case of changing any of these values, please update reticle_template.fbs.
+table ReticleTrailDef {
+
+  /// The number of reticles to draw in the trail by default
+  average_trail_length: int = 14;
+  /// The size of the reticle quad
+  quad_size: float = 0.05;
+  /// The number of samples from which to create the interpolating curve
+  curve_samples: int = 4;
+  /// Speed of the cursor at which the number of reticles drawn = trail_length
+  average_speed: float = 0.2;
+  /// Default reticle color
+  default_color: Color;
+}
+
+root_type ReticleTrailDef;

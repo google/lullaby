@@ -1,0 +1,21 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// Describes a transformation of the Entity relative to its parent.
+/// The transform is applied in the order: rotate, scale, translate.
+table TransformDef {
+  position: Vec3;
+  /// euler angles (used if quaternion is not defined)
+  rotation: Vec3;
+  scale: Vec3 (native_default:"{1.f, 1.f, 1.f}");
+  /// ids of child entities
+  children: [string];
+  aabb: AabbDef;
+  aabb_padding: AabbDef;
+  /// Normalized rotation.  w is the scalar.
+  quaternion: Vec4 (defaults_to_null);
+  enabled: bool = true;
+}
+
+root_type TransformDef;

@@ -1,0 +1,15 @@
+include "lull/animation_def.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// A response that plays an animation based on an input event.  (For example,
+/// moving an Entity when it is hovered.)
+table AnimationResponseDef {
+  /// One or more inputs that trigger the response.  See dispatcher_def.fbs for
+  /// more information about the EventDef table.
+  inputs: [EventDef];
+
+  /// Animations to play based on the input.
+  animation: AnimationDef;
+}

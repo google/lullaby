@@ -1,0 +1,10 @@
+include "lull/common.fbs";
+include "lull/variant_def.fbs";
+
+namespace lull;
+
+table ConfigDef {
+  values: [KeyVariantPairDef];
+}
+
+root_type ConfigDef;

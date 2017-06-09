@@ -1,0 +1,85 @@
+include "lull/common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// An Animation is a set of curves, where each curve has a single
+/// floating-point "value" for any given "time" value.  Each curve represents a
+/// single "dimension" of the animation.  (For example, an animation for
+/// position will have three curves representing the x, y, and z dimensions.)
+///
+/// Animations can be specified in two ways:
+/// * Animation data files store curve data explicitly (either converted from
+///   .fbx files using anim_pipeline or from .json files using flatc).
+/// * Animation target values generate curves at runtime such that the curves
+///   will end with the provided target values over the given amount of time.
+///
+/// An Animation is played on a specific Animation Channel.  The Animation
+/// Channel determines how the data from the animation will be mapped to
+/// Component data.  For example:
+/// * "transform-position": A 3-dimensional channel that sets the position of an
+///   entity via the TransformSystem.
+/// * "transform-rotation": A 3-dimensional channel that sets the rotation of an
+///   entity via the TransformSystem.  The data is expected to be in in Euler
+///   angles.
+/// * "transform-scale": A 3-dimensional channel that sets the scale of an
+///   entity via the TransformSystem.
+/// * "render-color": A 4-dimensional channel that sets the "color" uniform of
+///   an entity via the RenderSystem.
+/// This is just a small subset of potential channels.  The actual channels that
+/// are setup for use will vary at a per-application level.
+
+/// Provides a list of animation data files to be played on a given channel.
+table AnimInstanceDef {
+  /// A list of files from which to read animation data.  Curve data from the
+  /// files will be mapped one at a time to the dimensions in the channel in the
+  /// order they are found in the array of files.
+  filenames: [string];
+
+  /// The AnimationChannel on which to play the animations.
+  channel: string;
+
+  /// Indicates whether to loop the animation once it reaches the end.
+  looping: bool;
+
+  /// Playback speed, which applies as a multiple of the animation timestamp.
+  speed: float = 1.0;
+
+  /// Time (in seconds) to delay starting the playback.
+  start_delay: float;
+
+  /// Optional values to be added to the calculated value from each curve of the
+  /// animation before setting the component data.
+  /// For animation curves that start at 0, this can be used to adjust the
+  /// desired starting value of the animation specific to the Entity.
+  offset: [float];
+
+  /// Optional values to multiplied to the calculated value from each curve of
+  /// the animation before setting the component data.
+  /// For animation curves that end at 1, this can be used to adjust the
+  /// desired ending value of the animation specific to the Entity.  (The ending
+  /// value will be equal to (offset + multiplier).
+  multiplier: [float];
+}
+
+/// Specifies how to drive the data for an animation channel towards target
+/// values over the specified amount of time.
+table AnimTargetDef {
+  /// The AnimationChannel on which to set these targets.
+  channel : string;
+
+  /// The target values for the channel.
+  values : [float];
+
+  /// The amount of time (in milliseconds) to take to reach the target values.
+  time_ms : int;
+}
+
+/// Defines a set of animations or targets to play on an Entity.
+table AnimationDef {
+  animations: [AnimInstanceDef];
+  targets: [AnimTargetDef];
+  on_complete_events: [EventDef];
+  on_success_events: [EventDef];
+  on_cancelled_events: [EventDef];
+}

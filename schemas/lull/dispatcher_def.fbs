@@ -1,0 +1,35 @@
+include "lull/common.fbs";
+include "lull/variant_def.fbs";
+
+namespace lull;
+
+/// Describes an event used as an input/trigger for a response.  For example,
+/// playing a sound when an Entity is clicked.
+table EventDef {
+  /// The TypeName of the event (eg. "lull::ClickEvent").
+  event: string;
+
+  /// Whether to listen for the event on the DispatcherSystem on the Entity
+  /// associated with the EventDef.
+  local: bool = false;
+
+  /// Whether to listen for the event on the "global" dispatcher.
+  global: bool = false;
+
+  /// Key-value pairs of data for the event.
+  /// A value of type "DataHashValue" with the string "$self" will get replaced
+  /// with the entity value (stored as uint)
+  values: [KeyVariantPairDef];
+}
+
+/// A response that fires off an event based on an input event.  The response
+/// event is sent on both the global Dispatcher and the Entity-specific
+/// Dispatcher in the DispatcherSystem.
+table EventResponseDef {
+  /// One or more inputs that trigger the response.
+  inputs: [EventDef];
+
+  /// One or more events to be dispatched locally and / or globally.
+  outputs: [EventDef];
+}
+

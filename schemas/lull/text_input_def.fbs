@@ -1,0 +1,30 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// Configures the entity to accept text input.
+table TextInputDef {
+  /// Makes the text input active on startup
+  activate_immediately: bool;
+  /// Makes the text input inactive on text commit
+  deactivate_on_accept: bool = false;
+  /// The initial text before user input
+  hint: string;
+  /// The color of the above hint string; by default this will match whatever
+  /// is specified in the RenderDef.
+  hint_color: Color;
+  /// The blueprint to create the composing indicator entity.
+  composing_entity: string;
+  /// The vertical distance below the baseline of the composing indicator.
+  composing_distance: float;
+  /// The vertical thickness of the composing indicator.
+  composing_thickness: float;
+  /// The blueprint to create caret entity
+  caret_entity: string;
+  /// Makes the text input always visible against parent entity's clip box.
+  /// This currently only works for single line text with horizontal alignment
+  /// = Left.
+  is_clipped: bool = false;
+}
+
+root_type TextInputDef;

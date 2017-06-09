@@ -1,0 +1,35 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+enum ReticleCollisionBehaviour : int {
+  /// Handle the collision directly on this entity.
+  HandleAlone,
+  /// Traverse to parents to find an entity with |HandleForDescendants|.
+  FindAncestor,
+  /// Handle reticle collisions passed from descendants with |FindAncestor|.
+  HandleDescendants,
+}
+
+/// ReticleBehaviourDef modifies how a collideable entity will interact with the
+/// reticle.
+table ReticleBehaviourDef {
+  /// Scales the entity's Aabb down when determining if it is targeted.
+  /// Specifically, the dead zone is the outer part of the Aabb that will not
+  /// trigger a hover-start event even if being collided with. This is useful
+  /// for entities that change positions when targeted, which could move them
+  /// out of collision and result in bouncing. These values can only shrink the
+  /// Aabb, and should be absolute values. They will be applied to both sides of
+  /// the Aabb. For example, an entity centered at origin with a 3x3x3 Aabb with
+  /// a dead zone of (0.5,1,0.5) will only become targeted when the reticle
+  /// collides with the 2x1x2 Aabb centered at the origin.
+  hover_start_dead_zone: Vec3;
+
+  /// How this entity should handle reticle collisions.
+  collision_behaviour: ReticleCollisionBehaviour = HandleAlone;
+
+  /// If set to true and this entity has HandleDescendants, it's interactivity
+  /// and default interactivity will be set. Ignored if |collision_behaviour| is
+  /// not HandleDescendants.
+  interactive_if_handle_descendants: bool = true;
+}

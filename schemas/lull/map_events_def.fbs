@@ -1,0 +1,39 @@
+include "lull/common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// This captures all of the forwarding and mapping a MapEventsToXDef will
+/// perform. It shouldn't be directly placed as a component.
+table EventMapDef {
+  /// These events will trigger the |output_events| to be sent to the target
+  /// entities.
+  input_events : [EventDef];
+  /// These events will be sent to the target entities whenever |input_events|
+  /// is received.
+  output_events : [EventDef];
+}
+
+/// Send events to the entity’s children.
+table MapEventsToChildrenDef {
+  events: EventMapDef;
+}
+
+/// Send events to the entity’s parent
+table MapEventsToParentDef {
+  events: EventMapDef;
+}
+
+/// Send events to the entity’s siblings, optionally including itself.
+table MapEventsToSiblingsDef {
+  events: EventMapDef;
+  include_self : bool = false;
+}
+
+/// Send events to all entities that have a matching |group| string, optionally
+/// including itself.
+table MapEventsToGroupDef {
+  group : string;
+  events: EventMapDef;
+  include_self : bool = false;
+}

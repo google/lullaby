@@ -1,0 +1,23 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// When *CollisionDef* is specified, the entity is included in the
+/// CollisionSystem, which enables a raycast test to find the nearest entity
+/// which is intersecting a Ray.
+table CollisionDef {
+  /// If set to false (default), the ray-bounding box intersection test will
+  /// return the point where the ray enters the bounding box.
+  /// If set to true, the point where the ray exists the bounding box will be
+  /// returned instead.
+  /// The purpose of this mode is to easily enable collisions for small objects
+  /// within the bounding box of a larger object by setting the larger object
+  /// to collision_on_exit mode.
+  collision_on_exit: bool = false;
+
+  /// If set to true, the Entity will be interactive (ie. you can click on
+  /// the entity with the reticle).
+  interactive: bool = true;
+}
+
+root_type CollisionDef;

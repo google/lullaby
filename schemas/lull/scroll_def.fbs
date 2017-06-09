@@ -1,0 +1,63 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// Adds a scroll view to the entity.  Scroll views are controlled by touchpad
+/// input to change the position of children.
+table ScrollDef {
+  /// The virtual size of the entire field of content. The content location is
+  /// assumed to start at the origin.  (Note: the z-values are ignored since
+  /// scrolling only happens in 2-dimensions.)
+  content_bounds: AabbDef;
+
+  /// Defines how fast the scroll view will move relative to the touch pad
+  /// input. A value of 0 will prevent scrolling in the specified dimension.
+  touch_sensitivity: Vec2;
+
+  /// Defines (in milliseconds) how long the touch momentum is carried when the
+  /// touch is released.  Must be >= 0.
+  touch_momentum_ms: int = 250;
+
+  /// By default, scroll views are only active if the entity is being hovered.
+  /// A positive, non-zero priority will force the scroll view to be active
+  /// regardless of hover state.
+  active_priority: int = 0;
+
+  /// If defined, this allows the scroll view to be dragged past its content
+  /// bounds with increasing resistance.
+  drag_border: Vec2;
+
+  /// Same as touch_momentum_ms, but for dragging.  Must be >= 0.
+  drag_momentum_ms: int = 50;
+}
+
+/// If added to an Entity with a scroll view (see ScrollDef above), this will
+/// define a grid to which the scrolling will snap.
+table ScrollSnapToGridDef {
+  /// The space between grid points where the first grid point is at (0,0).
+  /// Must be > (0,0)
+  interval: Vec2;
+}
+
+/// If added to an Entity with a scroll view (see ScrollDef above), this will
+/// snap the scrolling to the grandchildren of the scroll view.  Grandchildren
+/// are used since the children of the scroll view are directly controlled by
+/// the scroll view and so snapping to the children will cause a conflict.
+table ScrollSnapToGrandchildrenDef {
+  fling_multiplier: float = 1.0;
+}
+
+/// If added to an Entity with a scroll view (see ScrollDef above), this will
+/// automatically set the scroll view's content bounds to that of its child's
+/// Aabb.
+table ScrollContentLayoutDef {
+  /// Additional padding to be added to the content bounds.  By increasing (or
+  /// decreasing) the content bounds, the amount of allowed scrolling can be
+  /// controlled.
+  left_padding: float;
+  right_padding: float;
+  top_padding: float;
+  bottom_padding: float;
+}
+
+root_type ScrollDef;

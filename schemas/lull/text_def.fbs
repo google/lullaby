@@ -1,0 +1,111 @@
+include "lull/common.fbs";
+include "lull/render_def.fbs";
+
+/// The text system is responsible for rendering i18n text strings.  There are
+/// two backend implementations: flatui and ion.  Several text features are
+/// not supported equally across them, as noted below.
+
+namespace lull;
+
+/// TextHtmlMode defines how HTML formatting is dealt with.
+enum TextHtmlMode : int {
+  /// Ignores any HTML formatting, leaving it visible in the text string.
+  Ignore,
+
+  /// Removes all HTML tags and ignores their contents.
+  RemoveTags,
+
+  /// Removes all HTML tags, extracting links to make them clickable.
+  ExtractLinks,
+}
+
+/// Defines if/how lines are automatically broken across lines.
+enum TextWrapMode : int {
+  /// Don't wrap lines.
+  None,
+
+  /// Wraps text, preferring to break lines only between words.  If a single
+  /// word is too wide, it will be broken without being hyphenated to remain
+  /// in bounds.
+  BetweenWords,
+
+  /// Wraps text, breaking eligible words by hyphenation.  This requires the
+  /// locale and the hyphenation pattern directory to be set.  Hyphenation
+  /// patterns are built into Android, but will need to be included on other
+  /// platforms.
+  Hyphenate,
+}
+
+/// Specifies information about the font used for text rendering in a RenderDef.
+table TextDef {
+  /// Optional.  The unprocessed text string.  If a StringProcessor exists in
+  /// the app, the result of ProcessString(text) will be rendered.
+  /// Otherwise, |text| will be rendered.
+  text: string;
+
+  /// Required.  A list of fonts to use. Each font should contain suffix as
+  /// well, such as ".ttf".  For flatui, fonts are selected with a fallback
+  /// priority, and ".SystemFont" can be used to refer to system font.  For
+  /// Ion backend, the first font in the list will be always used and the
+  /// rest are simply ignored.
+  fonts: [string];
+
+  /// Required.  The font size, measured in meters from the top to bottom of
+  /// each line (including any ascenders/descenders and leading).
+  /// The height of the text bounding box is this value multiplied by the
+  /// number of lines multiplied by line_height_scale.
+  font_size: float;
+
+  /// DEPRECATED; do not use.
+  line_height: float;
+
+  /// Optional.  The spacing between lines as a function of the font size.
+  line_height_scale: float = 1.2;
+
+  /// Optional.  How to align the text in the x direction (default = Center,
+  /// can also be Left or Right).
+  horizontal_alignment: HorizontalAlignment = Center;
+
+  /// Optional.  How to align the text in the y direction (default = Baseline,
+  /// can also be Top, Center, or Bottom).
+  vertical_alignment: VerticalAlignment = Baseline;
+
+  /// Optional.  Rectangle area to render the text.  If both are zeros,
+  /// text will be rendered in a single line.  If height is zero, text will be
+  /// rendered in multiple lines if it doesn't fit into a single line.
+  /// Since Ion doesn't support text layout, text will always be rendered in
+  /// single line in Ion.  Values are measured in meters.
+  bounds: Vec2;
+
+  /// Optional.  If not None, sets the aabb bounds to the bounds of the text
+  /// content.  Otherwise, sets it to bounds.x or bounds.y if non-zero.
+  /// Note: This applies to flatui rendering only.
+  wrap_mode: TextWrapMode = None;
+
+  /// Optional.  The string used as an ellipsis.  Setting this to a nonempty
+  /// string enables text truncation. The specified ellipsis will be appended
+  /// to the truncated text.
+  ellipsis: string;
+
+  /// Optional.  Glyph edge softness: [0,1] where 0 = hard edges, 1 = opaque @
+  /// glyph center.
+  edge_softness: float = 0.3;
+
+  /// Optional.  A float value specifying a scale applied to the kerning value
+  /// between glyphs.  This applies to flatui rendering only.
+  kerning_scale: float = 1.0;
+
+  /// Optional.  How HTML tags are processed.
+  html_mode: TextHtmlMode = Ignore;
+
+  /// Optional.  Each HTML link is created as a separate entity using this
+  /// blueprint.
+  link_text_blueprint: string;
+
+  /// Optional.  Each HTML link underline is created as a separate entity
+  /// using this blueprint.
+  link_underline_blueprint: string;
+
+  // BUG(b/33705812) Add blueprint for suggestion / highlight underline.
+  // BUG(b/33705315) Add caret_blueprint.
+}

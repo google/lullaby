@@ -1,0 +1,11 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// Specifies the name of an entity, so the entity can be retrieved by that name
+/// from the NameSystem.
+table NameDef {
+  name: string;
+}
+
+root_type NameDef;

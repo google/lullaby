@@ -1,0 +1,61 @@
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// The language of the script.
+enum Language : int {
+  Unknown,
+  Lua5_2,
+  JavaScript,
+}
+
+/// Specifies a script.
+table ScriptDef {
+  /// The file name of the script.
+  filename: string;
+
+  /// Inline script code (don't specify both this and the filename).
+  code: string;
+
+  /// The debug_name is used when reporting errors for inline scripts. Defaults
+  /// to the filename for scripts loaded from a file.
+  debug_name: string;
+
+  /// The script language. This is optional if loading a script from a file (the
+  /// language can be inferred from the file extension), but for inline code it
+  /// must be specified.
+  language: Language = Unknown;
+}
+
+/// Specifies a script to be run every time an event fires.
+table ScriptOnEventDef {
+  /// One or more events that trigger the script.
+  inputs: [EventDef];
+
+  /// The script to run.
+  script: ScriptDef;
+}
+
+/// Specifies a script to be run every frame.
+table ScriptEveryFrameDef {
+  /// The script to run.
+  script: ScriptDef;
+}
+
+/// Specifies a script to be run when the entity is created.
+table ScriptOnCreateDef {
+  /// The script to run.
+  script: ScriptDef;
+}
+
+/// Specifies a script to be run just after the entity is created.
+table ScriptOnPostCreateInitDef {
+  /// The script to run.
+  script: ScriptDef;
+}
+
+/// Specifies a script to be run when the entity is destroyed.
+table ScriptOnDestroyDef {
+  /// The script to run.
+  script: ScriptDef;
+}

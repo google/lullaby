@@ -1,0 +1,216 @@
+include "lull/common.fbs";
+
+/// The render system is responsible for the drawing entities to the screen.  It
+/// uses vertex and fragment shaders (in fplshader format) to control the final
+/// output of meshes, which can either be loaded from FBX files, or
+/// auto-generated using QuadDefs or text strings.
+
+namespace lull;
+
+/// Render passes define the render state and high-level render order of
+/// entities. Please keep these in sync with
+/// //depot/google3/java/com/google/vr/internal/lullaby/Constants.java
+enum RenderPass : int {
+  /// Drawn first, so behind everything.
+  Pano,
+  /// Zwrite on, ztest on, blending off.
+  Opaque,
+  /// Zwrite off, ztest on, blending (1, 1-SrcAlpha).
+  Main,
+  /// Zwrite off, ztest off, blending (1, 1-SrcAlpha).
+  OverDraw,
+  /// Used to render debug information.
+  Debug,
+  /// Not drawn.
+  Invisible,
+  /// Zwrite off, ztest off, blending (1, 1), no culling.
+  OverDrawGlow,
+
+  NumPredefinedPasses,
+  Invalid,
+
+  /// Apps are free to define custom render passes.  To help prevent conflicts,
+  /// IDs should be kept in the following range.
+  AppIdStart = 100,
+  AppIdEnd = 200,
+}
+
+/// Controls the horizontal (x-axis) alignment of text.
+enum HorizontalAlignment : int {
+  Left,
+  Center,
+  Right,
+}
+
+/// Controls the vertical (y-axis) alignemnt of text.
+enum VerticalAlignment : int {
+  Top,
+  Center,
+  Baseline,
+  Bottom,
+}
+
+/// Describes a simple quad mesh.
+/// BUG(b/38457584): NinePatches are now the recommended way of doing quads. We
+/// should migrate to using those instead.
+struct QuadDef {
+  /// The size in the x dimension.
+  size_x: float;
+
+  /// The size in the y dimension.
+  size_y: float;
+
+  /// Number of mesh vertices to generate in the x direction (default = 2).
+  verts_x: int;
+
+  /// Number of mesh vertices to generate in the y direction (default = 2).
+  verts_y: int;
+
+  /// Whether to add texture coordinates to the mesh (default = false).
+  has_uv: bool;
+
+  /// Radius of rounded corners to create on the mesh (default = 0).
+  corner_radius: float;
+
+  /// Number of vertices in the triangle fan created at corners to produce the
+  /// corner radius (default = 0).
+  corner_verts: int;
+}
+
+/// Specifies the value of a uniform shader variable.
+table UniformDef {
+  /// Required name of the uniform.
+  name: string;
+  /// Required values of the uniform. There must be dimension * count values.
+  float_value: [float];
+  /// The dimension of the uniform. Supported dimensions are 1, 2, 3, 4, and 16.
+  dimension: int;
+  /// The number of dimension-sized elements in the value array.
+  count: int = 1;
+}
+
+/// Specifies information about the font used for text rendering in a RenderDef.
+/// FontDef is entirely deprecated.  You should use TextDef instead.
+table FontDef {
+  /// DEPRECATED! Use fonts instead.
+  /// The name of the font to use. This field only allows a single font name
+  /// and ".ttf will be appended to the string automatically.
+  font: string;
+
+  /// The font size, measured in mm from the top to bottom of each line
+  /// (including any ascenders/descenders and leading).
+  /// The size of the text bounding box is this value multiplied by the number
+  /// of lines.
+  size: int;
+
+  /// Edge threshold: determines where the edge of the glyph is.  This is in
+  /// normalized color space [0,1] -- a value of 0.5 means to use the edge as
+  /// defined by the source font.
+  edge_threshold: float = 0.5;
+
+  /// Glyph edge softness: [0,1] where 0 = hard edges, 1 = opaque @ glyph
+  /// center.
+  edge_softness: float = 0.3;
+
+  /// The spacing between lines as a function of the font size.
+  line_height_scale: float = 1.2;
+
+  /// How to align the text in the x direction (default = Center, can also be
+  /// Left or Right).
+  horizontal_alignment: HorizontalAlignment = Center;
+
+  /// How to align the text in the y direction (default = Center, can also be
+  /// Top, Baseline, or Bottom).
+  vertical_alignment: VerticalAlignment = Center;
+
+  /// Rectangle area to render the text. If both are zeros, text will be
+  /// rendered in a single line. If height is zero, text will be rendered in
+  /// multiple lines if it doesn't fit into a single line.
+  /// Since Ion doesn't support text layout, text will always be rendered in
+  /// single line in Ion. Values are measured in mm.
+  rect_width: int;
+  rect_height: int;
+
+  /// The string used as an ellipsis. Setting this to a nonempty string enables
+  /// text truncation. The specified ellipsis will be appended to the truncated
+  /// text.
+  ellipsis: string;
+
+  /// A list of fonts to use. Each font should contain suffix as well, such
+  /// as ".ttf". For FPL backend fonts are selected with a fallback priority.
+  /// And ".SystemFont" can be used to refer to system font. For Ion backend
+  /// the first font in the list will be always used and the rest are simply
+  /// ignored.
+  fonts: [string];
+
+  /// If true, sets the aabb bounds to the bounds of the text content.
+  /// Otherwise, sets it to rect_width or rect_height if non-zero.
+  /// Note: This applies to FPL rendering only.
+  wrap_content: bool = false;
+
+  /// A float value specifying a scale applied to the kerning value between
+  /// glyphs. This applies to FPL rendering only.
+  kerning_scale: float = 1.0;
+
+  /// If true, then any html tags present in the text will be stripped.
+  parse_and_strip_html: bool = false;
+
+  /// If parse_and_strip_html is true then this will be the color of any of the
+  /// href links in the font.
+  html_link_color: Color;
+}
+
+/// Describes how to render an entity.
+table RenderDef {
+  /// Which render pass this entity belongs to (and by extension, its render
+  /// state).
+  pass: RenderPass = Main;
+
+  /// An fpl mesh representing the triangle mesh for the model associated with
+  /// the entity.
+  mesh: string;
+
+  /// A [QuadDef](#quaddef) defines the mesh for the entity based on a simple
+  /// quadrilateral.
+  quad: QuadDef;
+
+  /// An fpl shader used to render the entity (fpl shaders are built from glslv
+  /// and glslf vertex and fragment shader programs).
+  shader: string;
+
+  /// The bitmap to use as a texture for the entity (supported formats: WEBP,
+  /// PNG, TGA).
+  texture: string;
+
+  /// Flag that specifies whether the texture mip chain should be automatically
+  /// generated.  Ignored if |texture| is not specified.
+  create_mips: bool = false;
+
+  /// The unprocessed text string.  If a StringProcessor exists in the app, the
+  /// result of ProcessString(text) will be rendered.  Otherwise, |text| will be
+  /// rendered.
+  text: string;
+
+  /// The font to use for text rendering.
+  font: FontDef (defaults_to_null);
+
+  /// An rgba color associated with the entity.  Can be specified either as a
+  /// 4-component map of RGBA values ranging from 0.0 to 1.0 or as a
+  /// hexadecimal string (eg. "#336699FF").
+  color: Color;
+  /// "xxxxxx" or "xxxxxxxx" with optional "#" prefix
+  color_hex: string;
+
+  /// A list of uniform variables and values to set on the shader.
+  uniforms: [UniformDef];
+
+  /// An amount to adjust the sort order of the entity (relative to its parent,
+  /// which defaults to 0). This controls the ordering of the display list.
+  /// Allows alpha-blended objects to be rendered in a controlled order
+  /// (generally back to front).  Refer to g3doc for more info.
+  sort_order_offset: int;
+
+  /// A unique name given to the runtime shape (eg. quad).  All shapes with this
+  /// name will share the same mesh.
+  shape_id: string;
+}

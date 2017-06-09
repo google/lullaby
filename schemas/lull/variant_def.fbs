@@ -1,0 +1,56 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+table DataBool {
+  value: bool;
+}
+
+table DataInt {
+  value: int;
+}
+
+table DataFloat {
+  value: float;
+}
+
+table DataHashValue {
+  value: string;
+}
+
+table DataString {
+  value: string;
+}
+
+table DataVec2 {
+  value: Vec2 (native_inline);
+}
+
+table DataVec3 {
+  value: Vec3 (native_inline);
+}
+
+table DataVec4 {
+  value: Vec4 (native_inline);
+}
+
+table DataQuat {
+  value: Quat (native_inline);
+}
+
+union VariantDef {
+  DataBool,
+  DataInt,
+  DataFloat,
+  DataString,
+  DataHashValue,
+  DataVec2,
+  DataVec3,
+  DataVec4,
+  DataQuat,
+}
+
+table KeyVariantPairDef {
+  key: string;
+  value: VariantDef;
+}

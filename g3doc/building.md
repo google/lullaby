@@ -9,6 +9,11 @@ the following information might be useful:
 
 - Use flatbuffers to generate header files for all the .fbs files in the schemas
   folder.
+
+```
+flatc --cpp -I ./schemas -o include ./schemas/lull/*.fbs
+```
+
 - Build all the files with the following exceptions:
   - For android, remove
     src/lullaby/systems/render/detail/port/default/gpu_profiler.cc

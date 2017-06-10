@@ -2,7 +2,7 @@
 
 ### General
 
-**Google3 Style**: Code should follow google3 conventions and style.  This
+**Google Style**: Code should follow google conventions and style.  This
 should also be extended to non-C++ code (eg. glsl shaders, fbs schemas, etc.) as
 best as possible.
 

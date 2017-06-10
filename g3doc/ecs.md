@@ -19,7 +19,7 @@ for an efficient runtime.
 
 This page describes the various classes and concepts that make up Lullaby's
 ECS architecture. It assumes that you have read the brief ECS [introduction]
-(introduction#systems).
+(introduction.md#systems).
 
 
 #### A Note on Terminology {terminology}

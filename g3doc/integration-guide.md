@@ -5,7 +5,7 @@
 ## Introduction
 
 This document provides a step-by-step guide for integrating Lullaby with your
-project.  It assumes you have read the [Introduction](introduction) and are
+project.  It assumes you have read the [Introduction](introduction.md) and are
 familiar with the basic concepts and technologies used by Lullaby.
 
 Before we begin, it's important to understand a bit of Lullaby's design goals.
@@ -43,12 +43,12 @@ decisions.  So let's get started.
 
 ### Create the Registry
 
-The [Registry](base-tech#registry) owns all other high-level Lullaby objects and
-allows them to access each other.  In some ways, it can be thought of as a proxy
-to Lullaby itself.  When the [Registry](base-tech#registry) is destroyed, it
-will destroy all objects that it owns.
+The [Registry](base-tech.md#registry) owns all other high-level Lullaby objects
+and allows them to access each other.  In some ways, it can be thought of as a
+proxy to Lullaby itself.  When the [Registry](base-tech.md#registry) is
+destroyed, it will destroy all objects that it owns.
 
-You can create the [Registry](base-tech#registry) quite simply:
+You can create the [Registry](base-tech.md#registry) quite simply:
 
 ```c++
   lull::Registry registry;
@@ -56,8 +56,8 @@ You can create the [Registry](base-tech#registry) quite simply:
 
 ### Create the Entity Factory
 
-The [Entity Factory](ecs#entity-factory) is responsible for the creation of
-[Entities](ecs#entity) and, as such, is a critical component of any Lullaby
+The [Entity Factory](ecs.md#entity-factory) is responsible for the creation of
+[Entities](ecs.md#entity) and, as such, is a critical component of any Lullaby
 integration.
 
 ```c++
@@ -66,14 +66,15 @@ integration.
 
 ### Create the Dispatcher
 
-The [Dispatcher](base-tech#dispatcher) enables Lullaby [Systems](ecs#system) to
-communicate with each other. While the [Registry](ecs#registry) allows [Systems]
-(ecs#system) to directly access and call functions on each other, the
-[Dispatcher](base-tech#dispatcher) can be used to reduce [coupling]
+The [Dispatcher](base-tech.md#dispatcher) enables Lullaby [Systems]
+(ecs.md#system) to communicate with each other. While the [Registry]
+(ecs.md#registry) allows [Systems](ecs.md#system) to directly access and call
+functions on each other, the [Dispatcher](base-tech.md#dispatcher) can be used
+to reduce [coupling]
 (https://en.wikipedia.org/wiki/Coupling_(computer_programming)) and allow for
-greater flexibility in design. (For example, a [System](ecs#system) can send
-a "ClickEvent" without having to know what other [Systems](ecs#system) need to
-be notified.)
+greater flexibility in design. (For example, a [System](ecs.md#system) can send
+a "ClickEvent" without having to know what other [Systems](ecs.md#system) need
+to be notified.)
 
 ```c++
   registry.Create<lull::Dispatcher>();
@@ -81,11 +82,11 @@ be notified.)
 
 ### Create the Asset Loader
 
-The [Asset Loader](base-tech#asset-loader) is used to load all assets (eg.
-textures, shaders, audio files, [Blueprints](ecs#blueprint), etc.) in the
+The [Asset Loader](base-tech.md#asset-loader) is used to load all assets (eg.
+textures, shaders, audio files, [Blueprints](ecs.md#blueprint), etc.) in the
 runtime. It supports both synchronous and asynchronous loading.
 
-The [Asset Loader](base-tech#asset-loader) is optional if you do not require
+The [Asset Loader](base-tech.md#asset-loader) is optional if you do not require
 any assets (though that seems unlikely as even the most basic rendering requires
 loading a shader at the very least.)
 
@@ -95,13 +96,13 @@ loading a shader at the very least.)
 
 ### Create the Input Manager
 
-The [Input Manager](base-tech#input-manager) provides Lullaby libraries a way to
-query input device (eg. head-mounted display, 3dof controller, etc.) state with
-having to be aware of the actual specifics of the underlying hardware APIs.
+The [Input Manager](base-tech.md#input-manager) provides Lullaby libraries a way
+to query input device (eg. head-mounted display, 3dof controller, etc.) state
+with having to be aware of the actual specifics of the underlying hardware APIs.
 
-The [Input Manager](base-tech#input-manager) is optional if you are not going to
-use any Systems that process input, but for any type of interactive application,
-you will need it.
+The [Input Manager](base-tech.md#input-manager) is optional if you are not going
+to use any Systems that process input, but for any type of interactive
+application, you will need it.
 
 ```c++
   registry.Create<lull::InputManager>();
@@ -109,9 +110,9 @@ you will need it.
 
 ### Initialize the Entity Factory
 
-Lastly, you must initialize the [Entity Factory](ecs#entity-factory).  More
+Lastly, you must initialize the [Entity Factory](ecs.md#entity-factory).  More
 information about the purpose of this call, and why it is separate from the
-[Entity Factory](ecs#entity-factory) constructor, is provided in the sections
+[Entity Factory](ecs.md#entity-factory) constructor, is provided in the sections
 further below.
 
 ```c++
@@ -129,17 +130,17 @@ Remember that you can get a pointer to an object when you call
 
 ### Queued Dispatcher
 
-The [Dispatcher](base-tech#dispatcher) by default is an "immediate" [Dispatcher]
-(base-tech#dispatcher). When you send an Event to an "immediate" [Dispatcher]
-(base-tech#dispatcher), that Event is processed by the associated event handlers
-during the call to ```Dispatcher::Send```.
+The [Dispatcher](base-tech.md#dispatcher) by default is an "immediate"
+[Dispatcher](base-tech.md#dispatcher). When you send an Event to an "immediate"
+[Dispatcher](base-tech.md#dispatcher), that Event is processed by the associated
+event handlers during the call to ```Dispatcher::Send```.
 
-However, it is often desirable for the [Dispatcher](base-tech#dispatcher) stored
-in the [Registry](base-tech#registry) to be a "queued" [Dispatcher]
-(base-tech#dispatcher) as this provides explicit control of when the Events are
-are actually processed. To create a "queued" [Dispatcher](base-tech#dispatcher),
-instead of an "immediate" [Dispatcher](base-tech#dispatcher), just do the
-following:
+However, it is often desirable for the [Dispatcher](base-tech.md#dispatcher)
+stored in the [Registry](base-tech.md#registry) to be a "queued" [Dispatcher]
+(base-tech.md#dispatcher) as this provides explicit control of when the Events
+are actually processed. To create a "queued" [Dispatcher]
+(base-tech.md#dispatcher), instead of an "immediate" [Dispatcher]
+(base-tech.md#dispatcher), just do the following:
 
 ```c++
   lull::QueuedDispatcher* queued_dispatcher = new QueuedDispatcher();
@@ -155,7 +156,7 @@ You can then explicitly process the queued Events by calling:
 ### Load Function
 
 You can provide your own function that performs the actual loading done by the
-[Asset Loader](base-tech#asset-loader).
+[Asset Loader](base-tech.md#asset-loader).
 
 
 ### Input Devices
@@ -164,47 +165,48 @@ You can provide your own function that performs the actual loading done by the
 ## Adding Systems
 
 The majority of Lullaby's functionality is provided through its [Systems]
-(ecs#system). While Lullaby provides a variety of [Systems](ecs#system), not all
-of them are needed for a given application. You are free to choose which
-[Systems](ecs#system) you want to use. Furthermore, you will probably need to
-write some [Systems](ecs#system) of your own. Lullaby provides common, low-level
-[Systems](ecs#system), but the high-level "business logic" [Systems](ecs#system)
-are provided by you.
+(ecs.md#system). While Lullaby provides a variety of [Systems](ecs.md#system),
+not all of them are needed for a given application. You are free to choose which
+[Systems](ecs.md#system) you want to use. Furthermore, you will probably need to
+write some [Systems](ecs.md#system) of your own. Lullaby provides common,
+low-level [Systems](ecs.md#system), but the high-level "business logic"
+[Systems](ecs.md#system) are provided by you.
 
 Once you've decided that you need the functionality provided by a particular
-[Systems](ecs#system), you can create it via the [Entity Factory]
-(ecs#entity-factory) like so:
+[Systems](ecs.md#system), you can create it via the [Entity Factory]
+(ecs.md#entity-factory) like so:
 
 ```c++
   entity_factory->Create<lull::TransformSystem>(&registry);
 ```
 
-Internally, the [Entity Factory] will instantiate the [System](ecs#system) using
-the ```Registry::Create()``` function. It will also store a pointer to the
-created [System](ecs#system) for its own use.
+Internally, the [Entity Factory] will instantiate the [System](ecs.md#system)
+using the ```Registry::Create()``` function. It will also store a pointer to the
+created [System](ecs.md#system) for its own use.
 
-You must create all [Systems](ecs#system) before calling
+You must create all [Systems](ecs.md#system) before calling
 ```EntityFactory::Initialize()```.
 
-Finally, keep in mind that different [Systems](ecs#system) have specific
+Finally, keep in mind that different [Systems](ecs.md#system) have specific
 requirements as to when and how they are to be used. For example, some may need
 specific configuration, and some may need to be "updated" once per frame. Please
-ensure you review and understand the API for all your [Systems](ecs#system) that
-you plan to use.
+ensure you review and understand the API for all your [Systems](ecs.md#system)
+that you plan to use.
 
 
 ## Data-driven Entity Creation
 
-While it is possible create [Entities](ecs#entity) at runtime, it is generally
-preferred that they are created via data [Blueprints](ecs#blueprint). The
-following steps will allow you to enable this functionality.
+While it is possible create [Entities](ecs.md#entity) at runtime, it is
+generally preferred that they are created via data [Blueprints]
+(ecs.md#blueprint). The following steps will allow you to enable this
+functionality.
 
 ### Entity Schema
 
 You first need to write a [FlatBuffers](https://google.github.io/flatbuffers)
 [Schema File]
 (https://google.github.io/flatbuffers/flatbuffers_guide_writing_schema.html)
-that defines the structure of the [Blueprints](ecs#blueprints)
+that defines the structure of the [Blueprints](ecs.md#blueprints)
 
 ```
 union ComponentDefType {
@@ -216,10 +218,10 @@ union ComponentDefType {
 ```
 
 This file is specific to your application. In the same way that you decide
-which [Systems](ecs#systems) you want to have in your runtime, you also decide
-which [ComponentDefs](ecs#entity-def) you want to allow in your [Blueprints]
-(ecs#blueprint). Generally speaking, you want your [ComponentDefs]
-(ecs#entity-def) to match your [Systems](ecs#system).
+which [Systems](ecs.md#systems) you want to have in your runtime, you also
+decide which [ComponentDefs](ecs.md#entity-def) you want to allow in your
+[Blueprints](ecs.md#blueprint). Generally speaking, you want your
+[ComponentDefs](ecs.md#entity-def) to match your [Systems](ecs.md#system).
 
 Then, simple add the following "boiler-plate" to the rest of your schema file.
 
@@ -235,10 +237,10 @@ root_type EntityDef;
 
 ### EntityFactory::Initialize
 
-Because the [EntityDef](ecs#entity-def) is specific to your application, you
-need to provide the [Entity Factory](ecs#entity-factory) with the necesssary
-information to create [Entities](ecs#entity) from your [Blueprints]
-(ecs#blueprint). You do this by calling ```EntityFactory::Initialize()``` in
+Because the [EntityDef](ecs.md#entity-def) is specific to your application, you
+need to provide the [Entity Factory](ecs.md#entity-factory) with the necesssary
+information to create [Entities](ecs.md#entity) from your [Blueprints]
+(ecs.md#blueprint). You do this by calling ```EntityFactory::Initialize()``` in
 a slightly different way:
 
 ```c++
@@ -255,16 +257,16 @@ There are 2 template arguments and 2 function arguments:
 * EnumNamesComponentDefType: This function is generated by flatc and returns an
   array of names that corresponds to the ComponentDefType union.
 
-With this information, the [Entity Factory](ecs#entity-factory) is able to load
-convert a raw binary asset into a [Blueprint](ecs#blueprint) in order to create
-an [Entity](ecs#entity).
+With this information, the [Entity Factory](ecs.md#entity-factory) is able to
+load convert a raw binary asset into a [Blueprint](ecs.md#blueprint) in order to
+create an [Entity](ecs.md#entity).
 
 
 ## Updating Lullaby {updating}
 
-Now that you've setup everything and can create [Entities](ecs#entity), the only
-thing left to do is start updating them. The general "flow" of a single frame
-update for Lullaby is something like:
+Now that you've setup everything and can create [Entities](ecs.md#entity), the
+only thing left to do is start updating them. The general "flow" of a single
+frame update for Lullaby is something like:
 
 1. Calculate Delta Time
 2. Update Input Manager
@@ -275,7 +277,7 @@ update for Lullaby is something like:
 
 ### Calculate Delta Time
 
-Many Lullaby [Systems](ecs#system) need to know the duration that has elapsed
+Many Lullaby [Systems](ecs.md#system) need to know the duration that has elapsed
 since the last time they were updated. As such, it is important to track this
 information in your main loop.
 
@@ -288,8 +290,8 @@ information in your main loop.
 
 ### Update Input Manager
 
-To update the [Input Manager](base-tech#input-manager), you first need to read
-your hardware state (using whatever SDKs you want) and "update" the
+To update the [Input Manager](base-tech.md#input-manager), you first need to
+read your hardware state (using whatever SDKs you want) and "update" the
 corresponding device state in the input manager.  For example:
 
 ```c++
@@ -315,7 +317,7 @@ Then, simply, "swap" the Input Manager buffers by calling:
 ### Dispatch Queued Dispatchers
 
 As mentioned above, you can dispatch any Events queued in your [Dispatcher]
-(base-tech#dispatcher) by calling:
+(base-tech.md#dispatcher) by calling:
 
 ```c++
   queued_dispatcher->Dispatch();
@@ -327,7 +329,7 @@ simulation begins.
 ### Advance Simulation
 
 Call the appropriate ```AdvanceFrame``` (or equivalent) functions in the various
-[Systems](ecs#system) you've created.
+[Systems](ecs.md#system) you've created.
 
 ### Present Output
 

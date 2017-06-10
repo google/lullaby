@@ -25,16 +25,16 @@ and augmented reality experiences.
 
 ## Getting Started
 
-Start with the [Introduction](introduction) which provides a high-level
+Start with the [Introduction](introduction.md) which provides a high-level
 overview of the Lullaby architecture.
 
-Learn how to [build](building) the Lullaby libraries.
+Learn how to [build](building.md) the Lullaby libraries.
 
 
-The [Integration Guide](integration-guide) will provide a step-by-step
+The [Integration Guide](integration-guide.md) will provide a step-by-step
 process for adding Lullaby to your app.
 
 
-Finally, explore the [List of Systems](list-of-systems) to get a sense of what
-Lullaby can do for you.
+Finally, explore the [List of Systems](list-of-systems.md) to get a sense of
+what Lullaby can do for you.
 

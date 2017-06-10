@@ -5,7 +5,7 @@ information about these libraries is available in their respective header files.
 
 [TOC]
 
-## TypeId {#typeid}
+## TypeId
 
 Lullaby's TypeId framework is a light-weight mechanism for getting [runtime type
 information (RTTI)](https://en.wikipedia.org/wiki/Run-time_type_information).
@@ -31,7 +31,7 @@ GetTypeName<T>().  For example:
 std::cout << lull::GetTypeName<MyClass>();
 ```
 
-## Registry {#registry}
+## Registry
 
 The Registry is used as a light-weight [dependency injection]
 (https://en.wikipedia.org/wiki/Dependency_injection) framework.  All
@@ -59,7 +59,7 @@ All [Systems](ecs.md#system) and most other key libraries depend on the Registry
 to interact with each other.
 
 
-## Dispatcher {#dispatcher}
+## Dispatcher
 
 The Dispatcher is Lullaby's [message passing]
 (https://en.wikipedia.org/wiki/Message_passing) framework and is used to enable

@@ -2,7 +2,7 @@
 
 [TOC]
 
-## Introduction {intro}
+## Introduction
 
 At its core, Lullaby uses an [Entity-Component-System]
 (https://en.wikipedia.org/wiki/Entity%E2%80%93component%E2%80%93system) (ECS)
@@ -22,7 +22,7 @@ ECS architecture. It assumes that you have read the brief ECS [introduction]
 (introduction.md#systems).
 
 
-#### A Note on Terminology {terminology}
+#### Terminology
 
 It is unfortunate that the terms [Component](#component) and [System](#system)
 are rather generic since they have many meanings in software engineering.
@@ -33,7 +33,7 @@ Entity-Component-System, we will captilize the terms, whereas we will just say
 "component" and "system" when discussing other things.
 
 
-## Entity {entity}
+## Entity
 
 An **Entity** represents a single, uniquely identifiable "thing" in the virtual
 reality world.
@@ -51,7 +51,7 @@ data. All [Components](#component) that map to the same Entity value can be
 considered as "belonging" to that Entity.
 
 
-## Component {component}
+## Component
 
 **Components** encapsulate a set of data that represents a single aspect of an
 [Entity](#entity).
@@ -72,7 +72,7 @@ the same position data can be used by a Collision System to determine when two
 [Entities](#entity) are intersecting.
 
 
-## System {system}
+## System
 
 A **System** provides the logic for a single aspect of an [Entity](#entity).
 Systems operate on one or more [Components](#component) to provide [Entities]
@@ -92,7 +92,7 @@ System may actually store zero, one or more [Component](#component) data
 instances for any given [Entity](#entity).
 
 
-## Blueprints {blueprint}
+## Blueprint
 
 A **Blueprint** represents the serialized state of an [Entity](#entity). This
 serialized state is effectively a snapshot of all the [Component](#component)
@@ -104,7 +104,7 @@ A Blueprint is not specific to a single [Entity](#entity) instance; multiple
 [Entities](#entity) can be instantiated in the runtime from the same Blueprint.
 
 
-## Schemas {schema}
+## Schema
 
 Lullaby uses the [FlatBuffers](https://google.github.io/flatbuffers) library to
 serialize and store [Blueprints](#blueprint). The FlatBuffers library uses
@@ -119,7 +119,7 @@ Information on how to write a Schema can be found [here]
 In Lullaby, most [Schemas](#schema) are named with a "Def" suffix because they
 are data defintions; they describe the structure of data.
 
-## EntityDefs and ComponentDefs {entity-def}
+## EntityDefs and ComponentDefs
 
 As described above, a [Blueprint](#blueprint) represents the serialized state of
 an [Entity](#entity).  The [Schema](#schema) that describes an Entity
@@ -178,7 +178,7 @@ they are easy to understand), but are converted into quaternions when stored in
 the [System](#system).
 
 
-## Entity Factory {entity-factory}
+## Entity Factory
 
 The **EntityFactory** is responsible for "creating" [Entities](#entity) from
 [Blueprints](#blueprint).  A [Blueprint](#blueprint) can exist in one of three
@@ -198,11 +198,11 @@ The C++ Blueprint class can be used to create, load and save [Blueprints]
 
 To "create" an [Entity](#entity), the EntityFactory first generates a new
 unique number for the [Entity](#entity).  It then iterates over the
-[ComponentDefs](#entity-def) stored in the [Blueprint](#blueprint), passing them
-to their owning [System](#system) along with the newly generated [Entity]
-(#entity) ID.  The [System](#system) is then responsible for creating the
-corresponding [Components](#components) internally and associating them with
-the given [Entity](#entity).
+[ComponentDefs](#entity-defs-and-component-defs) stored in the [Blueprint]
+(#blueprint), passing them to their owning [System](#system) along with the
+newly generated [Entity](#entity) ID.  The [System](#system) is then responsible
+for creating the corresponding [Components](#components) internally and
+associating them with the given [Entity](#entity).
 
 The EntityFactory can also "destroy" an [Entity](#entity) by simply requesting
 all [Systems](#systems) to destroy any [Components](#component) associated with

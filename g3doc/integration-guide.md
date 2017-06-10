@@ -262,7 +262,7 @@ load convert a raw binary asset into a [Blueprint](ecs.md#blueprint) in order to
 create an [Entity](ecs.md#entity).
 
 
-## Updating Lullaby {updating}
+## Updating Lullaby
 
 Now that you've setup everything and can create [Entities](ecs.md#entity), the
 only thing left to do is start updating them. The general "flow" of a single

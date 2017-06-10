@@ -29,7 +29,7 @@ At a high level, Lullaby's architecture can be divided into 3 broad categories:
 [Systems](#systems), [Base Tech](#base-tech), and [Utilities](#utilities).
 
 
-#### Systems {systems}
+#### Systems
 
 Lullaby's primary goal is to provide an efficient, data-driven way to create,
 manipulate, and interact with objects in a "virtual" world. For this, Lullaby
@@ -85,7 +85,7 @@ Details about Lullaby's ECS implementation can be found [here](ecs.md).
 
 A list of available Systems can be found [here](list-of-systems.md).
 
-#### Base Tech {base-tech}
+#### Base Tech
 
 Lullaby's [Systems](#systems) often require access to a common set of
 functionality in order to work with each other. This functionality, along with

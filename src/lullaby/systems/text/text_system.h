@@ -105,7 +105,7 @@ class TextSystem : public System {
                    kPreprocessingModeStringPreprocessor);
 
   // Sets |entity|'s font size to |size|, measured in meters. Takes effect on
-  // the next call to SetText.  Bug to fix: BUG(b/37951300)
+  // the next call to SetText.  Bug to fix: TODO(b/37951300)
   void SetFontSize(Entity entity, float size);
 
   // DEPRECATED.  Do not use.
@@ -125,16 +125,19 @@ class TextSystem : public System {
 
   // Sets |entity|'s |ellipsis| string, which will be appended to the last of
   // the visible characters when text does not fit in its bounds rect. Takes
-  // effect on the next call to SetText.  Bug to fix: BUG(b/37951300)
+  // effect on the next call to SetText.  Bug to fix: TODO(b/37951300)
   void SetEllipsis(Entity entity, const std::string& ellipsis);
 
   // Sets |entity|'s |horizontal| alignment. Takes effect on the next call to
-  // SetText.  Bug to fix: BUG(b/37951300)
+  // SetText.  Bug to fix: TODO(b/37951300)
   void SetHorizontalAlignment(Entity entity, HorizontalAlignment horizontal);
 
   // Sets |entity|'s |vertical| alignment. Takes effect on the next call to
-  // SetText.  Bug to fix: BUG(b/37951300)
+  // SetText.  Bug to fix: TODO(b/37951300)
   void SetVerticalAlignment(Entity entity, VerticalAlignment vertical);
+
+  // Sets text |direction| to Right to left/Left to right mode.
+  void SetTextDirection(TextDirection direction);
 
   // Returns a vector of tags associated with |entity|. This will only be
   // populated if parse_and_strip_html is set to true in the TextDef. Returns
@@ -204,6 +207,8 @@ class TextSystemImpl : public System {
 
   virtual void SetVerticalAlignment(Entity entity,
                                     VerticalAlignment vertical) = 0;
+
+  virtual void SetTextDirection(TextDirection direction) = 0;
 
   virtual const std::vector<LinkTag>* GetLinkTags(Entity entity) const = 0;
 

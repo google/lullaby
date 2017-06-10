@@ -200,6 +200,9 @@ class InputManager {
   // Gets the field of view for the specified |eye| on the |device|.
   mathfu::rectf GetEyeFOV(DeviceType device, EyeType eye) const;
 
+  // Gets the viewport for the specified |eye| on the |device|.
+  mathfu::recti GetEyeViewport(DeviceType device, EyeType eye) const;
+
   // Queries for the capabilities of a |device|.
   bool HasPositionDof(DeviceType device) const;
   bool HasRotationDof(DeviceType device) const;
@@ -281,11 +284,12 @@ class InputManager {
   // Updates rotation of the |device|.
   void UpdateRotation(DeviceType device, const mathfu::quat& value);
 
-  // Updates the "eye from head" and "field of view" settings for the |device|
-  // and |eye|.
+  // Updates the "eye from head", "field of view", and "viewport" settings for
+  // the |device| and |eye|.
   void UpdateEye(DeviceType device, EyeType eye,
                  const mathfu::mat4& eye_from_head_matrix,
-                 const mathfu::rectf& eye_fov);
+                 const mathfu::rectf& eye_fov,
+                 const mathfu::recti& eye_viewport = {0, 0, 0, 0});
 
  private:
   static const Clock::time_point kInvalidSampleTime;
@@ -321,6 +325,7 @@ class InputManager {
     std::vector<mathfu::vec3> position;
     std::vector<mathfu::quat> rotation;
     std::vector<mathfu::mat4> eye_from_head_matrix;
+    std::vector<mathfu::recti> eye_viewport;
     std::vector<mathfu::rectf> eye_fov;
     std::vector<TouchGesture> touch_gesture;
     Clock::time_point time_stamp;

@@ -198,10 +198,10 @@ TexturePtr RenderFactory::CreateProcessedTexture(
   if (!fpl_renderer_->SupportsTextureNpot() &&
       (!IsPowerOf2(size.x) || !IsPowerOf2(size.y))) {
     target_is_subtexture = true;
-    uint32 next_power_of_two_x =
-        mathfu::RoundUpToPowerOf2(static_cast<uint32>(size.x));
-    uint32 next_power_of_two_y =
-        mathfu::RoundUpToPowerOf2(static_cast<uint32>(size.y));
+    uint32_t next_power_of_two_x =
+        mathfu::RoundUpToPowerOf2(static_cast<uint32_t>(size.x));
+    uint32_t next_power_of_two_y =
+        mathfu::RoundUpToPowerOf2(static_cast<uint32_t>(size.y));
     texture_u_bound =
         static_cast<float>(size.x) / static_cast<float>(next_power_of_two_x);
     texture_v_bound =
@@ -315,7 +315,7 @@ Shader::ShaderImplPtr RenderFactory::LoadFplShader(const std::string& name) {
 Texture::TextureImplPtr RenderFactory::LoadFplTexture(const std::string& name,
                                                       bool create_mips) {
   const bool async = true;
-  // BUG(b/29898942) proper cubemap detection
+  // TODO(b/29898942) proper cubemap detection
   const bool is_cubemap = (name.find("cubemap") != std::string::npos);
   const bool is_nopremult = (name.find("nopremult") != std::string::npos);
   fplbase::Texture* texture = fpl_asset_manager_->LoadTexture(

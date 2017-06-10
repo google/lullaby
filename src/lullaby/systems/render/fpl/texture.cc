@@ -41,7 +41,7 @@ Texture::Texture(uint32_t texture_target, uint32_t texture_id)
                     [](const fplbase::Texture* texture) { delete texture; }),
       uv_bounds_(0.f, 0.f, 1.f, 1.f),
       is_subtexture_(false) {
-  // BUG(b/62000325): change this constructor (and all calls above it) to
+  // TODO(b/62000325): change this constructor (and all calls above it) to
   // use rendering-system agnostic types fplbase::TextureTarget and
   // fplbase::TextureHandle.
   texture_impl_->SetTextureId(fplbase::TextureTargetFromGl(texture_target),

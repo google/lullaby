@@ -20,7 +20,7 @@ limitations under the License.
 
 namespace lull {
 
-// BUG(b/28612528) Improve/cleanup glyph rendering.
+// TODO(b/28612528) Improve/cleanup glyph rendering.
 static const int kZeroChar = ' ';
 static const int kMaxChar = '`';
 static const int kNumCols = 13;

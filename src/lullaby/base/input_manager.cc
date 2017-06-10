@@ -82,7 +82,7 @@ InputManager::InputManager() {}
 void InputManager::AdvanceFrame(Clock::duration delta_time) {
   std::unique_lock<std::mutex> lock(mutex_);
   for (Device& device : devices_) {
-    // BUG(b/26692955): Update connected state in a thread-safe manner.
+    // TODO(b/26692955): Update connected state in a thread-safe manner.
     device.Advance(delta_time);
   }
 }
@@ -94,7 +94,7 @@ void InputManager::ConnectDevice(DeviceType device,
     return;
   }
 
-  // BUG(b/26692955): Update connected state in a thread-safe manner.
+  // TODO(b/26692955): Update connected state in a thread-safe manner.
   std::unique_lock<std::mutex> lock(mutex_);
   devices_[device].Connect(params);
 }
@@ -105,7 +105,7 @@ void InputManager::DisconnectDevice(DeviceType device) {
     return;
   }
 
-  // BUG(b/26692955): Update connected state in a thread-safe manner.
+  // TODO(b/26692955): Update connected state in a thread-safe manner.
   std::unique_lock<std::mutex> lock(mutex_);
   devices_[device].Disconnect();
 }
@@ -310,7 +310,8 @@ void InputManager::UpdateRotation(DeviceType device,
 
 void InputManager::UpdateEye(DeviceType device, EyeType eye,
                              const mathfu::mat4& eye_from_head_matrix,
-                             const mathfu::rectf& eye_fov) {
+                             const mathfu::rectf& eye_fov,
+                             const mathfu::recti& eye_viewport) {
   std::unique_lock<std::mutex> lock(mutex_);
   DeviceState* state = GetDeviceStateForWriteLocked(device);
   if (state == nullptr) {
@@ -329,6 +330,13 @@ void InputManager::UpdateEye(DeviceType device, EyeType eye,
     state->eye_fov[eye] = eye_fov;
   } else {
     LOG(DFATAL) << "Invalid eye fov [" << eye
+                << "] for device: " << GetDeviceName(device);
+  }
+
+  if (eye < state->eye_viewport.size()) {
+    state->eye_viewport[eye] = eye_viewport;
+  } else {
+    LOG(DFATAL) << "Invalid eye viewport [" << eye
                 << "] for device: " << GetDeviceName(device);
   }
 }
@@ -831,6 +839,24 @@ mathfu::rectf InputManager::GetEyeFOV(DeviceType device, EyeType eye) const {
   return buffer->GetCurrent().eye_fov[eye];
 }
 
+mathfu::recti InputManager::GetEyeViewport(DeviceType device,
+                                           EyeType eye) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return mathfu::recti();
+  }
+
+  const DeviceParams* params = GetDeviceParams(device);
+  if (!params || params->num_eyes <= static_cast<size_t>(eye)) {
+    LOG(DFATAL) << "Invalid eye [" << eye
+                << "] for device: " << GetDeviceName(device);
+    return mathfu::recti();
+  }
+
+  return buffer->GetCurrent().eye_viewport[eye];
+}
+
 InputManager::DataBuffer* InputManager::GetDataBuffer(DeviceType device) {
   return device != kMaxNumDeviceTypes ? devices_[device].GetDataBuffer()
                                       : nullptr;
@@ -947,6 +973,7 @@ void InputManager::Device::Connect(const DeviceParams& params) {
   state.rotation.resize(params.has_rotation_dof ? 1 : 0,
                         mathfu::quat::identity);
   state.eye_from_head_matrix.resize(params.num_eyes, mathfu::mat4::Identity());
+  state.eye_viewport.resize(params.num_eyes);
   state.eye_fov.resize(params.num_eyes);
   buffer_.reset(new DataBuffer(state));
 }

@@ -41,6 +41,7 @@ struct TextBufferParams {
   float kerning_scale = 1.f;
   HorizontalAlignment horizontal_align = HorizontalAlignment_Center;
   VerticalAlignment vertical_align = VerticalAlignment_Baseline;
+  TextDirection direction = TextDirection_LeftToRight;
   TextHtmlMode html_mode = TextHtmlMode_Ignore;
   TextWrapMode wrap_mode = TextWrapMode_None;
 };
@@ -57,7 +58,7 @@ class TextBuffer {
 
   bool IsReady() const;
 
-  // BUG(b/33705855) Remove Finalize.
+  // TODO(b/33705855) Remove Finalize.
   void Finalize();
 
   size_t GetNumSlices() const;
@@ -90,8 +91,6 @@ class TextBuffer {
  private:
   TextBuffer(flatui::FontManager* manager, flatui::FontBuffer* buffer,
              const TextBufferParams& params);
-
-  static bool IsRightToLeft();
 
   flatui::FontManager* font_manager_;
   flatui::FontBuffer* font_buffer_;

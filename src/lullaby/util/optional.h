@@ -151,12 +151,7 @@ class Optional {
   }
 
   // Gets the set value or the provided |default_value| if unset.
-  T& value_or(T&& default_value) {
-    return set_ ? *get() : default_value;
-  }
-
-  // Gets the set value or the provided |default_value| if unset.
-  const T& value_or(T&& default_value) const {
+  const T& value_or(const T& default_value) const {
     return set_ ? *get() : default_value;
   }
 

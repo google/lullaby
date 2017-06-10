@@ -380,7 +380,7 @@ void TextInputSystem::UpdateComposingIndicator(Entity e) {
   if (end_index - start_index > 0) {
     transform_system->Enable(input->composing_entity);
 
-    // BUG(b/33593470) support deformation in TextInputSystem
+    // TODO(b/33593470) support deformation in TextInputSystem
     // This applies to more than just the composing indicator,
     // including the cursor rendering and click handling.
     auto composing_mesh_fn = [this, e, input, start_index,

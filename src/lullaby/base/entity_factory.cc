@@ -98,6 +98,11 @@ Entity EntityFactory::Create(Blueprint* blueprint) {
   return entity;
 }
 
+Entity EntityFactory::Create(BlueprintTree* blueprint) {
+  Entity entity = Create();
+  return Create(entity, blueprint);
+}
+
 Entity EntityFactory::Create(Entity entity, const std::string& name) {
   auto asset = GetBlueprintAsset(name);
   if (asset) {
@@ -107,6 +112,12 @@ Entity EntityFactory::Create(Entity entity, const std::string& name) {
     LOG(ERROR) << "No such blueprint: " << name;
     return kNullEntity;
   }
+}
+
+Entity EntityFactory::Create(Entity entity, BlueprintTree* blueprint) {
+  CreateImpl(entity, blueprint);
+  entity_to_blueprint_map_[entity] = "";
+  return entity;
 }
 
 Span<uint8_t> EntityFactory::Finalize(Blueprint* blueprint) {
@@ -135,7 +146,7 @@ bool EntityFactory::CreateImpl(Entity entity, const std::string& name,
     return false;
   }
 
-  Blueprint blueprint;
+  BlueprintTree blueprint;
   if (loader_) {
     blueprint = loader_(data);
   } else {
@@ -145,11 +156,17 @@ bool EntityFactory::CreateImpl(Entity entity, const std::string& name,
   }
 
   entity_to_blueprint_map_[entity] = name;
+
   const bool result = CreateImpl(entity, &blueprint);
   return result;
 }
 
-bool EntityFactory::CreateImpl(Entity entity, Blueprint* blueprint) {
+bool EntityFactory::CreateImpl(Entity entity, BlueprintTree* blueprint) {
+  return CreateImpl(entity, blueprint, blueprint->Children());
+}
+
+bool EntityFactory::CreateImpl(Entity entity, Blueprint* blueprint,
+                               std::list<BlueprintTree>* children) {
   if (entity == kNullEntity) {
     LOG(DFATAL) << "Cannot create null entity";
     return false;
@@ -168,12 +185,22 @@ bool EntityFactory::CreateImpl(Entity entity, Blueprint* blueprint) {
                   << " from blueprint: " << entity_to_blueprint_map_[entity];
     }
   });
+  // Construct children after parent creation, but before parent post-creation.
+  // This allows the parent to discover/manipulate children during
+  // PostCreateComponent.
+  if (children) {
+    for (auto& child_blueprint : *children) {
+      create_child_fn_(entity, &child_blueprint);
+    }
+  }
+  // Now invoke PostCreateComponent on parent.
   blueprint->ForEachComponent([this, entity](const Blueprint& blueprint) {
     System* system = GetSystem(blueprint.GetLegacyDefType());
     if (system) {
       system->PostCreateComponent(entity, blueprint);
     }
   });
+
   return true;
 }
 

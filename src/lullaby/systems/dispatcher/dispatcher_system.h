@@ -24,9 +24,22 @@ limitations under the License.
 
 namespace lull {
 
-// Provides a Dispatcher as a Component for each Entity.
+/// Provides a Dispatcher as a Component for each Entity.
 class DispatcherSystem : public System {
  public:
+  /// Pair of Entity and EventWrapper. Publicly this is only used to listen for
+  /// all events via ConnectToAll.
+  struct EntityEvent {
+    EntityEvent() {}
+    EntityEvent(Entity e, const EventWrapper& event)
+        : entity(e), event(event) {}
+    Entity entity = kNullEntity;
+    EventWrapper event;
+  };
+
+  /// A function to allow event dispatches to be tracked and logged.
+  using EntityEventHandler = std::function<void(const EntityEvent&)>;
+
   static void EnableQueuedDispatch();
   static void DisableQueuedDispatch();
 
@@ -34,15 +47,15 @@ class DispatcherSystem : public System {
 
   ~DispatcherSystem() override;
 
-  // Associates EventResponses with the Entity based on the |def|.
+  /// Associates EventResponses with the Entity based on the |def|.
   void Create(Entity entity, HashValue type, const Def* def) override;
 
-  // Destroys the Dispatcher and any Connections associated with the Entity.
+  /// Destroys the Dispatcher and any Connections associated with the Entity.
   void Destroy(Entity entity) override;
 
-  // Sends |event| to all functions registered with the dispatcher associated
-  // with |entity|.  The |Event| type must be registered with
-  // LULLABY_SETUP_TYPEID.
+  /// Sends |event| to all functions registered with the dispatcher associated
+  /// with |entity|.  The |Event| type must be registered with
+  /// LULLABY_SETUP_TYPEID.
   template <typename Event>
   void Send(Entity entity, const Event& event) {
     SendImpl(entity, EventWrapper(event));
@@ -52,8 +65,8 @@ class DispatcherSystem : public System {
     SendImpl(entity, event_wrapper);
   }
 
-  // As Send, but will always send immediately regardless of QueuedDispatch
-  // setting.
+  /// As Send, but will always send immediately regardless of QueuedDispatch
+  /// setting.
   template <typename Event>
   void SendImmediately(Entity entity, const Event& event) {
     SendImmediatelyImpl(entity, EventWrapper(event));
@@ -63,12 +76,12 @@ class DispatcherSystem : public System {
     SendImmediatelyImpl(entity, event_wrapper);
   }
 
-  // Dispatches all events currently queued in the DispatcherSystem.
+  /// Dispatches all events currently queued in the DispatcherSystem.
   void Dispatch();
 
-  // Connects an event handler to the Dispatcher associated with |entity|.  This
-  // function is a simple wrapper around the various Dispatcher::Connect
-  // functions.  For more information, please refer to the Dispatcher API.
+  /// Connects an event handler to the Dispatcher associated with |entity|.
+  /// This function is a simple wrapper around the various Dispatcher::Connect
+  /// functions.  For more information, please refer to the Dispatcher API.
   template <typename... Args>
   auto Connect(Entity entity, Args&&... args) -> decltype(
       std::declval<Dispatcher>().Connect(std::forward<Args>(args)...)) {
@@ -80,27 +93,33 @@ class DispatcherSystem : public System {
     }
   }
 
-  // Connects the |handler| to an event as described by the |input|.
+  /// Connects the |handler| to an event as described by the |input|.
   void ConnectEvent(Entity entity, const EventDef* input,
                     Dispatcher::EventHandler handler);
 
-  // Disconnects an event handler identified by the |owner| from the Dispatcher
-  // associated with |entity|.  See Dispatcher::Disconnect for more information.
+  //// Adds a function that will be called for every event that is dispatched.
+  Dispatcher::ScopedConnection ConnectToAll(const EntityEventHandler& handler);
+
+  /// Disconnects an event handler identified by the |owner| from the Dispatcher
+  /// associated with |entity|.  See Dispatcher::Disconnect for more
+  /// information.
   template <typename Event>
   void Disconnect(Entity entity, const void* owner) {
     Disconnect(entity, GetTypeId<Event>(), owner);
   }
 
-  // Disconnects an event handler identified by the |owner| from the Dispatcher
-  // associated with |entity|.  See Dispatcher::Disconnect for more information.
+  /// Disconnects an event handler identified by the |owner| from the Dispatcher
+  /// associated with |entity|.  See Dispatcher::Disconnect for more
+  /// information.
   void Disconnect(Entity entity, TypeId type, const void* owner);
 
- private:
-  struct EntityEvent {
-    Entity entity;
-    std::unique_ptr<EventWrapper> event;
-  };
+  /// Returns the number of functions listening for an event of |type|.
+  size_t GetHandlerCount(Entity entity, TypeId type) const;
 
+  /// Returns the number of functions listening for all events.
+  size_t GetUniversalHandlerCount() const;
+
+ private:
   using EventQueue = ThreadSafeQueue<EntityEvent>;
   using EntityDispatcherMap = std::unordered_map<Entity, Dispatcher>;
   using EntityConnections =
@@ -111,10 +130,22 @@ class DispatcherSystem : public System {
 
   Dispatcher* GetDispatcher(Entity entity);
 
+  /// If currently dispatching, this will queue the dispatcher to be destroyed
+  /// and prevent other events from being sent to it.  Otherwise it will destroy
+  /// the dispatcher immediately.
+  void SafeDestroy(Entity entity);
+
+  void DestroyQueued();
+
   EventQueue queue_;
   EntityConnections connections_;
   EntityDispatcherMap dispatchers_;
   static bool enable_queued_dispatch_;
+  int dispatch_count_ = 0;
+  std::unordered_set<Entity> queued_destruction_;
+
+
+  Dispatcher universal_dispatcher_;
 
   DispatcherSystem(const DispatcherSystem&);
   DispatcherSystem& operator=(const DispatcherSystem&);
@@ -122,6 +153,7 @@ class DispatcherSystem : public System {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::DispatcherSystem::EntityEvent);
 LULLABY_SETUP_TYPEID(lull::DispatcherSystem);
 
 #endif  // LULLABY_SYSTEMS_DISPATCHER_DISPATCHER_SYSTEM_H_

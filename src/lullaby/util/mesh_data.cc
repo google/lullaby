@@ -42,6 +42,8 @@ Index MeshData::AddVertices(const uint8_t* data, size_t count,
     return kInvalidIndex;
   }
 
+  aabb_is_dirty_ = true;
+
   return first_vertex_index;
 }
 
@@ -65,6 +67,41 @@ bool MeshData::AddIndices(const Index* list, size_t count) {
   }
 
   return true;
+}
+
+Aabb MeshData::GetAabb() const {
+  if (aabb_is_dirty_) {
+    aabb_is_dirty_ = false;
+
+    if (num_vertices_ == 0) {
+      aabb_ = Aabb();
+      return aabb_;
+    }
+
+    if (!vertex_data_.IsReadable()) {
+      LOG(DFATAL) << "Can't compute aabb for MeshData with no read access";
+      aabb_ = Aabb();
+      return aabb_;
+    }
+
+    auto* vertices = vertex_data_.GetReadPtr();
+
+    DCHECK(vertex_format_.GetAttributeAt(0).usage ==
+           VertexAttribute::kPosition);
+    mathfu::vec3 first_position;
+    memcpy(&first_position, vertices, sizeof(first_position));
+    aabb_.min = first_position;
+    aabb_.max = first_position;
+
+    ForEachVertexPosition(vertices + vertex_format_.GetVertexSize(),
+                          num_vertices_ - 1, vertex_format_,
+                          [this](const mathfu::vec3& position) {
+                            aabb_.min = mathfu::vec3::Min(aabb_.min, position);
+                            aabb_.max = mathfu::vec3::Max(aabb_.max, position);
+                          });
+  }
+
+  return aabb_;
 }
 
 }  // namespace lull

@@ -462,14 +462,14 @@ bool ReticleSystem::IsInsideEntityDeadZone(Entity collided_entity) const {
                                       *world_from_collided, modified_aabb);
 }
 Entity ReticleSystem::GetReticle() const {
-  if (reticle_.get()) {
+  if (reticle_) {
     return reticle_->GetEntity();
   }
   return kNullEntity;
 }
 
 Entity ReticleSystem::GetTarget() const {
-  if (reticle_.get()) {
+  if (reticle_) {
     return reticle_->target_entity;
   }
   return kNullEntity;

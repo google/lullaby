@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_BASE_HASH_H_
 #define LULLABY_BASE_HASH_H_
 
-// BUG(b/38344298): Remove this header file entirely.
+// TODO(b/38344298): Remove this header file entirely.
 #include "lullaby/util/hash.h"
 
 #endif  // LULLABY_BASE_HASH_H_

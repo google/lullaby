@@ -54,7 +54,7 @@ class StringPreprocessor {
   };
 
   struct ProcessStringRequest {
-    // BUG(b/31468905) Change this to a const char*.
+    // TODO(b/31468905) Change this to a const char*.
     std::string text = "";
     ProcessMode mode = kNoPrefix;
   };

@@ -142,6 +142,17 @@ class MeshData {
     return AddIndices(indices.begin(), indices.size());
   }
 
+  // Calculates the axis-aligned bounding box from the current vertices by
+  // iterating through all the vertex positions and tracking the min and max
+  // value found for each vec3 component.  A zero sized Aabb is returned if the
+  // vertex count is zero or the vertex data is unreadable.  The index data is
+  // unused--all vertices present are assumed to be used and participate in the
+  // calculation of the Aabb.
+  //
+  // *NOTE* While this function is const, it is not thread-safe due to some
+  // cached mutable data storing the aabb state.
+  Aabb GetAabb() const;
+
  private:
   const PrimitiveType primitive_type_;
   const VertexFormat vertex_format_;
@@ -151,6 +162,11 @@ class MeshData {
   // in a field so the user can access this info without knowing the vertex
   // format.
   Index num_vertices_;
+  // The mesh aabb is cached when it is computed, so we keep track of a dirty
+  // flag, setting it whenever vertices are changed and clearing it whenever
+  // the aabb is computed.
+  mutable bool aabb_is_dirty_ = true;
+  mutable Aabb aabb_;
 };
 
 }  // namespace lull

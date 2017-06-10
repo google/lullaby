@@ -22,6 +22,45 @@ limitations under the License.
 
 namespace lull {
 
+size_t GetTesselatedQuadVertexCount(int num_verts_x, int num_verts_y,
+                                    int corner_verts,
+                                    size_t* num_interior_verts_x,
+                                    size_t* num_interior_verts_y) {
+  const size_t interior_verts_x =
+      corner_verts > 0 ? num_verts_x - 2 : num_verts_x;
+  const size_t interior_verts_y =
+      corner_verts > 0 ? num_verts_y - 2 : num_verts_y;
+  const size_t num_border_verts =
+      corner_verts > 0
+          ? (4 * corner_verts) + (2 * interior_verts_x) + (2 * interior_verts_y)
+          : 0;
+
+  if (num_interior_verts_x) {
+    *num_interior_verts_x = interior_verts_x;
+  }
+  if (num_interior_verts_y) {
+    *num_interior_verts_y = interior_verts_y;
+  }
+
+  // The radiused corners add |corner_verts| vertices for each of the four
+  // corners as well as an additional line of interior verts on each side
+  // of the quad for the tabs.
+  return (interior_verts_x * interior_verts_y) + num_border_verts;
+}
+
+size_t GetTesselatedQuadIndexCount(int num_verts_x, int num_verts_y,
+                                   int corner_verts) {
+  const int quads_x = num_verts_x - 1;
+  const int quads_y = num_verts_y - 1;
+  // Addition of radiused corners remove the 4 outer quads for a total of 24
+  // indices saved but add corner_verts + 1 triangles at each of the 4 corners.
+  const size_t num_indices = corner_verts > 0 ? (quads_x * quads_y * 6) - 24 +
+                                                    (12 * (corner_verts + 1))
+                                              : quads_x * quads_y * 6;
+
+  return num_indices;
+}
+
 std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
                                                      int num_verts_y,
                                                      int corner_verts) {
@@ -162,7 +201,7 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
   return indices;
 }
 
-// BUG(b/28863495) Remove this when mesh consolidation is complete.
+// TODO(b/28863495) Remove this when mesh consolidation is complete.
 void ApplyDeformation(float* vertices, size_t len, size_t stride,
                       std::function<mathfu::vec3(const mathfu::vec3&)> deform) {
   for (size_t i = 0; i < len; i += stride) {

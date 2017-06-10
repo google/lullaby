@@ -24,6 +24,9 @@ namespace lull {
 
 // Structure representing a viewport used for rendering.
 struct RenderView {
+  static const float kDefaultNearClipPlane;
+  static const float kDefaultFarClipPlane;
+
   mathfu::vec2i viewport;
   mathfu::vec2i dimensions;
   mathfu::mat4 world_from_eye_matrix;
@@ -32,18 +35,29 @@ struct RenderView {
   InputManager::EyeType eye = 1;
 };
 
-// Populates the RenderView arrays using the HMD data.
+// Populates the RenderView arrays using information from the InputManager.
+void PopulateRenderViews(Registry* registry, RenderView* views, size_t num,
+                         float near_clip_plane, float far_clip_plane);
+
+// Similar to above, but allows for explicit render target size and clip planes
+// to be used.
 void PopulateRenderViews(Registry* registry, RenderView* views, size_t num,
                          float near_clip_plane, float far_clip_plane,
                          const mathfu::vec2i& render_target_size);
 
+// Similar to above, but allows for a default near/far clip planes to be used.
+inline void PopulateRenderViews(Registry* registry, RenderView* views,
+                                size_t num) {
+  PopulateRenderViews(registry, views, num, RenderView::kDefaultNearClipPlane,
+                      RenderView::kDefaultFarClipPlane);
+}
+
+// Similar to above, but allows for explicit render target size to be used.
 inline void PopulateRenderViews(Registry* registry, RenderView* views,
                                 size_t num,
                                 const mathfu::vec2i& render_target_size) {
-  const float near_clip_plane = 0.2f;
-  const float far_clip_plane = 1000.f;
-  PopulateRenderViews(registry, views, num, near_clip_plane, far_clip_plane,
-                      render_target_size);
+  PopulateRenderViews(registry, views, num, RenderView::kDefaultNearClipPlane,
+                      RenderView::kDefaultFarClipPlane, render_target_size);
 }
 
 }  // namespace lull

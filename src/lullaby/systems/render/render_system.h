@@ -102,6 +102,21 @@ class RenderSystem : public System {
   // Initializes inter-system dependencies.
   void Initialize() override;
 
+  /// Sets the Render System to begin rendering. This will also attempt to swap
+  /// the render data to the latest data submitted via |Submit()|. Must be
+  /// called before any render calls are made and finished by calling
+  /// |EndRendering()|.
+  void BeginRendering();
+  /// Sets the Render System to finish the render sequence. This also frees the
+  /// render buffer data for writing new data. Must be preceded by
+  /// |BeginRendering()|.
+  void EndRendering();
+
+  /// Submits the render data buffers to be processed for rendering. Note this
+  /// doesn't actually render the data, only makes the buffers ready to be
+  /// processed by the render functions.
+  void SubmitRenderData();
+
   /// Sets the render system to draw in stereoscopic multi view mode.
   void SetStereoMultiviewEnabled(bool enabled);
 
@@ -253,7 +268,7 @@ class RenderSystem : public System {
   void SetQuad(Entity e, const Quad& quad);
 
   // Attaches a mesh to the specified Entity.
-  // BUG(b/34981311): This is not a template because it would be annoying to
+  // TODO(b/34981311): This is not a template because it would be annoying to
   // unpack the TriangleMesh into vertices and indices, since we'll need to pack
   // it back up into a TriangleMesh anyways to use some nice helper methods.
   // This will get fixed when we migrate over to using MeshData instead.
@@ -263,7 +278,7 @@ class RenderSystem : public System {
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
 
   // Attaches a mesh to the specified entity.
-  // BUG(b/34981311): Replace with SetMesh(Entity, MeshData&) instead.
+  // TODO(b/34981311): Replace with SetMesh(Entity, MeshData&) instead.
   void SetMesh(Entity e, const HeapDynamicMesh& mesh);
 
   // Attaches a mesh to the specified Entity. Does not apply deformation.

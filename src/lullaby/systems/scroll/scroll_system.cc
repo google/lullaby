@@ -17,16 +17,17 @@ limitations under the License.
 #include "lullaby/systems/scroll/scroll_system.h"
 
 #include "lullaby/generated/scroll_def_generated.h"
-#include "lullaby/util/bits.h"
 #include "lullaby/base/dispatcher.h"
 #include "lullaby/base/input_manager.h"
 #include "lullaby/events/entity_events.h"
 #include "lullaby/events/input_events.h"
+#include "lullaby/events/lifetime_events.h"
 #include "lullaby/events/scroll_events.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/scroll/scroll_channels.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/bits.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/mathfu_fb_conversions.h"
 #include "lullaby/util/time.h"
@@ -89,6 +90,14 @@ ScrollSystem::ScrollSystem(Registry* registry)
       this, [this](const OnEnabledEvent& ev) { OnEntityEnabled(ev.target); });
   dispatcher->Connect(
       this, [this](const OnDisabledEvent& ev) { OnEntityDisabled(ev.target); });
+  dispatcher->Connect(this, [this](const OnResumeEvent& ev) {
+    // Snap partially scrolled views back to their last snapped point on resume,
+    // if applicable. This prevents the user from partially scrolling a view,
+    // leaving an app, and then returning to see the view still off-center.
+    for (const auto& view : views_) {
+      SnapByDelta(view.GetEntity(), 0, 0);
+    }
+  });
   dispatcher->Connect(this, [this](const OnInteractionEnabledEvent& ev) {
     OnEntityEnabled(ev.entity);
   });
@@ -229,20 +238,33 @@ void ScrollSystem::SetPriority(Entity entity, int priority) {
 void ScrollSystem::SetContentBounds(Entity entity, const Aabb& bounds) {
   ScrollView* view = views_.Get(entity);
   if (view) {
-    view->content_bounds = bounds;
-    if (view->snap_offset_fn) {
-      mathfu::vec2 min = view->snap_offset_fn(
-          view->content_bounds.min.xy(), InputManager::GestureDirection::kNone,
-          view->content_bounds, kSetBounds);
-      view->content_bounds.min.x = min.x;
-      view->content_bounds.min.y = min.y;
-      mathfu::vec2 max = view->snap_offset_fn(
-          view->content_bounds.max.xy(), InputManager::GestureDirection::kNone,
-          view->content_bounds, kSetBounds);
-      view->content_bounds.max.x = max.x;
-      view->content_bounds.max.y = max.y;
-    }
+    ActuallySetContentBounds(view, bounds);
     SetViewOffset(entity, view->target_offset);
+  }
+}
+
+void ScrollSystem::ForceContentBounds(Entity entity, const Aabb& bounds) {
+  ScrollView* view = views_.Get(entity);
+  if (view) {
+    ActuallySetContentBounds(view, bounds);
+    ForceViewOffset(entity, view->target_offset);
+  }
+}
+
+void ScrollSystem::ActuallySetContentBounds(ScrollView* view,
+                                            const Aabb& bounds) {
+  view->content_bounds = bounds;
+  if (view->snap_offset_fn) {
+    mathfu::vec2 min = view->snap_offset_fn(
+        view->content_bounds.min.xy(), InputManager::GestureDirection::kNone,
+        view->content_bounds, kSetBounds);
+    view->content_bounds.min.x = min.x;
+    view->content_bounds.min.y = min.y;
+    mathfu::vec2 max = view->snap_offset_fn(
+        view->content_bounds.max.xy(), InputManager::GestureDirection::kNone,
+        view->content_bounds, kSetBounds);
+    view->content_bounds.max.x = max.x;
+    view->content_bounds.max.y = max.y;
   }
 }
 
@@ -574,6 +596,9 @@ void ScrollSystem::UpdateInputView(Entity entity, int priority) {
 }
 
 void ScrollSystem::RemoveInputView(Entity entity) {
+  if (current_hover_view_ == entity) {
+    current_hover_view_ = kNullEntity;
+  }
   if (input_views_.empty()) {
     // Do nothing.
   } else if (input_views_.back().entity == entity) {

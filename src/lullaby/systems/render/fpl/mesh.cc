@@ -75,7 +75,7 @@ Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)) {
       impl_ ? static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3) : 0;
 }
 
-// BUG(b/31523782): Remove once pipeline for HeapDynamicMesh is in-place.
+// TODO(b/31523782): Remove once pipeline for HeapDynamicMesh is in-place.
 Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
   static const fplbase::Attribute kAttributes[] = {
       fplbase::kPosition3f, fplbase::kEND,
@@ -84,7 +84,7 @@ Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
   num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
 }
 
-// BUG(b/31523782): Remove once pipeline for HeapDynamicMesh is in-place.
+// TODO(b/31523782): Remove once pipeline for HeapDynamicMesh is in-place.
 Mesh::Mesh(const TriangleMesh<VertexPT>& mesh) {
   static const fplbase::Attribute kAttributes[] = {
       fplbase::kPosition3f, fplbase::kTexCoord2f, fplbase::kEND,
@@ -104,7 +104,7 @@ Mesh::Mesh(const MeshData& mesh) {
   fplbase::Attribute attributes[kMaxFplAttributeArraySize];
   GetFplAttributes(mesh.GetVertexFormat(), attributes);
   impl_ = CreateMesh(mesh, attributes);
-  // BUG(b/62088621): Fix this calculation for different primitive types.
+  // TODO(b/62088621): Fix this calculation for different primitive types.
   num_triangles_ = static_cast<int>(mesh.GetNumIndices() / 3);
 }
 
@@ -183,12 +183,13 @@ void Mesh::Render(fplbase::Renderer* renderer, fplbase::BlendMode blend_mode) {
   renderer->Render(impl_.get(), ignore_material);
 }
 
-// BUG(b/30033982) cache fpl attributes for vertex formats.
+// TODO(b/30033982) cache fpl attributes for vertex formats.
 void Mesh::GetFplAttributes(
     const VertexFormat& format,
     fplbase::Attribute attributes[kMaxFplAttributeArraySize]) {
   // Make sure there's space for the kEND terminator.
-  CHECK_LT(format.GetNumAttributes() + 1, kMaxFplAttributeArraySize);
+  CHECK_LT(format.GetNumAttributes() + 1,
+           static_cast<int>(kMaxFplAttributeArraySize));
 
   for (size_t i = 0; i < format.GetNumAttributes(); ++i) {
     const VertexAttribute& src = format.GetAttributeAt(i);

@@ -37,6 +37,13 @@ class RenderStats {
     kTextureSize,  // Checks for potentially erroneous texture sizes.
   };
 
+  struct EnumClassHash {
+    template <typename T>
+    std::size_t operator()(T t) const {
+      return static_cast<std::size_t>(t);
+    }
+  };
+
   // Do not create RenderStats directly.  Instead, create via registry, eg:
   // registry.Create<RenderStats>(&registry);
   explicit RenderStats(Registry* registry);
@@ -66,7 +73,7 @@ class RenderStats {
   void EndFrame();
 
   Registry* registry_;
-  std::unordered_set<Layer> layers_;
+  std::unordered_set<Layer, EnumClassHash> layers_;
   std::unique_ptr<SimpleFont> font_;
   ShaderPtr font_shader_;
   TexturePtr font_texture_;

@@ -38,6 +38,25 @@ TransformSystem::TransformSystem(Registry* registry)
       reserved_flags_(0) {
   RegisterDef(this, kTransformDefHash);
 
+  EntityFactory* entity_factory = registry_->Get<EntityFactory>();
+  if (entity_factory) {
+    entity_factory->SetCreateChildFn([this, entity_factory](
+                                         Entity parent,
+                                         BlueprintTree* bpt) -> Entity {
+      if (parent == kNullEntity) {
+        LOG(DFATAL) << "Attempted to create a child for a null parent. "
+                    << "Creating child as a parentless entity instead";
+        return entity_factory->Create(bpt);
+      }
+
+      const Entity child = entity_factory->Create();
+      pending_children_[child] = parent;
+      const Entity created_child = entity_factory->Create(child, bpt);
+      pending_children_.erase(child);
+      return created_child;
+    });
+  }
+
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
     binder->RegisterMethod("lull.Transform.Enable",

@@ -37,6 +37,28 @@ mathfu::vec4i GetEyeViewportBounds(InputManager::EyeType eye,
 
 }  // namespace
 
+const float RenderView::kDefaultNearClipPlane = 0.2f;
+const float RenderView::kDefaultFarClipPlane = 1000.f;
+
+void PopulateRenderViews(Registry* registry, RenderView* views, size_t num,
+                         float near_clip_plane, float far_clip_plane) {
+  if (!registry) {
+    LOG(DFATAL) << "PopulateRenderViews called without valid registry.";
+    return;
+  }
+  PopulateRenderViews(registry, views, num, near_clip_plane, far_clip_plane,
+                      mathfu::vec2i(2, 2));
+  auto* input_manager = registry->Get<InputManager>();
+  for (size_t i = 0; i < num; ++i) {
+    const InputManager::EyeType eye = static_cast<InputManager::EyeType>(i);
+    const mathfu::recti viewport =
+        input_manager->GetEyeViewport(InputManager::kHmd, eye);
+    views[i].viewport = viewport.pos;
+    views[i].dimensions = viewport.size;
+  }
+}
+
+
 void PopulateRenderViews(Registry* registry, RenderView* views, size_t num,
                          float near_clip_plane, float far_clip_plane,
                          const mathfu::vec2i& render_target_size) {

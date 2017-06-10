@@ -241,7 +241,7 @@ AnimationId AnimationSystem::PlaySplineAnimation(
       }
     }
     if (asset) {
-      // BUG(b/30696097): Correctly merge multiple animation assets so that we
+      // TODO(b/30696097): Correctly merge multiple animation assets so that we
       // don't overwrite assets with multiple splines here. Here we allow the
       // ith spline to populate dimensions - i channels. Subsequent files will
       // overwrite all but the first spline in each file.

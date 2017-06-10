@@ -36,6 +36,13 @@ enum TextWrapMode : int {
   Hyphenate,
 }
 
+/// Controls the reading direction of text.
+enum TextDirection : int {
+  UseSystemSetting,
+  LeftToRight,
+  RightToLeft,
+}
+
 /// Specifies information about the font used for text rendering in a RenderDef.
 table TextDef {
   /// Optional.  The unprocessed text string.  If a StringProcessor exists in
@@ -69,6 +76,10 @@ table TextDef {
   /// Optional.  How to align the text in the y direction (default = Baseline,
   /// can also be Top, Center, or Bottom).
   vertical_alignment: VerticalAlignment = Baseline;
+
+  /// Optional. How text should be displayed (default = UseSystemSetting,
+  /// can also be LeftToRight and RightToLeft).
+  direction: TextDirection = UseSystemSetting;
 
   /// Optional.  Rectangle area to render the text.  If both are zeros,
   /// text will be rendered in a single line.  If height is zero, text will be
@@ -106,6 +117,6 @@ table TextDef {
   /// using this blueprint.
   link_underline_blueprint: string;
 
-  // BUG(b/33705812) Add blueprint for suggestion / highlight underline.
-  // BUG(b/33705315) Add caret_blueprint.
+  // TODO(b/33705812) Add blueprint for suggestion / highlight underline.
+  // TODO(b/33705315) Add caret_blueprint.
 }

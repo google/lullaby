@@ -3,8 +3,7 @@ include "lull/common.fbs";
 namespace lull;
 
 /// Configures the reticle (VR cursor).
-/// Apps should consider reusing
-/// google3/vr/internal/lullaby/data/blueprints/reticle.json.
+/// Apps should consider reusing: lullaby/data/blueprints/reticle.json.
 /// In case of changing any of these values, please update reticle_template.fbs.
 table ReticleDef {
   ring_active_diameter: float = 1.0;

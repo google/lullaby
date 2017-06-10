@@ -69,17 +69,17 @@ class RenderFactory {
   void LoadTextureAtlas(const std::string& filename, bool create_mips);
 
   // Creates a mesh using the specified data.
-  // BUG(b/31523782): Remove once pipeline for MeshData is stable.
+  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   template <typename Vertex>
   MeshPtr CreateMesh(const TriangleMesh<Vertex>& mesh);
 
   // Creates a named mesh using the specified data.
-  // BUG(b/31523782): Remove once pipeline for MeshData is stable.
+  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   template <typename Vertex>
   MeshPtr CreateMesh(HashValue key, const TriangleMesh<Vertex>& mesh);
 
   // Creates a mesh using the specified data.
-  // BUG(b/31523782): Remove once pipeline for MeshData is stable.
+  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   MeshPtr CreateMesh(const HeapDynamicMesh& mesh);
 
   // Creates a mesh using the specified data.

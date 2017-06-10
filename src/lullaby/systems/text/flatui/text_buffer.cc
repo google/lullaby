@@ -85,7 +85,7 @@ TextBuffer::TextBuffer(flatui::FontManager* manager,
     : font_manager_(manager), font_buffer_(font_buffer), params_(params) {
   font_manager_->StartLayoutPass();
 
-  // BUG(b/30064717): Don't make copy once flatui support creating font
+  // TODO(b/30064717): Don't make copy once flatui support creating font
   // buffer without cache.
   const std::vector<flatui::FontVertex> glyph_vertices =
       font_buffer_->get_vertices();
@@ -106,10 +106,10 @@ TextBuffer::TextBuffer(flatui::FontManager* manager,
       }
       links_.push_back({link.link, aabbs});
     }
-
+    const bool is_rtl = params.direction == TextDirection_RightToLeft;
     std::vector<mathfu::vec3_packed> underline_vertices =
         flatui::GenerateUnderlineVertices(*font_buffer_, mathfu::kZeros2f,
-            IsRightToLeft());
+            is_rtl);
     underline_vertices_.reserve(underline_vertices.size());
     for (const mathfu::vec3_packed& position : underline_vertices) {
       underline_vertices_.emplace_back(mathfu::vec3(position),
@@ -337,10 +337,6 @@ TriangleMesh<VertexPT> TextBuffer::BuildUnderlineMesh() const {
   return mesh;
 }
 
-bool TextBuffer::IsRightToLeft() {
-  return false;
-}
-
 TextBufferPtr TextBuffer::Create(flatui::FontManager* manager,
                                  const std::string& text,
                                  const TextBufferParams& params) {
@@ -355,7 +351,7 @@ TextBufferPtr TextBuffer::Create(flatui::FontManager* manager,
   // correctly.
   flatui::TextLayoutDirection layout_direction =
       flatui::kTextLayoutDirectionLTR;
-  if (IsRightToLeft()) {
+  if (params.direction == TextDirection_RightToLeft) {
     layout_direction = flatui::kTextLayoutDirectionRTL;
   }
   manager->SetLayoutDirection(layout_direction);
@@ -409,7 +405,7 @@ TextBufferPtr TextBuffer::Create(flatui::FontManager* manager,
 
   flatui::FontBufferParameters flatui_params(
       manager->GetCurrentFont()->GetFontId(), flatui::HashId(text.c_str()),
-      // BUG(b/33921724) Don't base font size on world size.
+      // TODO(b/33921724) Don't base font size on world size.
       kPixelsFromMetersScale * params.font_size, flatui_size, halign,
       flatui::GlyphFlags::kGlyphFlagsOuterSDF |
           flatui::GlyphFlags::kGlyphFlagsInnerSDF,

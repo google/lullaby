@@ -77,11 +77,39 @@ struct UnhiddenEvent {
   Entity entity = kNullEntity;
 };
 
+// Invokes RenderSystem::Hide(entity)
+struct HideEvent {
+  HideEvent() {}
+  explicit HideEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+// Invokes RenderSystem::Show(entity)
+struct ShowEvent {
+  ShowEvent() {}
+  explicit ShowEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::ReadyToRenderEvent);
 LULLABY_SETUP_TYPEID(lull::TextureReadyEvent);
 LULLABY_SETUP_TYPEID(lull::HiddenEvent);
 LULLABY_SETUP_TYPEID(lull::UnhiddenEvent);
+LULLABY_SETUP_TYPEID(lull::HideEvent);
+LULLABY_SETUP_TYPEID(lull::ShowEvent);
 
 #endif  // LULLABY_EVENTS_RENDER_EVENTS_H_

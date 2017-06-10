@@ -187,7 +187,7 @@ void DisplayList<Component>::Populate(const RenderPool<Component>& pool,
         pool.GetTransformFlag(),
         [&](Entity e, const mathfu::mat4& world_from_entity_mat,
             const Aabb& box) {
-          // BUG(b/28213394) Don't copy transforms.
+          // TODO(b/28213394) Don't copy transforms.
           Entry info(e);
           info.world_from_entity_matrix = world_from_entity_mat;
           list_.push_back(info);
@@ -208,13 +208,13 @@ void DisplayList<Component>::Populate(const RenderPool<Component>& pool,
         pool.GetTransformFlag(),
         [&](Entity e, const mathfu::mat4& world_from_entity_mat,
             const Aabb& box) {
-          // BUG(b/28213394) Don't copy transforms.
+          // TODO(b/28213394) Don't copy transforms.
           Entry info(e);
           info.world_from_entity_matrix = world_from_entity_mat;
 
           // Compute the bounding sphere from bounding box and transform it
           // to world space because the view's frustum is in world space.
-          // BUG(b/30646608): This should be cached since most entities are
+          // TODO(b/30646608): This should be cached since most entities are
           // static in nature and will result in improved performance.
           const float radius = (box.max - box.min).Length() * 0.5f;
           const mathfu::vec3 center =

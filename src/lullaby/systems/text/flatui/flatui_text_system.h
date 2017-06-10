@@ -63,6 +63,8 @@ class FlatuiTextSystem : public TextSystemImpl {
                               HorizontalAlignment horizontal) override;
   void SetVerticalAlignment(Entity entity, VerticalAlignment vertical) override;
 
+  void SetTextDirection(TextDirection direction) override;
+
   const std::vector<LinkTag>* GetLinkTags(Entity entity) const override;
   const std::vector<mathfu::vec3>* GetCaretPositions(
       Entity entity) const override;
@@ -161,6 +163,9 @@ class FlatuiTextSystem : public TextSystemImpl {
 
   // Flag to track if hyphenation data has been initialized.
   bool hyphenation_initialized_ = false;
+
+  // Global text direction that applies to text entities to be created.
+  TextDirection text_direction_ = TextDirection_LeftToRight;
 };
 
 }  // namespace lull

@@ -61,7 +61,7 @@ class UnorderedVectorMap {
 
   // Default implementation of move constructor.  The MSVC12 toolchain does not
   // support =default for move constructors, so define it explicitly.
-  // BUG(b/28276908) Remove after switch to MSVC 2015.
+  // TODO(b/28276908) Remove after switch to MSVC 2015.
   UnorderedVectorMap(UnorderedVectorMap&& rhs)
       : objects_(std::move(rhs.objects_)),
         lookup_table_(std::move(rhs.lookup_table_)),
@@ -69,7 +69,7 @@ class UnorderedVectorMap {
 
   // Default implementation of move assignment.  The MSVC12 toolchain does not
   // support =default for move assignment, so define it explicitly.
-  // BUG(b/28276908) Remove after switch to MSVC 2015.
+  // TODO(b/28276908) Remove after switch to MSVC 2015.
   UnorderedVectorMap& operator=(UnorderedVectorMap&& rhs) {
     if (this != &rhs) {
       objects_ = std::move(rhs.objects_);

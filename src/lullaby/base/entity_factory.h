@@ -18,13 +18,16 @@ limitations under the License.
 #define LULLABY_BASE_ENTITY_FACTORY_H_
 
 #include <stddef.h>
+#include <list>
 #include <mutex>
 #include <queue>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "lullaby/base/asset.h"
 #include "lullaby/base/blueprint.h"
+#include "lullaby/base/blueprint_tree.h"
 #include "lullaby/base/dependency_checker.h"
 #include "lullaby/base/entity.h"
 #include "lullaby/base/registry.h"
@@ -128,12 +131,20 @@ class EntityFactory {
   // in the specified |blueprint|.
   Entity Create(Blueprint* blueprint);
 
+  // Creates a new Entity hierarchy and associates Components with the entities
+  // that are defined int he specified |hierarchical_blueprint|.  Returns the
+  // root entity of the hierarchy.
+  Entity Create(BlueprintTree* blueprint);
+
   // Populates the specified |entity| with the data in the EntityDef Blueprint
   // specified by |name|.  Ideally, the Entity does not have any Components
   // associated with it (ie. it is a freshly created Entity from calling
   // EntityFactory::Create()). Returns the same Entity if the operation was
   // successful, kNullEntity otherwise.
   Entity Create(Entity entity, const std::string& name);
+  // Similar to the above, but uses a BlueprintTree instead of the filename
+  // of a blueprint.
+  Entity Create(Entity entity, BlueprintTree* blueprint);
 
   // Creates a new Entity from raw blueprint data.  This data should not be
   // confused with the Blueprint class.  Instead, it is raw binary data from
@@ -160,6 +171,12 @@ class EntityFactory {
   // Gets or loads off disk a blueprint asset with the given |name|.
   std::shared_ptr<SimpleAsset> GetBlueprintAsset(const std::string& name);
 
+  // Sets the function used to make one entity a child of another.  Typically
+  // set by the Transform system when it initializes.
+  using CreateChildFn =
+      std::function<Entity(Entity parent, BlueprintTree* bpt)>;
+  void SetCreateChildFn(CreateChildFn fn) { create_child_fn_ = std::move(fn); }
+
  private:
   // Basic unique lock around a mutex.
   using Lock = std::unique_lock<std::mutex>;
@@ -174,9 +191,9 @@ class EntityFactory {
   using TypeList = std::vector<System::DefType>;
 
   // Function that creates a blueprint from raw data.
-  using LoadBlueprintFromDataFn = std::function<Blueprint(const void*)>;
+  using LoadBlueprintFromDataFn = std::function<BlueprintTree(const void*)>;
   using FinalizeBlueprintDataFn =
-      std::function<void(FlatbufferWriter* writer, Blueprint* bp)>;
+      std::function<size_t(FlatbufferWriter* writer, Blueprint* bp)>;
 
   // Calls System::Initialize for all Systems created by the EntityFactory.
   void InitializeSystems();
@@ -195,13 +212,19 @@ class EntityFactory {
 
   // Performs the actual creation of the |entity| using the |blueprint|.
   // Returns true if entity was successfully created, false otherwise.
-  bool CreateImpl(Entity entity, Blueprint* blueprint);
+  bool CreateImpl(Entity entity, Blueprint* blueprint,
+                  std::list<BlueprintTree>* children = nullptr);
+  bool CreateImpl(Entity entity, BlueprintTree* blueprint);
 
   // Caches the System mapped to the type.
   void AddSystem(TypeId system_type, System* system);
 
   // Gets a System associated with a DefType.
   System* GetSystem(const System::DefType def_type);
+
+  // Create a blueprint tree from an entity def.
+  template <typename EntityDef, typename ComponentDef>
+  BlueprintTree BlueprintTreeFromEntityDef(const EntityDef* entity_def);
 
   // The registry is used to create and own Systems.
   Registry* registry_;
@@ -240,6 +263,14 @@ class EntityFactory {
   // Mutex for ensuring thread-safe operations.
   std::mutex mutex_;
 
+  // Default create_child_fn simply creates the child without a parent for cases
+  // where there's no TransformSystem.  If the TransformSystem is used, it
+  // provides it's own implementation which establishes the expected parent /
+  // child relationship.
+  CreateChildFn create_child_fn_ = [this](Entity parent, BlueprintTree* bpt) {
+    return Create(bpt);
+  };
+
   EntityFactory(const EntityFactory& rhs) = delete;
   EntityFactory& operator=(const EntityFactory& rhs) = delete;
 };
@@ -271,32 +302,79 @@ void EntityFactory::Initialize(GetEntityDefFn get_entity_def,
   InitializeFinalizer<EntityDef, ComponentDef>();
 }
 
+namespace detail {
+// This is the fallback version of ChildAccessor::Make for EntityDef's
+// that don't have a 'children' member.
+template <typename EntityDef, typename ComponentDef, typename = int>
+struct ChildAccessor {
+  static std::list<BlueprintTree> Children(
+      const EntityDef* entity_def,
+      const std::function<BlueprintTree(const EntityDef*)>& tree_fn) {
+    return std::list<BlueprintTree>();
+  }
+};
+
+// This version of ChildAccessor::Make is for EntityDef's that do have a
+// 'children' member.
+template <typename EntityDef, typename ComponentDef>
+struct ChildAccessor<EntityDef, ComponentDef,
+                     decltype((void)&EntityDef::children, 0)> {
+  static std::list<BlueprintTree> Children(
+      const EntityDef* entity_def,
+      const std::function<BlueprintTree(const EntityDef*)>& tree_fn) {
+    std::list<BlueprintTree> retval;
+    const auto* children = entity_def->children();
+    if (!children) {
+      return retval;
+    }
+
+    for (int i = 0; i < static_cast<int>(children->size()); ++i) {
+      const auto* entity_def = children->Get(i);
+      retval.emplace_back(std::move(tree_fn(entity_def)));
+    }
+    return retval;
+  }
+};
+}  // namespace detail
+
+template <typename EntityDef, typename ComponentDef>
+BlueprintTree EntityFactory::BlueprintTreeFromEntityDef(
+    const EntityDef* entity_def) {
+  const auto* components = entity_def->components();
+
+  // Returns a type+flatbuffer::Table pair for a given index.  The Blueprint
+  // uses this function (along with the total size) to iterate over
+  // components without having to know about the internal details/structure
+  // of the container containing those components.
+  auto component_accessor = [this, components](size_t index) {
+    const ComponentDef* component = components->Get(static_cast<int>(index));
+    const int type = static_cast<int>(component->def_type());
+    const void* data = component->def();
+    const auto* table = reinterpret_cast<const flatbuffers::Table*>(data);
+    const bool valid_type = type >= 0 && type < static_cast<int>(types_.size());
+
+    std::pair<HashValue, const flatbuffers::Table*> result = {0, nullptr};
+    if (valid_type && table != nullptr) {
+      result.first = types_[type];
+      result.second = table;
+    }
+    return result;
+  };
+
+  auto children = detail::ChildAccessor<EntityDef, ComponentDef>::Children(
+      entity_def, [this](const EntityDef* def) {
+        return BlueprintTreeFromEntityDef<EntityDef, ComponentDef>(def);
+      });
+
+  return BlueprintTree(component_accessor, components->size(),
+                       std::move(children));
+}
+
 template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
 void EntityFactory::InitializeLoader(GetEntityDefFn get_entity_def) {
   loader_ = [=](const void* data) {
     const EntityDef* entity_def = get_entity_def(data);
-    const auto* components = entity_def->components();
-
-    // Returns a type+flatbuffer::Table pair for a given index.  The Blueprint
-    // uses this function (along with the total size) to iterate over
-    // components without having to know about the internal details/structure
-    // of the container containing those components.
-    auto accessor = [this, components](size_t index) {
-      const ComponentDef* component = components->Get(static_cast<int>(index));
-      const int type = static_cast<int>(component->def_type());
-      const void* data = component->def();
-      const auto* table = reinterpret_cast<const flatbuffers::Table*>(data);
-      const bool valid_type =
-          type >= 0 && type < static_cast<int>(types_.size());
-
-      std::pair<HashValue, const flatbuffers::Table*> result = {0, nullptr};
-      if (valid_type && table != nullptr) {
-        result.first = types_[type];
-        result.second = table;
-      }
-      return result;
-    };
-    return Blueprint(accessor, components->size());
+    return BlueprintTreeFromEntityDef<EntityDef, ComponentDef>(entity_def);
   };
 }
 
@@ -311,13 +389,17 @@ void EntityFactory::InitializeFinalizer() {
   //
   //   union ComponentDefType { ... }
   //   table ComponentDef { def: ComponentDefType; }
-  //   table EntityDef { components: [ComponentDef]; }
-  finalizer_ = [this](FlatbufferWriter* writer, Blueprint* blueprint) {
+  //   table EntityDef {
+  //           components: [ComponentDef];
+  //           children: [EntityDef];
+  //   }
+  finalizer_ = [this](FlatbufferWriter* writer,
+                      Blueprint* blueprint) -> size_t {
     // Create the vector of ComponentDefs.  The actual data stored by the union
     // is already "encoded" into the Blueprint.  We first need to wrap it in
     // a table, and then create a vector of those table objects.
     size_t count = 0;
-    const size_t vector_start = writer->StartVector();
+    const size_t components_start = writer->StartVector();
     blueprint->ForEachComponent([&](const Blueprint& bp) {
       const HashValue type = bp.GetLegacyDefType();
       const DefType def_type =
@@ -337,15 +419,15 @@ void EntityFactory::InitializeFinalizer() {
       writer->AddVectorReference(table);
       ++count;
     });
+    const size_t components_end = writer->EndVector(components_start, count);
 
-    const size_t vector_end = writer->EndVector(vector_start, count);
-
-    // Write the "final" table that contains the vector of components.  This
-    // returns the offset to the table, not the vtable.
+    // Write the "final" table that contains the vectors of components and
+    // children.  This returns the offset to the table, not the vtable.
     const size_t table_start = writer->StartTable();
-    writer->Reference(vector_end, EntityDef::VT_COMPONENTS);
+    writer->Reference(components_end, EntityDef::VT_COMPONENTS);
     const size_t table_end = writer->EndTable(table_start);
     writer->Finish(table_end);
+    return table_end;
   };
 }
 

@@ -50,6 +50,9 @@ class Dispatcher::EventHandlerMap {
   // Returns the number of active connections.
   size_t Size() const;
 
+  /// Returns the number of connections for an event of |type|.
+  size_t GetHandlerCount(TypeId type) const;
+
  private:
   // Wraps an EventHandler with two extra "tags" (ConnectionId id and const
   // void* owner) that can be used to find specific EventHandler instances.
@@ -92,6 +95,10 @@ Dispatcher::Connection Dispatcher::Connect(TypeId type, const void* owner,
   return ConnectImpl(type, owner, std::move(handler));
 }
 
+Dispatcher::ScopedConnection Dispatcher::ConnectToAll(EventHandler handler) {
+  return ConnectImpl(0, nullptr, std::move(handler));
+}
+
 void Dispatcher::Disconnect(TypeId type, const void* owner) {
   DisconnectImpl(type, owner);
 }
@@ -116,6 +123,10 @@ void Dispatcher::DisconnectImpl(TypeId type, const void* owner) {
 }
 
 size_t Dispatcher::GetHandlerCount() const { return handlers_->Size(); }
+
+size_t Dispatcher::GetHandlerCount(TypeId type) const {
+  return handlers_->GetHandlerCount(type);
+}
 
 Dispatcher::Connection::Connection() : type_(0), id_(0), handlers_() {}
 
@@ -209,10 +220,18 @@ void Dispatcher::EventHandlerMap::RemoveImpl(TypeId type,
 }
 
 void Dispatcher::EventHandlerMap::Dispatch(const EventWrapper& event) {
+  // NOTE: if you crash in this function, it may be because you destroyed an
+  // an Entity from inside an event handler.
+  // Call EntityFactory::QueueForDestruction instead.
   const TypeId type = event.GetTypeId();
 
   ++dispatch_count_;
   auto range = map_.equal_range(type);
+  for (auto it = range.first; it != range.second; ++it) {
+    it->second.fn(event);
+  }
+  // Send to handlers that are listening for all events.
+  range = map_.equal_range(0);
   for (auto it = range.first; it != range.second; ++it) {
     it->second.fn(event);
   }
@@ -232,5 +251,9 @@ void Dispatcher::EventHandlerMap::Dispatch(const EventWrapper& event) {
 }
 
 size_t Dispatcher::EventHandlerMap::Size() const { return map_.size(); }
+
+size_t Dispatcher::EventHandlerMap::GetHandlerCount(TypeId type) const {
+  return map_.count(type);
+}
 
 }  // namespace lull

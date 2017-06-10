@@ -204,7 +204,7 @@ bool Profiler::IsFrameProfiled(const Frame& f) const {
 }
 
 float Profiler::GetFrameFps(const Frame& f) const {
-  // BUG(b/28473647) use max of cpu / gpu when we get accurate gpu timings.
+  // TODO(b/28473647) use max of cpu / gpu when we get accurate gpu timings.
   // return (1000.0f / std::max(f.cpu_interval_ms, f.gpu_interval_ms));
   return (1.0f / SecondsFromMilliseconds(f.cpu_interval_ms));
 }

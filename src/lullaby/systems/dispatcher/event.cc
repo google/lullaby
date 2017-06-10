@@ -68,7 +68,7 @@ void SendEventDefsImpl(Registry* registry, Entity entity,
       }
     }
     event.SetValue(kEntityHash, entity);
-    // BUG(b/31110750): Should not need to specify target as well.
+    // TODO(b/31110750): Should not need to specify target as well.
     event.SetValue(kTargetHash, entity);
 
     if (immediate) {

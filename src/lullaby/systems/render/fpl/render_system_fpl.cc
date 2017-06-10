@@ -112,7 +112,7 @@ void RenderSystemFpl::SetStereoMultiviewEnabled(bool enabled) {
 }
 
 void RenderSystemFpl::PreloadFont(const char* name) {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   std::string filename(name);
   if (!EndsWith(filename, ".ttf")) {
     filename.append(".ttf");
@@ -124,7 +124,7 @@ void RenderSystemFpl::PreloadFont(const char* name) {
 }
 
 FontPtr RenderSystemFpl::LoadFonts(const std::vector<std::string>& names) {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   return text_system->LoadFonts(names);
@@ -176,16 +176,23 @@ void RenderSystemFpl::Create(Entity e, RenderPass pass) {
 
 void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
                                                    const RenderDef& data) {
-  auto& component =
-      render_component_pools_.GetPool(data.pass()).EmplaceComponent(e);
-  component.pass = data.pass();
+  RenderComponent* component;
+  if (data.hidden()) {
+    component = &render_component_pools_.GetPool(RenderPass_Invisible)
+        .EmplaceComponent(e);
+  } else {
+    component = &render_component_pools_.GetPool(data.pass())
+        .EmplaceComponent(e);
+  }
+  component->pass = data.pass();
+  component->hidden = data.hidden();
 
   if (data.shader()) {
     SetShader(e, LoadShader(data.shader()->str()));
   }
 
   if (data.font()) {
-    // BUG(b/33705809) Remove after apps use TextSystem directly.
+    // TODO(b/33705809) Remove after apps use TextSystem directly.
     TextSystem* text_system = registry_->Get<TextSystem>();
     CHECK(text_system) << "Missing text system.";
     text_system->CreateFromRenderDef(e, data);
@@ -205,12 +212,12 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
     mathfu::vec4 color;
     MathfuVec4FromFbColor(data.color(), &color);
     SetUniform(e, kColorUniform, &color[0], 4, 1);
-    component.default_color = color;
+    component->default_color = color;
   } else if (data.color_hex()) {
     mathfu::vec4 color;
     MathfuVec4FromFbColorHex(data.color_hex()->c_str(), &color);
     SetUniform(e, kColorUniform, &color[0], 4, 1);
-    component.default_color = color;
+    component->default_color = color;
   }
 
   if (data.uniforms()) {
@@ -491,7 +498,7 @@ void RenderSystemFpl::OnTextureLoaded(const RenderComponent& component,
   SetUniform(entity, kClampBoundsUniform, &clamp_bounds[0], 4, 1);
 
   if (factory_->IsTextureValid(texture)) {
-    // BUG(b/38130323) Add CheckTextureSizeWarning that does not depend on HMD.
+    // TODO(b/38130323) Add CheckTextureSizeWarning that does not depend on HMD.
 
     auto* dispatcher_system = registry_->Get<DispatcherSystem>();
     if (dispatcher_system) {
@@ -567,14 +574,14 @@ TexturePtr RenderSystemFpl::GetTexture(Entity entity, int unit) const {
 
 
 void RenderSystemFpl::SetText(Entity e, const std::string& text) {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   text_system->SetText(e, text);
 }
 
 const std::vector<LinkTag>* RenderSystemFpl::GetLinkTags(Entity e) const {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   const TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   return text_system->GetLinkTags(e);
@@ -734,14 +741,14 @@ void RenderSystemFpl::SetMesh(Entity e, MeshPtr mesh) {
 }
 
 void RenderSystemFpl::SetFont(Entity entity, const FontPtr& font) {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   text_system->SetFont(entity, font);
 }
 
 void RenderSystemFpl::SetTextSize(Entity entity, int size) {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   const float kMetersFromMillimeters = .001f;
   TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
@@ -755,7 +762,7 @@ void RenderSystemFpl::DeformMesh(Entity entity, TriangleMesh<Vertex>* mesh) {
   const Deformation deform =
       iter != deformations_.end() ? iter->second : nullptr;
   if (deform) {
-    // BUG(b/28313614) Use TriangleMesh::ApplyDeformation.
+    // TODO(b/28313614) Use TriangleMesh::ApplyDeformation.
     if (sizeof(Vertex) % sizeof(float) == 0) {
       const int stride = static_cast<int>(sizeof(Vertex) / sizeof(float));
       std::vector<Vertex>& vertices = mesh->GetVertices();
@@ -867,8 +874,8 @@ void RenderSystemFpl::SetDepthTest(const bool enabled) {
     glGetIntegerv(GL_DEPTH_BITS, &depth_bits);
     if (depth_bits == 0) {
       // This has been known to cause problems on iOS 10.
-      LOG_ONCE(WARNING) << "Enabling depth test without a depth buffer; this "
-                           "has known issues on some platforms.";
+      LOG(WARNING) << "Enabling depth test without a depth buffer; this "
+                      "has known issues on some platforms.";
     }
 #endif  // !ION_PRODUCTION
 
@@ -1083,7 +1090,7 @@ void RenderSystemFpl::SetShaderUniforms(const UniformMap& uniforms) {
     const RenderComponent::UniformData& uniform = iter.second;
     if (fplbase::ValidUniformHandle(uniform.location)) {
       const float* values = uniform.values.data();
-      // BUG(b/62000164): Add a `count` parameter to
+      // TODO(b/62000164): Add a `count` parameter to
       // fplbase::Shader::SetUniform() so that we don't have to make OpenGL
       // calls here.
       const int uniform_gl = fplbase::GlUniformHandle(uniform.location);
@@ -1133,7 +1140,7 @@ void RenderSystemFpl::DrawMeshFromComponent(const RenderComponent* component) {
 
 const std::vector<mathfu::vec3>* RenderSystemFpl::GetCaretPositions(
     Entity e) const {
-  // BUG(b/33705809) Remove after apps use TextSystem directly.
+  // TODO(b/33705809) Remove after apps use TextSystem directly.
   const TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   return text_system->GetCaretPositions(e);
@@ -1427,7 +1434,7 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
   mathfu::vec3 start_pos;
   float font_size;
 
-  // BUG(b/29914331) Separate, tested matrix decomposition util functions.
+  // TODO(b/29914331) Separate, tested matrix decomposition util functions.
   if (is_stereo) {
     const float kTopOfTextScreenScale = .45f;
     const float kFontScreenScale = .1f;
@@ -1442,7 +1449,7 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
     const float top = bottom + 2.0f / views[0].clip_from_eye_matrix[5];
     const float near_z = (1.0f + views[0].clip_from_eye_matrix[14]) /
                          views[0].clip_from_eye_matrix[10];
-    const int padding = 20;
+    const float padding = 20;
     font_size = 16;
     start_pos =
         mathfu::vec3(padding, top - padding, -(near_z - kNearPlaneOffset));

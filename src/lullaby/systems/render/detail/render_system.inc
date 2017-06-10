@@ -1,5 +1,7 @@
 #include "lullaby/systems/render/render_system.h"
 
+#include "lullaby/base/dispatcher.h"
+#include "lullaby/events/render_events.h"
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/function_binder.h"
@@ -53,6 +55,15 @@ RenderSystem::RenderSystem(Registry* registry)
       return static_cast<int>(CornerMask::kAll);
     });
   }
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Connect(this, [this](const HideEvent& event) {
+      Hide(event.entity);
+    });
+    dispatcher->Connect(this, [this](const ShowEvent& event) {
+      Show(event.entity);
+    });
+  }
 }
 
 RenderSystem::~RenderSystem() {
@@ -66,9 +77,15 @@ RenderSystem::~RenderSystem() {
     binder->UnregisterFunction("lull.Render.CornerMask.TopLeft");
     binder->UnregisterFunction("lull.Render.CornerMask.All");
   }
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
+  }
 }
 
 void RenderSystem::Initialize() { impl_->Initialize(); }
+
+void RenderSystem::SubmitRenderData() { impl_->SubmitRenderData(); }
 
 void RenderSystem::SetStereoMultiviewEnabled(bool enabled) {
   impl_->SetStereoMultiviewEnabled(enabled);
@@ -357,6 +374,10 @@ void RenderSystem::EndFrame() {
 
   impl_->EndFrame();
 }
+
+void RenderSystem::BeginRendering() { impl_->BeginRendering(); }
+
+void RenderSystem::EndRendering() { impl_->EndRendering(); }
 
 void RenderSystem::UpdateDynamicMesh(
     Entity entity, PrimitiveType primitive_type,

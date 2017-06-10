@@ -64,12 +64,10 @@ void DispatcherSystem::Create(Entity entity, HashValue type, const Def* def) {
   } else {
     LOG(DFATAL) << "EventResponseDef must have inputs and outputs defined.";
   }
+  queued_destruction_.erase(entity);
 }
 
-void DispatcherSystem::Destroy(Entity entity) {
-  dispatchers_.erase(entity);
-  connections_.erase(entity);
-}
+void DispatcherSystem::Destroy(Entity entity) { SafeDestroy(entity); }
 
 void DispatcherSystem::ConnectEvent(Entity entity, const EventDef* input,
                                     Dispatcher::EventHandler handler) {
@@ -97,10 +95,7 @@ void DispatcherSystem::ConnectEvent(Entity entity, const EventDef* input,
 
 void DispatcherSystem::SendImpl(Entity entity, const EventWrapper& event) {
   if (enable_queued_dispatch_) {
-    EntityEvent ee;
-    ee.entity = entity;
-    ee.event.reset(new EventWrapper(event));
-    queue_.Enqueue(std::move(ee));
+    queue_.Enqueue(EntityEvent(entity, event));
   } else {
     SendImmediatelyImpl(entity, event);
   }
@@ -108,19 +103,22 @@ void DispatcherSystem::SendImpl(Entity entity, const EventWrapper& event) {
 
 void DispatcherSystem::SendImmediatelyImpl(Entity entity,
                                            const EventWrapper& event) {
-  auto iter = dispatchers_.find(entity);
-  if (iter != dispatchers_.end()) {
-    iter->second.Send(event);
+  ++dispatch_count_;
+  if (queued_destruction_.count(entity) == 0) {
+    auto iter = dispatchers_.find(entity);
+    if (iter != dispatchers_.end()) {
+      iter->second.Send(event);
+    }
+    universal_dispatcher_.Send(EntityEvent(entity, event));
   }
+  --dispatch_count_;
+  DestroyQueued();
 }
 
 void DispatcherSystem::Dispatch() {
   EntityEvent event;
   while (queue_.Dequeue(&event)) {
-    auto iter = dispatchers_.find(event.entity);
-    if (iter != dispatchers_.end()) {
-      iter->second.Send(*event.event);
-    }
+    SendImmediatelyImpl(event.entity, event.event);
   }
 }
 
@@ -141,7 +139,46 @@ void DispatcherSystem::Disconnect(Entity entity, TypeId type,
   Dispatcher& dispatcher = iter->second;
   dispatcher.Disconnect(type, owner);
   if (dispatcher.GetHandlerCount() == 0) {
-    dispatchers_.erase(iter);
+    SafeDestroy(entity);
+  }
+}
+
+Dispatcher::ScopedConnection DispatcherSystem::ConnectToAll(
+    const EntityEventHandler& handler) {
+  return universal_dispatcher_.Connect(handler);
+}
+
+size_t DispatcherSystem::GetHandlerCount(Entity entity, TypeId type) const {
+  auto iter = dispatchers_.find(entity);
+  if (iter != dispatchers_.end()) {
+    return iter->second.GetHandlerCount(type);
+  }
+  return 0;
+}
+
+size_t DispatcherSystem::GetUniversalHandlerCount() const {
+  return universal_dispatcher_.GetHandlerCount();
+}
+
+void DispatcherSystem::SafeDestroy(Entity entity) {
+  connections_.erase(entity);
+  if (dispatch_count_ > 0) {
+    auto iter = dispatchers_.find(entity);
+    if (iter != dispatchers_.end()) {
+      iter->second.DisconnectAll(this);
+    }
+    queued_destruction_.insert(entity);
+  } else {
+    dispatchers_.erase(entity);
+  }
+}
+
+void DispatcherSystem::DestroyQueued() {
+  if (dispatch_count_ == 0) {
+    for (Entity entity : queued_destruction_) {
+      dispatchers_.erase(entity);
+    }
+    queued_destruction_.clear();
   }
 }
 

@@ -9,7 +9,7 @@ namespace lull;
 
 /// Render passes define the render state and high-level render order of
 /// entities. Please keep these in sync with
-/// //depot/google3/java/com/google/vr/internal/lullaby/Constants.java
+/// //java/com/google/vr/internal/lullaby/Constants.java
 enum RenderPass : int {
   /// Drawn first, so behind everything.
   Pano,
@@ -51,7 +51,7 @@ enum VerticalAlignment : int {
 }
 
 /// Describes a simple quad mesh.
-/// BUG(b/38457584): NinePatches are now the recommended way of doing quads. We
+/// TODO(b/38457584): NinePatches are now the recommended way of doing quads. We
 /// should migrate to using those instead.
 struct QuadDef {
   /// The size in the x dimension.
@@ -213,4 +213,9 @@ table RenderDef {
   /// A unique name given to the runtime shape (eg. quad).  All shapes with this
   /// name will share the same mesh.
   shape_id: string;
+
+  /// If true, start off not drawing the entity. Use RenderSystem::Show() to
+  /// start drawing the entity in the RenderPass |pass|. If |pass| is Invisible
+  /// it will still not be drawn.
+  hidden: bool = false;
 }

@@ -53,9 +53,19 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
                                                      int num_verts_y,
                                                      int corner_verts);
 
-// BUG(b/28863495) Remove this when mesh consolidation is complete.
+// TODO(b/28863495) Remove this when mesh consolidation is complete.
 void ApplyDeformation(float* vertices, size_t len, size_t stride,
                       std::function<mathfu::vec3(const mathfu::vec3&)> deform);
+
+// Returns the number of vertices a needed for a tessellated quad.  Optionally,
+// also returns the number of interior verts in out params so that this function
+// can be used by CalculateTesselatedQuadVertices().
+size_t GetTesselatedQuadVertexCount(int num_verts_x, int num_verts_y,
+                                    int corner_verts,
+                                    size_t* num_interior_verts_x = nullptr,
+                                    size_t* num_interior_verts_y = nullptr);
+size_t GetTesselatedQuadIndexCount(int num_verts_x, int num_verts_y,
+                                   int corner_verts);
 
 // Generates a list of vertices containing that represent a tessellated
 // rectangle. The vertices represent a |verts_x| by |verts_y| grid with
@@ -70,6 +80,12 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
     float size_x, float size_y, int num_verts_x, int num_verts_y,
     float corner_radius, int corner_verts,
     CornerMask corner_mask = CornerMask::kAll) {
+  size_t num_interior_verts_x, num_interior_verts_y, num_verts;
+
+  num_verts = GetTesselatedQuadVertexCount(num_verts_x, num_verts_y,
+                                           corner_verts, &num_interior_verts_x,
+                                           &num_interior_verts_y);
+
   if (size_x < 0.f || size_y < 0.f) {
     LOG(DFATAL) << "Size of quad has to be >= than 0.0";
     return std::vector<Vertex>();
@@ -134,27 +150,13 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
   const float v_texture_inset = corner_radius / size_y;
   const float v_texture_range = 1.0f - (2.0f * v_texture_inset);
   const float z = 0.0f;
-  const int num_interior_verts_x =
-      corner_verts > 0 ? num_verts_x - 2 : num_verts_x;
-  const int num_interior_verts_y =
-      corner_verts > 0 ? num_verts_y - 2 : num_verts_y;
-  const int num_corner_verts =
-      (corner_verts > 0
-           ? (4 * corner_verts) + (2 * num_interior_verts_x) +
-                 (2 * num_interior_verts_y)
-           : 0);
-  // The radiused corners add |corner_verts| vertices for each of the four
-  // corners as well as an additional line of interior verts on each side
-  // of the quad for the tabs.
-  const size_t num_verts =
-      ((num_interior_verts_x * num_interior_verts_y) + num_corner_verts);
   std::vector<Vertex> vertices(num_verts);
   size_t index = 0;
 
   if (corner_verts > 0) {
     // Build the left tab as described by A and B into the interior square in
     // the above tabs diagram.
-    for (int y = 0; y < num_interior_verts_y; ++y) {
+    for (size_t y = 0; y < num_interior_verts_y; ++y) {
       const float y_fraction =
           static_cast<float>(y) / static_cast<float>(num_interior_verts_y - 1);
       const float y_val = (y_fraction * interior_size_y) - half_interior_size_y;
@@ -167,7 +169,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
 
   // Build interior rectangle verts + vertical tabs if needed, the square
   // described by |CDFE| in the tabs diagram.
-  for (int x = 0; x < num_interior_verts_x; ++x) {
+  for (size_t x = 0; x < num_interior_verts_x; ++x) {
     // Calculate what fraction of the entire rect this vertex is at.
     const float x_fraction =
         static_cast<float>(x) / static_cast<float>(num_interior_verts_x - 1);
@@ -183,7 +185,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
       ++index;
     }
 
-    for (int y = 0; y < num_interior_verts_y; ++y) {
+    for (size_t y = 0; y < num_interior_verts_y; ++y) {
       const float y_fraction =
           static_cast<float>(y) / static_cast<float>(num_interior_verts_y - 1);
       const float y_val = (y_fraction * interior_size_y) - half_interior_size_y;
@@ -205,7 +207,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
 
   if (corner_verts > 0) {
     // Build the right tab as described by H and G.
-    for (int y = 0; y < num_interior_verts_y; ++y) {
+    for (size_t y = 0; y < num_interior_verts_y; ++y) {
       const float y_fraction =
           static_cast<float>(y) / static_cast<float>(num_interior_verts_y - 1);
       const float y_val = (y_fraction * interior_size_y) - half_interior_size_y;

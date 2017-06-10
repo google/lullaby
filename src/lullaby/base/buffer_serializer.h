@@ -24,6 +24,7 @@ limitations under the License.
 #include "lullaby/base/serialize.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/string_view.h"
 
 namespace lull {
 
@@ -40,22 +41,30 @@ class SaveToBuffer {
   // copying them.
   template <typename T>
   typename std::enable_if<detail::IsSerializeFundamental<T>::value, void>::type
-  operator()(T* ptr, lull::HashValue key) {
+  operator()(const T* ptr, lull::HashValue key) {
     Save(ptr, sizeof(T));
+  }
+
+  // Saves string_views to the buffer by copying the length and the raw char
+  // data to the buffer.
+  void operator()(const string_view* ptr, lull::HashValue key) {
+    size_t size = ptr->length();
+    Save(&size, sizeof(size));
+    Save(ptr->data(), size);
   }
 
   // Saves strings to the buffer by copying the length and the raw char data to
   // the buffer.
-  void operator()(std::string* ptr, lull::HashValue key) {
+  void operator()(const std::string* ptr, lull::HashValue key) {
     size_t size = ptr->size();
     Save(&size, sizeof(size));
-    Save(&(*ptr)[0], size);
+    Save(ptr->data(), size);
   }
 
   // Saves vector data to the buffer by copying the length and then serializing
   // the individual elements to the buffer.
   template <typename T, typename... Args>
-  void operator()(std::vector<T, Args...>* ptr, lull::HashValue key) {
+  void operator()(const std::vector<T, Args...>* ptr, lull::HashValue key) {
     size_t size = ptr->size();
     Save(&size, sizeof(size));
     for (size_t i = 0; i < size; ++i) {
@@ -66,7 +75,8 @@ class SaveToBuffer {
   // Saves map data to the buffer by copying the count of elements and then
   // serializing the key/value pairs to the buffer.
   template <typename K, typename V, typename... Args>
-  void operator()(std::unordered_map<K, V, Args...>* ptr, lull::HashValue key) {
+  void operator()(const std::unordered_map<K, V, Args...>* ptr,
+                  lull::HashValue key) {
     size_t size = ptr->size();
     Save(&size, sizeof(size));
     for (auto& iter : *ptr) {
@@ -111,6 +121,15 @@ class LoadFromBuffer {
   typename std::enable_if<detail::IsSerializeFundamental<T>::value, void>::type
   operator()(T* ptr, lull::HashValue key) {
     Load(ptr, sizeof(T));
+  }
+
+  // Loads string_views from the buffer by reading the length and then wrapping
+  // the raw char data from the buffer.
+  void operator()(string_view* ptr, lull::HashValue key) {
+    size_t size = 0;
+    Load(&size, sizeof(size));
+    const uint8_t* data = Advance(size);
+    *ptr = string_view(reinterpret_cast<const char*>(data), size);
   }
 
   // Loads strings from the buffer by copying the length and the raw char data

@@ -121,7 +121,7 @@ mathfu::mat4 CalculateRelativeMatrix(const mathfu::mat4& world_to_a_matrix,
 // Calculate the local transform matrix from an sqt and deformation parameters.
 // *DEPRECATED* this version of the function doesn't properly handle
 // non-uniform scales or rotations.
-// BUG(b/29100730) Remove this
+// TODO(b/29100730) Remove this
 mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
     const Sqt& sqt, const float parent_radius, const float deform_radius);
 
@@ -332,7 +332,7 @@ Aabb TransformAabb(const mathfu::mat4& transform, const Aabb& aabb);
 Aabb MergeAabbs(const Aabb& a, const Aabb& b);
 
 // Returns the determinant of the upper left 3x3 of |m|.
-// BUG(b/27938041) move into mathfu.
+// TODO(b/27938041) move into mathfu.
 float CalculateDeterminant3x3(const mathfu::mat4& m);
 
 // Returns the 3-d projection of a homogeneous 4-vector.
@@ -350,7 +350,7 @@ void FindPositionBetweenPoints(const float current_point,
                                float* match_percent);
 
 // Returns the distance between |a| and |b|.
-// BUG(b/27938041) move into mathfu.
+// TODO(b/27938041) move into mathfu.
 template <typename T, int Dimension>
 inline float DistanceBetween(const mathfu::Vector<T, Dimension>& a,
                              const mathfu::Vector<T, Dimension>& b) {

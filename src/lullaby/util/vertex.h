@@ -292,6 +292,25 @@ inline void SetColor<VertexPN>(VertexPN* vertex, Color4ub color) {}
 template <>
 inline void SetColor<VertexPTN>(VertexPTN* vertex, Color4ub color) {}
 
+// Calls |fn| for each vertex position in |vertex_data|.  |fn| should match the
+// prototype void()(const vec3&).  This vec3 is a copy of, not a reference to,
+// the stored position data.
+template <typename Functor>
+void ForEachVertexPosition(const uint8_t* vertex_data, size_t vertex_count,
+                           const VertexFormat& format, const Functor& fn) {
+  if (format.GetAttributeAt(0).usage != VertexAttribute::kPosition) {
+    LOG(DFATAL) << "Vertex format missing position attribute";
+    return;
+  }
+
+  for (size_t index = 0; index < vertex_count; ++index) {
+    const uint8_t* vertex = vertex_data + (index * format.GetVertexSize());
+    mathfu::vec3 position;
+    memcpy(&position, vertex, sizeof(position));
+    fn(position);
+  }
+}
+
 }  // namespace lull
 
 #endif  // LULLABY_UTIL_VERTEX_H_

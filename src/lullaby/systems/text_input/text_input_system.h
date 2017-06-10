@@ -31,7 +31,7 @@ namespace lull {
 // The TextInputSystem listens for input from the input
 // manager and updates assocated Entity display text.
 // Right now the system is very rudimentary.
-// BUG(b/27169628) make the system more sophisticated.
+// TODO(b/27169628) make the system more sophisticated.
 class TextInputSystem : public System {
  public:
   explicit TextInputSystem(Registry* registry);

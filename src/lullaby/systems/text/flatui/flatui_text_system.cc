@@ -41,8 +41,8 @@ namespace {
 constexpr int kDefaultPoolSize = 16;
 const HashValue kTextDefHash = Hash("TextDef");
 
-// BUG(b/32219426): Use the same default as the text.
-// BUG(b/33705906) Remove non-blueprint default entities.
+// TODO(b/32219426): Use the same default as the text.
+// TODO(b/33705906) Remove non-blueprint default entities.
 const mathfu::vec4 kDefaultLinkColor(39.0f / 255.0f, 121.0f / 255.0f, 1.0f,
                                      1.0f);  // "#2779FF";
 const mathfu::vec4 kDefaultUnderlineSdfParams(1, 0, 0, 1);
@@ -64,7 +64,7 @@ constexpr int32_t kNominalGlyphSize = 64;
 constexpr int32_t kHugeGlyphSize = 128;
 
 // Default android hyphenation pattern path.
-// BUG(b/34112774) Build hyphenation data and figure out directory for other
+// TODO(b/34112774) Build hyphenation data and figure out directory for other
 // platforms.
 constexpr const char* kHyphenationPatternPath = "/system/usr/hyphen-data";
 
@@ -191,6 +191,11 @@ void FlatuiTextSystem::Create(Entity entity, DefType type, const Def* def) {
   component->text_buffer_params.horizontal_align =
       text_def.horizontal_alignment();
   component->text_buffer_params.vertical_align = text_def.vertical_alignment();
+  if (text_def.direction() == TextDirection_UseSystemSetting) {
+    component->text_buffer_params.direction = text_direction_;
+  } else {
+    component->text_buffer_params.direction = text_def.direction();
+  }
   component->text_buffer_params.html_mode = text_def.html_mode();
   if (text_def.ellipsis()) {
     component->text_buffer_params.ellipsis = text_def.ellipsis()->str();
@@ -258,6 +263,11 @@ void FlatuiTextSystem::CreateEmpty(Entity entity) {
   component->text_buffer_params.horizontal_align =
       default_def.horizontal_alignment;
   component->text_buffer_params.vertical_align = default_def.vertical_alignment;
+  if (default_def.direction == TextDirection_UseSystemSetting) {
+    component->text_buffer_params.direction = text_direction_;
+  } else {
+    component->text_buffer_params.direction = default_def.direction;
+  }
   component->text_buffer_params.html_mode = default_def.html_mode;
   component->text_buffer_params.ellipsis = default_def.ellipsis;
   component->text_buffer_params.wrap_mode = default_def.wrap_mode;
@@ -303,6 +313,7 @@ void FlatuiTextSystem::CreateFromRenderDef(Entity entity,
   component->text_buffer_params.horizontal_align =
       font_def.horizontal_alignment();
   component->text_buffer_params.vertical_align = font_def.vertical_alignment();
+  component->text_buffer_params.direction = text_direction_;
   component->text_buffer_params.html_mode = font_def.parse_and_strip_html()
                                                 ? TextHtmlMode_ExtractLinks
                                                 : TextHtmlMode_Ignore;
@@ -475,6 +486,15 @@ void FlatuiTextSystem::SetVerticalAlignment(Entity entity,
   }
 }
 
+void FlatuiTextSystem::SetTextDirection(TextDirection direction) {
+  if (direction == TextDirection_UseSystemSetting) {
+    LOG(INFO) << "Ignoring text direction: UseSystemSetting. Specify either "
+                 "LeftToRight or RightToLeft.";
+    return;
+  }
+  text_direction_ = direction;
+}
+
 const std::vector<LinkTag>* FlatuiTextSystem::GetLinkTags(Entity entity) const {
   const TextComponent* component = components_.Get(entity);
   return component && component->buffer ? &component->buffer->GetLinks()
@@ -541,7 +561,7 @@ Entity FlatuiTextSystem::CreateEntity(TextComponent* component,
                                       const std::string& blueprint) {
   const Entity parent = component->GetEntity();
 
-  // BUG(b/33705906) Remove non-blueprint default entities.
+  // TODO(b/33705906) Remove non-blueprint default entities.
   Entity entity;
   if (blueprint == kDefaultLinkTextBlueprint) {
     entity = CreateDefaultEntity(registry_, parent);
@@ -806,7 +826,7 @@ void FlatuiTextSystem::GenerateTextBufferTask::Process() {
 
 void FlatuiTextSystem::GenerateTextBufferTask::Finalize() {
   if (text_buffer_) {
-    // BUG(b/33705855) Remove Finalize.
+    // TODO(b/33705855) Remove Finalize.
     text_buffer_->Finalize();
   }
   output_text_buffer_ = text_buffer_;

@@ -60,6 +60,10 @@ class RenderSystemFpl : public System {
 
   void SetStereoMultiviewEnabled(bool enabled);
 
+  void BeginRendering() {}
+  void EndRendering() {}
+  void SubmitRenderData() {}
+
   void PreloadFont(const char* name);
   FontPtr LoadFonts(const std::vector<std::string>& names);
   const TexturePtr& GetWhiteTexture() const;
@@ -118,7 +122,7 @@ class RenderSystemFpl : public System {
 
   void SetQuad(Entity e, const Quad& quad);
 
-  // BUG(b/31523782): Remove once pipeline for MeshData is stable.
+  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
   void SetMesh(Entity e, const HeapDynamicMesh& mesh);

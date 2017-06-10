@@ -53,7 +53,7 @@ limitations under the License.
 // have a vtable pointer).  Instead, TypeId can be stored externally to the
 // object with which it belongs on an as-needed basis.
 //
-// BUG(b/26013482): The presubmit script needs to be re-introduced and fixed to
+// TODO(b/26013482): The presubmit script needs to be re-introduced and fixed to
 // be able to check for collisions without specifying the hash value in the
 // macro.
 

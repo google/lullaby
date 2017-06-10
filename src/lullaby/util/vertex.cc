@@ -18,18 +18,22 @@ limitations under the License.
 
 namespace lull {
 
-const VertexFormat VertexP::kFormat({
-  VertexAttribute(0, VertexAttribute::kPosition, 3, VertexAttribute::kFloat32)
-});
+// The standard position attribute expected in every vertex format instance.
+static VertexAttribute PositionAttribute() {
+  return VertexAttribute(0, VertexAttribute::kPosition, 3,
+                         VertexAttribute::kFloat32);
+}
+
+const VertexFormat VertexP::kFormat({PositionAttribute()});
 
 const VertexFormat VertexPT::kFormat({
-  VertexAttribute(0, VertexAttribute::kPosition, 3, VertexAttribute::kFloat32),
-  VertexAttribute(12, VertexAttribute::kTexCoord, 2, VertexAttribute::kFloat32),
+    PositionAttribute(),
+    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32),
 });
 
 const VertexFormat VertexPTT::kFormat({
-    VertexAttribute(0, VertexAttribute::kPosition, 3,
-                    VertexAttribute::kFloat32),
+    PositionAttribute(),
     VertexAttribute(12, VertexAttribute::kTexCoord, 2,
                     VertexAttribute::kFloat32),
     VertexAttribute(20, VertexAttribute::kTexCoord, 2,
@@ -37,35 +41,37 @@ const VertexFormat VertexPTT::kFormat({
 });
 
 const VertexFormat VertexPN::kFormat({
-  VertexAttribute(0, VertexAttribute::kPosition, 3, VertexAttribute::kFloat32),
-  VertexAttribute(12, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
+    PositionAttribute(),
+    VertexAttribute(12, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
 });
 
 const VertexFormat VertexPC::kFormat({
-    VertexAttribute(0, VertexAttribute::kPosition, 3,
-                    VertexAttribute::kFloat32),
+    PositionAttribute(),
     VertexAttribute(12, VertexAttribute::kColor, 4,
                     VertexAttribute::kUnsignedInt8),
 });
 
 const VertexFormat VertexPTC::kFormat({
-  VertexAttribute(0, VertexAttribute::kPosition, 3, VertexAttribute::kFloat32),
-  VertexAttribute(12, VertexAttribute::kTexCoord, 2, VertexAttribute::kFloat32),
-  VertexAttribute(20, VertexAttribute::kColor, 4,
-                  VertexAttribute::kUnsignedInt8),
+    PositionAttribute(),
+    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32),
+    VertexAttribute(20, VertexAttribute::kColor, 4,
+                    VertexAttribute::kUnsignedInt8),
 });
 
 const VertexFormat VertexPTN::kFormat({
-  VertexAttribute(0, VertexAttribute::kPosition, 3, VertexAttribute::kFloat32),
-  VertexAttribute(12, VertexAttribute::kTexCoord, 2, VertexAttribute::kFloat32),
-  VertexAttribute(20, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
+    PositionAttribute(),
+    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32),
+    VertexAttribute(20, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
 });
 
 const VertexFormat VertexPTI::kFormat({
-  VertexAttribute(0, VertexAttribute::kPosition, 3, VertexAttribute::kFloat32),
-  VertexAttribute(12, VertexAttribute::kTexCoord, 2, VertexAttribute::kFloat32),
-  VertexAttribute(20, VertexAttribute::kIndex, 4,
-                  VertexAttribute::kUnsignedInt8),
+    PositionAttribute(),
+    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32),
+    VertexAttribute(20, VertexAttribute::kIndex, 4,
+                    VertexAttribute::kUnsignedInt8),
 });
 
 }  // namespace lull

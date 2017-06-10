@@ -44,14 +44,14 @@ class TriangleMesh {
 
   // Default implementation of move constructor.  MSVC toolchain currently does
   // not support =default for move constructors, so define it explicitly.
-  // BUG(b/28276908) Remove after switch to MSVC 2015.
+  // TODO(b/28276908) Remove after switch to MSVC 2015.
   TriangleMesh(TriangleMesh&& rhs)
       : vertices_(std::move(rhs.vertices_)),
         indices_(std::move(rhs.indices_)) {}
 
   // Default implementation of move assignment.  MSVC toolchain currently does
   // not support =default for move assignment, so define it explicitly.
-  // BUG(b/28276908) Remove after switch to MSVC 2015.
+  // TODO(b/28276908) Remove after switch to MSVC 2015.
   TriangleMesh& operator=(TriangleMesh<Vertex>&& rhs) {
     vertices_ = std::move(rhs.vertices_);
     indices_ = std::move(rhs.indices_);

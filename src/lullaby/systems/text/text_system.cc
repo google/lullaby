@@ -151,6 +151,10 @@ void TextSystem::SetHorizontalAlignment(Entity entity,
   impl_->SetHorizontalAlignment(entity, horizontal);
 }
 
+void TextSystem::SetTextDirection(TextDirection direction) {
+  impl_->SetTextDirection(direction);
+}
+
 void TextSystem::SetVerticalAlignment(Entity entity,
                                       VerticalAlignment vertical) {
   impl_->SetVerticalAlignment(entity, vertical);

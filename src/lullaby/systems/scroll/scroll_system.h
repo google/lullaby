@@ -105,7 +105,11 @@ class ScrollSystem : public System {
 
   // Sets the content bounds of the |entity|. The scroll system only considers
   // the x and y values of the AABB.
-  void SetContentBounds(Entity entity, const Aabb& aabb);
+  void SetContentBounds(Entity entity, const Aabb& bounds);
+
+  // Sets the content bounds of the |entity| as above, but clamps view_offset
+  // immediately.
+  void ForceContentBounds(Entity entity, const Aabb& bounds);
 
   // Attempts to set |entity|'s view offset to |offset| over |time|.  Returns
   // true if the target position of the scroll has been set. Note this can be
@@ -174,6 +178,7 @@ class ScrollSystem : public System {
   void UpdateTouch();
   void EndTouch();
 
+  void ActuallySetContentBounds(ScrollView* view, const Aabb& bounds);
   void ActuallySetViewOffset(Entity e, const mathfu::vec2& offset);
   mathfu::vec2 ClampOffset(const ScrollView* view,
                            const mathfu::vec2& offset) const;

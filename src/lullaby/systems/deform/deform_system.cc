@@ -141,7 +141,8 @@ void DeformSystem::SetDeformationFunction(Entity entity) {
 void DeformSystem::SetAsDeformed(Entity entity, string_view path_id) {
   Deformed* deformed = deformed_.Emplace(entity);
   if (!deformed) {
-    LOG(ERROR) << "Entity registered as deformed multiple times.";
+    // If this entity is already deformed then just update its path_id.
+    deformed_.Get(entity)->path_id = Hash(path_id);
     return;
   }
   deformed->path_id = Hash(path_id);

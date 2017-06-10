@@ -121,10 +121,10 @@ void ScrollContentLayoutSystem::UpdateScrollContentBounds(Entity entity) {
     bounds.min += content->min_padding;
     bounds.max += content->max_padding;
     if (bounds.max.x < bounds.min.x) {
-      bounds.min.x = content->max_padding.x;
+      bounds.min.x = bounds.max.x;
     }
     if (bounds.max.y < bounds.min.y) {
-      bounds.min.y = content->max_padding.y;
+      bounds.min.y = bounds.max.y;
     }
     scroll_system->SetContentBounds(entity, bounds);
   }

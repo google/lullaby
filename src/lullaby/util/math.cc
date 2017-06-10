@@ -96,7 +96,7 @@ mathfu::mat4 CalculateRelativeMatrix(const mathfu::mat4& world_to_a_matrix,
 
 mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
     const Sqt& sqt, const float parent_radius, const float deform_radius) {
-  // BUG(b/29100730) Remove this function
+  // TODO(b/29100730) Remove this function
   const float self_radius = std::abs(parent_radius - sqt.translation.z);
   const float self_angle = -sqt.translation.x / deform_radius;
 
@@ -564,12 +564,12 @@ bool CheckSphereInFrustum(
   // A sphere lies outside the frustum if its center is on the wrong side of
   // at least one plane and the distance to the plane is greater than the
   // radius of the sphere.
-  // BUG(b/30736927) This can be further optimized by un-rolling the loop and
+  // TODO(b/30736927) This can be further optimized by un-rolling the loop and
   // returning the smallest distance to any frustum plane.
   for (int i = 0; i < kNumFrustumPlanes; i++) {
     // Calculate the signed distance of the center from the clipping plane.
     const mathfu::vec4& plane = frustum_clipping_planes[i];
-    // BUG(b/29824351): Use Plane::SignedDistanceToPoint when implemented.
+    // TODO(b/29824351): Use Plane::SignedDistanceToPoint when implemented.
     const float distance =
         mathfu::vec4::DotProduct(plane, mathfu::vec4(center, 1));
     if (distance < -radius) {

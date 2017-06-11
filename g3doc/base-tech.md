@@ -55,7 +55,7 @@ TransformSystem* transform_system = registry.Get<TransformSystem>();
 
 Because the Registry owns all these high-level runtime objects, it can be
 considered the primary representation of Lullaby in an application's runtime.
-All [Systems](./ecs.md#system) and most other key libraries depend on the Registry
+All [Systems](ecs.md#system) and most other key libraries depend on the Registry
 to interact with each other.
 
 

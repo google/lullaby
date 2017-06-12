@@ -12,7 +12,7 @@ It is the Engine that drives your VR/AR apps using the underlying SDKs.
 
 <dl>
 <dt>Your App: The Experience</dt>
-<dd>The virtual/augemented reality experiences only you can give to your users
+<dd>The virtual/augmented reality experiences only you can give to your users
 (eg. watching 360 videos, exploring the world, etc.)</dd>
 
 <dt>Lullaby: The Engine</dt>

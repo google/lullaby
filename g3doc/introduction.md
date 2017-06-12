@@ -33,8 +33,7 @@ At a high level, Lullaby's architecture can be divided into 3 broad categories:
 
 Lullaby's primary goal is to provide an efficient, data-driven way to create,
 manipulate, and interact with objects in a "virtual" world. For this, Lullaby
-uses an [Entity-Component-System]
-(https://en.wikipedia.org/wiki/Entity%E2%80%93component%E2%80%93system) (ECS)
+uses an [Entity-Component-System](https://en.wikipedia.org/wiki/Entity%E2%80%93component%E2%80%93system) (ECS)
 architecture. An ECS consists of three parts: [Entities](ecs.md#entity),
 [Components](ecs.md#component), and [Systems](ecs.md#system).
 

@@ -141,7 +141,7 @@ void RenderSystem::ProcessTasks() { impl_->ProcessTasks(); }
 void RenderSystem::WaitForAssetsToLoad() { impl_->WaitForAssetsToLoad(); }
 
 RenderPass RenderSystem::GetRenderPass(Entity entity) const {
-  return impl_->GetRenderPass(entity);
+  return (RenderPass)impl_->GetRenderPass(entity);
 }
 
 const mathfu::vec4& RenderSystem::GetDefaultColor(Entity entity) const {

@@ -22,6 +22,32 @@ limitations under the License.
 
 namespace lull {
 
+// Invokes TransformSystem::Enable(entity)
+struct EnableEvent {
+  EnableEvent() {}
+  explicit EnableEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+// Invokes TransformSystem::Disable(entity)
+struct DisableEvent {
+  DisableEvent() {}
+  explicit DisableEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
 struct OnDisabledEvent {
   OnDisabledEvent() {}
   explicit OnDisabledEvent(Entity entity) : target(entity) {}
@@ -134,6 +160,8 @@ struct OnInteractionEnabledEvent {
 LULLABY_SETUP_TYPEID(lull::AabbChangedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildAddedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildRemovedEvent);
+LULLABY_SETUP_TYPEID(lull::DisableEvent);
+LULLABY_SETUP_TYPEID(lull::EnableEvent);
 LULLABY_SETUP_TYPEID(lull::OnDisabledEvent);
 LULLABY_SETUP_TYPEID(lull::OnEnabledEvent);
 LULLABY_SETUP_TYPEID(lull::OnInteractionDisabledEvent);

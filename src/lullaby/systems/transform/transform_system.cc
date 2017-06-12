@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "lullaby/systems/transform/transform_system.h"
 
+#include "lullaby/base/dispatcher.h"
 #include "lullaby/base/entity_factory.h"
 #include "lullaby/events/entity_events.h"
 #include "lullaby/systems/dispatcher/event.h"
@@ -100,6 +101,16 @@ TransformSystem::TransformSystem(Registry* registry)
     binder->RegisterMethod("lull.Transform.IsAncestorOf",
                            &lull::TransformSystem::IsAncestorOf);
   }
+
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Connect(this, [this](const EnableEvent& event) {
+      Enable(event.entity);
+    });
+    dispatcher->Connect(this, [this](const DisableEvent& event) {
+      Disable(event.entity);
+    });
+  }
 }
 
 TransformSystem::~TransformSystem() {
@@ -124,6 +135,10 @@ TransformSystem::~TransformSystem() {
     binder->UnregisterFunction("lull.Transform.RemoveParent");
     binder->UnregisterFunction("lull.Transform.GetChildren");
     binder->UnregisterFunction("lull.Transform.IsAncestorOf");
+  }
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
   }
 }
 

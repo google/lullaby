@@ -10,7 +10,15 @@ following information might be useful:
 
 -   Use flatbuffers to generate header files for all the .fbs files in the
     schemas folder.
-    -   ```flatc -c ```
+    - ex:
+```flatc
+     -c
+     --no-union-value-namespacing
+     --gen-name-strings
+     -I schemas
+     -o src/lullaby/generated
+     schemas/lull/[filename].fbs
+```
 -   Build all the files with the following exceptions:
     -   For android, remove
         src/lullaby/systems/render/detail/port/default/gpu_profiler.cc

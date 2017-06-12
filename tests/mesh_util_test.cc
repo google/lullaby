@@ -87,9 +87,9 @@ TEST(TesselatedQuadDeathTest, SanityChecks) {
   constexpr const char* kNegativeCornerVertsMessage =
       "Must have >= 0 corner vertices.";
   PORT_EXPECT_DEBUG_DEATH(CalculateTesselatedQuadIndices(
-                             /* num_verts_x = */ 2, /* num_verts_y = */ 2,
-                             /* corner_verts = */ -2),
-                         kNegativeCornerVertsMessage);
+                              /* num_verts_x = */ 2, /* num_verts_y = */ 2,
+                              /* corner_verts = */ -2),
+                          kNegativeCornerVertsMessage);
   PORT_EXPECT_DEBUG_DEATH(
       CalculateTesselatedQuadVertices<VertexPT>(
           /* size_x = */ 1, /* size_y = */ 1, /* num_verts_x = */ 2,
@@ -297,6 +297,43 @@ TEST(TesselatedQuad, VertexIndexCountsRoundCorners) {
             ((verts_x - 1) * (verts_y - 1) * kIndicesPerQuad) -
                 kIndicesPerQuad * kCornersPerQuad +
                 (kIndicesPerTriangle * kCornersPerQuad * (corner_verts + 1)));
+}
+
+TEST(TessellatedQuad, CreateQuadMesh) {
+  constexpr float kSizeX = 2.0f;
+  constexpr float kSizeY = 1.5f;
+  constexpr float kCornerRadius = 0.2f;
+  constexpr int kNumVertsX = 5;
+  constexpr int kNumVertsY = 7;
+  constexpr int kNumCornerVerts = 5;
+  const std::vector<VertexPT> vertices =
+      CalculateTesselatedQuadVertices<VertexPT>(kSizeX, kSizeY, kNumVertsX,
+                                                kNumVertsY, kCornerRadius,
+                                                kNumCornerVerts);
+  const std::vector<uint16_t> indices =
+      CalculateTesselatedQuadIndices(kNumVertsX, kNumVertsY, kNumCornerVerts);
+
+  MeshData mesh = CreateQuadMesh<VertexPT>(
+      kSizeX, kSizeY, kNumVertsX, kNumVertsY, kCornerRadius, kNumCornerVerts);
+  EXPECT_EQ(mesh.GetVertexFormat(), VertexPT::kFormat);
+  EXPECT_EQ(mesh.GetNumVertices(), vertices.size());
+  EXPECT_EQ(mesh.GetNumIndices(), indices.size());
+
+  const VertexPT* vertex_data = mesh.GetMutableVertexData<VertexPT>();
+  ASSERT_TRUE(vertex_data != nullptr);
+  for (size_t i = 0; i < vertices.size(); ++i) {
+    EXPECT_EQ(vertex_data[i].x, vertices[i].x);
+    EXPECT_EQ(vertex_data[i].y, vertices[i].y);
+    EXPECT_EQ(vertex_data[i].z, vertices[i].z);
+    EXPECT_EQ(vertex_data[i].u0, vertices[i].u0);
+    EXPECT_EQ(vertex_data[i].v0, vertices[i].v0);
+  }
+
+  const MeshData::Index* index_data = mesh.GetIndexData();
+  ASSERT_TRUE(index_data != nullptr);
+  for (size_t i = 0; i < indices.size(); ++i) {
+    EXPECT_EQ(index_data[i], indices[i]);
+  }
 }
 
 TEST(Deformation, Basic) {

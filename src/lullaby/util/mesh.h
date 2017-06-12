@@ -24,6 +24,7 @@ limitations under the License.
 
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/mesh_data.h"
 
 namespace lull {
 
@@ -289,6 +290,29 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
   // Should have filled exactly the array.
   DCHECK_EQ(num_verts, index) << "Failed to fill vertices array!";
   return vertices;
+}
+
+// Creates an optionally rounded rect, returning the result as a MeshData with
+// read+write access.
+template <typename Vertex>
+MeshData CreateQuadMesh(float size_x, float size_y, int num_verts_x,
+                        int num_verts_y, float corner_radius, int corner_verts,
+                        CornerMask corner_mask = CornerMask::kAll) {
+  const std::vector<Vertex> vertices = CalculateTesselatedQuadVertices<Vertex>(
+      size_x, size_y, num_verts_x, num_verts_y, corner_radius, corner_verts,
+      corner_mask);
+  const std::vector<uint16_t> indices =
+      CalculateTesselatedQuadIndices(num_verts_x, num_verts_y, corner_verts);
+
+  CHECK_EQ(Vertex::kFormat.GetVertexSize(), sizeof(Vertex));
+  MeshData mesh(
+      MeshData::kTriangles, Vertex::kFormat,
+      DataContainer::CreateHeapDataContainer(vertices.size() * sizeof(Vertex)),
+      DataContainer::CreateHeapDataContainer(indices.size() *
+                                             sizeof(uint16_t)));
+  mesh.AddVertices(vertices.data(), vertices.size());
+  mesh.AddIndices(indices.data(), indices.size());
+  return mesh;
 }
 
 }  // namespace lull

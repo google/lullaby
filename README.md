@@ -28,6 +28,23 @@ and augmented reality experiences.
 
 [Documentation](g3doc/index.md) is available [here](g3doc/index.md).
 
+## Status
+
+
+The release of Lullaby is still very much a work-in-progress. Your patience is
+appreciated while we work on porting our internal libraries, build processes and
+docs externally.
+
+## Contributing
+
+
+We are unable to take your pull requests at this time, but are working on fixing
+that.
+
+## License
+
+[Apache License, Version 2.0](LICENSE)
+
 ## Disclaimer
 
 This is not an official Google product.

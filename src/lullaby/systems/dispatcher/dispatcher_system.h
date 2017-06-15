@@ -130,20 +130,10 @@ class DispatcherSystem : public System {
 
   Dispatcher* GetDispatcher(Entity entity);
 
-  /// If currently dispatching, this will queue the dispatcher to be destroyed
-  /// and prevent other events from being sent to it.  Otherwise it will destroy
-  /// the dispatcher immediately.
-  void SafeDestroy(Entity entity);
-
-  void DestroyQueued();
-
   EventQueue queue_;
   EntityConnections connections_;
   EntityDispatcherMap dispatchers_;
   static bool enable_queued_dispatch_;
-  int dispatch_count_ = 0;
-  std::unordered_set<Entity> queued_destruction_;
-
 
   Dispatcher universal_dispatcher_;
 

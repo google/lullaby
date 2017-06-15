@@ -317,6 +317,9 @@ class RenderSystem : public System {
   // Returns whether or not a texture unit is ready to render.
   bool IsTextureLoaded(Entity e, int unit) const;
 
+  // Returns whether or not the texture has been loaded.
+  bool IsTextureLoaded(const TexturePtr& texture) const;
+
   // Returns true if all currently set assets have loaded.
   bool IsReadyToRender(Entity entity) const;
 

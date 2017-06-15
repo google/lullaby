@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "lullaby/util/mesh_util.h"
 #include "gtest/gtest.h"
 #include "mathfu/constants.h"
 #include "mathfu/glsl_mappings.h"
-#include "lullaby/util/mesh.h"
 #include "lullaby/util/vertex.h"
 #include "lullaby/generated/tests/portable_test_macros.h"
 

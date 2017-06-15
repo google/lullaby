@@ -63,6 +63,41 @@ TEST(VertexFormat, AttributeSorting) {
   CHECK_EQ(test_format.GetAttributeAt(1).offset, 12U);
 }
 
+TEST(VertexFormat, GetAttributeWithUsage) {
+  // Test some formats for attributes we know they have.
+  const VertexFormat kFormats[] = {VertexP::kFormat, VertexPTC::kFormat,
+                                   VertexPTI::kFormat, VertexPTN::kFormat,
+                                   VertexPTT::kFormat};
+  const size_t kNumFormats = sizeof(kFormats) / sizeof(kFormats[0]);
+
+  for (size_t i = 0; i < kNumFormats; ++i) {
+    const VertexFormat& format = kFormats[i];
+    for (size_t k = 0; k < format.GetNumAttributes(); ++k) {
+      const VertexAttribute& attribute = format.GetAttributeAt(k);
+      EXPECT_EQ(format.GetAttributeWithUsage(attribute.usage, attribute.index),
+                &attribute);
+    }
+  }
+
+  // Then test for some attributes we know they lack.
+  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kTexCoord),
+            nullptr);
+  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kColor),
+            nullptr);
+  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kIndex),
+            nullptr);
+  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kNormal),
+            nullptr);
+
+  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(VertexAttribute::kTexCoord,
+                                                     /* usage_index = */ 1),
+            nullptr);
+  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(VertexAttribute::kIndex),
+            nullptr);
+  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(VertexAttribute::kNormal),
+            nullptr);
+}
+
 TEST(VertexFormat, VertexMatching) {
   const VertexFormat empty({});
   EXPECT_FALSE(empty.Matches<TestVertex2f>());
@@ -125,16 +160,17 @@ TEST(VertexFormat, EqualityOperator) {
 }
 
 TEST(VertexFormatDeathTest, RangeChecks) {
-  PORT_EXPECT_DEBUG_DEATH(VertexFormat({
-                    VertexAttribute(), VertexAttribute(), VertexAttribute(),
-                    VertexAttribute(), VertexAttribute(), VertexAttribute(),
-                    VertexAttribute(), VertexAttribute(), VertexAttribute(),
-                    VertexAttribute(), VertexAttribute(), VertexAttribute(),
-                    VertexAttribute(), VertexAttribute(), VertexAttribute(),
-                    VertexAttribute(), VertexAttribute(), VertexAttribute(),
-                    VertexAttribute(), VertexAttribute(),
-                }),
-                "Cannot exceed max attributes size");
+  PORT_EXPECT_DEBUG_DEATH(
+      VertexFormat({
+          VertexAttribute(), VertexAttribute(), VertexAttribute(),
+          VertexAttribute(), VertexAttribute(), VertexAttribute(),
+          VertexAttribute(), VertexAttribute(), VertexAttribute(),
+          VertexAttribute(), VertexAttribute(), VertexAttribute(),
+          VertexAttribute(), VertexAttribute(), VertexAttribute(),
+          VertexAttribute(), VertexAttribute(), VertexAttribute(),
+          VertexAttribute(), VertexAttribute(),
+      }),
+      "Cannot exceed max attributes size");
 
   const VertexFormat empty({});
   EXPECT_DEATH(empty.GetAttributeAt(0), "Index out of bounds!");

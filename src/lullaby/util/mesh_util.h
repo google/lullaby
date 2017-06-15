@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_UTIL_MESH_H_
-#define LULLABY_UTIL_MESH_H_
+#ifndef LULLABY_UTIL_MESH_UTIL_H_
+#define LULLABY_UTIL_MESH_UTIL_H_
 
 #include <stdint.h>
 #include <algorithm>
@@ -317,4 +317,4 @@ MeshData CreateQuadMesh(float size_x, float size_y, int num_verts_x,
 
 }  // namespace lull
 
-#endif  // LULLABY_UTIL_MESH_H_
+#endif  // LULLABY_UTIL_MESH_UTIL_H_

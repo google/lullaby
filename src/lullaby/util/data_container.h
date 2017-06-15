@@ -32,10 +32,13 @@ class DataContainer {
       std::unique_ptr<uint8_t[], std::function<void(const uint8_t*)>>;
 
   enum AccessFlags {
+    kNone = 0,
     kRead = 0x01 << 0,
     kWrite = 0x01 << 1,
     kAll = kRead | kWrite
   };
+
+  DataContainer() {}
 
   // Creates an empty DataContainer that uses |data| as data storage, with
   // |capacity| bytes available for storage. Read-write access to the
@@ -148,21 +151,31 @@ class DataContainer {
   }
 
   // Returns the total number of bytes that can fit into the container.
-  size_t GetCapacity() const {
-    return capacity_;
-  }
+  size_t GetCapacity() const { return capacity_; }
 
   // Returns the current number of bytes appended to the container. Note that
   // this will not count bytes written directly using the mutable data pointer.
-  size_t GetSize() const {
-    return size_;
+  size_t GetSize() const { return size_; }
+
+  // Creates a copy allocated from the heap with read+write access. If *this
+  // doesn't have read access, this function will DFATAL and the result will be
+  // empty.
+  DataContainer CreateHeapCopy() const {
+    DataContainer copy = CreateHeapDataContainer(capacity_);
+    if (!IsReadable()) {
+      LOG(DFATAL) << "Can't copy unreadable data.";
+    }
+    if (!copy.Append(data_.get(), size_)) {
+      LOG(DFATAL) << "Failed to copy data.";
+    }
+    return copy;
   }
 
  private:
   DataPtr data_;
-  size_t size_;
-  const size_t capacity_;
-  const AccessFlags access_;
+  size_t size_ = 0;
+  size_t capacity_ = 0;
+  AccessFlags access_ = kNone;
 };
 
 }  // namespace lull

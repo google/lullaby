@@ -27,7 +27,7 @@ limitations under the License.
 #include "lullaby/util/deform.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
-#include "lullaby/util/mesh.h"
+#include "lullaby/util/mesh_util.h"
 #include "lullaby/util/vertex.h"
 
 namespace lull {

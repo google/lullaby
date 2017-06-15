@@ -300,6 +300,10 @@ bool RenderSystem::IsTextureLoaded(Entity e, int unit) const {
   return impl_->IsTextureLoaded(e, unit);
 }
 
+bool RenderSystem::IsTextureLoaded(const TexturePtr& texture) const {
+  return impl_->IsTextureLoaded(texture);
+}
+
 bool RenderSystem::IsReadyToRender(Entity entity) const {
   return impl_->IsReadyToRender(entity);
 }

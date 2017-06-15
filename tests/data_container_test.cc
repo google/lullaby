@@ -282,5 +282,32 @@ TEST(DataContainerDeathTest, WrappingDataLargerThanCapacity) {
       "");
 }
 
+TEST(DataContainer, CreateHeapCopy) {
+  constexpr size_t kTestSize = 8;
+  DataContainer source = DataContainer::CreateHeapDataContainer(kTestSize);
+  for (size_t i = 0; i < kTestSize; i++) {
+    const uint8_t value = static_cast<uint8_t>(i);
+    EXPECT_TRUE(source.Append(&value, sizeof(value)));
+  }
+
+  DataContainer copy = source.CreateHeapCopy();
+  EXPECT_TRUE(copy.IsReadable());
+  EXPECT_TRUE(copy.IsWritable());
+  EXPECT_EQ(source.GetSize(), copy.GetSize());
+  EXPECT_EQ(std::memcmp(source.GetReadPtr(), copy.GetReadPtr(), copy.GetSize()),
+            0);
+}
+
+TEST(DataContainerDeathTest, CreateHeapCopyWithoutReadAccess) {
+  constexpr size_t kTestSize = 8;
+  uint8_t* bytes = new uint8_t[kTestSize];
+  DataContainer::DataPtr data_ptr(bytes,
+                                  [](const uint8_t* ptr) { delete[] ptr; });
+  DataContainer unreadable(std::move(data_ptr), kTestSize,
+                           DataContainer::AccessFlags::kWrite);
+
+  PORT_EXPECT_DEBUG_DEATH(unreadable.CreateHeapCopy(), "");
+}
+
 }  // namespace
 }  // namespace lull

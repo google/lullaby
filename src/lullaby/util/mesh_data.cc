@@ -104,4 +104,12 @@ Aabb MeshData::GetAabb() const {
   return aabb_;
 }
 
+MeshData MeshData::CreateHeapCopy() const {
+  MeshData copy(primitive_type_, vertex_format_, vertex_data_.CreateHeapCopy(),
+                index_data_.CreateHeapCopy());
+  copy.aabb_is_dirty_ = aabb_is_dirty_;
+  copy.aabb_ = aabb_;
+  return copy;
+}
+
 }  // namespace lull

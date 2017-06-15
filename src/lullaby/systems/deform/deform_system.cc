@@ -20,7 +20,7 @@ limitations under the License.
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/mathfu_fb_conversions.h"
-#include "lullaby/util/mesh.h"
+#include "lullaby/util/mesh_util.h"
 
 namespace lull {
 namespace {

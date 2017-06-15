@@ -69,6 +69,11 @@ class VertexFormat {
 
   const VertexAttribute& GetAttributeAt(size_t index) const;
 
+  // Returns the attribute which has both |usage| and |usage_index|, else
+  // nullptr.
+  const VertexAttribute* GetAttributeWithUsage(VertexAttribute::Usage usage,
+                                               int usage_index = 0) const;
+
   // Returns the size of a single vertex, padded out to kAlignment.
   size_t GetVertexSize() const { return vertex_size_; }
 

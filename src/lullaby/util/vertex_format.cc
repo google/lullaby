@@ -34,6 +34,17 @@ const VertexAttribute& VertexFormat::GetAttributeAt(size_t index) const {
   return attributes_[index];
 }
 
+const VertexAttribute* VertexFormat::GetAttributeWithUsage(
+    VertexAttribute::Usage usage, int usage_index) const {
+  for (size_t i = 0; i < num_attributes_; ++i) {
+    const VertexAttribute& attribute = attributes_[i];
+    if (attribute.usage == usage && attribute.index == usage_index) {
+      return &attribute;
+    }
+  }
+  return nullptr;
+}
+
 bool VertexFormat::operator==(const VertexFormat& rhs) const {
   bool equal = (vertex_size_ == rhs.vertex_size_ &&
                 num_attributes_ == rhs.num_attributes_);

@@ -146,6 +146,8 @@ class RenderSystemFpl : public System {
 
   bool IsTextureLoaded(Entity e, int unit) const;
 
+  bool IsTextureLoaded(const TexturePtr& texture) const;
+
   bool IsReadyToRender(Entity entity) const;
 
   bool IsHidden(Entity e) const;

@@ -34,8 +34,12 @@ class ReticleProvider {
   virtual Entity GetReticleEntity() const = 0;
 
   virtual InputManager::DeviceType GetActiveDevice() const = 0;
+
+  virtual float GetReticleErgoAngleOffset() const { return -0.26f; }
 };
 
 }  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::ReticleProvider);
 
 #endif  // LULLABY_UTIL_RETICLE_PROVIDER_H_

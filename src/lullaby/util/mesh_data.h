@@ -36,6 +36,8 @@ class MeshData {
 
   static const Index kInvalidIndex;
 
+  MeshData() {}
+
   MeshData(const PrimitiveType primitive_type,
            const VertexFormat& vertex_format, DataContainer&& vertex_data,
            DataContainer&& index_data)
@@ -55,6 +57,10 @@ class MeshData {
   // Gets a const pointer to the vertex data as bytes. Returns nullptr if
   // the vertex DataContainer does not have read access.
   const uint8_t* GetVertexBytes() const { return vertex_data_.GetReadPtr(); }
+
+  // Returns a mutable pointer to the vertex data as bytes. Returns nullptr if
+  // the vertex DataContainer does not have read+write access.
+  uint8_t* GetMutableVertexBytes() { return vertex_data_.GetData(); }
 
   // Gets a const pointer to the vertex data of the mesh. Returns nullptr
   // if Vertex doesn't match format or the vertex DataContainer does not have
@@ -153,15 +159,19 @@ class MeshData {
   // cached mutable data storing the aabb state.
   Aabb GetAabb() const;
 
+  // Creates and returns a copy with read+write access. If *this doesn't have
+  // read access, logs a DFATAL and returns an empty mesh.
+  MeshData CreateHeapCopy() const;
+
  private:
-  const PrimitiveType primitive_type_;
-  const VertexFormat vertex_format_;
+  PrimitiveType primitive_type_ = kTriangles;
+  VertexFormat vertex_format_;
   DataContainer vertex_data_;
   DataContainer index_data_;
   // We keep track of the number of vertices that have been added to the mesh
   // in a field so the user can access this info without knowing the vertex
   // format.
-  Index num_vertices_;
+  Index num_vertices_ = 0;
   // The mesh aabb is cached when it is computed, so we keep track of a dirty
   // flag, setting it whenever vertices are changed and clearing it whenever
   // the aabb is computed.

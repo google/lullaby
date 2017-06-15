@@ -37,7 +37,7 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/mathfu_fb_conversions.h"
-#include "lullaby/util/mesh.h"
+#include "lullaby/util/mesh_util.h"
 #include "lullaby/util/trace.h"
 #include "lullaby/util/triangle_mesh.h"
 
@@ -662,6 +662,10 @@ bool RenderSystemFpl::IsTextureLoaded(Entity e, int unit) const {
     return false;
   }
   return render_component->textures.at(unit)->IsLoaded();
+}
+
+bool RenderSystemFpl::IsTextureLoaded(const TexturePtr& texture) const {
+  return texture->IsLoaded();
 }
 
 bool RenderSystemFpl::IsReadyToRender(Entity entity) const {

@@ -561,5 +561,39 @@ TEST(MeshData, GetAabb) {
   EXPECT_EQ(mesh.GetAabb().max, mathfu::vec3(20.f, 80.f, 40.f));
 }
 
+TEST(MeshData, CreateHeapCopy) {
+  MeshData mesh(PrimitiveType::kTriangles, VertexP::kFormat,
+                DataContainer::CreateHeapDataContainer(3U * sizeof(VertexP)),
+                DataContainer::CreateHeapDataContainer(3U * sizeof(Index)));
+  mesh.AddVertex<VertexP>(1.f, 2.f, 3.f);
+  mesh.AddVertex<VertexP>(4.f, 5.f, 6.f);
+  mesh.AddVertex<VertexP>(7.f, 8.f, 9.f);
+  EXPECT_TRUE(mesh.AddIndices({0U, 2U, 1U}));
+
+  MeshData copy = mesh.CreateHeapCopy();
+  EXPECT_EQ(mesh.GetPrimitiveType(), copy.GetPrimitiveType());
+  EXPECT_EQ(mesh.GetVertexFormat(), copy.GetVertexFormat());
+  EXPECT_EQ(mesh.GetNumVertices(), copy.GetNumVertices());
+  ASSERT_NE(copy.GetVertexBytes(), nullptr);
+  EXPECT_EQ(std::memcmp(
+                mesh.GetVertexBytes(), copy.GetVertexBytes(),
+                mesh.GetNumVertices() * mesh.GetVertexFormat().GetVertexSize()),
+            0);
+  EXPECT_EQ(mesh.GetNumIndices(), copy.GetNumIndices());
+  ASSERT_NE(copy.GetIndexData(), nullptr);
+  EXPECT_EQ(std::memcmp(mesh.GetIndexData(), copy.GetIndexData(),
+                        mesh.GetNumIndices() * sizeof(MeshData::Index)),
+            0);
+}
+
+TEST(MeshDataDeathTest, CreateHeapCopyWithoutReadAccess) {
+  MeshData uncopyable_mesh(PrimitiveType::kTriangles, VertexP::kFormat,
+                           DataContainer(), DataContainer());
+  MeshData result;
+  PORT_EXPECT_DEBUG_DEATH(result = uncopyable_mesh.CreateHeapCopy(), "");
+  EXPECT_EQ(result.GetNumVertices(), 0U);
+  EXPECT_EQ(result.GetNumIndices(), 0U);
+}
+
 }  // namespace
 }  // namespace lull

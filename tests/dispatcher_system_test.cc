@@ -730,26 +730,5 @@ TEST_F(DispatcherSystemTest, ConnectToAll) {
   EXPECT_EQ(count_local, 1);
 }
 
-TEST_F(DispatcherSystemTest, DestroyEntity) {
-  const Entity entity1 = Hash("test");
-
-  bool first_called = false;
-  bool second_called = false;
-  auto c1 = dispatcher_->Connect(
-      entity1, [&](const EventClass& e) { first_called = true; });
-  auto c2 = dispatcher_->Connect(
-      entity1, [&](const EventClass& e) { dispatcher_->Destroy(entity1); });
-  auto c3 = dispatcher_->Connect(
-      entity1, [&](const EventClass& e) { second_called = false; });
-
-  EventClass e(123);
-  dispatcher_->Send(entity1, e);
-
-  EXPECT_TRUE(first_called);
-  EXPECT_FALSE(second_called);
-  EXPECT_EQ(static_cast<size_t>(0),
-            dispatcher_->GetHandlerCount(entity1, GetTypeId<EventClass>()));
-}
-
 }  // namespace
 }  // namespace lull

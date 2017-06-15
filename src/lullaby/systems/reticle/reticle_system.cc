@@ -17,7 +17,6 @@ limitations under the License.
 #include "lullaby/systems/reticle/reticle_system.h"
 
 #include "mathfu/constants.h"
-#include "lullaby/util/bits.h"
 #include "lullaby/base/dispatcher.h"
 #include "lullaby/base/input_manager.h"
 #include "lullaby/events/input_events.h"
@@ -25,11 +24,14 @@ limitations under the License.
 #include "lullaby/systems/collision/collision_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/systems/reticle/reticle_system_reticle_provider.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/bits.h"
 #include "lullaby/util/common_fb_conversions.h"
 #include "lullaby/util/config.h"
 #include "lullaby/util/mathfu_fb_conversions.h"
 #include "lullaby/util/render_channels.h"
+#include "lullaby/util/reticle_provider.h"
 #include "lullaby/util/trace.h"
 #include "lullaby/util/transform_channels.h"
 
@@ -65,6 +67,8 @@ ReticleSystem::Reticle::Reticle(Entity e)
 
 ReticleSystem::ReticleSystem(Registry* registry)
     : System(registry), reticle_behaviours_(16) {
+  registry->Register(
+      std::unique_ptr<ReticleProvider>(new ReticleSystemReticleProvider(this)));
   RegisterDef(this, kReticleDef);
   RegisterDef(this, kReticleBehaviourDef);
   RegisterDependency<RenderSystem>(this);

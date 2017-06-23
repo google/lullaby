@@ -201,9 +201,9 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
   return indices;
 }
 
-// TODO(b/28863495) Remove this when mesh consolidation is complete.
+// TODO(b/38379841) Reduce complexity of deformations.
 void ApplyDeformation(float* vertices, size_t len, size_t stride,
-                      std::function<mathfu::vec3(const mathfu::vec3&)> deform) {
+                      const PositionDeformation& deform) {
   for (size_t i = 0; i < len; i += stride) {
     const mathfu::vec3 original_position(vertices[i], vertices[i + 1],
                                          vertices[i + 2]);
@@ -212,6 +212,31 @@ void ApplyDeformation(float* vertices, size_t len, size_t stride,
     vertices[i + 1] = deformed_position.y;
     vertices[i + 2] = deformed_position.z;
   }
+}
+
+// TODO(b/38379841) Reduce complexity of deformations.
+void ApplyDeformationToMesh(MeshData* mesh,
+                            const VertexListDeformation& deform) {
+  const VertexFormat& format = mesh->GetVertexFormat();
+  const VertexAttribute* position =
+      format.GetAttributeWithUsage(VertexAttribute::kPosition);
+  if (!position || position->count != 3 ||
+      position->type != VertexAttribute::kFloat32) {
+    LOG(DFATAL) << "Vertex format doesn't have pos3f";
+    return;
+  }
+
+  float* vertex_data = reinterpret_cast<float*>(mesh->GetMutableVertexBytes());
+  if (!vertex_data) {
+    LOG(DFATAL) << "Can't deform mesh without read+write";
+    return;
+  }
+
+  // Formats are always padded out to 4 bytes, so this is safe.
+  DCHECK_EQ(format.GetVertexSize() % sizeof(float), 0);
+  const size_t stride_in_floats = format.GetVertexSize() / sizeof(float);
+  const size_t length_in_floats = mesh->GetNumVertices() * stride_in_floats;
+  deform(vertex_data, length_in_floats, stride_in_floats);
 }
 
 }  // namespace lull

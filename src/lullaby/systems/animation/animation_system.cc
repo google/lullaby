@@ -19,6 +19,8 @@ limitations under the License.
 #include "motive/init.h"
 #include "motive/spline_anim_generated.h"
 #include "lullaby/base/asset_loader.h"
+#include "lullaby/base/dispatcher.h"
+#include "lullaby/events/animation_events.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/time.h"
@@ -49,6 +51,20 @@ AnimationSystem::AnimationSystem(Registry* registry)
   motive::RigInit::Register();
   motive::MatrixInit::Register();
   motive::SplineInit::Register();
+
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Connect(this, [this](const CancelAllAnimationsEvent& event) {
+      CancelAllAnimations(event.entity);
+    });
+  }
+}
+
+AnimationSystem::~AnimationSystem() {
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
+  }
 }
 
 void AnimationSystem::Create(Entity entity, HashValue type, const Def* def) {
@@ -74,9 +90,13 @@ void AnimationSystem::PostCreateInit(Entity e, HashValue type, const Def* def) {
   }
 }
 
-void AnimationSystem::Destroy(Entity e) {
+void AnimationSystem::Destroy(Entity entity) {
+  CancelAllAnimations(entity);
+}
+
+void AnimationSystem::CancelAllAnimations(Entity entity) {
   for (auto& channel : channels_) {
-    const AnimationId id = channel.second->Cancel(e);
+    const AnimationId id = channel.second->Cancel(entity);
     UntrackAnimation(id, AnimationCompletionReason::kCancelled);
   }
 }

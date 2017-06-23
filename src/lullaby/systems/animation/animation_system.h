@@ -63,14 +63,19 @@ class AnimationSystem : public System {
  public:
   explicit AnimationSystem(Registry* registry);
 
+  ~AnimationSystem() override;
+
   // Sets up animation responses specified in the Def on the Entity.
   void Create(Entity entity, HashValue type, const Def* def) override;
 
   // Plays the animation curves specified in the Def on the Entity.
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
 
+  // Removes any animation data related to the Entity.
+  void Destroy(Entity entity) override;
+
   // Stops all animations playing on the Entity.
-  void Destroy(Entity e) override;
+  void CancelAllAnimations(Entity entity);
 
   // Registers an animation channel which determines how animation data will be
   // set on external Systems.  See AnimationChannel for more details.

@@ -38,21 +38,6 @@ Mesh::MeshImplPtr CreateMesh(const TriangleMesh<Vertex>& src,
   return mesh;
 }
 
-Mesh::MeshImplPtr CreateMesh(const HeapDynamicMesh& src,
-                             const fplbase::Attribute* attributes) {
-  Mesh::MeshImplPtr mesh(
-      new fplbase::Mesh(src.GetVertexData(), src.GetNumVertices(),
-                        src.GetVertexFormat().GetVertexSize(), attributes,
-                        nullptr /* max_position */, nullptr /* min_position */,
-                        Mesh::GetFplPrimitiveType(src.GetPrimitiveType())),
-      [](const fplbase::Mesh* mesh) { delete mesh; });
-  fplbase::Material* mat = nullptr;
-  const bool is_32_bit = false;
-  mesh->AddIndices(src.GetIndexData(), static_cast<int>(src.GetNumIndices()),
-                   mat, is_32_bit);
-  return mesh;
-}
-
 Mesh::MeshImplPtr CreateMesh(const MeshData& src,
                              const fplbase::Attribute* attributes) {
   Mesh::MeshImplPtr mesh(
@@ -75,7 +60,7 @@ Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)) {
       impl_ ? static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3) : 0;
 }
 
-// TODO(b/31523782): Remove once pipeline for HeapDynamicMesh is in-place.
+// TODO(b/31523782): Remove once pipeline for MeshData is in-place.
 Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
   static const fplbase::Attribute kAttributes[] = {
       fplbase::kPosition3f, fplbase::kEND,
@@ -84,20 +69,13 @@ Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
   num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
 }
 
-// TODO(b/31523782): Remove once pipeline for HeapDynamicMesh is in-place.
+// TODO(b/31523782): Remove once pipeline for MeshData is in-place.
 Mesh::Mesh(const TriangleMesh<VertexPT>& mesh) {
   static const fplbase::Attribute kAttributes[] = {
       fplbase::kPosition3f, fplbase::kTexCoord2f, fplbase::kEND,
   };
   impl_ = CreateMesh(mesh, kAttributes);
   num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
-}
-
-Mesh::Mesh(const HeapDynamicMesh& mesh) {
-  fplbase::Attribute attributes[kMaxFplAttributeArraySize];
-  GetFplAttributes(mesh.GetVertexFormat(), attributes);
-  impl_ = CreateMesh(mesh, attributes);
-  num_triangles_ = static_cast<int>(mesh.GetNumIndices() / 3);
 }
 
 Mesh::Mesh(const MeshData& mesh) {

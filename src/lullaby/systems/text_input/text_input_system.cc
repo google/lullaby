@@ -389,6 +389,10 @@ void TextInputSystem::UpdateComposingIndicator(Entity e) {
       const std::vector<mathfu::vec3>* caret_positions =
           render_system->GetCaretPositions(e);
 
+      if (!caret_positions) {
+        return;
+      }
+
       VertexP v;
       const float half_thickness = input->composing_thickness * .5f;
 

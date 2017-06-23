@@ -550,6 +550,50 @@ TEST(ComputeRayPlaneCollision, Parallel) {
   EXPECT_FALSE(ComputeRayPlaneCollision(r, p, &out));
 }
 
+TEST(ProjectPointOntoLine, OnLine) {
+  const Line line(mathfu::vec3(0.0f, 1.0f, 0.0f), mathfu::kAxisX3f);
+  const mathfu::vec3 point(2.0f, 1.0f, 0.0f);
+  const mathfu::vec3 projected_point = ProjectPointOntoLine(line, point);
+  EXPECT_TRUE(IsNearlyZero((projected_point - point).Length()));
+}
+
+TEST(ProjectPointOntoLine, OffLine) {
+  const Line line(mathfu::vec3(0.0f, 1.0f, 0.0f), mathfu::kAxisX3f);
+  const mathfu::vec3 point(2.0f, 0.0f, 1.0f);
+  const mathfu::vec3 point_expected(2.0f, 1.0f, 0.0f);
+  const mathfu::vec3 projected_point = ProjectPointOntoLine(line, point);
+  EXPECT_TRUE(IsNearlyZero((projected_point - point_expected).Length()));
+}
+
+TEST(ComputeClosestPointBetweenLines, Parallel) {
+  const Line line_a(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::kAxisX3f);
+  const Line line_b(mathfu::vec3(0.0f, 1.0f, 0.0f), mathfu::kAxisX3f);
+  EXPECT_FALSE(
+      ComputeClosestPointBetweenLines(line_a, line_b, nullptr, nullptr));
+}
+
+TEST(ComputeClosestPointBetweenLines, Intersecting) {
+  const Line line_a(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::kAxisX3f);
+  const Line line_b(mathfu::vec3(1.0f, 0.0f, 3.0f), mathfu::kAxisZ3f);
+  mathfu::vec3 out_a = mathfu::kZeros3f;
+  mathfu::vec3 out_b = mathfu::kZeros3f;
+  EXPECT_TRUE(ComputeClosestPointBetweenLines(line_a, line_b, &out_a, &out_b));
+  const mathfu::vec3 expected_point(1.0f, 0.0f, 0.0f);
+  EXPECT_TRUE(IsNearlyZero((out_a - expected_point).Length()));
+  EXPECT_TRUE(IsNearlyZero((out_b - expected_point).Length()));
+}
+
+TEST(ComputeClosestPointBetweenLines, NonIntersecting) {
+  const Line line_a(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::kAxisX3f);
+  const Line line_b(mathfu::vec3(1.0f, 2.0f, 3.0f), mathfu::kAxisZ3f);
+  mathfu::vec3 out_a = mathfu::kZeros3f;
+  mathfu::vec3 out_b = mathfu::kZeros3f;
+  EXPECT_TRUE(ComputeClosestPointBetweenLines(line_a, line_b, &out_a, &out_b));
+  const mathfu::vec3 expected_a(1.0f, 0.0f, 0.0f);
+  const mathfu::vec3 expected_b(1.0f, 2.0f, 0.0f);
+  EXPECT_TRUE(IsNearlyZero((out_a - expected_a).Length()));
+  EXPECT_TRUE(IsNearlyZero((out_b - expected_b).Length()));
+}
 
 TEST(EvalPointUvFromAabb, Normal) {
   const mathfu::vec3 min(-1.f, -2.f, -3.f);
@@ -1693,5 +1737,122 @@ TEST(CheckPercentageOfLineClosestToPoint, AfterStart) {
   std::cout << "percentage " << percentage << std::endl;
   EXPECT_NEAR(percentage, 1.25f, kEpsilon);
 }
+
+TEST(ComputeNormalMatrix, SimpleIdentity) {
+  const mathfu::vec3 z_vector(0.0f, 0.0f, 1.0f);
+
+  const mathfu::mat4 mat_identity = mathfu::mat4::Identity();
+  const mathfu::mat3 mat_normal = ComputeNormalMatrix(mat_identity);
+
+  EXPECT_THAT(mat_normal * z_vector, NearMathfu(z_vector, kEpsilon));
+}
+
+TEST(ComputeNormalMatrix, SimpleRotation) {
+  const mathfu::vec3 z_vector(0.0f, 0.0f, 1.0f);
+
+  const mathfu::mat4 mat_rotation_x =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationX(M_PI_float));
+  const mathfu::mat3 mat_normal_x = ComputeNormalMatrix(mat_rotation_x);
+  EXPECT_THAT(mat_normal_x * z_vector, NearMathfu(-z_vector, kEpsilon));
+
+  const mathfu::mat4 mat_rotation_y =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationY(M_PI_float));
+  const mathfu::mat3 mat_normal_y = ComputeNormalMatrix(mat_rotation_y);
+  EXPECT_THAT(mat_normal_y * z_vector, NearMathfu(-z_vector, kEpsilon));
+
+  const mathfu::mat4 mat_rotation_z =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationZ(M_PI_float));
+  const mathfu::mat3 mat_normal_z = ComputeNormalMatrix(mat_rotation_z);
+  EXPECT_THAT(mat_normal_z * z_vector, NearMathfu(z_vector, kEpsilon));
+}
+
+TEST(ComputeNormalMatrix, UniformScaledRotation) {
+  const mathfu::vec3 z_vector(0.0f, 0.0f, 1.0f);
+
+  const mathfu::mat4 mat_rotation_x =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationX(M_PI_float)) *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(2.0f, 2.0f, 2.0f));
+  const mathfu::mat3 mat_normal_x = ComputeNormalMatrix(mat_rotation_x);
+  EXPECT_THAT((mat_normal_x * z_vector).Normalized(),
+              NearMathfu(-z_vector, kEpsilon));
+
+  const mathfu::mat4 mat_rotation_y =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationY(M_PI_float)) *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(3.5f, 3.5f, 3.5f));
+  const mathfu::mat3 mat_normal_y = ComputeNormalMatrix(mat_rotation_y);
+  EXPECT_THAT((mat_normal_y * z_vector).Normalized(),
+              NearMathfu(-z_vector, kEpsilon));
+
+  const mathfu::mat4 mat_rotation_z =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationZ(M_PI_float)) *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(25.3f, 25.3f, 25.3f));
+  const mathfu::mat3 mat_normal_z = ComputeNormalMatrix(mat_rotation_z);
+  EXPECT_THAT((mat_normal_z * z_vector).Normalized(),
+              NearMathfu(z_vector, kEpsilon));
+}
+
+TEST(ComputeNormalMatrix, NonUniformScaledRotation) {
+  const mathfu::vec3 z_vector(0.0f, 0.0f, 1.0f);
+
+  const mathfu::mat4 mat_rotation_x =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationX(M_PI_float)) *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(2.0f, 5.0f, 2.0f));
+  const mathfu::mat3 mat_normal_x = ComputeNormalMatrix(mat_rotation_x);
+  EXPECT_THAT((mat_normal_x * z_vector).Normalized(),
+              NearMathfu(-z_vector, kEpsilon));
+
+  const mathfu::mat4 mat_rotation_y =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationY(M_PI_float)) *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(13.5f, 3.5f, 3.5f));
+  const mathfu::mat3 mat_normal_y = ComputeNormalMatrix(mat_rotation_y);
+  EXPECT_THAT((mat_normal_y * z_vector).Normalized(),
+              NearMathfu(-z_vector, kEpsilon));
+
+  const mathfu::mat4 mat_rotation_z =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationZ(M_PI_float)) *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(25.3f, 25.3f, 5.3f));
+  const mathfu::mat3 mat_normal_z = ComputeNormalMatrix(mat_rotation_z);
+  EXPECT_THAT((mat_normal_z * z_vector).Normalized(),
+              NearMathfu(z_vector, kEpsilon));
+}
+
+TEST(CalculateCameraDirection, Simple) {
+  EXPECT_THAT(CalculateCameraDirection(mathfu::mat4::Identity()),
+              NearMathfu(mathfu::vec3(0.0f, 0.0f, -1.0f), kEpsilon));
+
+  const mathfu::mat4 mat_rotation_y =
+      mathfu::mat4::FromRotationMatrix(mathfu::mat3::RotationY(M_PI_float));
+  EXPECT_THAT(CalculateCameraDirection(mat_rotation_y),
+              NearMathfu(mathfu::vec3(0.0f, 0.0f, 1.0f), kEpsilon));
+}
+
+TEST(CalculateCameraDirection, LookAtSimple) {
+  const mathfu::mat4 mat_eye_0 = mathfu::mat4::LookAt(
+      mathfu::vec3(0.0f, 0.0f, 1.0f), mathfu::vec3(0.0f, 0.0f, 0.0f),
+      mathfu::kAxisY3f, 1.0f);
+  EXPECT_THAT(CalculateCameraDirection(mat_eye_0),
+              NearMathfu(mathfu::vec3(0.0f, 0.0f, 1.0f), kEpsilon));
+
+  const mathfu::mat4 mat_eye_1 = mathfu::mat4::LookAt(
+      mathfu::vec3(0.0f, 0.0f, -1.0f), mathfu::vec3(0.0f, 0.0f, 0.0f),
+      mathfu::kAxisY3f, 1.0f);
+  EXPECT_THAT(CalculateCameraDirection(mat_eye_1),
+              NearMathfu(mathfu::vec3(0.0f, 0.0f, -1.0f), kEpsilon));
+
+  const mathfu::mat4 mat_eye_2 = mathfu::mat4::LookAt(
+      mathfu::vec3(1.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, 0.0f),
+      mathfu::kAxisY3f, 1.0f);
+  EXPECT_THAT(CalculateCameraDirection(mat_eye_2),
+              NearMathfu(mathfu::vec3(-1.0f, 0.0f, 0.0f), kEpsilon));
+}
+
+TEST(CalculateCameraDirection, LookAt) {
+  const mathfu::mat4 mat_eye_0 = mathfu::mat4::LookAt(
+      mathfu::vec3(5.0f, 0.0f, 5.0f), mathfu::vec3(2.0f, 0.0f, 2.0f),
+      mathfu::kAxisY3f, 1.0f);
+  EXPECT_THAT(CalculateCameraDirection(mat_eye_0),
+              NearMathfu(mathfu::vec3(-0.707107f, 0.0f, 0.707107f), kEpsilon));
+}
+
 }  // namespace
 }  // namespace lull

@@ -141,6 +141,25 @@ TEST(VertexPTN, ctor) {
   EXPECT_EQ(GetNormal(v2), normal);
 }
 
+TEST(VertexPTTI, ctor) {
+  const mathfu::vec3 pos(1, 2, 3);
+  const mathfu::vec2 uv0(4, 5);
+  const mathfu::vec2 uv1(6, 7);
+  const uint8_t indices[4] = {8, 9, 10, 11};
+
+  VertexPTTI v1(pos, uv0, uv1, indices);
+  EXPECT_EQ(GetPosition(v1), pos);
+  EXPECT_EQ(GetUv0(v1), uv0);
+  EXPECT_EQ(GetUv1(v1), uv1);
+  EXPECT_EQ(memcmp(v1.indices, indices, sizeof(indices)), 0);
+
+  VertexPTTI v2(pos.x, pos.y, pos.z, uv0.x, uv0.y, uv1.x, uv1.y, indices);
+  EXPECT_EQ(GetPosition(v2), pos);
+  EXPECT_EQ(GetUv0(v2), uv0);
+  EXPECT_EQ(GetUv1(v2), uv1);
+  EXPECT_EQ(memcmp(v2.indices, indices, sizeof(indices)), 0);
+}
+
 TEST(Vertex, SetPosition) {
   VertexP v(0, 0, 0);
 

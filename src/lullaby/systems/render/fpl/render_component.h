@@ -29,7 +29,6 @@ limitations under the License.
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
-#include "lullaby/util/heap_dynamic_mesh.h"
 
 namespace lull {
 namespace detail {
@@ -60,6 +59,7 @@ struct RenderComponent : Component {
   StencilMode stencil_mode = StencilMode::kDisabled;
   int stencil_value = 0;
   bool hidden = false;
+  RenderSystem::Quad quad = RenderSystem::Quad();
 };
 
 }  // namespace detail

@@ -198,7 +198,7 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
     text_system->CreateFromRenderDef(e, data);
   }
 
-  if (data.texture()) {
+  if (data.texture() && data.texture()->size() > 0) {
     TexturePtr texture =
         factory_->LoadTexture(data.texture()->c_str(), data.create_mips());
     SetTexture(e, 0, texture);
@@ -588,6 +588,13 @@ const std::vector<LinkTag>* RenderSystemFpl::GetLinkTags(Entity e) const {
 }
 
 void RenderSystemFpl::SetQuad(Entity e, const Quad& quad) {
+  auto* render_component = render_component_pools_.GetComponent(e);
+  if (!render_component) {
+    LOG(WARNING) << "Missing entity for SetQuad: " << e;
+    return;
+  }
+  render_component->quad = quad;
+
   auto iter = deformations_.find(e);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
@@ -598,6 +605,15 @@ void RenderSystemFpl::SetQuad(Entity e, const Quad& quad) {
   } else {
     SetQuadImpl(e, quad);
   }
+}
+
+bool RenderSystemFpl::GetQuad(Entity e, Quad* quad) const {
+  const auto* render_component = render_component_pools_.GetComponent(e);
+  if (!render_component) {
+    return false;
+  }
+  *quad = render_component->quad;
+  return true;
 }
 
 void RenderSystemFpl::SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh) {
@@ -617,10 +633,6 @@ void RenderSystemFpl::SetAndDeformMesh(Entity entity,
   } else {
     SetMesh(entity, mesh);
   }
-}
-
-void RenderSystemFpl::SetMesh(Entity e, const HeapDynamicMesh& mesh) {
-  SetMesh(e, factory_->CreateMesh(mesh));
 }
 
 void RenderSystemFpl::SetMesh(Entity e, const MeshData& mesh) {
@@ -1020,19 +1032,42 @@ void RenderSystemFpl::SetViewUniforms(const View& view) {
 
 void RenderSystemFpl::RenderAt(const RenderComponent* component,
                                const mathfu::mat4& world_from_entity_matrix,
-                               const mathfu::mat4& clip_from_world_matrix) {
+                               const View& view) {
   LULLABY_CPU_TRACE_CALL();
   if (!component->shader || (!component->mesh && !component->dynamic_mesh)) {
     return;
   }
 
   const mathfu::mat4 clip_from_entity_matrix =
-      clip_from_world_matrix * world_from_entity_matrix;
+      view.clip_from_world_matrix * world_from_entity_matrix;
   renderer_.set_model_view_projection(clip_from_entity_matrix);
   renderer_.set_model(world_from_entity_matrix);
 
   BindShader(component->shader);
   SetShaderUniforms(component->uniforms);
+
+  const Shader::UniformHnd mat_normal_uniform_handle =
+      component->shader->FindUniform("mat_normal");
+  if (fplbase::ValidUniformHandle(mat_normal_uniform_handle)) {
+    const int uniform_gl = fplbase::GlUniformHandle(mat_normal_uniform_handle);
+    // Compute the normal matrix. This is the transposed matrix of the inversed
+    // world position. This is done to avoid non-uniform scaling of the normal.
+    // A good explanation of this can be found here:
+    // http://www.lighthouse3d.com/tutorials/glsl-12-tutorial/the-normal-matrix/
+    const mathfu::mat3 normal_matrix =
+        ComputeNormalMatrix(world_from_entity_matrix);
+    mathfu::VectorPacked<float, 3> packed[3];
+    normal_matrix.Pack(packed);
+    glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data);
+  }
+  const Shader::UniformHnd camera_dir_handle =
+      component->shader->FindUniform("camera_dir");
+  if (fplbase::ValidUniformHandle(camera_dir_handle)) {
+    const int uniform_gl = fplbase::GlUniformHandle(camera_dir_handle);
+    mathfu::vec3_packed camera_dir;
+    CalculateCameraDirection(view.world_from_eye_matrix).Pack(&camera_dir);
+    glUniform3fv(uniform_gl, 1, camera_dir.data);
+  }
 
   for (const auto& texture : component->textures) {
     texture.second->Bind(texture.first);
@@ -1071,6 +1106,27 @@ void RenderSystemFpl::RenderAtMultiview(
   if (fplbase::ValidUniformHandle(mvp_uniform_handle)) {
     const int uniform_gl = fplbase::GlUniformHandle(mvp_uniform_handle);
     glUniformMatrix4fv(uniform_gl, 2, false, &(clip_from_entity_matrix[0][0]));
+  }
+  const Shader::UniformHnd mat_normal_uniform_handle =
+      component->shader->FindUniform("mat_normal");
+  if (fplbase::ValidUniformHandle(mat_normal_uniform_handle)) {
+    const int uniform_gl = fplbase::GlUniformHandle(mat_normal_uniform_handle);
+    const mathfu::mat3 normal_matrix =
+        ComputeNormalMatrix(world_from_entity_matrix);
+    mathfu::VectorPacked<float, 3> packed[3];
+    normal_matrix.Pack(packed);
+    glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data);
+  }
+  const Shader::UniformHnd camera_dir_handle =
+      component->shader->FindUniform("camera_dir");
+  if (fplbase::ValidUniformHandle(camera_dir_handle)) {
+    const int uniform_gl = fplbase::GlUniformHandle(camera_dir_handle);
+    mathfu::vec3_packed camera_dir[2];
+    for (size_t i = 0; i < 2; ++i) {
+      CalculateCameraDirection(views[i].world_from_eye_matrix)
+          .Pack(&camera_dir[i]);
+    }
+    glUniform3fv(uniform_gl, 2, camera_dir[0].data);
   }
 
   for (const auto& texture : component->textures) {
@@ -1158,7 +1214,7 @@ void RenderSystemFpl::RenderDisplayList(const View& view,
                 [&](const DisplayList::Entry& info) {
                   if (info.component) {
                     RenderAt(info.component, info.world_from_entity_matrix,
-                             view.clip_from_world_matrix);
+                             view);
                   }
                 });
 }
@@ -1441,11 +1497,12 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
   // TODO(b/29914331) Separate, tested matrix decomposition util functions.
   if (is_stereo) {
     const float kTopOfTextScreenScale = .45f;
-    const float kFontScreenScale = .1f;
+    const float kFontScreenScale = .075f;
     const float z = -1.0f;
     const float tan_half_fov = 1.0f / views[0].clip_from_eye_matrix[5];
     font_size = .5f * kFontScreenScale * -z * tan_half_fov;
-    start_pos = mathfu::vec3(0, kTopOfTextScreenScale * -z * tan_half_fov, z);
+    start_pos =
+        mathfu::vec3(-.5f, kTopOfTextScreenScale * -z * tan_half_fov, z);
   } else {
     const float kNearPlaneOffset = .0001f;
     const float bottom = (-1.0f - views[0].clip_from_eye_matrix[13]) /

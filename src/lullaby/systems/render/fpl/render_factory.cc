@@ -381,13 +381,6 @@ Texture::TextureImplPtr RenderFactory::CreateFplTexture(
   return out;
 }
 
-MeshPtr RenderFactory::CreateMesh(const HeapDynamicMesh& mesh) {
-  if (mesh.GetNumVertices() == 0) {
-    return MeshPtr();
-  }
-  return MeshPtr(new Mesh(mesh));
-}
-
 MeshPtr RenderFactory::CreateMesh(const MeshData& mesh) {
   if (mesh.GetNumVertices() == 0) {
     return MeshPtr();

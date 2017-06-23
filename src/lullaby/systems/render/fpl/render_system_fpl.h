@@ -120,12 +120,12 @@ class RenderSystemFpl : public System {
   void SetText(Entity e, const std::string& text);
   const std::vector<LinkTag>* GetLinkTags(Entity e) const;
 
+  bool GetQuad(Entity e, Quad* quad) const;
   void SetQuad(Entity e, const Quad& quad);
 
   // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
-  void SetMesh(Entity e, const HeapDynamicMesh& mesh);
 
   void SetMesh(Entity e, const MeshData& mesh);
 
@@ -235,8 +235,7 @@ class RenderSystemFpl : public System {
 
   void CreateRenderComponentFromDef(Entity e, const RenderDef& data);
   void RenderAt(const RenderComponent* component,
-                const mathfu::mat4& world_from_entity_matrix,
-                const mathfu::mat4& clip_from_world_matrix);
+                const mathfu::mat4& world_from_entity_matrix, const View& view);
   void RenderAtMultiview(const RenderComponent* component,
                          const mathfu::mat4& world_from_entity_matrix,
                          const View* views);

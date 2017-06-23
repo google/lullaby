@@ -412,7 +412,7 @@ void EntityFactory::InitializeFinalizer() {
       // union data.
       const size_t start = writer->StartTable();
       writer->Reference(data, ComponentDef::VT_DEF);
-      writer->Scalar(&def_type, ComponentDef::VT_DEF - 2, 0);
+      writer->Scalar(&def_type, ComponentDef::VT_DEF_TYPE, 0);
       const size_t table = writer->EndTable(start);
 
       // Add the table as an element to the vector of ComponentDefs.

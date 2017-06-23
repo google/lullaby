@@ -48,8 +48,22 @@ struct AnimationCompleteEvent {
   AnimationCompletionReason reason = AnimationCompletionReason::kCompleted;
 };
 
+// Invokes AnimationSystem::CancelAllAnimations(entity)
+struct CancelAllAnimationsEvent {
+  CancelAllAnimationsEvent() {}
+  explicit CancelAllAnimationsEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::AnimationCompleteEvent);
+LULLABY_SETUP_TYPEID(lull::CancelAllAnimationsEvent);
 
 #endif  // LULLABY_EVENTS_ANIMATION_EVENTS_H_

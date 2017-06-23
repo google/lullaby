@@ -28,6 +28,11 @@ limitations under the License.
 
 namespace lull {
 
+using PositionDeformation = std::function<mathfu::vec3(const mathfu::vec3&)>;
+
+using VertexListDeformation =
+    std::function<void(float* data, size_t count, size_t stride_in_floats)>;
+
 // Bitmask for representing a set of quad corners.  These are named as if
 // looking down the -z axis: +x = right and +y is top.
 enum class CornerMask {
@@ -54,9 +59,15 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
                                                      int num_verts_y,
                                                      int corner_verts);
 
-// TODO(b/28863495) Remove this when mesh consolidation is complete.
+// TODO(b/38379841) Reduce complexity of deformations.
 void ApplyDeformation(float* vertices, size_t len, size_t stride,
-                      std::function<mathfu::vec3(const mathfu::vec3&)> deform);
+                      const PositionDeformation& deform);
+
+// Deforms |mesh| in-place by applying |deform| to each of its vertices. Fails
+// with a DFATAL if |mesh| doesn't have read+write access.
+// TODO(b/38379841) Reduce complexity of deformations.
+void ApplyDeformationToMesh(MeshData* mesh,
+                            const VertexListDeformation& deform);
 
 // Returns the number of vertices a needed for a tessellated quad.  Optionally,
 // also returns the number of interior verts in out params so that this function

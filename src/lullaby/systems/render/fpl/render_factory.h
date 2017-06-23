@@ -79,10 +79,6 @@ class RenderFactory {
   MeshPtr CreateMesh(HashValue key, const TriangleMesh<Vertex>& mesh);
 
   // Creates a mesh using the specified data.
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  MeshPtr CreateMesh(const HeapDynamicMesh& mesh);
-
-  // Creates a mesh using the specified data.
   MeshPtr CreateMesh(const MeshData& mesh);
 
   // Creates a texture from memory.  |data| is copied into GL memory, so it's no

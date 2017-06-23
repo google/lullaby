@@ -74,4 +74,15 @@ const VertexFormat VertexPTI::kFormat({
                     VertexAttribute::kUnsignedInt8),
 });
 
+const VertexFormat VertexPTTI::kFormat({
+    VertexAttribute(0, VertexAttribute::kPosition, 3,
+                    VertexAttribute::kFloat32),
+    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32),
+    VertexAttribute(20, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32, 1),
+    VertexAttribute(28, VertexAttribute::kIndex, 4,
+                    VertexAttribute::kUnsignedInt8),
+});
+
 }  // namespace lull

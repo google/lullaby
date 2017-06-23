@@ -45,7 +45,7 @@ class TransformSystem : public System {
 
   explicit TransformSystem(Registry* registry);
 
-  ~TransformSystem();
+  ~TransformSystem() override;
 
   /// Adds a transform to the Entity using the specified ComponentDef.
   void Create(Entity e, HashValue type, const Def* def) override;

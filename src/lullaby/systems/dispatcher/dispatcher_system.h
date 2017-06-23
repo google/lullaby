@@ -51,6 +51,9 @@ class DispatcherSystem : public System {
   void Create(Entity entity, HashValue type, const Def* def) override;
 
   /// Destroys the Dispatcher and any Connections associated with the Entity.
+  /// If currently dispatching, this will queue the dispatcher to be destroyed
+  /// and prevent other events from being sent to it.  Otherwise it will destroy
+  /// the dispatcher immediately.
   void Destroy(Entity entity) override;
 
   /// Sends |event| to all functions registered with the dispatcher associated
@@ -87,6 +90,9 @@ class DispatcherSystem : public System {
       std::declval<Dispatcher>().Connect(std::forward<Args>(args)...)) {
     Dispatcher* dispatcher = GetDispatcher(entity);
     if (dispatcher) {
+      // If a dispatcher is queued to be destroyed and a new connection is
+      // made, that dispatcher needs to be kept alive.
+      queued_destruction_.erase(entity);
       return dispatcher->Connect(std::forward<Args>(args)...);
     } else {
       return Dispatcher::Connection();
@@ -130,10 +136,20 @@ class DispatcherSystem : public System {
 
   Dispatcher* GetDispatcher(Entity entity);
 
+  void DestroyQueued();
+
   EventQueue queue_;
   EntityConnections connections_;
   EntityDispatcherMap dispatchers_;
   static bool enable_queued_dispatch_;
+  int dispatch_count_ = 0;
+
+  /// Destroying dispatchers will invalidate any iterators in the dispatchers_
+  /// map, and will cause problems if the code doing the destruction is
+  /// executing in an event sent by the dispatcher being removed.  For safety,
+  /// queue the destruction and handle it once |dispatch_count_| reaches 0.
+  std::unordered_set<Entity> queued_destruction_;
+
 
   Dispatcher universal_dispatcher_;
 

@@ -22,7 +22,6 @@ limitations under the License.
 #include "fplbase/renderer.h"
 #include "lullaby/generated/render_def_generated.h"
 #include "lullaby/base/asset.h"
-#include "lullaby/util/heap_dynamic_mesh.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/mesh_data.h"
 #include "lullaby/util/triangle_mesh.h"
@@ -45,9 +44,6 @@ class Mesh {
 
   // Creates a mesh from the provided TriangleMesh.
   explicit Mesh(const TriangleMesh<VertexPT>& mesh);
-
-  // Creates a mesh from the provided HeapDynamicMesh.
-  explicit Mesh(const HeapDynamicMesh& mesh);
 
   // Creates a mesh from the provided MeshData.
   explicit Mesh(const MeshData& mesh);

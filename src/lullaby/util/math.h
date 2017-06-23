@@ -64,6 +64,10 @@ struct Ray {
   mathfu::vec3 direction;
 };
 
+/// A line is parameterized in the same way as a ray but is conceptually
+/// different in that it extends infinitely in both directions from its origin.
+using Line = Ray;
+
 struct Plane {
   Plane(float distance, const mathfu::vec3& normal)
       : distance(distance), normal(normal) {}
@@ -157,6 +161,15 @@ mathfu::mat4 CalculatePerspectiveMatrixFromView(float fovy, float aspect,
 mathfu::mat4 CalculatePerspectiveMatrixFromView(const mathfu::rectf& fov,
                                                 float z_near, float z_far);
 
+// Calculate and return the normal rotation matrix for a given matrix. The
+// normal matrix ensures that the direction of the normals is preserved when
+// non-uniform scaling is present.
+mathfu::mat3 ComputeNormalMatrix(const mathfu::mat4& mat);
+
+// Calculate and return the camera's direction. This is the vector the camera is
+// looking at.
+mathfu::vec3 CalculateCameraDirection(const mathfu::mat4& eye_matrix);
+
 // Returns the identity SQT is |mat| is null.
 Sqt CalculateSqtFromMatrix(const mathfu::mat4* mat);
 
@@ -246,6 +259,14 @@ mathfu::vec3 ProjectPointOntoPlane(const Plane& plane,
 // Compute the ray-plane collision in world space.
 bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
                               mathfu::vec3* out);
+
+// Project |point| onto |line| and return the position.
+mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point);
+
+// Calculates the points along each line where the two lines are closest.
+// Returns false if the lines are parallel; true otherwise.
+bool ComputeClosestPointBetweenLines(const Line& line_a, const Line& line_b,
+                                     mathfu::vec3* out_a, mathfu::vec3* out_b);
 
 // Enum for frustum clipping planes.
 enum FrustumPlane {

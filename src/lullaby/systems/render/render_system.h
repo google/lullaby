@@ -27,7 +27,6 @@ limitations under the License.
 #include "lullaby/systems/render/texture.h"
 #include "lullaby/systems/text/html_tags.h"
 #include "lullaby/systems/text/text_system.h"
-#include "lullaby/util/heap_dynamic_mesh.h"
 #include "lullaby/util/mesh_data.h"
 #include "lullaby/util/render_view.h"
 #include "lullaby/util/triangle_mesh.h"
@@ -262,6 +261,10 @@ class RenderSystem : public System {
   // null if this entity does not have a render def.
   const std::vector<LinkTag>* GetLinkTags(Entity e) const;
 
+  // Copies the cached value of the |entity|'s Quad into |quad|. Returns false
+  // if no quad is found.
+  bool GetQuad(Entity e, Quad* quad) const;
+
   // Creates a Quad of a given size. If there is a deformation function set on
   // this entity then the quad generation will be deferred until ProcessTasks is
   // called.
@@ -276,10 +279,6 @@ class RenderSystem : public System {
 
   // Like SetMesh, but applies |entity|'s deformation, if any.
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
-
-  // Attaches a mesh to the specified entity.
-  // TODO(b/34981311): Replace with SetMesh(Entity, MeshData&) instead.
-  void SetMesh(Entity e, const HeapDynamicMesh& mesh);
 
   // Attaches a mesh to the specified Entity. Does not apply deformation.
   void SetMesh(Entity e, const MeshData& mesh);
@@ -361,7 +360,7 @@ class RenderSystem : public System {
   // Sets glDepthMask to |enabled|.
   void SetDepthWrite(const bool enabled);
 
-  // Sets |view| to be the the screen rectangle that gets rendered to.
+  // Sets |view| to be the screen rectangle that gets rendered to.
   void SetViewport(const View& view);
 
   // Sets |mvp| to be a position at which to project models.

@@ -220,6 +220,9 @@ void Dispatcher::EventHandlerMap::RemoveImpl(TypeId type,
 }
 
 void Dispatcher::EventHandlerMap::Dispatch(const EventWrapper& event) {
+  // NOTE: if you crash in this function, it may be because you destroyed an
+  // an Entity from inside an event handler.
+  // Call EntityFactory::QueueForDestruction instead.
   const TypeId type = event.GetTypeId();
 
   ++dispatch_count_;

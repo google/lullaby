@@ -28,6 +28,7 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/mesh_util.h"
+#include "lullaby/util/mesh_data.h"
 #include "lullaby/util/vertex.h"
 
 namespace lull {
@@ -150,8 +151,8 @@ class TriangleMesh {
   void SetQuad(float size_x, float size_y, int num_verts_x, int num_verts_y,
                float corner_radius, int corner_verts, CornerMask corner_mask) {
     vertices_ = CalculateTesselatedQuadVertices<Vertex>(
-        size_x, size_y, num_verts_x, num_verts_y,
-        corner_radius, corner_verts, corner_mask);
+        size_x, size_y, num_verts_x, num_verts_y, corner_radius, corner_verts,
+        corner_mask);
     indices_ =
         CalculateTesselatedQuadIndices(num_verts_x, num_verts_y, corner_verts);
     if (vertices_.empty() || indices_.empty()) {
@@ -161,11 +162,25 @@ class TriangleMesh {
     }
   }
 
-  // Applies |deform| to all vertices.
-  void ApplyDeformation(DeformPositionFn deform) {
-    for (size_t i = 0; i < vertices_.size(); ++i) {
-      SetPosition(&vertices_[i], deform(GetPosition(vertices_[i])));
+  // Creates and returns a MeshData with read+write access.
+  MeshData CreateMeshData() const {
+    const size_t vertex_data_size = vertices_.size() * sizeof(Vertex);
+    DataContainer vertex_data =
+        DataContainer::CreateHeapDataContainer(vertex_data_size);
+
+    const size_t index_data_size = indices_.size() * sizeof(Index);
+    DataContainer index_data =
+        DataContainer::CreateHeapDataContainer(index_data_size);
+
+    if (!vertex_data.Append(reinterpret_cast<const uint8_t*>(vertices_.data()),
+                            vertex_data_size) ||
+        !index_data.Append(reinterpret_cast<const uint8_t*>(indices_.data()),
+                           index_data_size)) {
+      LOG(DFATAL) << "Failed to write mesh";
     }
+
+    return MeshData(MeshData::kTriangles, Vertex::kFormat,
+                    std::move(vertex_data), std::move(index_data));
   }
 
  private:

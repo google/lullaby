@@ -198,6 +198,18 @@ mathfu::mat4 CalculatePerspectiveMatrixFromView(const mathfu::rectf& fov,
                                                z_near, z_far);
 }
 
+mathfu::mat3 ComputeNormalMatrix(const mathfu::mat4& mat) {
+  // Compute the normal matrix. This is the transposed matrix of the inversed
+  // world position. This is done to avoid non-uniform scaling of the normal.
+  // A good explanation of this can be found here:
+  // http://www.lighthouse3d.com/tutorials/glsl-12-tutorial/the-normal-matrix/
+  return mathfu::mat4::ToRotationMatrix(mat).Inverse().Transpose();
+}
+
+mathfu::vec3 CalculateCameraDirection(const mathfu::mat4& eye_matrix) {
+  return -GetMatrixColumn3D(eye_matrix, 2);
+}
+
 float CalculateDeterminant3x3(const mathfu::mat4& m) {
   const float sub11 = m[5] * m[10] - m[6] * m[9];
   const float sub12 = m[1] * m[10] - m[2] * m[9];
@@ -501,6 +513,43 @@ bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
   }
   if (out) {
     *out = ray.origin + t * ray.direction.Normalized();
+  }
+  return true;
+}
+
+mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point) {
+  const Ray line_as_ray (line.origin, line.direction.Normalized());
+  const float distance = ProjectPointOntoRay(line_as_ray, point);
+  return line_as_ray.origin + distance * line_as_ray.direction;
+}
+
+bool ComputeClosestPointBetweenLines(const Line& line_a, const Line& line_b,
+                                     mathfu::vec3* out_a, mathfu::vec3* out_b) {
+  // Find the points along each line with minimum distance from each other.
+  // See:
+  // http://geomalgorithms.com/a07-_distance.html
+
+  const mathfu::vec3 u_hat = line_a.direction.Normalized();
+  const mathfu::vec3 v_hat = line_b.direction.Normalized();
+  const mathfu::vec3 w_0 = line_b.origin - line_a.origin;
+  const float b = dot(u_hat, v_hat);
+  const float b_sqr = b * b;
+
+  // Bail early if lines are parallel;
+  if ((1.0f - b_sqr) < kDefaultEpsilon) {
+    return false;
+  }
+
+  const float d = dot(u_hat, w_0);
+  const float e = dot(v_hat, w_0);
+  const float s = (d - e * b) / (1.0f - b_sqr);
+  const float t = (d * b - e) / (1.0f - b_sqr);
+
+  if (out_a != nullptr) {
+    *out_a = line_a.origin + s * u_hat;
+  }
+  if (out_b != nullptr) {
+    *out_b = line_b.origin + t * v_hat;
   }
   return true;
 }

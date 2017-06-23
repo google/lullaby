@@ -185,6 +185,41 @@ struct VertexPTI {
   uint8_t indices[4];
 };
 
+struct VertexPTTI {
+  static const VertexFormat kFormat;
+
+  VertexPTTI() {}
+  VertexPTTI(float px, float py, float pz, float u0, float v0, float u1,
+             float v1, const uint8_t indices[4])
+      : x(px), y(py), z(pz), u0(u0), v0(v0), u1(u1), v1(v1) {
+    for (int i = 0; i < 4; ++i) {
+      this->indices[i] = indices[i];
+    }
+  }
+  VertexPTTI(const mathfu::vec3& pos, const mathfu::vec2& uv0,
+             const mathfu::vec2& uv1, const uint8_t indices[4])
+      : x(pos.x),
+        y(pos.y),
+        z(pos.z),
+        u0(uv0.x),
+        v0(uv0.y),
+        u1(uv1.x),
+        v1(uv1.y) {
+    for (int i = 0; i < 4; ++i) {
+      this->indices[i] = indices[i];
+    }
+  }
+
+  float x;
+  float y;
+  float z;
+  float u0;
+  float v0;
+  float u1;
+  float v1;
+  uint8_t indices[4];
+};
+
 template <typename Vertex>
 inline mathfu::vec3 GetPosition(const Vertex& v) {
   return mathfu::vec3(v.x, v.y, v.z);
@@ -248,6 +283,12 @@ inline void SetUv1<VertexPTT>(VertexPTT* vertex, const mathfu::vec2& uv) {
 }
 
 template <>
+inline void SetUv1<VertexPTTI>(VertexPTTI* vertex, const mathfu::vec2& uv) {
+  vertex->u1 = uv.x;
+  vertex->v1 = uv.y;
+}
+
+template <>
 inline void SetUv0<VertexP>(VertexP* vertex, const mathfu::vec2& uv) {}
 
 template <>
@@ -284,7 +325,7 @@ template <>
 inline void SetColor<VertexPT>(VertexPT* vertex, Color4ub color) {}
 
 template <>
-inline void SetColor<VertexPTI>(VertexPTI* vertex, Color4ub color) {}
+inline void SetColor<VertexPTTI>(VertexPTTI* vertex, Color4ub color) {}
 
 template <>
 inline void SetColor<VertexPN>(VertexPN* vertex, Color4ub color) {}

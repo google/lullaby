@@ -730,5 +730,95 @@ TEST_F(DispatcherSystemTest, ConnectToAll) {
   EXPECT_EQ(count_local, 1);
 }
 
+TEST_F(DispatcherSystemTest, DestroyEntityInEvent) {
+  const Entity entity1 = Hash("test");
+
+  bool first_called = false;
+  bool second_called = false;
+  auto c1 = dispatcher_->Connect(
+      entity1, [&](const EventClass& e) { first_called = true; });
+  auto c2 = dispatcher_->Connect(
+      entity1, [&](const EventClass& e) { dispatcher_->Destroy(entity1); });
+  auto c3 = dispatcher_->Connect(
+      entity1, [&](const EventClass& e) { second_called = false; });
+
+  EventClass e(123);
+  dispatcher_->Send(entity1, e);
+
+  EXPECT_TRUE(first_called);
+  EXPECT_FALSE(second_called);
+  EXPECT_EQ(size_t{0},
+            dispatcher_->GetHandlerCount(entity1, GetTypeId<EventClass>()));
+}
+
+TEST_F(DispatcherSystemTest, DisconnectThenConnectSelfWithinEvent) {
+  DispatcherSystem::EnableQueuedDispatch();
+  const Entity entity = Hash("test");
+
+  const HashValue event_hash = Hash("TestEvent");
+  const HashValue event_hash2 = Hash("TestEvent2");
+
+  bool added_event_called = false;
+  bool removed_event_called = false;
+
+  dispatcher_->Connect(entity, event_hash2, this, [&](const EventWrapper& e) {
+    removed_event_called = true;
+  });
+  dispatcher_->Connect(entity, event_hash, this, [&](const EventWrapper& e) {
+    // Remove all connected event handlers, which will cause dispatcher to be
+    // queued for destruction.
+    dispatcher_->Disconnect(entity, event_hash, this);
+    dispatcher_->Disconnect(entity, event_hash2, this);
+
+    // Reconnect event handlers
+    dispatcher_->Connect(entity, event_hash2, this, [&](const EventWrapper& e) {
+      added_event_called = true;
+    });
+  });
+
+  dispatcher_->Send(entity, EventWrapper(event_hash));
+  dispatcher_->Send(entity, EventWrapper(event_hash2));
+  dispatcher_->Dispatch();
+
+  EXPECT_FALSE(removed_event_called);
+  EXPECT_TRUE(added_event_called);
+  EXPECT_EQ(size_t{0}, dispatcher_->GetHandlerCount(entity, event_hash));
+  EXPECT_EQ(size_t{1}, dispatcher_->GetHandlerCount(entity, event_hash2));
+}
+
+TEST_F(DispatcherSystemTest, DisconnectThenConnectOtherEntityWithinEvent) {
+  DispatcherSystem::EnableQueuedDispatch();
+  const Entity entity1 = Hash("test");
+  const Entity entity2 = Hash("test2");
+
+  const HashValue event_hash = Hash("TestEvent");
+
+  bool added_event_called = false;
+  bool removed_event_called = false;
+
+  dispatcher_->Connect(entity2, event_hash, this, [&](const EventWrapper& e) {
+    removed_event_called = true;
+  });
+  dispatcher_->Connect(entity1, event_hash, this, [&](const EventWrapper& e) {
+    // Remove all connected event handlers, which will cause dispatcher to be
+    // queued for destruction.
+    dispatcher_->Disconnect(entity2, event_hash, this);
+
+    // Reconnect event handlers
+    dispatcher_->Connect(entity2, event_hash, this, [&](const EventWrapper& e) {
+      added_event_called = true;
+    });
+  });
+
+  dispatcher_->Send(entity1, EventWrapper(event_hash));
+  dispatcher_->Send(entity2, EventWrapper(event_hash));
+  dispatcher_->Dispatch();
+
+  EXPECT_FALSE(removed_event_called);
+  EXPECT_TRUE(added_event_called);
+  EXPECT_EQ(size_t{1}, dispatcher_->GetHandlerCount(entity1, event_hash));
+  EXPECT_EQ(size_t{1}, dispatcher_->GetHandlerCount(entity2, event_hash));
+}
+
 }  // namespace
 }  // namespace lull

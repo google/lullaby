@@ -20,9 +20,9 @@ limitations under the License.
 #include <unordered_map>
 
 #include "lullaby/base/component.h"
-#include "lullaby/base/hash.h"
 #include "lullaby/base/system.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/hash.h"
 
 namespace lull {
 

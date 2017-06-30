@@ -20,8 +20,8 @@ limitations under the License.
 
 #include "gtest/gtest.h"
 #include "lullaby/base/buffer_serializer.h"
-#include "lullaby/base/hash.h"
 #include "lullaby/base/serialize.h"
+#include "lullaby/util/hash.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/generated/tests/portable_test_macros.h"
 

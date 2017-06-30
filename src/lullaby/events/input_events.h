@@ -19,8 +19,8 @@ limitations under the License.
 
 #include "mathfu/constants.h"
 #include "lullaby/base/entity.h"
-#include "lullaby/base/typeid.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

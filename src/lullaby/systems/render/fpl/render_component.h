@@ -24,11 +24,11 @@ limitations under the License.
 
 #include "lullaby/generated/render_def_generated.h"
 #include "lullaby/base/component.h"
-#include "lullaby/base/hash.h"
 #include "lullaby/systems/render/fpl/mesh.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
+#include "lullaby/util/hash.h"
 
 namespace lull {
 namespace detail {

@@ -173,6 +173,7 @@ class RenderSystemFpl : public System {
   // call to BindShader.
   void SetClipFromModelMatrix(const mathfu::mat4& mvp);
 
+  mathfu::vec4 GetClearColor() const;
   void SetClearColor(float r, float g, float b, float a);
 
   void BeginFrame();

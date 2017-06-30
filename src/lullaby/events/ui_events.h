@@ -20,7 +20,7 @@ limitations under the License.
 #include <string>
 
 #include "lullaby/base/entity.h"
-#include "lullaby/base/typeid.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

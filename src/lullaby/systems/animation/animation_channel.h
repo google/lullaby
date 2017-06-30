@@ -22,11 +22,11 @@ limitations under the License.
 #include "motive/motivator.h"
 #include "motive/util.h"
 #include "lullaby/base/component.h"
-#include "lullaby/base/hash.h"
 #include "lullaby/base/registry.h"
 #include "lullaby/events/animation_events.h"
 #include "lullaby/systems/animation/playback_parameters.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/hash.h"
 
 namespace lull {
 

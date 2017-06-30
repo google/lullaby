@@ -17,10 +17,10 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_DETAIL_PROFILER_H_
 #define LULLABY_SYSTEMS_RENDER_DETAIL_PROFILER_H_
 
-#include "lullaby/base/typeid.h"
 #include "lullaby/systems/render/detail/gpu_profiler.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 namespace detail {

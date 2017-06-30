@@ -62,8 +62,7 @@ ReticleSystem::Reticle::Reticle(Entity e)
       ring_active_diameter(0.f),
       ring_inactive_diameter(0.f),
       hit_color(mathfu::kZeros4f),
-      no_hit_color(mathfu::kZeros4f),
-      use_eye_collision_ray(true) {}
+      no_hit_color(mathfu::kZeros4f) {}
 
 ReticleSystem::ReticleSystem(Registry* registry)
     : System(registry), reticle_behaviours_(16) {
@@ -138,7 +137,6 @@ void ReticleSystem::CreateReticle(Entity entity, const ReticleDef* data) {
     reticle_->device_preference.push_back(InputManager::kHmd);
   }
 
-  reticle_->use_eye_collision_ray = data->use_eye_collision_ray();
   MathfuVec4FromFbColor(data->hit_color(), &reticle_->hit_color);
   MathfuVec4FromFbColor(data->no_hit_color(), &reticle_->no_hit_color);
 
@@ -226,39 +224,40 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
                                                CalculateTransformMatrix(sqt));
     return;
   }
+  if (reticle_->movement_fn) {
+    sqt = reticle_->movement_fn(device);
+  } else {
+    // Getting the rotation from the input device, check for collisions in the
+    // direction of the rotation, then adjust the position of the reticle using
+    // the rotation and the hit distance.
 
-  // Getting the rotation from the input device, check for collisions in the
-  // direction of the rotation, then adjust the position of the reticle using
-  // the rotation and the hit distance.
+    sqt.rotation = input->GetDofRotation(device);
+    sqt.rotation =
+        sqt.rotation * mathfu::quat::FromAngleAxis(reticle_->ergo_angle_offset,
+                                                   mathfu::kAxisX3f);
 
-  sqt.rotation = input->GetDofRotation(device);
-  sqt.rotation =
-      sqt.rotation * mathfu::quat::FromAngleAxis(reticle_->ergo_angle_offset,
-                                                 mathfu::kAxisX3f);
+    if (input->HasPositionDof(device)) {
+      sqt.translation = input->GetDofPosition(device);
+    }
 
-  if (input->HasPositionDof(device)) {
-    sqt.translation = input->GetDofPosition(device);
-  }
-
-  // Get world transform from any existing parent transformations.
-  const mathfu::mat4* world_from_parent =
-      transform_system->GetWorldFromEntityMatrix(
-          transform_system->GetParent(entity));
-  if (world_from_parent) {
-    // Apply any world transform to account for the actual forward direction of
-    // the preferred device and the raycast origin. This allows to add the
-    // reticle entity as a child to a parent entity and have the reticle behave
-    // correctly when the parent entity is moved and rotated in world space.
-    Sqt world_xform = CalculateSqtFromMatrix(*world_from_parent);
-    sqt.rotation = world_xform.rotation * sqt.rotation;
-    sqt.translation += world_xform.translation;
+    // Get world transform from any existing parent transformations.
+    const mathfu::mat4* world_from_parent =
+        transform_system->GetWorldFromEntityMatrix(
+            transform_system->GetParent(entity));
+    if (world_from_parent) {
+      // Apply any world transform to account for the actual forward direction
+      // of the preferred device and the raycast origin. This allows to add the
+      // reticle entity as a child to a parent entity and have the reticle
+      // behave correctly when the parent entity is moved and rotated in world
+      // space.
+      Sqt world_xform = CalculateSqtFromMatrix(*world_from_parent);
+      sqt.rotation = world_xform.rotation * sqt.rotation;
+      sqt.translation += world_xform.translation;
+    }
   }
 
   // Calculate the forward vector of reticle given its rotation
   auto forward = sqt.rotation * -mathfu::kAxisZ3f;
-
-  mathfu::vec3 start_collision_ray = sqt.translation;
-  mathfu::vec3 collision_ray_direction = forward;
 
   // Set reticle position to be a default depth in the direction of its
   // forward vector
@@ -272,22 +271,19 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
     return;
   }
 
-  // If use_eye_collision_ray is true, then shoot a ray from the eye to the
-  // reticle's current position to check for collision. We do this because we
-  // want to know when the drawn reticle, from the user's eye perspective,
-  // passes over an element.
+  // Shoot a ray from the eye to the reticle's current position to check for
+  // collision. We do this because we want to know when the drawn reticle, from
+  // the user's eye perspective, passes over an element.
 
-  if (reticle_->use_eye_collision_ray) {
-    // Get camera position if there is one
-    mathfu::vec3 camera_position = mathfu::kZeros3f;
-
-    if (input->HasPositionDof(InputManager::kHmd)) {
-      camera_position = input->GetDofPosition(InputManager::kHmd);
-    }
-
-    start_collision_ray = camera_position;
-    collision_ray_direction = (sqt.translation - camera_position).Normalized();
+  // Get camera position if there is one
+  mathfu::vec3 camera_position = mathfu::kZeros3f;
+  if (input->HasPositionDof(InputManager::kHmd)) {
+    camera_position = input->GetDofPosition(InputManager::kHmd);
   }
+
+  mathfu::vec3 start_collision_ray = camera_position;
+  mathfu::vec3 collision_ray_direction =
+      (sqt.translation - camera_position).Normalized();
 
   reticle_->collision_ray = Ray(start_collision_ray, collision_ray_direction);
   const auto collision =
@@ -511,6 +507,12 @@ float ReticleSystem::GetReticleErgoAngleOffset() const {
     return reticle_->ergo_angle_offset;
   } else {
     return .0;
+  }
+}
+
+void ReticleSystem::SetReticleMovementFn(ReticleMovementFn fn) {
+  if (reticle_) {
+    reticle_->movement_fn = std::move(fn);
   }
 }
 

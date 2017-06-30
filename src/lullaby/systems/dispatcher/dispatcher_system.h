@@ -101,7 +101,14 @@ class DispatcherSystem : public System {
 
   /// Connects the |handler| to an event as described by the |input|.
   void ConnectEvent(Entity entity, const EventDef* input,
-                    Dispatcher::EventHandler handler);
+                    const Dispatcher::EventHandler& handler);
+
+  void ConnectEvent(Entity entity, const EventDefT& input,
+                    const Dispatcher::EventHandler& handler);
+
+  void ConnectEventImpl(
+    Entity entity, HashValue id, bool local, bool global,
+    const Dispatcher::EventHandler& handler);
 
   //// Adds a function that will be called for every event that is dispatched.
   Dispatcher::ScopedConnection ConnectToAll(const EntityEventHandler& handler);

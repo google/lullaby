@@ -80,26 +80,34 @@ void DispatcherSystem::Destroy(Entity entity) {
 }
 
 void DispatcherSystem::ConnectEvent(Entity entity, const EventDef* input,
-                                    Dispatcher::EventHandler handler) {
+                                    const Dispatcher::EventHandler& handler) {
   if (input == nullptr) {
     LOG(DFATAL) << "EventDef is null.";
     return;
   }
+  ConnectEventImpl(entity, Hash(input->event()->c_str()), input->local(),
+                   input->global(), handler);
+}
 
-  const HashValue id = Hash(input->event()->c_str());
-  if (input->local() || input->global()) {
-    if (input->local()) {
-      Connect(entity, id, this, handler);
+void DispatcherSystem::ConnectEvent(Entity entity, const EventDefT& input,
+                                    const Dispatcher::EventHandler& handler) {
+  ConnectEventImpl(entity, Hash(input.event.c_str()), input.local, input.global,
+                   handler);
+}
+
+void DispatcherSystem::ConnectEventImpl(
+    Entity entity, HashValue id, bool local, bool global,
+    const Dispatcher::EventHandler& handler) {
+  DCHECK(local || global) << "EventDefs must have local or global!";
+  if (local) {
+    Connect(entity, id, this, handler);
+  }
+  if (global) {
+    auto dispatcher = registry_->Get<Dispatcher>();
+    if (dispatcher) {
+      auto connection = dispatcher->Connect(id, handler);
+      connections_[entity].emplace_back(std::move(connection));
     }
-    if (input->global()) {
-      auto dispatcher = registry_->Get<Dispatcher>();
-      if (dispatcher) {
-        auto connection = dispatcher->Connect(id, handler);
-        connections_[entity].emplace_back(std::move(connection));
-      }
-    }
-  } else {
-    LOG(DFATAL) << "Unknown input!";
   }
 }
 

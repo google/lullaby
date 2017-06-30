@@ -34,6 +34,7 @@ limitations under the License.
 #include "lullaby/systems/text/text_system.h"
 #include "lullaby/util/config.h"
 #include "lullaby/util/file.h"
+#include "lullaby/util/function_binder.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/mathfu_fb_conversions.h"
@@ -101,9 +102,25 @@ RenderSystemFpl::RenderSystemFpl(Registry* registry)
   registry_->Get<Dispatcher>()->Connect(
       this,
       [this](const ParentChangedEvent& event) { OnParentChanged(event); });
+
+  FunctionBinder* binder = registry->Get<FunctionBinder>();
+  if (binder) {
+    binder->RegisterMethod("lull.Render.Show", &lull::RenderSystem::Show);
+    binder->RegisterMethod("lull.Render.Hide", &lull::RenderSystem::Hide);
+    binder->RegisterFunction("lull.Render.GetTextureId", [this](Entity entity) {
+      TexturePtr texture = GetTexture(entity, 0);
+      return texture ? static_cast<int>(texture->GetResourceId().handle) : 0;
+    });
+  }
 }
 
 RenderSystemFpl::~RenderSystemFpl() {
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.Render.Show");
+    binder->UnregisterFunction("lull.Render.Hide");
+    binder->UnregisterFunction("lull.Render.GetTextureId");
+  }
   registry_->Get<Dispatcher>()->DisconnectAll(this);
 }
 
@@ -202,6 +219,21 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
     TexturePtr texture =
         factory_->LoadTexture(data.texture()->c_str(), data.create_mips());
     SetTexture(e, 0, texture);
+  } else if (data.external_texture()) {
+#ifdef GL_TEXTURE_EXTERNAL_OES
+    GLuint texture_id;
+    glGenTextures(1, &texture_id);
+    glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_id);
+    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S,
+                    GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T,
+                    GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    SetTextureId(e, 0, GL_TEXTURE_EXTERNAL_OES, texture_id);
+#else
+    LOG(WARNING) << "External textures are not available.";
+#endif  // GL_TEXTURE_EXTERNAL_OES
   }
 
   if (data.mesh()) {
@@ -1008,6 +1040,10 @@ void RenderSystemFpl::ResetState() {
 void RenderSystemFpl::SetBlendMode(fplbase::BlendMode blend_mode) {
   renderer_.SetBlendMode(blend_mode);
   blend_mode_ = blend_mode;
+}
+
+mathfu::vec4 RenderSystemFpl::GetClearColor() const {
+  return clear_color_;
 }
 
 void RenderSystemFpl::SetClearColor(float r, float g, float b, float a) {

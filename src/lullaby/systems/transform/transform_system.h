@@ -166,11 +166,31 @@ class TransformSystem : public System {
   Entity CreateChildWithEntity(Entity parent, Entity child,
                                const std::string& name);
 
+  /// Inserts a child at the specific index in the parent's list of children.
+  /// Negative indecies will insert from the back of the list. For example, a
+  /// |child| inserted at an |index| of '-1' would become the last element in
+  /// the list, at '-2' it would be the second to last, etc. Out-of-range
+  /// |index| values are clamped so as not to exceed the number of children in
+  /// the list.
+  void InsertChild(Entity parent, Entity child, int index = -1);
+
+  /// Moves a child entity to the given index in its parent's list of children.
+  /// If the |child| has no parent, this has no effect. The |index| behaves the
+  /// same as described in InsertChild().
+  void MoveChild(Entity child, int index);
+
   /// Break a child's connection to its parent.
   void RemoveParent(Entity child);
 
   /// Retrieve the list of children of an Entity
   const std::vector<Entity>* GetChildren(Entity parent) const;
+
+  /// Returns the number of children belonging to the |parent| entity.
+  size_t GetChildCount(Entity parent) const;
+
+  /// Returns the index of the |child| entity within its parent's list of
+  /// children. Returns 0 if the |child| has no parent.
+  size_t GetChildIndex(Entity child) const;
 
   /// Returns true if |ancestor| is in the parent chain of |target|.
   bool IsAncestorOf(Entity ancestor, Entity target) const;

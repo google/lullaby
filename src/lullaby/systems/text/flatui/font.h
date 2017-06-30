@@ -21,7 +21,7 @@ limitations under the License.
 #include <vector>
 
 #include "flatui/font_manager.h"
-#include "lullaby/base/typeid.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

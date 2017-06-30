@@ -22,8 +22,11 @@ limitations under the License.
 #include "lullaby/base/asset_loader.h"
 #include "lullaby/util/file.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/make_unique.h"
 
 namespace lull {
+
+const char* const EntityFactory::kDefaultFileIdentifier = "ENTS";
 
 EntityFactory::EntityFactory(Registry* registry)
     : registry_(registry), entity_generator_(0) {}
@@ -57,18 +60,20 @@ void EntityFactory::AddSystem(TypeId system_type, System* system) {
   }
 }
 
-void EntityFactory::CreateTypeList(const char* const* names) {
-  types_.reserve(type_map_.size());
+void EntityFactory::CreateTypeList(const char* const* names,
+                                   FlatbufferConverter* converter) {
+  converter->types.reserve(type_map_.size());
   while (*names) {
     const System::DefType type = Hash(*names);
-    types_.emplace_back(type);
+    converter->types.emplace_back(type);
     ++names;
   }
 }
 
-size_t EntityFactory::PerformReverseTypeLookup(HashValue name) const {
-  for (size_t i = 0; i < types_.size(); ++i) {
-    if (types_[i] == name) {
+size_t EntityFactory::PerformReverseTypeLookup(
+    HashValue name, const FlatbufferConverter* converter) const {
+  for (size_t i = 0; i < converter->types.size(); ++i) {
+    if (converter->types[i] == name) {
       return i;
     }
   }
@@ -122,8 +127,14 @@ Entity EntityFactory::Create(Entity entity, BlueprintTree* blueprint) {
 
 Span<uint8_t> EntityFactory::Finalize(Blueprint* blueprint) {
   Span<uint8_t> data;
-  if (finalizer_) {
-    data = blueprint->Finalize(finalizer_);
+  // This should properly return the schema if only one has been set, but fail
+  // when multiple or no schemas have been set.
+  FlatbufferConverter* converter = GetFlatbufferConverter("");
+  if (converter) {
+    data = blueprint->Finalize(converter->finalize);
+  } else {
+    // TODO(b/62545422)
+    LOG(DFATAL) << "Saving when using multiple schemas is not yet implemented.";
   }
   return data;
 }
@@ -147,12 +158,26 @@ bool EntityFactory::CreateImpl(Entity entity, const std::string& name,
   }
 
   BlueprintTree blueprint;
-  if (loader_) {
-    blueprint = loader_(data);
+
+  const string_view identifier(
+      flatbuffers::GetBufferIdentifier(data),
+      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
+  FlatbufferConverter* converter = GetFlatbufferConverter(identifier);
+  if (converter) {
+    blueprint = converter->load(data);
   } else {
-    LOG(ERROR) << "Unable to convert raw data to blueprint.  Call ::Initialize "
-                  "with arguments to specify how to perform this conversion. "
-                  "Using empty blueprint instead";
+    if (converters_.empty()) {
+      // Creating an entity before entity_factory was initialized.
+      LOG(ERROR) << "Unable to convert raw data to blueprint.  Call "
+                    "::Initialize with arguments to specify how to perform "
+                    "this conversion. Using empty blueprint instead";
+    } else {
+      // Created an entity after initialization, but with a flatbuffer bin using
+      // an unregistered schema.
+      LOG(DFATAL) << "Unknown file identifier for entity: " << name
+                  << ".  Identifier was: " << identifier;
+    }
+    return false;
   }
 
   entity_to_blueprint_map_[entity] = name;
@@ -258,6 +283,42 @@ void EntityFactory::DestroyQueuedEntities() {
     Destroy(pending_destroy.front());
     pending_destroy.pop();
   }
+}
+
+EntityFactory::FlatbufferConverter* EntityFactory::CreateFlatbufferConverter(
+    string_view identifier) {
+  // This needs to live in the cc file, since including make_unique in the
+  // header file causes ambiguous function errors with gtl::MakeUnique in some
+  // Lullaby apps.
+  converters_.emplace_back(MakeUnique<FlatbufferConverter>(identifier));
+  return converters_.back().get();
+}
+
+EntityFactory::FlatbufferConverter* EntityFactory::GetFlatbufferConverter(
+    string_view identifier) {
+  FlatbufferConverter* converter = nullptr;
+  if (converters_.size() == 1) {
+    // For compatibility reasons, if we only have a single converter we should
+    // just use it.
+    converter = converters_[0].get();
+  } else {
+    // If we have multiple schemas, use the one associated with the file type.
+    for (auto& schema : converters_) {
+      if (identifier == schema->identifier) {
+        converter = schema.get();
+        break;
+      }
+    }
+  }
+
+  if (converter == nullptr) {
+    LOG(DFATAL) << "Unknown file identifier: " << identifier
+                << ".  Please make sure you've called "
+                   "EntityFactory::RegisterFlatbufferConverter with every "
+                   "schema you are using.";
+  }
+
+  return converter;
 }
 
 System* EntityFactory::GetSystem(const System::DefType def_type) {

@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_EVENTS_LIFETIME_EVENTS_H_
 #define LULLABY_EVENTS_LIFETIME_EVENTS_H_
 
-#include "lullaby/base/typeid.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

@@ -102,7 +102,7 @@ void SendEventDefsImmediately(Registry* registry, Entity entity,
 
 void ConnectEventDefs(Registry* registry, Entity entity,
                       const EventDefArray* events,
-                      Dispatcher::EventHandler handler) {
+                      const Dispatcher::EventHandler& handler) {
   if (!events) {
     return;
   }
@@ -110,6 +110,17 @@ void ConnectEventDefs(Registry* registry, Entity entity,
   if (dispatcher_system) {
     for (uint32_t i = 0; i < events->size(); ++i) {
       const EventDef* event = events->Get(i);
+      dispatcher_system->ConnectEvent(entity, event, handler);
+    }
+  }
+}
+
+void ConnectEventDefs(Registry* registry, Entity entity,
+                      const std::vector<EventDefT>& events,
+                      const Dispatcher::EventHandler& handler) {
+  auto* dispatcher_system = registry->Get<DispatcherSystem>();
+  if (dispatcher_system) {
+    for (const EventDefT& event : events) {
       dispatcher_system->ConnectEvent(entity, event, handler);
     }
   }

@@ -24,7 +24,6 @@ limitations under the License.
 #include <vector>
 
 #include "mathfu/glsl_mappings.h"
-#include "lullaby/util/deform.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/mesh_util.h"

@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <deque>
+
 #include "lullaby/systems/transform/transform_system.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -21,6 +23,7 @@ limitations under the License.
 #include "lullaby/base/entity_factory.h"
 #include "lullaby/events/entity_events.h"
 #include "lullaby/generated/tests/mathfu_matchers.h"
+#include "lullaby/generated/tests/portable_test_macros.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {
@@ -52,7 +55,7 @@ class TransformSystemTest : public ::testing::Test {
     dispatcher->Connect(this, [this](const ChildRemovedEvent& event) {
       OnChildRemoved(event);
     });
-    DisallowParentChangedEvent();
+    DisallowAllEvents();
   }
 
   void CreateDefaultTransform(Entity entity) {
@@ -73,17 +76,80 @@ class TransformSystemTest : public ::testing::Test {
   }
 
  protected:
+  // Clears out the cached state of events received from the ParentChanged,
+  // ChildAdded, and ChildRemoved event handlers.
+  void ClearAllEventsReceived();
+  void ClearParentChangedEventsReceived();
+  void ClearChildAddedEventsReceived();
+  void ClearChildRemovedEventsReceived();
+
+  // Enforces whether or not an event callback is expected for the given events.
+  void AllowAllEvents(bool allow = true);
+  void DisallowAllEvents() { AllowAllEvents(false); }
+
+  void AllowParentChangedEvents(bool allow = true);
+  void DisallowParentChangedEvents() { AllowParentChangedEvents(false); }
+
+  void AllowChildAddedEvents(bool allow = true);
+  void DisallowChildAddedEvents() { AllowChildAddedEvents(false); }
+
+  void AllowChildRemovedEvents(bool allow = true);
+  void DisallowChildRemovedEvents() { AllowChildRemovedEvents(false); }
+
+  // Enforces that only a single ParentChangedEvent with the given |target|,
+  // |old_parent|, and |new_parent| was received. This is equivalent to calling
+  // ExpectParentChangedEventSequence with an expected_sequence containing only
+  // one event. This should be called immediately after the function expected to
+  // trigger the event.
   void ExpectParentChangedEvent(Entity target, Entity old_parent,
                                 Entity new_parent);
-  void DisallowParentChangedEvent();
+
+  // Enforces that all ParentChangedEvents in the |expected_sequence| were
+  // received in order and that no additional events were received. This should
+  // be called immediately after the function(s) expected to trigger the
+  // events.
+  void ExpectParentChangedEventSequence(
+      const std::deque<ParentChangedEvent>& expected_sequence);
+
+  // Enforces that only a single ChildAddedEvent with the given |child| and
+  // |new_parent| was received. This is equivalent to calling
+  // ExpectChildAddedEventSequence with an expected_sequence containing only one
+  // event. This should be called immediately after the function expected to
+  // trigger the event.
+  void ExpectChildAddedEvent(Entity child, Entity new_parent);
+
+  // Enforces that all ChildAddedEvents in the |expected_sequence| were received
+  // in order and that no additional events were received. This should be called
+  // immediately after the function(s) expected to trigger the events.
+  void ExpectChildAddedEventSequence(
+      const std::deque<ChildAddedEvent>& expected_sequence);
+
+  // Enforces that only a single ChildRemovedEvent with the given |child| and
+  // |old_parent| was received. This is equivalent to calling
+  // ExpectChildRemovedEventSequence with an expected_sequence containing only
+  // one event. This should be called immediately after the function expected to
+  // trigger the event.
+  void ExpectChildRemovedEvent(Entity child, Entity old_parent);
+
+  // Enforces that all ChildRemovedEvents in the |expected_sequence| were
+  // received in order and that no additional events were received. This should
+  // be called immediately after the function(s) expected to trigger the
+  // events.
+  void ExpectChildRemovedEventSequence(
+      const std::deque<ChildRemovedEvent>& expected_sequence);
+
   void OnParentChanged(const ParentChangedEvent& e);
   void OnChildAdded(const ChildAddedEvent& e);
   void OnChildRemoved(const ChildRemovedEvent& e);
 
   Registry registry_;
-  Entity test_event_child_;
-  Entity test_event_old_parent_;
-  Entity test_event_new_parent_;
+
+  bool expect_parent_changed_event_ = false;
+  bool expect_child_added_event_ = false;
+  bool expect_child_removed_event_ = false;
+  std::deque<ParentChangedEvent> parent_changed_events_received_;
+  std::deque<ChildAddedEvent> child_added_events_received_;
+  std::deque<ChildRemovedEvent> child_removed_events_received_;
 };
 
 using TransformSystemDeathTest = TransformSystemTest;
@@ -323,6 +389,213 @@ TEST_F(TransformSystemTest, SetInvalidEntity) {
   EXPECT_THAT(aabb, IsNull());
 }
 
+TEST_F(TransformSystemTest, GetChildCount) {
+  auto* transform_system = registry_.Get<TransformSystem>();
+
+  CreateDefaultTransform(1);
+  EXPECT_THAT(transform_system->GetChildCount(1), Eq(0ul));
+
+  // Add 2 children.
+  //
+  //   1
+  //  / \
+  // 2   3
+  CreateDefaultTransform(2);
+  CreateDefaultTransform(3);
+  transform_system->AddChild(1, 2);
+  transform_system->AddChild(1, 3);
+
+  EXPECT_THAT(transform_system->GetChildCount(1), Eq(2ul));
+
+  // Add 2 grandchildren. This should not affect the child count.
+  //
+  //   1
+  //  / \
+  // 2   3
+  //    / \
+  //   4   5
+  CreateDefaultTransform(4);
+  CreateDefaultTransform(5);
+  transform_system->AddChild(3, 4);
+  transform_system->AddChild(3, 5);
+
+  EXPECT_THAT(transform_system->GetChildCount(1), Eq(2ul));
+
+  // Ask for child count of entity which doesn't have a TransformDef component.
+  EXPECT_THAT(transform_system->GetChildCount(6), Eq(0ul));
+}
+
+TEST_F(TransformSystemTest, GetChildIndex) {
+  auto* transform_system = registry_.Get<TransformSystem>();
+
+  // Create a simple family tree.
+  //
+  //   _1_
+  //  / | \
+  // 2  3  4
+  //
+  CreateDefaultTransform(1);
+  CreateDefaultTransform(2);
+  CreateDefaultTransform(3);
+  CreateDefaultTransform(4);
+  transform_system->AddChild(1, 2);
+  transform_system->AddChild(1, 3);
+  transform_system->AddChild(1, 4);
+
+  // An entity without a parent should have index of 0.
+  EXPECT_THAT(transform_system->GetChildIndex(1), Eq(0ul));
+
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(1ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(2ul));
+
+  // Index of entity without a TransformDef component should be 0, DFATAL on
+  // debug builds.
+  PORT_EXPECT_DEBUG_DEATH(transform_system->GetChildIndex(5), "");
+#if !ION_DEBUG
+  EXPECT_THAT(transform_system->GetChildIndex(5), Eq(0ul));
+#endif
+}
+
+TEST_F(TransformSystemTest, InsertChild) {
+  SetupEventHandlers();
+  auto* transform_system = registry_.Get<TransformSystem>();
+
+  // Create a simple family tree with a parent and two children.
+  //
+  //   1
+  //  / \
+  // 2   3
+  CreateDefaultTransform(1);
+  CreateDefaultTransform(2);
+  CreateDefaultTransform(3);
+  AllowAllEvents();
+  transform_system->AddChild(1, 2);
+  transform_system->AddChild(1, 3);
+  DisallowAllEvents();
+
+  // Insert new child at index 1.
+  //
+  //   _1_
+  //  / | \
+  // 2  4  3
+  //
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildAddedEvents();
+
+  CreateDefaultTransform(4);
+  transform_system->InsertChild(1, 4, 1);
+
+  ExpectParentChangedEvent(4, kNullEntity, 1);
+  ExpectChildAddedEvent(4, 1);
+  DisallowAllEvents();
+
+  EXPECT_THAT(transform_system->GetChildCount(1), Eq(3ul));
+
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(2ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(1ul));
+
+  // Inserting an existing child should just move the child to the new index.
+  ClearAllEventsReceived();
+  DisallowAllEvents();
+
+  transform_system->InsertChild(1, 4, 2);
+
+  // Total child count should not change.
+  EXPECT_THAT(transform_system->GetChildCount(1), Eq(3ul));
+
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(1ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(2ul));
+
+  // InsertChild from a different parent should re-parent and move to the
+  // correct index.
+  AllowAllEvents();
+  CreateDefaultTransform(5);
+  CreateDefaultTransform(6);
+  transform_system->AddChild(5, 6);
+  DisallowAllEvents();
+
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildAddedEvents();
+
+  transform_system->InsertChild(1, 6, 3);
+
+  ExpectParentChangedEvent(6, 5, 1);
+  ExpectChildAddedEvent(6, 1);
+  DisallowAllEvents();
+
+  EXPECT_THAT(transform_system->GetChildCount(1), Eq(4ul));
+  EXPECT_THAT(transform_system->GetChildCount(5), Eq(0ul));
+
+  EXPECT_THAT(transform_system->GetChildIndex(6), Eq(3ul));
+}
+
+TEST_F(TransformSystemTest, MoveChild) {
+  SetupEventHandlers();
+  auto* transform_system = registry_.Get<TransformSystem>();
+
+  // Create a simple family tree with a parent and three children.
+  CreateDefaultTransform(1);
+  CreateDefaultTransform(2);
+  CreateDefaultTransform(3);
+  CreateDefaultTransform(4);
+  AllowAllEvents();
+  transform_system->AddChild(1, 2);
+  transform_system->AddChild(1, 3);
+  transform_system->AddChild(1, 4);
+  DisallowAllEvents();
+
+  // Move to new location in the list.
+  // Move '4' to the beginning of the list.
+  transform_system->MoveChild(4, 0);
+
+  // List should be [4, 2, 3].
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(1ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(2ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(0ul));
+
+  // Move past the end of the list.
+  transform_system->MoveChild(4, 6);
+
+  // List should be [2, 3, 4].
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(1ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(2ul));
+
+  // Move with negative index where '-1' = last element in the list.
+  transform_system->MoveChild(4, -2);
+
+  // List should be [2, 4, 3].
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(2ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(1ul));
+
+  // Move '2' to the back of the list.
+  transform_system->MoveChild(2, -1);
+
+  // List should be [4, 3, 2].
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(2ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(1ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(0ul));
+
+  // Move with negative index past the beginning of the list. This should clamp
+  // to the size of the list.
+  transform_system->MoveChild(3, -6);
+
+  // List should be [3, 4, 2].
+  EXPECT_THAT(transform_system->GetChildIndex(2), Eq(2ul));
+  EXPECT_THAT(transform_system->GetChildIndex(3), Eq(0ul));
+  EXPECT_THAT(transform_system->GetChildIndex(4), Eq(1ul));
+
+  // Move a child with no parent.
+  transform_system->MoveChild(1, 2);
+  EXPECT_THAT(transform_system->GetChildIndex(1), Eq(0ul));
+}
+
 TEST_F(TransformSystemTest, EnableDisable) {
   CreateDefaultTransform(1);
   auto* transform_system = registry_.Get<TransformSystem>();
@@ -499,11 +772,22 @@ TEST_F(TransformSystemTest, Parenting) {
   transform_system->CreateComponent(grand_child, blueprint);
 
   // Test adding and getting children
-  ExpectParentChangedEvent(child, kNullEntity, parent);
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildAddedEvents();
+
   transform_system->AddChild(parent, child);
-  ExpectParentChangedEvent(grand_child, kNullEntity, child);
   transform_system->AddChild(child, grand_child);
-  DisallowParentChangedEvent();
+
+  const std::deque<ParentChangedEvent> parent_add_sequence = {
+      {child, kNullEntity, parent}, {grand_child, kNullEntity, child}};
+  ExpectParentChangedEventSequence(parent_add_sequence);
+
+  const std::deque<ChildAddedEvent> child_add_sequence = {
+      {parent, child}, {child, grand_child}};
+  ExpectChildAddedEventSequence(child_add_sequence);
+
+  DisallowAllEvents();
 
   EXPECT_TRUE(transform_system->IsAncestorOf(parent, child));
   EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child));
@@ -526,9 +810,16 @@ TEST_F(TransformSystemTest, Parenting) {
   EXPECT_NEAR(mat(0, 3), 3.0f, 0.001f);
 
   // Test removing a child
-  ExpectParentChangedEvent(child, parent, kNullEntity);
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildRemovedEvents();
+
   transform_system->RemoveParent(child);
-  DisallowParentChangedEvent();
+
+  ExpectParentChangedEvent(child, parent, kNullEntity);
+  ExpectChildRemovedEvent(child, parent);
+
+  DisallowAllEvents();
 
   children = transform_system->GetChildren(parent);
   EXPECT_THAT(static_cast<int>(children->size()), Eq(0));
@@ -558,43 +849,215 @@ TEST_F(TransformSystemTest, ParentingWithNullParents) {
   transform_system->CreateComponent(parent, blueprint);
   transform_system->CreateComponent(child, blueprint);
 
-  ExpectParentChangedEvent(child, kNullEntity, parent);
+  ClearAllEventsReceived();
+
+  // No events should be sent out when attempting to add a child to a null
+  // parent entity.
+  DisallowParentChangedEvents();
+  DisallowChildAddedEvents();
+
   transform_system->AddChild(parent, child);
-  DisallowParentChangedEvent();
+
+  DisallowAllEvents();
 
   EXPECT_FALSE(transform_system->IsAncestorOf(parent, child));
   EXPECT_FALSE(transform_system->IsAncestorOf(parent, parent));
   EXPECT_FALSE(transform_system->IsAncestorOf(child, parent));
 }
 
-void TransformSystemTest::ExpectParentChangedEvent(Entity child,
-                                                   Entity old_parent,
-                                                   Entity new_parent) {
-  test_event_child_ = child;
-  test_event_old_parent_ = old_parent;
-  test_event_new_parent_ = new_parent;
+TEST_F(TransformSystemTest, DestroyChildren) {
+  SetupEventHandlers();
+
+  TransformDefT transform;
+  transform.position = mathfu::vec3(1.f, 0.f, 0.f);
+  transform.rotation = mathfu::vec3(0.f, 0.f, 0.f);
+  transform.scale = mathfu::vec3(1.f, 1.f, 1.f);
+  Blueprint blueprint(&transform);
+
+  const Entity parent = 1;
+  const Entity child = 2;
+  const Entity grand_child_a = 3;
+  const Entity grand_child_b = 4;
+
+  auto* transform_system = registry_.Get<TransformSystem>();
+  transform_system->CreateComponent(parent, blueprint);
+  transform_system->CreateComponent(child, blueprint);
+  transform_system->CreateComponent(grand_child_a, blueprint);
+  transform_system->CreateComponent(grand_child_b, blueprint);
+
+  // Create a simple family with a parent, child, and 2 grandchildren.
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildAddedEvents();
+
+  transform_system->AddChild(parent, child);
+  transform_system->AddChild(child, grand_child_a);
+  transform_system->AddChild(child, grand_child_b);
+
+  // Check that we received the expected events.
+  const std::deque<ParentChangedEvent> parent_add_sequence = {
+      {child, kNullEntity, parent},
+      {grand_child_a, kNullEntity, child},
+      {grand_child_b, kNullEntity, child}};
+  ExpectParentChangedEventSequence(parent_add_sequence);
+  const std::deque<ChildAddedEvent> child_add_sequence = {
+      {parent, child}, {child, grand_child_a}, {child, grand_child_b}};
+  ExpectChildAddedEventSequence(child_add_sequence);
+
+  DisallowAllEvents();
+
+  // Ensure the ancestry is set up correctly.
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, child));
+  EXPECT_TRUE(transform_system->IsAncestorOf(child, grand_child_a));
+  EXPECT_TRUE(transform_system->IsAncestorOf(child, grand_child_b));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child_a));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child_b));
+
+  // Destroying the child should also destroy grand_child_a & b.
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildRemovedEvents();
+
+  auto* entity_factory = registry_.Get<EntityFactory>();
+  entity_factory->Destroy(child);
+
+  // Check that the correct sequence of events was received.
+  const std::deque<ParentChangedEvent> parent_destroy_sequence = {
+      {grand_child_a, child, kNullEntity},
+      {grand_child_b, child, kNullEntity},
+      {child, parent, kNullEntity}};
+  ExpectParentChangedEventSequence(parent_destroy_sequence);
+  const std::deque<ChildRemovedEvent> child_destroy_sequence = {
+      {child, grand_child_a}, {child, grand_child_b}, {parent, child}};
+  ExpectChildRemovedEventSequence(child_destroy_sequence);
 }
 
-void TransformSystemTest::DisallowParentChangedEvent() {
-  test_event_child_ = kNullEntity;
-  test_event_old_parent_ = kNullEntity;
-  test_event_new_parent_ = kNullEntity;
+void TransformSystemTest::ClearAllEventsReceived() {
+  ClearParentChangedEventsReceived();
+  ClearChildAddedEventsReceived();
+  ClearChildRemovedEventsReceived();
+}
+
+void TransformSystemTest::ClearParentChangedEventsReceived() {
+  parent_changed_events_received_.clear();
+}
+
+void TransformSystemTest::ClearChildAddedEventsReceived() {
+  child_added_events_received_.clear();
+}
+
+void TransformSystemTest::ClearChildRemovedEventsReceived() {
+  child_removed_events_received_.clear();
+}
+
+void TransformSystemTest::AllowAllEvents(bool allow) {
+  AllowParentChangedEvents(allow);
+  AllowChildAddedEvents(allow);
+  AllowChildRemovedEvents(allow);
+}
+
+void TransformSystemTest::AllowParentChangedEvents(bool allow) {
+  expect_parent_changed_event_ = allow;
+}
+
+void TransformSystemTest::AllowChildAddedEvents(bool allow) {
+  expect_child_added_event_ = allow;
+}
+
+void TransformSystemTest::AllowChildRemovedEvents(bool allow) {
+  expect_child_removed_event_ = allow;
+}
+
+// Enforces that two ordered sequences of events match. That is, they should
+// have the same number of events and the events should appear in the same
+// order in each sequence. The |expectation_func| should implement the EXPECT_*
+// statements comparing the fields of the event type T.
+template <typename T>
+void ExpectEventSequencesMatch(
+    std::deque<T> expected_sequence, std::deque<T> actual_sequence,
+    std::function<void(const T& expected_event, const T& actual_event)>
+        expectation_func) {
+  // Check that we received exactly the number of events we expected.
+  EXPECT_THAT(actual_sequence.size(), Eq(expected_sequence.size()));
+
+  // Check that the contents of the individual events match.
+  while (!expected_sequence.empty()) {
+    auto expected_event = expected_sequence.front();
+    auto actual_event = actual_sequence.front();
+    expectation_func(expected_event, actual_event);
+    expected_sequence.pop_front();
+    actual_sequence.pop_front();
+  }
+}
+
+void TransformSystemTest::ExpectParentChangedEvent(Entity target,
+                                                   Entity old_parent,
+                                                   Entity new_parent) {
+  const std::deque<ParentChangedEvent> expected_sequence = {
+      {target, old_parent, new_parent}};
+  ExpectParentChangedEventSequence(expected_sequence);
+}
+
+void TransformSystemTest::ExpectParentChangedEventSequence(
+    const std::deque<ParentChangedEvent>& expected_sequence) {
+  ExpectEventSequencesMatch<ParentChangedEvent>(
+      expected_sequence, parent_changed_events_received_,
+      [](const ParentChangedEvent& expected_event,
+         const ParentChangedEvent& actual_event) {
+        EXPECT_THAT(actual_event.target, Eq(expected_event.target));
+        EXPECT_THAT(actual_event.old_parent, Eq(expected_event.old_parent));
+        EXPECT_THAT(actual_event.new_parent, Eq(expected_event.new_parent));
+      });
+}
+
+void TransformSystemTest::ExpectChildAddedEvent(Entity child,
+                                                Entity new_parent) {
+  const std::deque<ChildAddedEvent> expected_sequence = {{new_parent, child}};
+  ExpectChildAddedEventSequence(expected_sequence);
+}
+
+void TransformSystemTest::ExpectChildAddedEventSequence(
+    const std::deque<ChildAddedEvent>& expected_sequence) {
+  ExpectEventSequencesMatch<ChildAddedEvent>(
+      expected_sequence, child_added_events_received_,
+      [](const ChildAddedEvent& expected_event,
+         const ChildAddedEvent& actual_event) {
+        EXPECT_THAT(actual_event.target, Eq(expected_event.target));
+        EXPECT_THAT(actual_event.child, Eq(expected_event.child));
+      });
+}
+
+void TransformSystemTest::ExpectChildRemovedEvent(Entity child,
+                                                  Entity old_parent) {
+  const std::deque<ChildRemovedEvent> expected_sequence = {
+      {old_parent, child}};
+  ExpectChildRemovedEventSequence(expected_sequence);
+}
+
+void TransformSystemTest::ExpectChildRemovedEventSequence(
+    const std::deque<ChildRemovedEvent>& expected_sequence) {
+  ExpectEventSequencesMatch<ChildRemovedEvent>(
+      expected_sequence, child_removed_events_received_,
+      [](const ChildRemovedEvent& expected_event,
+         const ChildRemovedEvent& actual_event) {
+        EXPECT_THAT(actual_event.target, Eq(expected_event.target));
+        EXPECT_THAT(actual_event.child, Eq(expected_event.child));
+      });
 }
 
 void TransformSystemTest::OnParentChanged(const ParentChangedEvent& e) {
-  EXPECT_THAT(e.target, Eq(test_event_child_));
-  EXPECT_THAT(e.old_parent, Eq(test_event_old_parent_));
-  EXPECT_THAT(e.new_parent, Eq(test_event_new_parent_));
+  EXPECT_TRUE(expect_parent_changed_event_);
+  parent_changed_events_received_.push_back(e);
 }
 
 void TransformSystemTest::OnChildAdded(const ChildAddedEvent& e) {
-  EXPECT_THAT(e.target, Eq(test_event_new_parent_));
-  EXPECT_THAT(e.child, Eq(test_event_child_));
+  EXPECT_TRUE(expect_child_added_event_);
+  child_added_events_received_.push_back(e);
 }
 
 void TransformSystemTest::OnChildRemoved(const ChildRemovedEvent& e) {
-  EXPECT_THAT(e.target, Eq(test_event_old_parent_));
-  EXPECT_THAT(e.child, Eq(test_event_child_));
+  EXPECT_TRUE(expect_child_removed_event_);
+  child_removed_events_received_.push_back(e);
 }
 
 }  // namespace

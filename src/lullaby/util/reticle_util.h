@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_UTIL_RETICLE_H_
-#define LULLABY_UTIL_RETICLE_H_
+#ifndef LULLABY_UTIL_RETICLE_UTIL_H_
+#define LULLABY_UTIL_RETICLE_UTIL_H_
 
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/base/entity.h"
@@ -63,4 +63,4 @@ Sqt AdjustSqtForReticle(Registry* registry, const Sqt& sqt);
 
 }  // namespace lull
 
-#endif  // LULLABY_UTIL_RETICLE_H_
+#endif  // LULLABY_UTIL_RETICLE_UTIL_H_

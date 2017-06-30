@@ -18,7 +18,7 @@ limitations under the License.
 #define LULLABY_EVENTS_RENDER_EVENTS_H_
 
 #include "lullaby/base/entity.h"
-#include "lullaby/base/typeid.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

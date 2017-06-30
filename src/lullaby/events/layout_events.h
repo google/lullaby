@@ -18,8 +18,8 @@ limitations under the License.
 #define LULLABY_EVENTS_LAYOUT_EVENTS_H_
 
 #include "lullaby/base/entity.h"
-#include "lullaby/base/typeid.h"
 #include "lullaby/util/optional.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

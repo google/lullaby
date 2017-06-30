@@ -346,6 +346,10 @@ void RenderSystem::SetClipFromModelMatrix(const mathfu::mat4& mvp) {
   impl_->SetClipFromModelMatrix(mvp);
 }
 
+mathfu::vec4 RenderSystem::GetClearColor() const {
+  return impl_->GetClearColor();
+}
+
 void RenderSystem::SetClearColor(float r, float g, float b, float a) {
   impl_->SetClearColor(r, g, b, a);
 }

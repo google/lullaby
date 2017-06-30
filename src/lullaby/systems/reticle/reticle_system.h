@@ -37,6 +37,10 @@ class ReticleSystem : public System {
  public:
   static constexpr float kDefaultNoHitDistance = 2.0f;
 
+  /// The reticle movemt function takes the active input device as the parameter
+  /// and returns an Sqt which contains the origin and direction of reticle ray.
+  using ReticleMovementFn = std::function<Sqt(InputManager::DeviceType)>;
+
   explicit ReticleSystem(Registry* registry);
 
   void Initialize() override;
@@ -67,6 +71,10 @@ class ReticleSystem : public System {
   // Returns the reticle ergo angle offset.
   float GetReticleErgoAngleOffset() const;
 
+  /// Set a preset reticle movement function if the default reticle movement is
+  /// not applicable in some cases.
+  void SetReticleMovementFn(ReticleMovementFn fn);
+
  private:
   struct Reticle : Component {
     explicit Reticle(Entity entity);
@@ -91,8 +99,9 @@ class ReticleSystem : public System {
     float ring_inactive_diameter = 0.f;
     mathfu::vec4 hit_color;
     mathfu::vec4 no_hit_color;
-    bool use_eye_collision_ray = false;
     std::vector<InputManager::DeviceType> device_preference;
+
+    ReticleMovementFn movement_fn = nullptr;
   };
 
   struct ReticleBehaviour : Component {

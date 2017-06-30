@@ -33,7 +33,6 @@ table ReticleDef {
   mid_ring_opacity: float = 0.22;
 
   ergo_angle_offset: float = -0.26;
-  use_eye_collision_ray: bool = true;
 
   /// An ordered list of what input device should drive the reticle.  If the
   /// first device is connected, it will control the reticle.  Control will fall

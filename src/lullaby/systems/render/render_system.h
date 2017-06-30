@@ -366,6 +366,9 @@ class RenderSystem : public System {
   // Sets |mvp| to be a position at which to project models.
   void SetClipFromModelMatrix(const mathfu::mat4& mvp);
 
+  // Returns the cached value of the clear color.
+  mathfu::vec4 GetClearColor() const;
+
   // Sets the value used to clear the color buffer.
   void SetClearColor(float r, float g, float b, float a);
 

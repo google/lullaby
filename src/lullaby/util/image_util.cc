@@ -14,20 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_UTIL_IMAGE_H_
-#define LULLABY_UTIL_IMAGE_H_
+#include "lullaby/util/image_util.h"
 
-#include <stdint.h>
-
-#include "mathfu/glsl_mappings.h"
+#include "lullaby/util/logging.h"
 
 namespace lull {
 
-// Converts |size|.x() x |size|.y() RGB pixels at |rgb_ptr| into 4 byte RGBA
-// pixels at |out_rgba_ptr|.  The alpha values are set to 255.
 void ConvertRgb888ToRgba8888(const uint8_t* rgb_ptr, const mathfu::vec2i& size,
-                             uint8_t* out_rgba_ptr);
+                             uint8_t* out_rgba_ptr) {
+  if (!rgb_ptr || !out_rgba_ptr) {
+    LOG(DFATAL) << "Failed to convert RGB to RGBA.";
+    return;
+  }
+
+  const int num_pixels = size.x * size.y;
+  const uint8_t* src_ptr = rgb_ptr;
+  uint8_t* dst_ptr = out_rgba_ptr;
+  for (int i = 0; i < num_pixels; ++i) {
+    *dst_ptr++ = *src_ptr++;
+    *dst_ptr++ = *src_ptr++;
+    *dst_ptr++ = *src_ptr++;
+    *dst_ptr++ = 255;
+  }
+}
 
 }  // namespace lull
-
-#endif  // LULLABY_UTIL_IMAGE_H_

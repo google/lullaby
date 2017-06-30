@@ -25,6 +25,28 @@ limitations under the License.
 #include "lullaby/util/mathfu_fb_conversions.h"
 #include "lullaby/generated/transform_def_generated.h"
 
+namespace {
+// Given an |index| into a list containing |list_size| elements, this transforms
+// |index| into a valid offset. Allows for negative indecies, where '-1' would
+// map to the last position, '-2', the second to last, etc. Clamps to the valid
+// range of the |list_size|.
+size_t RoundAndClampIndex(int index, size_t list_size) {
+  if (index < 0) {
+    if (static_cast<unsigned int>(index * -1) > list_size) {
+      return 0;
+    } else {
+      return list_size + index;
+    }
+  } else {
+    if (static_cast<unsigned int>(index) >= list_size) {
+      return list_size - 1;
+    } else {
+      return index;
+    }
+  }
+}
+}  // namespace
+
 namespace lull {
 
 const TransformSystem::TransformFlags TransformSystem::kInvalidFlag = 0;
@@ -240,10 +262,17 @@ void TransformSystem::Destroy(Entity e) {
 
   auto node = nodes_.Get(e);
   if (node) {
+    Entity parent = GetParent(e);
     RemoveParentNoEvent(e);
-    for (auto child : node->children) {
-      RemoveParentNoEvent(child);
+
+    // Only send out the global events in Destroy since this entity's local
+    // dispatcher (and possibly the parent's) could already be destroyed.
+    auto* dispatcher = registry_->Get<Dispatcher>();
+    if (dispatcher && parent != kNullEntity) {
+      dispatcher->Send(ChildRemovedEvent(parent, e));
+      dispatcher->Send(ParentChangedEvent(e, parent, kNullEntity));
     }
+
     nodes_.Destroy(e);
   }
   world_transforms_.Destroy(e);
@@ -512,6 +541,38 @@ Entity TransformSystem::CreateChildWithEntity(Entity parent, Entity child,
   return created_child;
 }
 
+void TransformSystem::InsertChild(Entity parent, Entity child, int index) {
+  if (!IsAncestorOf(parent, child)) {
+    AddChild(parent, child);
+  }
+  MoveChild(child, index);
+}
+
+void TransformSystem::MoveChild(Entity child, int index) {
+  auto child_node = nodes_.Get(child);
+  if (!child_node || !child_node->parent) {
+    return;
+  }
+  auto parent_node = nodes_.Get(child_node->parent);
+  if (!parent_node) {
+    return;
+  }
+
+  auto& children = parent_node->children;
+  const size_t num_children = children.size();
+
+  // First remove the child from the vector.
+  auto found = std::find(children.begin(), children.end(), child);
+  if (found == children.end()) {
+    LOG(DFATAL) << "Child entity not found in its parent's list of children.";
+    return;
+  }
+  children.erase(found);
+
+  const size_t new_index = RoundAndClampIndex(index, num_children);
+  children.insert(children.begin() + new_index, child);
+}
+
 void TransformSystem::RemoveParentNoEvent(Entity child) {
   auto child_node = nodes_.Get(child);
   if (child_node && child_node->parent) {
@@ -541,6 +602,36 @@ const std::vector<Entity>* TransformSystem::GetChildren(Entity parent) const {
     return &node->children;
   }
   return nullptr;
+}
+
+size_t TransformSystem::GetChildCount(Entity parent) const {
+  auto node = nodes_.Get(parent);
+  if (node) {
+    return node->children.size();
+  }
+  return 0;
+}
+
+size_t TransformSystem::GetChildIndex(Entity child) const {
+  auto child_node = nodes_.Get(child);
+  if (child_node == nullptr) {  // Child has no TransformDef.
+    LOG(DFATAL) << "GetChildIndex called on entity with no TransformDef.";
+    return 0;
+  }
+
+  Entity parent = GetParent(child);
+  auto parent_node = nodes_.Get(parent);
+  if (parent_node == nullptr) {  // Child has no parent.
+    return 0;
+  }
+
+  const auto& children = parent_node->children;
+  auto found = std::find(children.begin(), children.end(), child);
+  if (found == children.end()) {
+    return 0;
+  } else {
+    return static_cast<size_t>(found - children.begin());
+  }
 }
 
 bool TransformSystem::IsAncestorOf(Entity ancestor, Entity target) const {

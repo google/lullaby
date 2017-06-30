@@ -325,8 +325,12 @@ TEST_F(LayoutSystemTest, Destroy) {
   bool layout_changed = false;
   ConnectLayoutChangedListener(parent, &layout_changed);
 
-  CreateChild(parent);
+  Entity child = CreateChild(parent);
 
+  EXPECT_THAT(layout_changed, true);
+  layout_changed = false;
+
+  entity_factory_->Destroy(child);
   EXPECT_THAT(layout_changed, true);
   layout_changed = false;
 

@@ -218,4 +218,9 @@ table RenderDef {
   /// start drawing the entity in the RenderPass |pass|. If |pass| is Invisible
   /// it will still not be drawn.
   hidden: bool = false;
+
+  /// Creates an TEXTURE_EXTERNAL_OES texture for the entity, which can then be
+  /// bound to an external texture source (eg. camera stream, video stream,
+  /// etc.)
+  external_texture: bool = false;
 }

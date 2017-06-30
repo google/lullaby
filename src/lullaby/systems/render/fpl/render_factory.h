@@ -26,12 +26,12 @@ limitations under the License.
 #include "fplbase/texture_atlas.h"
 #include "lullaby/base/registry.h"
 #include "lullaby/base/resource_manager.h"
-#include "lullaby/base/typeid.h"
 #include "lullaby/systems/render/fpl/mesh.h"
 #include "lullaby/systems/render/fpl/shader.h"
 #include "lullaby/systems/render/fpl/texture.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/util/triangle_mesh.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 

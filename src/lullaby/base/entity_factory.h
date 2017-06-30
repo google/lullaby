@@ -25,6 +25,7 @@ limitations under the License.
 #include <unordered_map>
 #include <utility>
 
+#include "flatbuffers/flatbuffers.h"
 #include "lullaby/base/asset.h"
 #include "lullaby/base/blueprint.h"
 #include "lullaby/base/blueprint_tree.h"
@@ -33,6 +34,7 @@ limitations under the License.
 #include "lullaby/base/registry.h"
 #include "lullaby/base/resource_manager.h"
 #include "lullaby/base/system.h"
+#include "lullaby/util/string_view.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -67,6 +69,10 @@ class EntityFactory {
   // Dictionary of Entity to the name of the blueprint that created that entity.
   using BlueprintMap = std::unordered_map<Entity, std::string>;
 
+  // The default 4 letter file identifier used for flatbuffer's file_identifier
+  // property.  The value is set to "ENTS".
+  static const char* const kDefaultFileIdentifier;
+
   explicit EntityFactory(Registry* registry);
 
   // Creates a System of type |T| using the Registry and caches the instance
@@ -99,20 +105,46 @@ class EntityFactory {
   // BUILD rule.
   template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
   void Initialize(GetEntityDefFn get_entity_def,
-                  const char* const* component_names);
+                  const char* const* component_def_names);
+
+  // Registers an extra Entity Schema.  This allows an app to load entity
+  // blueprints from multiple entity.fbs files.  To use this, add a namespace to
+  // the 2nd entity.fbs file, add a 4 letter all caps identifier (i.e. "FOOB")
+  // to the lullaby_generate_entity_schema rule, and call this in the form:
+  //
+  //     entity_factory->RegisterFlatbufferConverter<namespace ::EntityDef,
+  //                                                 namespace ::ComponentDef>(
+  //         namespace ::GetEntityDef, namespace ::EnumNamesComponentDefType(),
+  //         "FOOB");
+  //
+  // The default identifier is "ENTS", captured in kDefaultFileIdentifier.
+  template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
+  void RegisterFlatbufferConverter(GetEntityDefFn get_entity_def,
+                                   const char* const* component_def_names,
+                                   string_view file_identifier);
 
   // In some situations (namely tests), we need to do more than the "basic"
-  // Initialization, but we need to explicitly control/test the Loader and
+  // initialization, but we need to explicitly control/test the Loader and
   // Finalizers, so these functions can be used to selectively perform that type
   // of initialization.  The Initialize function takes the list of ComponentDef
   // names which are then used by the Loader and Finalizer.  Then, either (or
   // both) the Loader or Finalizer can be Initialized using client-specified
   // EntityDef and ComponentDef classes.
+  // If file_identifier is not passed, it is assumed to be the default value of
+  // "ENTS".  file_identifier is only used when multiple schemas are being used.
   void Initialize(const char* const* component_def_names);
   template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
   void InitializeLoader(GetEntityDefFn get_entity_def);
   template <typename EntityDef, typename ComponentDef>
   void InitializeFinalizer();
+
+  void Initialize(const char* const* component_def_names,
+                  string_view file_identifier);
+  template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
+  void InitializeLoader(GetEntityDefFn get_entity_def,
+                        string_view file_identifier);
+  template <typename EntityDef, typename ComponentDef>
+  void InitializeFinalizer(string_view file_identifier);
 
   // Registers a System with a specific a ComponentDef type.  The |def_type| is
   // simply a hash of the ComponentDef's type name.
@@ -195,15 +227,42 @@ class EntityFactory {
   using FinalizeBlueprintDataFn =
       std::function<size_t(FlatbufferWriter* writer, Blueprint* bp)>;
 
+  // Captures the schema specific data used by the entity factory.
+  struct FlatbufferConverter {
+    explicit FlatbufferConverter(string_view identifier)
+        : identifier(identifier) {}
+    std::string identifier;
+    // Function that allows the EntityFactory to create a flatbuffer from a
+    // Blueprint  using client-specified EntityDef and ComponentDef classes.
+    FinalizeBlueprintDataFn finalize;
+
+    // Function that allows the EntityFactory to create Entities from raw data
+    // using client-specified EntityDef and ComponentDef classes.
+    LoadBlueprintFromDataFn load;
+
+    // List of ComponentDef types used during the creation process.
+    TypeList types;
+  };
+
   // Calls System::Initialize for all Systems created by the EntityFactory.
   void InitializeSystems();
 
   // Creates the TypeList from the given list of names.  The list of names must
   // end with a name that is nullptr.
-  void CreateTypeList(const char* const* names);
+  void CreateTypeList(const char* const* names, FlatbufferConverter* converter);
+
+  // Internal versions of the above functions to avoid extra converter
+  // lookups.
+  template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
+  void InitializeLoader(GetEntityDefFn get_entity_def,
+                        FlatbufferConverter* converter);
+
+  template <typename EntityDef, typename ComponentDef>
+  void InitializeFinalizer(FlatbufferConverter* converter);
 
   // Returns the index of the specified name in the TypeList, or 0 if not found.
-  size_t PerformReverseTypeLookup(HashValue name) const;
+  size_t PerformReverseTypeLookup(HashValue name,
+                                  const FlatbufferConverter* converter) const;
 
   // Performs the actual creation of the |entity| with the given |name| using
   // the data in the |blueprint|.  Returns true if entity was successfully
@@ -222,9 +281,18 @@ class EntityFactory {
   // Gets a System associated with a DefType.
   System* GetSystem(const System::DefType def_type);
 
+  // Creates and stores a new FlatbufferConverter.
+  FlatbufferConverter* CreateFlatbufferConverter(string_view identifier);
+
+  // Looks up the FlatbufferConverter by its 4 letter identifier.
+  // If the app only has 1 schema, that schema will be returned regardless of
+  // the identifier.
+  FlatbufferConverter* GetFlatbufferConverter(string_view identifier);
+
   // Create a blueprint tree from an entity def.
   template <typename EntityDef, typename ComponentDef>
-  BlueprintTree BlueprintTreeFromEntityDef(const EntityDef* entity_def);
+  BlueprintTree BlueprintTreeFromEntityDef(
+      const EntityDef* entity_def, const FlatbufferConverter* converter);
 
   // The registry is used to create and own Systems.
   Registry* registry_;
@@ -232,13 +300,11 @@ class EntityFactory {
   // ResourceManager to cache loaded Entity blueprints.
   ResourceManager<SimpleAsset> blueprints_;
 
-  // Function that allows the EntityFactory to create Entities from raw data
-  // using client-specified EntityDef and ComponentDef classes.
-  LoadBlueprintFromDataFn loader_;
-
-  // Function that allows the EntityFactory to create a flatbuffer from a
-  // Blueprint  using client-specified EntityDef and ComponentDef classes.
-  FinalizeBlueprintDataFn finalizer_;
+  // List of entity schemas that have been registered.  Most apps will only ever
+  // need one converter unless they are compiled into the same binary as other
+  // Lullaby applications, in which case they may need two.  One for shared
+  // blueprints, one for blueprints using app specific defs.
+  std::vector<std::unique_ptr<FlatbufferConverter>> converters_;
 
   DependencyChecker dependency_checker_;
 
@@ -289,17 +355,32 @@ T* EntityFactory::AddSystemFromRegistry() {
   return system;
 }
 
+template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
+void EntityFactory::RegisterFlatbufferConverter(
+    GetEntityDefFn get_entity_def, const char* const* component_def_names,
+    string_view file_identifier) {
+  FlatbufferConverter* converter = CreateFlatbufferConverter(file_identifier);
+  CreateTypeList(component_def_names, converter);
+  InitializeLoader<EntityDef, ComponentDef>(get_entity_def, converter);
+  InitializeFinalizer<EntityDef, ComponentDef>(converter);
+}
+
 inline void EntityFactory::Initialize(const char* const* component_def_names) {
+  Initialize(component_def_names, kDefaultFileIdentifier);
+}
+inline void EntityFactory::Initialize(const char* const* component_def_names,
+                                      string_view file_identifier) {
   Initialize();
-  CreateTypeList(component_def_names);
+  FlatbufferConverter* converter = CreateFlatbufferConverter(file_identifier);
+  CreateTypeList(component_def_names, converter);
 }
 
 template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
 void EntityFactory::Initialize(GetEntityDefFn get_entity_def,
                                const char* const* component_def_names) {
-  Initialize(component_def_names);
-  InitializeLoader<EntityDef, ComponentDef>(get_entity_def);
-  InitializeFinalizer<EntityDef, ComponentDef>();
+  Initialize();
+  RegisterFlatbufferConverter<EntityDef, ComponentDef, GetEntityDefFn>(
+      get_entity_def, component_def_names, kDefaultFileIdentifier);
 }
 
 namespace detail {
@@ -339,31 +420,33 @@ struct ChildAccessor<EntityDef, ComponentDef,
 
 template <typename EntityDef, typename ComponentDef>
 BlueprintTree EntityFactory::BlueprintTreeFromEntityDef(
-    const EntityDef* entity_def) {
+    const EntityDef* entity_def, const FlatbufferConverter* converter) {
   const auto* components = entity_def->components();
 
   // Returns a type+flatbuffer::Table pair for a given index.  The Blueprint
   // uses this function (along with the total size) to iterate over
   // components without having to know about the internal details/structure
   // of the container containing those components.
-  auto component_accessor = [this, components](size_t index) {
+  auto component_accessor = [this, components, converter](size_t index) {
     const ComponentDef* component = components->Get(static_cast<int>(index));
     const int type = static_cast<int>(component->def_type());
     const void* data = component->def();
     const auto* table = reinterpret_cast<const flatbuffers::Table*>(data);
-    const bool valid_type = type >= 0 && type < static_cast<int>(types_.size());
+    const bool valid_type =
+        type >= 0 && type < static_cast<int>(converter->types.size());
 
     std::pair<HashValue, const flatbuffers::Table*> result = {0, nullptr};
     if (valid_type && table != nullptr) {
-      result.first = types_[type];
+      result.first = converter->types[type];
       result.second = table;
     }
     return result;
   };
 
   auto children = detail::ChildAccessor<EntityDef, ComponentDef>::Children(
-      entity_def, [this](const EntityDef* def) {
-        return BlueprintTreeFromEntityDef<EntityDef, ComponentDef>(def);
+      entity_def, [this, converter](const EntityDef* def) {
+        return BlueprintTreeFromEntityDef<EntityDef, ComponentDef>(def,
+                                                                   converter);
       });
 
   return BlueprintTree(component_accessor, components->size(),
@@ -372,14 +455,45 @@ BlueprintTree EntityFactory::BlueprintTreeFromEntityDef(
 
 template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
 void EntityFactory::InitializeLoader(GetEntityDefFn get_entity_def) {
-  loader_ = [=](const void* data) {
+  InitializeLoader<EntityDef, ComponentDef, GetEntityDefFn>(
+      get_entity_def, kDefaultFileIdentifier);
+}
+
+template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
+void EntityFactory::InitializeLoader(GetEntityDefFn get_entity_def,
+                                     string_view file_identifier) {
+  FlatbufferConverter* converter = GetFlatbufferConverter(file_identifier);
+  if (converter) {
+    InitializeLoader<EntityDef, ComponentDef, GetEntityDefFn>(get_entity_def,
+                                                              converter);
+  }
+}
+
+template <typename EntityDef, typename ComponentDef, typename GetEntityDefFn>
+void EntityFactory::InitializeLoader(GetEntityDefFn get_entity_def,
+                                     FlatbufferConverter* converter) {
+  converter->load = [this, get_entity_def, converter](const void* data) {
     const EntityDef* entity_def = get_entity_def(data);
-    return BlueprintTreeFromEntityDef<EntityDef, ComponentDef>(entity_def);
+    return BlueprintTreeFromEntityDef<EntityDef, ComponentDef>(entity_def,
+                                                               converter);
   };
 }
 
 template <typename EntityDef, typename ComponentDef>
 void EntityFactory::InitializeFinalizer() {
+  InitializeFinalizer<EntityDef, ComponentDef>(kDefaultFileIdentifier);
+}
+
+template <typename EntityDef, typename ComponentDef>
+void EntityFactory::InitializeFinalizer(string_view file_identifier) {
+  FlatbufferConverter* converter = GetFlatbufferConverter(file_identifier);
+  if (converter) {
+    InitializeFinalizer<EntityDef, ComponentDef>(converter);
+  }
+}
+
+template <typename EntityDef, typename ComponentDef>
+void EntityFactory::InitializeFinalizer(FlatbufferConverter* converter) {
   using DefType = typename std::result_of<decltype (&ComponentDef::def_type)(
       ComponentDef)>::type;
 
@@ -393,17 +507,17 @@ void EntityFactory::InitializeFinalizer() {
   //           components: [ComponentDef];
   //           children: [EntityDef];
   //   }
-  finalizer_ = [this](FlatbufferWriter* writer,
-                      Blueprint* blueprint) -> size_t {
+  converter->finalize = [this, converter](FlatbufferWriter* writer,
+                                          Blueprint* blueprint) -> size_t {
     // Create the vector of ComponentDefs.  The actual data stored by the union
-    // is already "encoded" into the Blueprint.  We first need to wrap it in
-    // a table, and then create a vector of those table objects.
+    // is already "encoded" into the Blueprint.  We first need to wrap it in a
+    // table, and then create a vector of those table objects.
     size_t count = 0;
     const size_t components_start = writer->StartVector();
     blueprint->ForEachComponent([&](const Blueprint& bp) {
       const HashValue type = bp.GetLegacyDefType();
       const DefType def_type =
-          static_cast<DefType>(PerformReverseTypeLookup(type));
+          static_cast<DefType>(PerformReverseTypeLookup(type, converter));
       const flatbuffers::Table* data = bp.GetLegacyDefData();
 
       // Write the ComponentDef table for this component.  The table contains

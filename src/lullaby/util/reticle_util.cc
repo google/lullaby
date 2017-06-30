@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/util/reticle.h"
+#include "lullaby/util/reticle_util.h"
 
 #include "lullaby/systems/reticle/reticle_system.h"
 #include "lullaby/systems/transform/transform_system.h"

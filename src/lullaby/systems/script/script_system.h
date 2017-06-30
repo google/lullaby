@@ -20,10 +20,10 @@ limitations under the License.
 #include "lullaby/generated/script_def_generated.h"
 #include "lullaby/base/component.h"
 #include "lullaby/base/entity.h"
-#include "lullaby/base/hash.h"
 #include "lullaby/base/system.h"
 #include "lullaby/script/script_engine.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/hash.h"
 
 namespace lull {
 

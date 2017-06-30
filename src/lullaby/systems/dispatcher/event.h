@@ -68,7 +68,11 @@ void SendEventDefsImmediately(Registry* registry, Entity entity,
 // dispatcher_system being in the registry.
 void ConnectEventDefs(Registry* registry, Entity entity,
                       const EventDefArray* events,
-                      Dispatcher::EventHandler handler);
+                      const Dispatcher::EventHandler& handler);
+
+void ConnectEventDefs(Registry* registry, Entity entity,
+                      const std::vector<EventDefT>& events,
+                      const Dispatcher::EventHandler& handler);
 
 }  // namespace lull
 

@@ -185,6 +185,10 @@ class TransformSystem : public System {
   /// Retrieve the list of children of an Entity
   const std::vector<Entity>* GetChildren(Entity parent) const;
 
+  /// Destroys all child entities of the given parent entity. If |parent| has
+  /// no children, this has no effect.
+  void DestroyChildren(Entity parent);
+
   /// Returns the number of children belonging to the |parent| entity.
   size_t GetChildCount(Entity parent) const;
 

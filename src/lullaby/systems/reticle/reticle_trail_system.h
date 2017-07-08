@@ -47,6 +47,7 @@ class ReticleTrailSystem : public System {
     std::vector<mathfu::vec3> trail_positions;
     std::deque<mathfu::vec3> position_history;
     mathfu::vec4 default_color;
+    int max_trail_length = 0;
     int average_trail_length = 0;
     int trail_length = 0;
     int curve_samples = 0;

@@ -138,6 +138,9 @@ class TransformSystemTest : public ::testing::Test {
   void ExpectChildRemovedEventSequence(
       const std::deque<ChildRemovedEvent>& expected_sequence);
 
+  // Enforces that exactly |n| entities currently have transforms.
+  void ExpectTransformsCount(int n);
+
   void OnParentChanged(const ParentChangedEvent& e);
   void OnChildAdded(const ChildAddedEvent& e);
   void OnChildRemoved(const ChildRemovedEvent& e);
@@ -865,7 +868,7 @@ TEST_F(TransformSystemTest, ParentingWithNullParents) {
   EXPECT_FALSE(transform_system->IsAncestorOf(child, parent));
 }
 
-TEST_F(TransformSystemTest, DestroyChildren) {
+TEST_F(TransformSystemTest, DestroyChild) {
   SetupEventHandlers();
 
   TransformDefT transform;
@@ -884,6 +887,8 @@ TEST_F(TransformSystemTest, DestroyChildren) {
   transform_system->CreateComponent(child, blueprint);
   transform_system->CreateComponent(grand_child_a, blueprint);
   transform_system->CreateComponent(grand_child_b, blueprint);
+
+  ExpectTransformsCount(4);
 
   // Create a simple family with a parent, child, and 2 grandchildren.
   ClearAllEventsReceived();
@@ -930,6 +935,100 @@ TEST_F(TransformSystemTest, DestroyChildren) {
   const std::deque<ChildRemovedEvent> child_destroy_sequence = {
       {child, grand_child_a}, {child, grand_child_b}, {parent, child}};
   ExpectChildRemovedEventSequence(child_destroy_sequence);
+
+  ExpectTransformsCount(1);
+}
+
+TEST_F(TransformSystemTest, DestroyChildren) {
+  SetupEventHandlers();
+
+  TransformDefT transform;
+  transform.position = mathfu::vec3(1.f, 0.f, 0.f);
+  transform.rotation = mathfu::vec3(0.f, 0.f, 0.f);
+  transform.scale = mathfu::vec3(1.f, 1.f, 1.f);
+  Blueprint blueprint(&transform);
+
+  const Entity parent = 1;
+  const Entity child_a = 2;
+  const Entity grand_child_a = 3;
+  const Entity grand_child_b = 4;
+  const Entity child_b = 5;
+  const Entity grand_child_c = 6;
+  const Entity grand_child_d = 7;
+
+  auto* transform_system = registry_.Get<TransformSystem>();
+  transform_system->CreateComponent(parent, blueprint);
+  transform_system->CreateComponent(child_a, blueprint);
+  transform_system->CreateComponent(grand_child_a, blueprint);
+  transform_system->CreateComponent(grand_child_b, blueprint);
+  transform_system->CreateComponent(child_b, blueprint);
+  transform_system->CreateComponent(grand_child_c, blueprint);
+  transform_system->CreateComponent(grand_child_d, blueprint);
+
+  ExpectTransformsCount(7);
+
+  // Create a simple family with a parent, child, and 2 grandchildren.
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildAddedEvents();
+
+  transform_system->AddChild(parent, child_a);
+  transform_system->AddChild(child_a, grand_child_a);
+  transform_system->AddChild(child_a, grand_child_b);
+  transform_system->AddChild(parent, child_b);
+  transform_system->AddChild(child_b, grand_child_c);
+  transform_system->AddChild(child_b, grand_child_d);
+
+  // Check that we received the expected events.
+  const std::deque<ParentChangedEvent> parent_add_sequence = {
+      {child_a, kNullEntity, parent},
+      {grand_child_a, kNullEntity, child_a},
+      {grand_child_b, kNullEntity, child_a},
+      {child_b, kNullEntity, parent},
+      {grand_child_c, kNullEntity, child_b},
+      {grand_child_d, kNullEntity, child_b}};
+  ExpectParentChangedEventSequence(parent_add_sequence);
+  const std::deque<ChildAddedEvent> child_add_sequence = {
+      {parent, child_a}, {child_a, grand_child_a}, {child_a, grand_child_b},
+      {parent, child_b}, {child_b, grand_child_c}, {child_b, grand_child_d}};
+  ExpectChildAddedEventSequence(child_add_sequence);
+
+  DisallowAllEvents();
+
+  // Ensure the ancestry is set up correctly.
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, child_a));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, child_b));
+  EXPECT_TRUE(transform_system->IsAncestorOf(child_a, grand_child_a));
+  EXPECT_TRUE(transform_system->IsAncestorOf(child_a, grand_child_b));
+  EXPECT_TRUE(transform_system->IsAncestorOf(child_b, grand_child_c));
+  EXPECT_TRUE(transform_system->IsAncestorOf(child_b, grand_child_d));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child_a));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child_b));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child_c));
+  EXPECT_TRUE(transform_system->IsAncestorOf(parent, grand_child_d));
+
+  // Destroying the child should also destroy grand_child_a & b.
+  ClearAllEventsReceived();
+  AllowParentChangedEvents();
+  AllowChildRemovedEvents();
+
+  transform_system->DestroyChildren(parent);
+
+  // Check that the correct sequence of events was received.
+  const std::deque<ParentChangedEvent> parent_destroy_sequence = {
+      {grand_child_a, child_a, kNullEntity},
+      {grand_child_b, child_a, kNullEntity},
+      {child_a, parent, kNullEntity},
+      {grand_child_c, child_b, kNullEntity},
+      {grand_child_d, child_b, kNullEntity},
+      {child_b, parent, kNullEntity}};
+  ExpectParentChangedEventSequence(parent_destroy_sequence);
+  const std::deque<ChildRemovedEvent> child_destroy_sequence = {
+      {child_a, grand_child_a}, {child_a, grand_child_b}, {parent, child_a},
+      {child_b, grand_child_c}, {child_b, grand_child_d}, {parent, child_b}};
+  ExpectChildRemovedEventSequence(child_destroy_sequence);
+
+  ExpectTransformsCount(1);
 }
 
 void TransformSystemTest::ClearAllEventsReceived() {
@@ -1058,6 +1157,14 @@ void TransformSystemTest::OnChildAdded(const ChildAddedEvent& e) {
 void TransformSystemTest::OnChildRemoved(const ChildRemovedEvent& e) {
   EXPECT_TRUE(expect_child_removed_event_);
   child_removed_events_received_.push_back(e);
+}
+
+void TransformSystemTest::ExpectTransformsCount(int n) {
+  auto* transform_system = registry_.Get<TransformSystem>();
+  int count = 0;
+  transform_system->ForAll(
+      [&count](Entity, const mathfu::mat4&, const Aabb&, Bits) { count++; });
+  EXPECT_EQ(count, n);
 }
 
 }  // namespace

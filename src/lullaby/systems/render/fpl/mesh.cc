@@ -152,6 +152,9 @@ void Mesh::GatherShaderTransforms(
 }
 
 void Mesh::Render(fplbase::Renderer* renderer, fplbase::BlendMode blend_mode) {
+  if (!impl_->IsValid()) {
+    return;
+  }
   const bool ignore_material = impl_->GetMaterial(0) == nullptr;
   if (ignore_material) {
     renderer->SetBlendMode(blend_mode);

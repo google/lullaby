@@ -16,6 +16,9 @@ table ReticleTrailDef {
   average_speed: float = 0.2;
   /// Default reticle color
   default_color: Color;
+  /// Max number of reticles to draw. If this limit is reached the reticle trail
+  /// will become sparser.
+  max_trail_length: int = 32;
 }
 
 root_type ReticleTrailDef;

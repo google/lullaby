@@ -75,6 +75,11 @@ class ReticleSystem : public System {
   /// not applicable in some cases.
   void SetReticleMovementFn(ReticleMovementFn fn);
 
+  /// Lock the reticle to an entity.  For the duration of the lock, the reticle
+  /// will maintain a constant offset from the target entity's world location.
+  /// Pass kNullEntity to return ReticleSystem to normal behavior.
+  void LockOn(Entity entity, const mathfu::vec3& offset);
+
  private:
   struct Reticle : Component {
     explicit Reticle(Entity entity);
@@ -102,6 +107,12 @@ class ReticleSystem : public System {
     std::vector<InputManager::DeviceType> device_preference;
 
     ReticleMovementFn movement_fn = nullptr;
+
+    // An entity that (if set), the reticle is forced to target.
+    Entity locked_target = kNullEntity;
+
+    // The world space offset from the locked_entity's position.
+    mathfu::vec3 lock_offset = mathfu::kZeros3f;
   };
 
   struct ReticleBehaviour : Component {
@@ -119,6 +130,21 @@ class ReticleSystem : public System {
   void CreateReticle(Entity entity, const ReticleDef* data);
 
   void CreateReticleBehaviour(Entity entity, const ReticleBehaviourDef* data);
+
+  // If the target has a ReticleBehavior, apply that behavior and return the
+  // actual target.
+  Entity HandleReticleBehavior(Entity targeted_entity);
+
+  // Place the reticle at the desired location, rotate it to face the camera,
+  // and scale it to maintain constant visual size.
+  void SetReticleTransform(Entity reticle_entity,
+                           const mathfu::vec3& reticle_world_pos,
+                           const mathfu::vec3& camera_world_pos);
+
+  // Calculate where the reticle should be based on input (assuming no actual
+  // collisions take place).
+  mathfu::vec3 CalculateReticleNoHitPosition(Entity reticle_entity,
+                                             InputManager::DeviceType device);
 
   // Checks if |collided_entity| has a hover start dead zone. If it does and the
   // reticle is currently within the dead zone, return true. Otherwise, return

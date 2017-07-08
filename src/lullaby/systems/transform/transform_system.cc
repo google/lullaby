@@ -596,6 +596,19 @@ void TransformSystem::RemoveParent(Entity child) {
   }
 }
 
+void TransformSystem::DestroyChildren(Entity parent) {
+  const std::vector<Entity>* children = GetChildren(parent);
+  if (!children) {
+    return;
+  }
+
+  // Make a local copy of the children to avoid re-entrancy problems.
+  const std::vector<Entity> children_copy(*children);
+  for (const auto child : children_copy) {
+    Destroy(child);
+  }
+}
+
 const std::vector<Entity>* TransformSystem::GetChildren(Entity parent) const {
   auto node = nodes_.Get(parent);
   if (node) {

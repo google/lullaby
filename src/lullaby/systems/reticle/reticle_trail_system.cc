@@ -35,6 +35,7 @@ const float kMaxDeltaTime = 0.05f;
 ReticleTrailSystem::ReticleTrail::ReticleTrail(Entity e)
     : Component(e),
       default_color(mathfu::kZeros4f),
+      max_trail_length(0),
       average_trail_length(0),
       trail_length(0),
       curve_samples(0),
@@ -62,6 +63,7 @@ void ReticleTrailSystem::CreateReticleTrail(Entity entity,
                                             const ReticleTrailDef* data) {
   reticle_trail_.reset(new ReticleTrail(entity));
   reticle_trail_->curve_samples = data->curve_samples();
+  reticle_trail_->max_trail_length = data->max_trail_length();
   reticle_trail_->average_trail_length = data->average_trail_length();
   reticle_trail_->average_speed = data->average_speed();
   reticle_trail_->quad_size = data->quad_size();
@@ -104,12 +106,14 @@ void ReticleTrailSystem::AdvanceFrame(const Clock::duration& delta_time) {
     const float length = (reticle_trail_->position_history[3] -
                           reticle_trail_->position_history[2])
                              .Length();
-    const float lengthOverSpeed = length / reticle_trail_->average_speed;
-    const float currSpeedLength =
-        lengthOverSpeed *
+    const float length_over_speed = length / reticle_trail_->average_speed;
+    const float curr_speed_length =
+        length_over_speed *
         static_cast<float>(reticle_trail_->average_trail_length);
 
-    reticle_trail_->trail_length = 1 + static_cast<int>(floor(currSpeedLength));
+    reticle_trail_->trail_length = std::min(
+        1 + static_cast<int>(floor(curr_speed_length)),
+        reticle_trail_->max_trail_length);
   }
 
   reticle_trail_->trail_positions.resize(reticle_trail_->trail_length,

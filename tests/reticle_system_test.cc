@@ -228,10 +228,9 @@ TEST_F(ReticleSystemTest, BasicController) {
 
   // Now point the controller in the +X direction and expect it to hit the
   // "target" entity.
-  input->UpdateRotation(
-      InputManager::kController,
-      mathfu::quat::FromEulerAngles(kDegreesToRadians *
-                                    mathfu::vec3(0.f, -90.f, 0.f)));
+  input->UpdateRotation(InputManager::kController,
+                        mathfu::quat::FromEulerAngles(
+                            kDegreesToRadians * mathfu::vec3(0.f, -90.f, 0.f)));
   input->AdvanceFrame(kDeltaTime);
 
   ExpectReticleUpdateUniforms();
@@ -253,10 +252,9 @@ TEST_F(ReticleSystemTest, BasicController) {
   }
 
   // Now point the controller in the +Z direction.
-  input->UpdateRotation(
-      InputManager::kController,
-      mathfu::quat::FromEulerAngles(kDegreesToRadians *
-                                    mathfu::vec3(0.f, 180.f, 0.f)));
+  input->UpdateRotation(InputManager::kController,
+                        mathfu::quat::FromEulerAngles(
+                            kDegreesToRadians * mathfu::vec3(0.f, 180.f, 0.f)));
   input->AdvanceFrame(kDeltaTime);
 
   ExpectReticleUpdateUniforms();
@@ -307,12 +305,12 @@ TEST_F(ReticleSystemTest, InputEvents) {
   int press_count = 0;
   int press_release_count = 0;
 
-  auto global_start_connection = dispatcher->Connect(
-      [&global_hovered](const StartHoverEvent& event) {
+  auto global_start_connection =
+      dispatcher->Connect([&global_hovered](const StartHoverEvent& event) {
         global_hovered = event.target;
       });
-  auto global_end_connection = dispatcher->Connect(
-      [&global_hovered](const StopHoverEvent& event) {
+  auto global_end_connection =
+      dispatcher->Connect([&global_hovered](const StopHoverEvent& event) {
         global_hovered = kNullEntity;
       });
   auto global_press_connection = dispatcher->Connect(
@@ -350,17 +348,14 @@ TEST_F(ReticleSystemTest, InputEvents) {
   bool local_pressed_and_released = false;
 
   auto local_start_connection = dispatcher_system->Connect(
-      target, [&local_hovered](const StartHoverEvent& event) {
-        local_hovered = true;
-      });
+      target,
+      [&local_hovered](const StartHoverEvent& event) { local_hovered = true; });
   auto local_end_connection = dispatcher_system->Connect(
-      target, [&local_hovered](const StopHoverEvent& event) {
-        local_hovered = false;
-      });
+      target,
+      [&local_hovered](const StopHoverEvent& event) { local_hovered = false; });
   auto local_press_connection = dispatcher_system->Connect(
-      target, [&local_pressed](const ClickEvent& event) {
-        local_pressed = true;
-      });
+      target,
+      [&local_pressed](const ClickEvent& event) { local_pressed = true; });
   auto local_release_connection = dispatcher_system->Connect(
       target, [&local_pressed](const ClickReleasedEvent& event) {
         local_pressed = false;
@@ -386,10 +381,9 @@ TEST_F(ReticleSystemTest, InputEvents) {
 
   // Now point the controller in the +X direction and expect it to hit the
   // "target" entity.
-  input->UpdateRotation(
-      InputManager::kController,
-      mathfu::quat::FromEulerAngles(kDegreesToRadians *
-                                    mathfu::vec3(0.f, -90.f, 0.f)));
+  input->UpdateRotation(InputManager::kController,
+                        mathfu::quat::FromEulerAngles(
+                            kDegreesToRadians * mathfu::vec3(0.f, -90.f, 0.f)));
   input->AdvanceFrame(kDeltaTime);
 
   ExpectReticleUpdateUniforms();
@@ -467,12 +461,12 @@ TEST_F(ReticleSystemTest, ReticleBehaviour) {
   auto* dispatcher = registry_->Get<Dispatcher>();
   Entity global_hovered = kNullEntity;
 
-  auto global_start_connection = dispatcher->Connect(
-      [&global_hovered](const StartHoverEvent& event) {
+  auto global_start_connection =
+      dispatcher->Connect([&global_hovered](const StartHoverEvent& event) {
         global_hovered = event.target;
       });
-  auto global_end_connection = dispatcher->Connect(
-      [&global_hovered](const StopHoverEvent& event) {
+  auto global_end_connection =
+      dispatcher->Connect([&global_hovered](const StopHoverEvent& event) {
         global_hovered = kNullEntity;
       });
 
@@ -514,8 +508,8 @@ TEST_F(ReticleSystemTest, ReticleBehaviour) {
   EXPECT_NE(child, kNullEntity);
 
   auto* transform_system = registry_->Get<TransformSystem>();
-  transform_system->SetAabb(child, Aabb(-2.f * mathfu::kOnes3f,
-                                        2.f * mathfu::kOnes3f));
+  transform_system->SetAabb(
+      child, Aabb(-2.f * mathfu::kOnes3f, 2.f * mathfu::kOnes3f));
   transform_system->AddChild(parent, child);
 
   // Update the input to have the controller pointing in the -Z direction,
@@ -573,5 +567,160 @@ TEST_F(ReticleSystemTest, ReticleBehaviour) {
   EXPECT_EQ(reticle_system->GetTarget(), kNullEntity);
 }
 
+TEST_F(ReticleSystemTest, Locking) {
+  Create3DofDevice();
+
+  Blueprint blueprint1;
+  {
+    TransformDefT transform;
+    blueprint1.Write(&transform);
+
+    ReticleDefT reticle;
+    reticle.ergo_angle_offset = 0.f;
+    reticle.no_hit_distance = 2.f;
+    blueprint1.Write(&reticle);
+  }
+
+  auto* entity_factory = registry_->Get<EntityFactory>();
+  const Entity reticle = entity_factory->Create(&blueprint1);
+
+  EXPECT_NE(reticle, kNullEntity);
+
+  auto* reticle_system = registry_->Get<ReticleSystem>();
+  EXPECT_EQ(reticle_system->GetActiveDevice(), InputManager::kController);
+
+  // Build an Entity in the +X direction for later use.
+  Blueprint blueprint2;
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(1.f, 0.f, 0.f);
+    blueprint2.Write(&transform);
+
+    CollisionDefT collision;
+    blueprint2.Write(&collision);
+  }
+
+  const Entity targetX = entity_factory->Create(&blueprint2);
+  EXPECT_NE(targetX, kNullEntity);
+
+  auto* transform_system = registry_->Get<TransformSystem>();
+  transform_system->SetAabb(
+      targetX, Aabb(-mathfu::kOnes3f / 2.f, mathfu::kOnes3f / 2.f));
+
+  // Build a second Entity in the -Z direction for later use.
+  Blueprint blueprint3;
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(0.f, 0.f, -2.f);
+    blueprint3.Write(&transform);
+
+    CollisionDefT collision;
+    blueprint3.Write(&collision);
+  }
+
+  const Entity targetZ = entity_factory->Create(&blueprint3);
+  EXPECT_NE(targetZ, kNullEntity);
+
+  registry_->Get<TransformSystem>()->SetAabb(
+      targetZ, Aabb(-mathfu::kOnes3f / 2.f, mathfu::kOnes3f / 2.f));
+
+  // Update the input to have the controller pointing in the -Z direction,
+  // hitting targetZ.
+  auto* input = registry_->Get<InputManager>();
+  input->UpdateRotation(InputManager::kController, mathfu::quat::identity);
+  input->AdvanceFrame(kDeltaTime);
+
+  ExpectReticleUpdateUniforms();
+  reticle_system->LockOn(targetZ, mathfu::kOnes3f * 0.3f);
+  reticle_system->AdvanceFrame(kDeltaTime);
+
+  {
+    const Ray collision_ray = reticle_system->GetCollisionRay();
+
+    EXPECT_NEAR(collision_ray.direction.x, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.y, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.z, -1.f, kEpsilon);
+
+    const Sqt* sqt = registry_->Get<TransformSystem>()->GetSqt(reticle);
+    // Expect this to be targetZ position + (0.3,0.3,0.3).
+    EXPECT_NEAR(sqt->translation.x, 0.3f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.y, 0.3f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.z, -1.7f, kEpsilon);
+
+    EXPECT_EQ(reticle_system->GetTarget(), targetZ);
+  }
+
+  // Now point the controller in the +X direction, but expect it to still hit
+  // the locked target.
+  input->UpdateRotation(InputManager::kController,
+                        mathfu::quat::FromEulerAngles(
+                            kDegreesToRadians * mathfu::vec3(0.f, -90.f, 0.f)));
+  input->AdvanceFrame(kDeltaTime);
+
+  reticle_system->AdvanceFrame(kDeltaTime);
+
+  {
+    const Ray collision_ray = reticle_system->GetCollisionRay();
+
+    EXPECT_NEAR(collision_ray.direction.x, 1.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.y, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.z, 0.f, kEpsilon);
+
+    const Sqt* sqt = registry_->Get<TransformSystem>()->GetSqt(reticle);
+    // Expect this to be targetZ position + (0.3,0.3,0.3).
+    EXPECT_NEAR(sqt->translation.x, 0.3f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.y, 0.3f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.z, -1.7f, kEpsilon);
+
+    EXPECT_EQ(reticle_system->GetTarget(), targetZ);
+  }
+
+  // Now point the controller back to -z, and put targetX in the way of targetZ.
+  Sqt sqt;
+  sqt.translation = mathfu::vec3(0.0f, 0.0f, -1.0f);
+  transform_system->SetSqt(targetX, sqt);
+  input->UpdateRotation(InputManager::kController, mathfu::quat::identity);
+  input->AdvanceFrame(kDeltaTime);
+
+  reticle_system->AdvanceFrame(kDeltaTime);
+
+  {
+    const Ray collision_ray = reticle_system->GetCollisionRay();
+
+    EXPECT_NEAR(collision_ray.direction.x, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.y, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.z, -1.f, kEpsilon);
+
+    const Sqt* sqt = registry_->Get<TransformSystem>()->GetSqt(reticle);
+    // Expect this to be targetZ position + (0.3,0.3,0.3).
+    EXPECT_NEAR(sqt->translation.x, 0.3f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.y, 0.3f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.z, -1.7f, kEpsilon);
+
+    EXPECT_EQ(reticle_system->GetTarget(), targetZ);
+  }
+
+  // Now release the lock and expect the target to be targetX
+  reticle_system->LockOn(kNullEntity, mathfu::kZeros3f);
+  input->AdvanceFrame(kDeltaTime);
+
+  ExpectReticleUpdateUniforms();
+  reticle_system->AdvanceFrame(kDeltaTime);
+
+  {
+    const Ray collision_ray = reticle_system->GetCollisionRay();
+
+    EXPECT_NEAR(collision_ray.direction.x, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.y, 0.f, kEpsilon);
+    EXPECT_NEAR(collision_ray.direction.z, -1.f, kEpsilon);
+
+    const Sqt* sqt = registry_->Get<TransformSystem>()->GetSqt(reticle);
+    EXPECT_NEAR(sqt->translation.x, 0.0f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.y, 0.0f, kEpsilon);
+    EXPECT_NEAR(sqt->translation.z, -0.5f, kEpsilon);
+
+    EXPECT_EQ(reticle_system->GetTarget(), targetX);
+  }
+}
 }  // namespace
 }  // namespace lull

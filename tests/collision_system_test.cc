@@ -144,6 +144,69 @@ TEST_F(CollisionSystemTest, CheckForCollision) {
   }
 }
 
+TEST_F(CollisionSystemTest, CheckForClip) {
+  auto* entity_factory = registry_->Get<EntityFactory>();
+  auto* collision_system = registry_->Get<CollisionSystem>();
+  auto* transform_system = registry_->Get<TransformSystem>();
+
+  Blueprint parent_blueprint;
+  Blueprint child_blueprint;
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(4.f, 4.f, -4.f);
+    CollisionClipBoundsDefT clip_bounds;
+    clip_bounds.aabb = Aabb(mathfu::vec3(0.4f), mathfu::vec3(0.6f));
+    parent_blueprint.Write(&transform);
+    parent_blueprint.Write(&clip_bounds);
+  }
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(0.f, 0.f, 0.5f);
+    transform.aabb =
+        Aabb(mathfu::vec3(-1.f, -1.f, 0.f), mathfu::vec3(1.f, 1.f, 0.f));
+    CollisionDefT collision;
+    collision.clip_outside_bounds = true;
+    child_blueprint.Write(&transform);
+    child_blueprint.Write(&collision);
+  }
+  const Entity parent = entity_factory->Create(&parent_blueprint);
+  const Entity child = entity_factory->Create(&child_blueprint);
+  transform_system->AddChild(parent, child);
+
+  EXPECT_NE(parent, kNullEntity);
+  EXPECT_NE(child, kNullEntity);
+  EXPECT_TRUE(collision_system->IsCollisionEnabled(child));
+
+  static const float kEpsilon = 0.001f;
+
+  // Shoot a ray that will hit the child inside the bounds.
+  {
+    const auto result = collision_system->CheckForCollision(
+        Ray(mathfu::vec3(4.5f, 4.5f, 0.f), -mathfu::kAxisZ3f));
+    EXPECT_EQ(result.entity, child);
+    EXPECT_NEAR(result.distance, 3.5f, kEpsilon);
+  }
+
+  // Shoot a ray that will hit the child outside the bounds, so therefore not
+  // register a collision.
+  {
+    const auto result = collision_system->CheckForCollision(
+        Ray(mathfu::vec3(4.75f, 4.75f, 0.f), -mathfu::kAxisZ3f));
+    EXPECT_EQ(result.entity, kNullEntity);
+    EXPECT_EQ(result.distance, kNoHitDistance);
+  }
+
+  // Destroy the child's ClipContent component, then shoot the same ray and
+  // expect a collision.
+  collision_system->DisableClipping(child);
+  {
+    const auto result = collision_system->CheckForCollision(
+        Ray(mathfu::vec3(4.75f, 4.75f, 0.f), -mathfu::kAxisZ3f));
+    EXPECT_EQ(result.entity, child);
+    EXPECT_NEAR(result.distance, 3.5f, kEpsilon);
+  }
+}
+
 TEST_F(CollisionSystemTest, CheckForPointCollisions) {
   Blueprint blueprint1;
   {

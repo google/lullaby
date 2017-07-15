@@ -89,10 +89,21 @@ struct ParentChangedEvent {
   Entity new_parent = kNullEntity;
 };
 
+// Like ParentChangedEvent, this is sent whenever a parent-child relationship
+// changes. However, this event is sent immediately (without being queued in the
+// dispatcher). Listener callbacks can be invoked at potentially unsafe times
+// (eg within PostCreateInit or Destroy), so users of this event should take
+// precautions such as verifying the existence of specified entities' data.
+struct ParentChangedImmediateEvent : public ParentChangedEvent {
+  ParentChangedImmediateEvent() {}
+  ParentChangedImmediateEvent(Entity entity, Entity old_parent,
+                              Entity new_parent)
+      : ParentChangedEvent(entity, old_parent, new_parent) {}
+};
+
 struct ChildAddedEvent {
   ChildAddedEvent() {}
-  ChildAddedEvent(Entity parent, Entity child)
-      : target(parent), child(child) {}
+  ChildAddedEvent(Entity parent, Entity child) : target(parent), child(child) {}
 
   template <typename Archive>
   void Serialize(Archive archive) {
@@ -167,5 +178,6 @@ LULLABY_SETUP_TYPEID(lull::OnEnabledEvent);
 LULLABY_SETUP_TYPEID(lull::OnInteractionDisabledEvent);
 LULLABY_SETUP_TYPEID(lull::OnInteractionEnabledEvent);
 LULLABY_SETUP_TYPEID(lull::ParentChangedEvent);
+LULLABY_SETUP_TYPEID(lull::ParentChangedImmediateEvent);
 
 #endif  // LULLABY_EVENTS_ENTITY_EVENTS_H_

@@ -39,6 +39,8 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
   void DrawText3D(const mathfu::vec3& pos, const Color4ub color,
                   const char* text) override;
 
+  void DrawText2D(const Color4ub color, const char* text) override;
+
   void DrawBox3D(const mathfu::mat4& world_from_object_matrix, const Aabb& box,
                  Color4ub color) override;
 

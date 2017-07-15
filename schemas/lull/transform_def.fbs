@@ -5,16 +5,34 @@ namespace lull;
 /// Describes a transformation of the Entity relative to its parent.
 /// The transform is applied in the order: rotate, scale, translate.
 table TransformDef {
+  /// The position of the entity in its parent's space.
   position: Vec3;
-  /// euler angles (used if quaternion is not defined)
+  /// The rotation of the entity in its parent's space as Euler angles (provided
+  /// in degrees).  Only used if the 'quaternion' field isn't set. (Yaw, Pitch,
+  /// Roll).
   rotation: Vec3;
+  /// The scale of the entity in its parent space.  Note that multiple stacked
+  /// non-uniform scales and rotations may result in some odd behavior, so keep
+  /// all three numbers the same when possible.
   scale: Vec3 (native_default:"{1.f, 1.f, 1.f}");
-  /// ids of child entities
+  /// Blueprints to create as children of this entity.
   children: [string];
+  /// The default bounding box of this entity.  Note that many other systems
+  /// may override this at run time (i.e. a loaded mesh will set the aabb to
+  /// the mesh's bounds).  This is usually only useful for making non-rendering
+  /// objects take up space, like an invisible click blocker or a spacer in a
+  /// layout.
   aabb: AabbDef;
+  /// If any other system sets this entity's aabb, this padding will be added to
+  /// the new aabb.  Use this for things like extending an entity's click region
+  /// beyond the actual size of its mesh.
   aabb_padding: AabbDef;
-  /// Normalized rotation.  w is the scalar.
+  /// Rotation in the entity's parent space as a quaternion.  w is the scale.
+  /// Will override |rotation| if set.
   quaternion: Vec4 (defaults_to_null);
+  /// If false, the entity will start out disabled. Render, Audio, Animations,
+  /// and anything depending on transform_system->ForAll will create but not
+  /// update this entity.
   enabled: bool = true;
 }
 

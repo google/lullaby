@@ -62,6 +62,9 @@ struct Ray {
 
   mathfu::vec3 origin;
   mathfu::vec3 direction;
+
+  // Return the point at |t| distance along the Ray.
+  mathfu::vec3 GetPointAt(float t) const { return origin + t * direction; }
 };
 
 /// A line is parameterized in the same way as a ray but is conceptually

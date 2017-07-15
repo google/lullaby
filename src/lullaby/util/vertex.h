@@ -305,14 +305,34 @@ inline mathfu::vec3 GetNormal(const Vertex& v) {
 }
 
 template <typename Vertex>
-inline void SetNormal(Vertex* vertex, float nx, float ny, float nz) {
+inline void SetNormal(Vertex* vertex, float nx, float ny, float nz) {}
+
+template <>
+inline void SetNormal(VertexPN* vertex, float nx, float ny, float nz) {
+  vertex->nx = nx;
+  vertex->ny = ny;
+  vertex->nz = nz;
+}
+
+template <>
+inline void SetNormal(VertexPTN* vertex, float nx, float ny, float nz) {
   vertex->nx = nx;
   vertex->ny = ny;
   vertex->nz = nz;
 }
 
 template <typename Vertex>
-inline void SetNormal(Vertex* vertex, const mathfu::vec3& n) {
+inline void SetNormal(Vertex* vertex, const mathfu::vec3& n) {}
+
+template <>
+inline void SetNormal(VertexPN* vertex, const mathfu::vec3& n) {
+  vertex->nx = n.x;
+  vertex->ny = n.y;
+  vertex->nz = n.z;
+}
+
+template <>
+inline void SetNormal(VertexPTN* vertex, const mathfu::vec3& n) {
   vertex->nx = n.x;
   vertex->ny = n.y;
   vertex->nz = n.z;

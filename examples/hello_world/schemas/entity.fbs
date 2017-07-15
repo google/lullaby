@@ -1,0 +1,11 @@
+include "lull/common.fbs";
+
+include "lull/render_def.fbs";
+include "lull/text_def.fbs";
+include "lull/transform_def.fbs";
+
+union ComponentDefType {
+  lull.RenderDef,
+  lull.TextDef,
+  lull.TransformDef,
+}

@@ -192,6 +192,10 @@ TEST(Vertex, SetNormal) {
   SetNormal(&v, mathfu::kZeros3f);
   SetNormal(&v, normal.x, normal.y, normal.z);
   EXPECT_EQ(GetNormal(v), normal);
+
+  // Should compile and run as no-op.
+  VertexP vp(mathfu::kZeros3f);
+  SetNormal(&vp, mathfu::kZeros3f);
 }
 
 TEST(Vertex, SetUv0) {

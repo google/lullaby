@@ -41,7 +41,7 @@ size_t RoundAndClampIndex(int index, size_t list_size) {
     if (static_cast<unsigned int>(index) >= list_size) {
       return list_size - 1;
     } else {
-      return index;
+      return static_cast<size_t>(index);
     }
   }
 }
@@ -63,21 +63,20 @@ TransformSystem::TransformSystem(Registry* registry)
 
   EntityFactory* entity_factory = registry_->Get<EntityFactory>();
   if (entity_factory) {
-    entity_factory->SetCreateChildFn([this, entity_factory](
-                                         Entity parent,
-                                         BlueprintTree* bpt) -> Entity {
-      if (parent == kNullEntity) {
-        LOG(DFATAL) << "Attempted to create a child for a null parent. "
-                    << "Creating child as a parentless entity instead";
-        return entity_factory->Create(bpt);
-      }
+    entity_factory->SetCreateChildFn(
+        [this, entity_factory](Entity parent, BlueprintTree* bpt) -> Entity {
+          if (parent == kNullEntity) {
+            LOG(DFATAL) << "Attempted to create a child for a null parent. "
+                        << "Creating child as a parentless entity instead";
+            return entity_factory->Create(bpt);
+          }
 
-      const Entity child = entity_factory->Create();
-      pending_children_[child] = parent;
-      const Entity created_child = entity_factory->Create(child, bpt);
-      pending_children_.erase(child);
-      return created_child;
-    });
+          const Entity child = entity_factory->Create();
+          pending_children_[child] = parent;
+          const Entity created_child = entity_factory->Create(child, bpt);
+          pending_children_.erase(child);
+          return created_child;
+        });
   }
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
@@ -126,12 +125,10 @@ TransformSystem::TransformSystem(Registry* registry)
 
   auto* dispatcher = registry->Get<Dispatcher>();
   if (dispatcher) {
-    dispatcher->Connect(this, [this](const EnableEvent& event) {
-      Enable(event.entity);
-    });
-    dispatcher->Connect(this, [this](const DisableEvent& event) {
-      Disable(event.entity);
-    });
+    dispatcher->Connect(
+        this, [this](const EnableEvent& event) { Enable(event.entity); });
+    dispatcher->Connect(
+        this, [this](const DisableEvent& event) { Disable(event.entity); });
   }
 }
 
@@ -236,6 +233,8 @@ void TransformSystem::PostCreateInit(Entity e, HashValue type, const Def* def) {
     const Entity parent = iter->second;
     SendEvent(registry_, parent, ChildAddedEvent(parent, e));
     SendEvent(registry_, e, ParentChangedEvent(e, kNullEntity, parent));
+    SendEventImmediately(registry_, e,
+                         ParentChangedImmediateEvent(e, kNullEntity, parent));
   }
 
   auto data = ConvertDef<TransformDef>(def);
@@ -271,6 +270,8 @@ void TransformSystem::Destroy(Entity e) {
     if (dispatcher && parent != kNullEntity) {
       dispatcher->Send(ChildRemovedEvent(parent, e));
       dispatcher->Send(ParentChangedEvent(e, parent, kNullEntity));
+      dispatcher->SendImmediately(
+          ParentChangedImmediateEvent(e, parent, kNullEntity));
     }
 
     nodes_.Destroy(e);
@@ -505,6 +506,9 @@ void TransformSystem::AddChild(Entity parent, Entity child) {
   if (AddChildNoEvent(parent, child)) {
     SendEvent(registry_, parent, ChildAddedEvent(parent, child));
     SendEvent(registry_, child, ParentChangedEvent(child, old_parent, parent));
+    SendEventImmediately(
+        registry_, child,
+        ParentChangedImmediateEvent(child, old_parent, parent));
   }
 }
 
@@ -525,7 +529,7 @@ Entity TransformSystem::CreateChildWithEntity(Entity parent, Entity child,
 
   if (parent == kNullEntity) {
     LOG(INFO) << "Attempted to create a child for a null parent. Creating"
-        << " child as a parentless entity instead";
+              << " child as a parentless entity instead";
     return entity_factory->Create(child, name);
   }
 
@@ -593,6 +597,9 @@ void TransformSystem::RemoveParent(Entity child) {
     RemoveParentNoEvent(child);
     SendEvent(registry_, parent, ChildRemovedEvent(parent, child));
     SendEvent(registry_, child, ParentChangedEvent(child, parent, kNullEntity));
+    SendEventImmediately(
+        registry_, child,
+        ParentChangedImmediateEvent(child, parent, kNullEntity));
   }
 }
 
@@ -602,10 +609,12 @@ void TransformSystem::DestroyChildren(Entity parent) {
     return;
   }
 
+  auto* entity_factory = registry_->Get<EntityFactory>();
+
   // Make a local copy of the children to avoid re-entrancy problems.
   const std::vector<Entity> children_copy(*children);
   for (const auto child : children_copy) {
-    Destroy(child);
+    entity_factory->Destroy(child);
   }
 }
 

@@ -33,6 +33,19 @@ TEST(SpanTest, DefaultCtor) {
 TEST(SpanTest, CArrayCtor) {
   const int arr[] = { 1, 2, 3 };
 
+  Span<int> span(arr);
+
+  EXPECT_EQ(3u, span.size());
+  EXPECT_FALSE(span.empty());
+  EXPECT_EQ(arr, span.data());
+  EXPECT_EQ(1, span[0]);
+  EXPECT_EQ(2, span[1]);
+  EXPECT_EQ(3, span[2]);
+}
+
+TEST(SpanTest, PointerCtor) {
+  const int arr[] = { 1, 2, 3 };
+
   Span<int> span(arr, sizeof(arr) / sizeof(arr[0]));
 
   EXPECT_EQ(3u, span.size());

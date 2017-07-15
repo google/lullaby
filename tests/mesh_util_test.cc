@@ -117,7 +117,7 @@ TEST(TesselatedQuad, CheckVerticesNoCorners) {
   const int verts_x = 5;
   const int verts_y = 7;
 
-  const auto vertices = CalculateTesselatedQuadVertices<VertexPT>(
+  const auto vertices = CalculateTesselatedQuadVertices<VertexPTN>(
       size_x, size_y, verts_x, verts_y, 0.f, 0);
 
   EXPECT_EQ(static_cast<int>(vertices.size()), verts_x * verts_y);
@@ -127,25 +127,50 @@ TEST(TesselatedQuad, CheckVerticesNoCorners) {
   const int top_right_ind = (verts_x)*verts_y - 1;
   const int bottom_right_ind = (verts_x - 1) * verts_y;
 
-  const mathfu::vec3 bottom_left = GetPosition(vertices[bottom_left_ind]);
-  const mathfu::vec3 top_left = GetPosition(vertices[top_left_ind]);
-  const mathfu::vec3 top_right = GetPosition(vertices[top_right_ind]);
-  const mathfu::vec3 bottom_right = GetPosition(vertices[bottom_right_ind]);
+  {
+    // Check positions.
+    const mathfu::vec3 bottom_left = GetPosition(vertices[bottom_left_ind]);
+    const mathfu::vec3 top_left = GetPosition(vertices[top_left_ind]);
+    const mathfu::vec3 top_right = GetPosition(vertices[top_right_ind]);
+    const mathfu::vec3 bottom_right = GetPosition(vertices[bottom_right_ind]);
 
-  EXPECT_NEAR(bottom_left.x, -size_x / 2.f, kEpsilon);
-  EXPECT_NEAR(top_left.x, -size_x / 2.f, kEpsilon);
-  EXPECT_NEAR(top_right.x, size_x / 2.f, kEpsilon);
-  EXPECT_NEAR(bottom_right.x, size_x / 2.f, kEpsilon);
+    EXPECT_NEAR(bottom_left.x, -size_x / 2.f, kEpsilon);
+    EXPECT_NEAR(top_left.x, -size_x / 2.f, kEpsilon);
+    EXPECT_NEAR(top_right.x, size_x / 2.f, kEpsilon);
+    EXPECT_NEAR(bottom_right.x, size_x / 2.f, kEpsilon);
 
-  EXPECT_NEAR(bottom_left.y, -size_y / 2.f, kEpsilon);
-  EXPECT_NEAR(top_left.y, size_y / 2.f, kEpsilon);
-  EXPECT_NEAR(top_right.y, size_y / 2.f, kEpsilon);
-  EXPECT_NEAR(bottom_right.y, -size_y / 2.f, kEpsilon);
+    EXPECT_NEAR(bottom_left.y, -size_y / 2.f, kEpsilon);
+    EXPECT_NEAR(top_left.y, size_y / 2.f, kEpsilon);
+    EXPECT_NEAR(top_right.y, size_y / 2.f, kEpsilon);
+    EXPECT_NEAR(bottom_right.y, -size_y / 2.f, kEpsilon);
 
-  EXPECT_NEAR(bottom_left.z, 0, kEpsilon);
-  EXPECT_NEAR(top_left.z, 0, kEpsilon);
-  EXPECT_NEAR(top_right.z, 0, kEpsilon);
-  EXPECT_NEAR(bottom_right.z, 0, kEpsilon);
+    EXPECT_NEAR(bottom_left.z, 0, kEpsilon);
+    EXPECT_NEAR(top_left.z, 0, kEpsilon);
+    EXPECT_NEAR(top_right.z, 0, kEpsilon);
+    EXPECT_NEAR(bottom_right.z, 0, kEpsilon);
+  }
+  {
+    // Check normals.
+    const mathfu::vec3 bottom_left = GetNormal(vertices[bottom_left_ind]);
+    const mathfu::vec3 top_left = GetNormal(vertices[top_left_ind]);
+    const mathfu::vec3 top_right = GetNormal(vertices[top_right_ind]);
+    const mathfu::vec3 bottom_right = GetNormal(vertices[bottom_right_ind]);
+
+    EXPECT_NEAR(bottom_left.x, 0.0f, kEpsilon);
+    EXPECT_NEAR(top_left.x, 0.0f, kEpsilon);
+    EXPECT_NEAR(top_right.x, 0.0f, kEpsilon);
+    EXPECT_NEAR(bottom_right.x, 0.0f, kEpsilon);
+
+    EXPECT_NEAR(bottom_left.y, 0.0f, kEpsilon);
+    EXPECT_NEAR(top_left.y, 0.0f, kEpsilon);
+    EXPECT_NEAR(top_right.y, 0.0f, kEpsilon);
+    EXPECT_NEAR(bottom_right.y, 0.0f, kEpsilon);
+
+    EXPECT_NEAR(bottom_left.z, 1.0f, kEpsilon);
+    EXPECT_NEAR(top_left.z, 1.0f, kEpsilon);
+    EXPECT_NEAR(top_right.z, 1.0f, kEpsilon);
+    EXPECT_NEAR(bottom_right.z, 1.0f, kEpsilon);
+  }
 }
 
 TEST(TesselatedQuad, CheckIndicesNoCorners) {
@@ -309,25 +334,28 @@ TEST(TessellatedQuad, CreateQuadMesh) {
   constexpr int kNumVertsX = 5;
   constexpr int kNumVertsY = 7;
   constexpr int kNumCornerVerts = 5;
-  const std::vector<VertexPT> vertices =
-      CalculateTesselatedQuadVertices<VertexPT>(kSizeX, kSizeY, kNumVertsX,
-                                                kNumVertsY, kCornerRadius,
-                                                kNumCornerVerts);
+  const std::vector<VertexPTN> vertices =
+      CalculateTesselatedQuadVertices<VertexPTN>(kSizeX, kSizeY, kNumVertsX,
+                                                 kNumVertsY, kCornerRadius,
+                                                 kNumCornerVerts);
   const std::vector<uint16_t> indices =
       CalculateTesselatedQuadIndices(kNumVertsX, kNumVertsY, kNumCornerVerts);
 
-  MeshData mesh = CreateQuadMesh<VertexPT>(
+  MeshData mesh = CreateQuadMesh<VertexPTN>(
       kSizeX, kSizeY, kNumVertsX, kNumVertsY, kCornerRadius, kNumCornerVerts);
-  EXPECT_EQ(mesh.GetVertexFormat(), VertexPT::kFormat);
+  EXPECT_EQ(mesh.GetVertexFormat(), VertexPTN::kFormat);
   EXPECT_EQ(mesh.GetNumVertices(), vertices.size());
   EXPECT_EQ(mesh.GetNumIndices(), indices.size());
 
-  const VertexPT* vertex_data = mesh.GetMutableVertexData<VertexPT>();
+  const VertexPTN* vertex_data = mesh.GetMutableVertexData<VertexPTN>();
   ASSERT_TRUE(vertex_data != nullptr);
   for (size_t i = 0; i < vertices.size(); ++i) {
     EXPECT_EQ(vertex_data[i].x, vertices[i].x);
     EXPECT_EQ(vertex_data[i].y, vertices[i].y);
     EXPECT_EQ(vertex_data[i].z, vertices[i].z);
+    EXPECT_EQ(vertex_data[i].nx, vertices[i].nx);
+    EXPECT_EQ(vertex_data[i].ny, vertices[i].ny);
+    EXPECT_EQ(vertex_data[i].nz, vertices[i].nz);
     EXPECT_EQ(vertex_data[i].u0, vertices[i].u0);
     EXPECT_EQ(vertex_data[i].v0, vertices[i].v0);
   }

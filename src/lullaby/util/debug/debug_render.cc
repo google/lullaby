@@ -42,6 +42,9 @@ class DebugRender {
   void AddText3D(const string_view tag, const mathfu::vec3& pos, Color4ub color,
                  const char* text);
 
+  // Adds screen space text to the element buffer.
+  void AddText2D(const string_view tag, Color4ub color, const char* text);
+
   // Adds a 3D box to the debug render queue.
   void AddBox3D(const string_view tag,
                 const mathfu::mat4& world_from_object_matrix, const Aabb& box,
@@ -56,10 +59,13 @@ class DebugRender {
  private:
   static constexpr const int kMaxTextLength = 32;
 
+  // TODO(b/63639224) Sort Debug elements based on their position + type.
+  // Currently the order is based solely on type.
   enum class Type {
-    kLine,
-    kText3D,
     kBox3D,
+    kText3D,
+    kLine,
+    kText2D,
   };
 
   struct DrawElement {
@@ -80,9 +86,16 @@ class DebugRender {
   int read_index_ = 0;
   std::mutex mutex_;
 
+  friend bool operator<(const DrawElement& lhs, const DrawElement& rhs);
+
   DebugRender(const DebugRender&) = delete;
   DebugRender& operator=(const DebugRender&) = delete;
 };
+
+bool operator<(const DebugRender::DrawElement& lhs,
+               const DebugRender::DrawElement& rhs) {
+  return lhs.type < rhs.type;
+}
 
 std::unique_ptr<DebugRender> gDebugRender;
 
@@ -103,7 +116,7 @@ void DebugRender::AddLine(const string_view tag,
   element.type = DebugRender::Type::kLine;
 
   Lock lock(mutex_);
-  int write_index = 1 - read_index_;
+  const int write_index = 1 - read_index_;
   buffers_[write_index].emplace_back(element);
 }
 
@@ -130,7 +143,21 @@ void DebugRender::AddText3D(const string_view tag, const mathfu::vec3& pos,
   element.type = DebugRender::Type::kText3D;
 
   Lock lock(mutex_);
-  int write_index = 1 - read_index_;
+  const int write_index = 1 - read_index_;
+  buffers_[write_index].emplace_back(element);
+}
+
+void DebugRender::AddText2D(const string_view tag, const Color4ub color,
+                            const char* text) {
+  IsEnabled(tag);
+  DebugRender::DrawElement element;
+  element.tag = tag;
+  element.color = color;
+  strncpy(element.text, text, sizeof(element.text));
+  element.type = DebugRender::Type::kText2D;
+
+  Lock lock(mutex_);
+  const int write_index = 1 - read_index_;
   buffers_[write_index].emplace_back(element);
 }
 
@@ -146,7 +173,7 @@ void DebugRender::AddBox3D(const string_view tag,
   element.type = DebugRender::Type::kBox3D;
 
   Lock lock(mutex_);
-  int write_index = 1 - read_index_;
+  const int write_index = 1 - read_index_;
   buffers_[write_index].emplace_back(element);
 }
 
@@ -157,15 +184,24 @@ void DebugRender::Swap() {
 
 void DebugRender::Submit() {
   Swap();
-  for (DrawElement& element : buffers_[read_index_]) {
+  std::vector<DrawElement>& curr_buffer = buffers_[read_index_];
+  std::sort(curr_buffer.begin(), curr_buffer.end());
+  for (DrawElement& element : curr_buffer) {
     if (IsEnabled(element.tag)) {
-      if (element.type == DebugRender::Type::kLine) {
-        draw_->DrawLine(element.pos1, element.pos2, element.color);
-      } else if (element.type == DebugRender::Type::kText3D) {
-        draw_->DrawText3D(element.pos1, element.color, element.text);
-      } else if (element.type == DebugRender::Type::kBox3D) {
-        draw_->DrawBox3D(element.world_from_object_matrix, element.box,
-                         element.color);
+      switch (element.type) {
+        case DebugRender::Type::kLine:
+          draw_->DrawLine(element.pos1, element.pos2, element.color);
+          break;
+        case DebugRender::Type::kText3D:
+          draw_->DrawText3D(element.pos1, element.color, element.text);
+          break;
+        case DebugRender::Type::kBox3D:
+          draw_->DrawBox3D(element.world_from_object_matrix, element.box,
+                           element.color);
+          break;
+        case DebugRender::Type::kText2D:
+          draw_->DrawText2D(element.color, element.text);
+          break;
       }
     }
   }
@@ -212,6 +248,12 @@ void DrawText3D(const char* tag_name, const mathfu::vec3& pos,
                 const Color4ub color, const char* text) {
   if (gDebugRender) {
     gDebugRender->AddText3D(tag_name, pos, color, text);
+  }
+}
+
+void DrawText2D(const char* tag_name, const Color4ub color, const char* text) {
+  if (gDebugRender) {
+    gDebugRender->AddText2D(tag_name, color, text);
   }
 }
 

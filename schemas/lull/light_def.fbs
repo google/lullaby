@@ -1,0 +1,29 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+table AmbientLightDef {
+  group: string;
+  color: Color;
+}
+
+table DirectionalLightDef {
+  group: string;
+  color: Color;
+  exponent: float;
+}
+
+table PointLightDef {
+  group: string;
+  color: Color;
+  intensity: float;
+  exponent: float;
+}
+
+table LightableDef {
+  group: string;
+
+  max_ambient_lights: int = 0;
+  max_directional_lights: int = 0;
+  max_point_lights: int = 0;
+}

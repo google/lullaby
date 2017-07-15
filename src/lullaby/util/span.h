@@ -39,6 +39,10 @@ class Span {
       : data_(vec.data()), size_(vec.size()) {}
 
   template <size_t N>
+  Span(const T (&data)[N])
+      : data_(data), size_(N) {}
+
+  template <size_t N>
   Span(const std::array<T, N>& arr)
       : data_(arr.data()), size_(arr.size()) {}
 

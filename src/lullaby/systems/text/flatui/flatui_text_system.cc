@@ -74,7 +74,6 @@ Entity CreateDefaultEntity(Registry* registry, Entity parent) {
 
   auto* transform_system = registry->Get<TransformSystem>();
   transform_system->Create(entity, Sqt());
-  transform_system->AddChild(parent, entity);
 
   auto* render_system = registry->Get<RenderSystem>();
   render_system->Create(entity, render_system->GetRenderPass(parent));
@@ -84,6 +83,10 @@ Entity CreateDefaultEntity(Registry* registry, Entity parent) {
   if (render_system->GetColor(parent, &color)) {
     render_system->SetColor(entity, color);
   }
+
+  // Add as a child after initializing the render component so that any stencil
+  // settings from clip system are correctly applied.
+  transform_system->AddChild(parent, entity);
 
   auto* deform_system = registry->Get<DeformSystem>();
   if (deform_system && deform_system->IsSetAsDeformed(parent)) {

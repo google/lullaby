@@ -18,6 +18,19 @@ table CollisionDef {
   /// If set to true, the Entity will be interactive (ie. you can click on
   /// the entity with the reticle).
   interactive: bool = true;
+
+  /// If true, only detect collisions within the specified |aabb| from the
+  /// nearest ancestor with CollisionClipBoundsDef.
+  /// If no CollisionClipBoundsDef can be found then all collisions are allowed as
+  /// normal.
+  clip_outside_bounds: bool = false;
+}
+
+/// Add CollisionClipBoundsDef to entities that are ancestors to entities with
+/// CollisionDef.
+table CollisionClipBoundsDef {
+  /// This aabb will be interpreted in this entities local coordinate space.
+  aabb: AabbDef;
 }
 
 root_type CollisionDef;

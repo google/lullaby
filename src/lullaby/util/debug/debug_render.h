@@ -36,11 +36,12 @@ void Initialize(DebugRenderDrawInterface* interface);
 // Resets DebugRender interface to nullptr.
 void Shutdown();
 
-// Adds line between two given points to the line buffer.
+// Adds line between two given points to the queue.
 void DrawLine(const char* tag_name, const mathfu::vec3& start_point,
               const mathfu::vec3& end_point, Color4ub color);
 
-// Adds line connecting given points in sequence to the line buffer.
+// Adds line connecting given points in sequence to the queue.
+// Calls DrawLine for the number of given points.
 void DrawLineStrip(const char* tag_name,
                    const std::vector<mathfu::vec3>& points, Color4ub color);
 
@@ -48,9 +49,12 @@ void DrawLineStrip(const char* tag_name,
 void DrawTransformAxes(const char* tag_name,
                        const mathfu::mat4& world_from_object_matrix);
 
-// Adds billboard text and its position to the billboard buffer.
+// Adds billboard text and its position to the render queue.
 void DrawText3D(const char* tag_name, const mathfu::vec3& pos, Color4ub color,
                 const char* text);
+
+// Adds 2D text to render queue. Will be drawn in fixed screen space.
+void DrawText2D(const char* tag_name, Color4ub color, const char* text);
 
 // Adds a 3D box to the debug render queue.
 void DrawBox3D(const char* tag_name,

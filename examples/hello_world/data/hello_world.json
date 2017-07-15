@@ -1,0 +1,43 @@
+{
+  "components": [{
+    "def_type": "TransformDef",
+    "def": {
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -2.0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    }
+  }, {
+    "def_type": "RenderDef",
+    "def": {
+      "shader": "shaders/text.fplshader",
+      "color": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+      }
+    }
+  }, {
+    "def_type": "TextDef",
+    "def": {
+      "fonts": [
+        "Roboto-Regular.ttf"
+      ],
+      "text": "Hello World!",
+      "font_size": 0.2,
+      "vertical_alignment": "Center"
+    }
+  }]
+}

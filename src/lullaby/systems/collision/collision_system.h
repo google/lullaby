@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_COLLISION_COLLISION_SYSTEM_H_
 #define LULLABY_SYSTEMS_COLLISION_COLLISION_SYSTEM_H_
 
+#include <unordered_map>
+
 #include "lullaby/base/component.h"
 #include "lullaby/base/system.h"
 #include "lullaby/systems/transform/transform_system.h"
@@ -85,12 +87,24 @@ class CollisionSystem : public System {
   // interactivity.
   void RestoreInteractionDescendants(Entity entity);
 
+  // Disables |entity|'s clipping, which means all collisions are allowed.
+  void DisableClipping(Entity entity);
+
+  // Enables |entity|'s clipping, which will only allow collisions inside the
+  // nearest ancestor's bound's aabb if one can be found.
+  void EnableClipping(Entity entity);
+
  private:
+  Entity GetContainingBounds(Entity entity) const;
+  bool IsCollisionClipped(Entity entity, const mathfu::vec3& point) const;
+
   TransformSystem* transform_system_;
   TransformSystem::TransformFlags collision_flag_;
   TransformSystem::TransformFlags on_exit_flag_;
   TransformSystem::TransformFlags interaction_flag_;
   TransformSystem::TransformFlags default_interaction_flag_;
+  TransformSystem::TransformFlags clip_flag_;
+  std::unordered_map<Entity, Aabb> clip_bounds_;
 
   CollisionSystem(const CollisionSystem&) = delete;
   CollisionSystem& operator=(const CollisionSystem&) = delete;

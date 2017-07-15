@@ -50,6 +50,9 @@ class TransformSystemTest : public ::testing::Test {
     dispatcher->Connect(this, [this](const ParentChangedEvent& event) {
       OnParentChanged(event);
     });
+    dispatcher->Connect(this, [this](const ParentChangedImmediateEvent& event) {
+      OnParentChangedImmediate(event);
+    });
     dispatcher->Connect(
         this, [this](const ChildAddedEvent& event) { OnChildAdded(event); });
     dispatcher->Connect(this, [this](const ChildRemovedEvent& event) {
@@ -96,17 +99,17 @@ class TransformSystemTest : public ::testing::Test {
   void AllowChildRemovedEvents(bool allow = true);
   void DisallowChildRemovedEvents() { AllowChildRemovedEvents(false); }
 
-  // Enforces that only a single ParentChangedEvent with the given |target|,
-  // |old_parent|, and |new_parent| was received. This is equivalent to calling
-  // ExpectParentChangedEventSequence with an expected_sequence containing only
-  // one event. This should be called immediately after the function expected to
-  // trigger the event.
+  // Enforces that only a single pair of ParentChanged[Immediate]Event with the
+  // given |target|, |old_parent|, and |new_parent| was received. This is
+  // equivalent to calling ExpectParentChangedEventSequence with an
+  // expected_sequence containing only one event. This should be called
+  // immediately after the function expected to trigger the event.
   void ExpectParentChangedEvent(Entity target, Entity old_parent,
                                 Entity new_parent);
 
-  // Enforces that all ParentChangedEvents in the |expected_sequence| were
-  // received in order and that no additional events were received. This should
-  // be called immediately after the function(s) expected to trigger the
+  // Enforces that all ParentChanged[Immediate]Events in the |expected_sequence|
+  // were received in order and that no additional events were received. This
+  // should be called immediately after the function(s) expected to trigger the
   // events.
   void ExpectParentChangedEventSequence(
       const std::deque<ParentChangedEvent>& expected_sequence);
@@ -142,6 +145,7 @@ class TransformSystemTest : public ::testing::Test {
   void ExpectTransformsCount(int n);
 
   void OnParentChanged(const ParentChangedEvent& e);
+  void OnParentChangedImmediate(const ParentChangedImmediateEvent& e);
   void OnChildAdded(const ChildAddedEvent& e);
   void OnChildRemoved(const ChildRemovedEvent& e);
 
@@ -151,6 +155,8 @@ class TransformSystemTest : public ::testing::Test {
   bool expect_child_added_event_ = false;
   bool expect_child_removed_event_ = false;
   std::deque<ParentChangedEvent> parent_changed_events_received_;
+  std::deque<ParentChangedImmediateEvent>
+      parent_changed_immediate_events_received_;
   std::deque<ChildAddedEvent> child_added_events_received_;
   std::deque<ChildRemovedEvent> child_removed_events_received_;
 };
@@ -1039,6 +1045,7 @@ void TransformSystemTest::ClearAllEventsReceived() {
 
 void TransformSystemTest::ClearParentChangedEventsReceived() {
   parent_changed_events_received_.clear();
+  parent_changed_immediate_events_received_.clear();
 }
 
 void TransformSystemTest::ClearChildAddedEventsReceived() {
@@ -1099,6 +1106,20 @@ void TransformSystemTest::ExpectParentChangedEvent(Entity target,
 
 void TransformSystemTest::ExpectParentChangedEventSequence(
     const std::deque<ParentChangedEvent>& expected_sequence) {
+  // Manually test the immediate events since their types differ. Don't drain
+  // expected_sequence while we do this since we need it for the second test
+  // below.
+  EXPECT_THAT(parent_changed_immediate_events_received_.size(),
+              Eq(expected_sequence.size()));
+  for (size_t i = 0; i < expected_sequence.size(); ++i) {
+    const ParentChangedImmediateEvent& actual_event =
+        parent_changed_immediate_events_received_[i];
+    const ParentChangedEvent& expected_event = expected_sequence[i];
+    EXPECT_THAT(actual_event.target, Eq(expected_event.target));
+    EXPECT_THAT(actual_event.old_parent, Eq(expected_event.old_parent));
+    EXPECT_THAT(actual_event.new_parent, Eq(expected_event.new_parent));
+  }
+
   ExpectEventSequencesMatch<ParentChangedEvent>(
       expected_sequence, parent_changed_events_received_,
       [](const ParentChangedEvent& expected_event,
@@ -1147,6 +1168,12 @@ void TransformSystemTest::ExpectChildRemovedEventSequence(
 void TransformSystemTest::OnParentChanged(const ParentChangedEvent& e) {
   EXPECT_TRUE(expect_parent_changed_event_);
   parent_changed_events_received_.push_back(e);
+}
+
+void TransformSystemTest::OnParentChangedImmediate(
+    const ParentChangedImmediateEvent& e) {
+  EXPECT_TRUE(expect_parent_changed_event_);
+  parent_changed_immediate_events_received_.push_back(e);
 }
 
 void TransformSystemTest::OnChildAdded(const ChildAddedEvent& e) {

@@ -80,13 +80,13 @@ size_t GetTesselatedQuadIndexCount(int num_verts_x, int num_verts_y,
                                    int corner_verts);
 
 // Generates a list of vertices containing that represent a tessellated
-// rectangle. The vertices represent a |verts_x| by |verts_y| grid with
-// positions from -size/2 to size/2 in each axis. If |corner_verts| > 0 the code
-// will generate triangle fans around the corners of the tesselated quad of size
-// |corner_radius|. It is assumed that |corner_radius| is small compared to
-// |size_x| and |size_y|, otherwise the additional corner geometry will not
-// deform correctly.  |corner_mask| only applies if |corner_verts| > 0, and
-// does not affect the number of vertices generated, only their positions.
+// rectangle in the X-Y plane. The vertices represent a |verts_x| by |verts_y|
+// grid with positions from -size/2 to size/2 in each axis. If |corner_verts| >
+// 0 the code will generate triangle fans around the corners of the tesselated
+// quad of size |corner_radius|. It is assumed that |corner_radius| is small
+// compared to |size_x| and |size_y|, otherwise the additional corner geometry
+// will not deform correctly.  |corner_mask| only applies if |corner_verts| > 0,
+// and does not affect the number of vertices generated, only their positions.
 template <typename Vertex>
 std::vector<Vertex> CalculateTesselatedQuadVertices(
     float size_x, float size_y, int num_verts_x, int num_verts_y,
@@ -173,6 +173,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
           static_cast<float>(y) / static_cast<float>(num_interior_verts_y - 1);
       const float y_val = (y_fraction * interior_size_y) - half_interior_size_y;
       SetPosition(&vertices[index], -half_size_x, y_val, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], 0.f,
              v_texture_inset + ((1.0f - y_fraction) * v_texture_range));
       ++index;
@@ -193,6 +194,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
     // Append a lower tab vertex if needed.
     if (corner_verts > 0) {
       SetPosition(&vertices[index], x_val, -half_size_y, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], u_val, 1.0f);
       ++index;
     }
@@ -203,6 +205,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
       const float y_val = (y_fraction * interior_size_y) - half_interior_size_y;
 
       SetPosition(&vertices[index], x_val, y_val, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       // Flip the v coordinate, as fpl has 0,0 at top left
       SetUv0(&vertices[index], u_val,
              v_texture_inset + ((1.0f - y_fraction) * v_texture_range));
@@ -212,6 +215,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
     // Append a upper tab vertex if needed.
     if (corner_verts > 0) {
       SetPosition(&vertices[index], x_val, half_size_y, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], u_val, 0.f);
       ++index;
     }
@@ -224,6 +228,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
           static_cast<float>(y) / static_cast<float>(num_interior_verts_y - 1);
       const float y_val = (y_fraction * interior_size_y) - half_interior_size_y;
       SetPosition(&vertices[index], half_size_x, y_val, 0.f);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], 1.f,
              v_texture_inset + ((1.0f - y_fraction) * v_texture_range));
       ++index;
@@ -263,6 +268,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
       mathfu::vec2 ll_xy = lower_left_xy + ll_offset;
       mathfu::vec2 ll_uv = lower_left_uv + (ll_offset * uv_scale);
       SetPosition(&vertices[index], ll_xy.x, ll_xy.y, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], ll_uv);
       ++index;
       // Compute upper left radius vertex.
@@ -273,6 +279,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
       mathfu::vec2 ul_xy = upper_left_xy + ul_offset;
       mathfu::vec2 ul_uv = upper_left_uv + (ul_offset * uv_scale);
       SetPosition(&vertices[index], ul_xy.x, ul_xy.y, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], ul_uv);
       ++index;
       // Compute lower right radius vertex.
@@ -283,6 +290,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
       mathfu::vec2 lr_xy = lower_right_xy + lr_offset;
       mathfu::vec2 lr_uv = lower_right_uv + (lr_offset * uv_scale);
       SetPosition(&vertices[index], lr_xy.x, lr_xy.y, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], lr_uv);
       ++index;
       // Compute upper right radius vertex.
@@ -293,6 +301,7 @@ std::vector<Vertex> CalculateTesselatedQuadVertices(
       mathfu::vec2 ur_xy = upper_right_xy + ur_offset;
       mathfu::vec2 ur_uv = upper_right_uv + (ur_offset * uv_scale);
       SetPosition(&vertices[index], ur_xy.x, ur_xy.y, z);
+      SetNormal(&vertices[index], mathfu::kAxisZ3f);
       SetUv0(&vertices[index], ur_uv);
       ++index;
     }

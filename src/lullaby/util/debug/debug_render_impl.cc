@@ -32,7 +32,6 @@ DebugRenderImpl::DebugRenderImpl(Registry* registry) : registry_(registry) {
   font_shader_ = render_system_->LoadShader(kFontShader);
   font_texture_ = render_system_->LoadTexture(kFontTexture);
   font_.reset(new SimpleFont(font_shader_, font_texture_));
-  font_->SetSize(kFontSize);
 }
 
 DebugRenderImpl::~DebugRenderImpl() {}
@@ -67,14 +66,42 @@ void DebugRenderImpl::DrawLine(const mathfu::vec3& start_point,
 
 void DebugRenderImpl::DrawText3D(const mathfu::vec3& pos, const Color4ub color,
                                  const char* text) {
-  mathfu::vec4 cv = Color4ub::ToVec4(color);
-  float cf[4] = {cv.x, cv.y, cv.z, cv.w};
+  font_->SetSize(kFontSize);
+  const mathfu::vec4 cv = Color4ub::ToVec4(color);
+  const float cf[4] = {cv.x, cv.y, cv.z, cv.w};
   for (size_t i = 0; i < num_views_; ++i) {
     TriangleMesh<VertexPT> mesh;
     render_system_->SetViewport(views_[i]);
     render_system_->SetClipFromModelMatrix(views_[i].clip_from_eye_matrix);
     mathfu::vec3 eye_space_pos =
         views_[i].world_from_eye_matrix.Inverse() * pos;
+    font_->AddStringToMesh(text, &mesh, &eye_space_pos);
+    render_system_->BindShader(font_->GetShader());
+    render_system_->BindTexture(0, font_->GetTexture());
+    render_system_->BindUniform("uv_bounds", kUVBounds, 4);
+    render_system_->BindUniform("color", cf, 4);
+    registry_->Get<lull::RenderSystem>()->DrawMesh(mesh);
+  }
+}
+
+void DebugRenderImpl::DrawText2D(const Color4ub color, const char* text) {
+  const float kTopOfTextScreenScale = 0.40f;
+  const float kFontScreenScale = .075f;
+  const float z = -1.0f;
+  const float tan_half_fov = 1.0f / views_[0].clip_from_eye_matrix[5];
+  const float font_size = .5f * kFontScreenScale * -z * tan_half_fov;
+  font_->SetSize(font_size);
+  const mathfu::vec3 start_pos =
+      mathfu::vec3(-.5f, kTopOfTextScreenScale * -z * tan_half_fov, z);
+  const mathfu::vec4 cv = Color4ub::ToVec4(color);
+  const float cf[4] = {cv.x, cv.y, cv.z, cv.w};
+  for (size_t i = 0; i < num_views_; ++i) {
+    TriangleMesh<VertexPT> mesh;
+    render_system_->SetViewport(views_[i]);
+    render_system_->SetClipFromModelMatrix(views_[i].clip_from_eye_matrix);
+    mathfu::vec3 eye_space_pos =
+        views_[i].world_from_eye_matrix.Inverse() *
+        (views_[0].world_from_eye_matrix * start_pos);
     font_->AddStringToMesh(text, &mesh, &eye_space_pos);
     render_system_->BindShader(font_->GetShader());
     render_system_->BindTexture(0, font_->GetTexture());

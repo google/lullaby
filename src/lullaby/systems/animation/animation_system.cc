@@ -22,6 +22,7 @@ limitations under the License.
 #include "lullaby/base/dispatcher.h"
 #include "lullaby/events/animation_events.h"
 #include "lullaby/systems/dispatcher/event.h"
+#include "lullaby/util/function_binder.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/time.h"
 #include "lullaby/util/trace.h"
@@ -52,6 +53,17 @@ AnimationSystem::AnimationSystem(Registry* registry)
   motive::MatrixInit::Register();
   motive::SplineInit::Register();
 
+  FunctionBinder* binder = registry->Get<FunctionBinder>();
+  if (binder) {
+    binder->RegisterFunction(
+        "lull.Animation.SetTarget",
+        [this](Entity e, HashValue channel,
+               const std::vector<float>& data, int time_ms) {
+          const auto duration_ms = std::chrono::milliseconds(time_ms);
+          SetTarget(e, channel, data.data(), data.size(), duration_ms);
+        });
+  }
+
   auto* dispatcher = registry_->Get<Dispatcher>();
   if (dispatcher) {
     dispatcher->Connect(this, [this](const CancelAllAnimationsEvent& event) {
@@ -61,6 +73,10 @@ AnimationSystem::AnimationSystem(Registry* registry)
 }
 
 AnimationSystem::~AnimationSystem() {
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.Animation.SetTarget");
+  }
   auto* dispatcher = registry_->Get<Dispatcher>();
   if (dispatcher) {
     dispatcher->DisconnectAll(this);

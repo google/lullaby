@@ -34,6 +34,8 @@ class DebugRenderDrawInterface {
   virtual void DrawText3D(const mathfu::vec3& pos, const Color4ub color,
                           const char* text) = 0;
 
+  virtual void DrawText2D( const Color4ub color, const char* text) = 0;
+
   virtual void DrawBox3D(const mathfu::mat4& world_from_object_matrix,
                          const Aabb& box, Color4ub color) = 0;
 };

@@ -2,28 +2,59 @@ include "lull/common.fbs";
 
 namespace lull;
 
+/// Defines an ambient light source.
 table AmbientLightDef {
-  group: string;
-  color: Color;
+  /// The group of lights to which this light belongs.
+  group: uint = 0 (hashvalue);
+
+  /// The color of the ambient light.
+  color: Color (native_default: "{0, 0, 0, 0}");
 }
 
+/// Defines a directional light source.
 table DirectionalLightDef {
-  group: string;
-  color: Color;
+  /// The group of lights to which this light belongs.
+  group: uint = 0 (hashvalue);
+
+  /// The color of the directional light.
+  color: Color (native_default: "{0, 0, 0, 0}");
+
+  /// The intensity of the directional light specular width.
   exponent: float;
+
+  // DO NOT SET. FOR INTERNAL USE ONLY.
+  rotation: Quat;
 }
 
+/// Defines a point light source.
 table PointLightDef {
-  group: string;
-  color: Color;
+  /// The group of lights to which this light belongs.
+  group: uint = 0 (hashvalue);
+
+  /// The color of the point light.
+  color: Color (native_default: "{0, 0, 0, 0}");
+
+  /// The intensity of the point light.
   intensity: float;
+
+  /// The intensity of the point light specular width.
   exponent: float;
+
+  // DO NOT SET. FOR INTERNAL USE ONLY.
+  position: Vec3;
 }
 
+/// Defines an Entity that can be "lit" by the lights in the associated group.
 table LightableDef {
-  group: string;
+  /// The group of lights that will be applied to this Entity.
+  group: uint = 0 (hashvalue);
 
+  /// The maximum number of ambient lights to apply to this Entity.
   max_ambient_lights: int = 0;
+
+  /// The maximum number of directional lights to apply to this Entity.
   max_directional_lights: int = 0;
+
+  /// The maximum number of point lights to apply to this Entity.
   max_point_lights: int = 0;
 }

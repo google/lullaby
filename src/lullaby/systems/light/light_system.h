@@ -23,7 +23,6 @@ limitations under the License.
 #include "lullaby/generated/light_def_generated.h"
 #include "lullaby/base/component.h"
 #include "lullaby/base/system.h"
-#include "lullaby/systems/light/lights.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
@@ -49,7 +48,7 @@ class LightSystem : public System {
   explicit LightSystem(Registry* registry);
 
   /// Creates a light or lightable component from a def.
-  void PostCreateInit(Entity entity, HashValue type, const Def* def) override;
+  void PostCreateComponent(Entity entity, const Blueprint& blueprint) override;
 
   /// Remove all light and lightable components associated with an entity.
   void Destroy(Entity entity) override;
@@ -57,30 +56,25 @@ class LightSystem : public System {
   /// Tick LightSystem's logic.
   void AdvanceFrame();
 
-  /// Creates an ambient light.
-  ///
-  /// @param entity The entity to attach the ambient light component to.
-  /// @param group The light group to place the component in.
+  /// Attaches an ambient light.
+  /// @param entity The entity to which to attach the ambient light.
   /// @param data The ambient light definition for this light.
-  void Create(Entity entity, HashValue group, const AmbientLight& data);
+  void CreateLight(Entity entity, const AmbientLightDefT& data);
+
   /// Creates a directional light.
-  ///
-  /// @param entity The entity to attach the directional light component to.
-  /// @param group The light group to place the component in.
+  /// @param entity The entity to which to attach the directional light.
   /// @param data The directional light definition for this light.
-  void Create(Entity entity, HashValue group, const DirectionalLight& data);
+  void CreateLight(Entity entity, const DirectionalLightDefT& data);
+
   /// Defines a lightable.
-  ///
-  /// @param entity The entity to attach the lightable component to.
-  /// @param group The light group to place the component in.
+  /// @param entity The entity to which lights can be applied.
   /// @param data The lightable definition for this object.
-  void Create(Entity entity, HashValue group, const Lightable& data);
+  void CreateLight(Entity entity, const LightableDefT& data);
+
   /// Creates a point light.
-  ///
-  /// @param entity The entity to attach the point light component to.
-  /// @param group The light group to place the component in.
+  /// @param entity The entity to which to attach the point light.
   /// @param data The point light definition for this light.
-  void Create(Entity entity, HashValue group, const PointLight& data);
+  void CreateLight(Entity entity, const PointLightDefT& data);
 
   LightSystem(const LightSystem&) = delete;
   LightSystem& operator=(const LightSystem&) = delete;
@@ -93,11 +87,11 @@ class LightSystem : public System {
     void Clear();
 
     /// Adds uniform data for an ambient light.
-    void Add(const AmbientLight& light);
+    void Add(const AmbientLightDefT& light);
     /// Adds uniform data for a directional light.
-    void Add(const DirectionalLight& light);
+    void Add(const DirectionalLightDefT& light);
     /// Adds uniform data for a point light.
-    void Add(const PointLight& light);
+    void Add(const PointLightDefT& light);
     /// Applies the uniforms to an entity's render component.
     void Apply(RenderSystem* render_system, Entity entity) const;
 
@@ -113,13 +107,17 @@ class LightSystem : public System {
   class LightGroup {
    public:
     /// Add an ambient light to the group.
-    void AddLight(Entity entity, const AmbientLight& light);
+    void AddLight(Entity entity, const AmbientLightDefT& light,
+                  const TransformSystem* transform_system);
     /// Add a directional light to the group.
-    void AddLight(Entity entity, const DirectionalLight& light);
+    void AddLight(Entity entity, const DirectionalLightDefT& light,
+                  const TransformSystem* transform_system);
     /// Add a point light to the group.
-    void AddLight(Entity entity, const PointLight& light);
+    void AddLight(Entity entity, const PointLightDefT& light,
+                  const TransformSystem* transform_system);
+
     /// Add a lightable to the group.
-    void AddLightable(Entity entity, const Lightable& lightable);
+    void AddLightable(Entity entity, const LightableDefT& lightable);
 
     /// Updates the transforms of a light within the group.
     void UpdateLight(TransformSystem* transform_system, Entity entity);
@@ -136,25 +134,23 @@ class LightSystem : public System {
    private:
     void UpdateLightable(RenderSystem* render_system, Entity entity);
     void UpdateLightable(RenderSystem* render_system, Entity entity,
-                         const Lightable* data);
+                         const LightableDefT& data);
     mutable bool dirty_ = false;
 
-    std::unordered_map<Entity, AmbientLight> ambients_;
-    std::unordered_map<Entity, DirectionalLight> directionals_;
-    std::unordered_map<Entity, PointLight> points_;
-    std::unordered_map<Entity, Lightable> lightables_;
+    std::unordered_map<Entity, AmbientLightDefT> ambients_;
+    std::unordered_map<Entity, DirectionalLightDefT> directionals_;
+    std::unordered_map<Entity, PointLightDefT> points_;
+    std::unordered_map<Entity, LightableDefT> lightables_;
     std::set<Entity> dirty_lightables_;
   };
 
-  void Create(Entity e, HashValue type, const Def* def) override {}
-  void Create(Entity entity, const AmbientLightDef& data);
-  void Create(Entity entity, const DirectionalLightDef& data);
-  void Create(Entity entity, const LightableDef& data);
-  void Create(Entity entity, const PointLightDef& data);
-
-  /// Update the transforms of light objects associated with a set of entities.
+  // Update the transforms of light objects associated with a set of entities.
   void UpdateLightTransforms(TransformSystem* transform_system,
                              const std::unordered_set<Entity>& entities);
+  template <typename T>
+  static void UpdateUniforms(UniformData* uniforms,
+                             const std::unordered_map<Entity, T>& lights,
+                             int max_allowed);
 
   std::unordered_map<HashValue, LightGroup> groups_;
   std::unordered_map<Entity, HashValue> entity_to_group_map_;

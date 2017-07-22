@@ -2,6 +2,7 @@ namespace lull;
 
 attribute "defaults_to_null";
 attribute "dynamic";
+attribute "hashvalue";
 
 struct Vec2 (native_type: "mathfu::vec2", native_default: "{0.f, 0.f}") {
   x: float;

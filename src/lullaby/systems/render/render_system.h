@@ -22,6 +22,7 @@ limitations under the License.
 
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/generated/render_def_generated.h"
+#include "lullaby/generated/render_target_def_generated.h"
 #include "lullaby/base/system.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
@@ -352,6 +353,9 @@ class RenderSystem : public System {
   // Sets |pass|'s cull mode.
   void SetCullMode(RenderPass pass, CullMode mode);
 
+  /// Sets the render target to be used when rendering a specific pass.
+  void SetRenderTarget(HashValue pass, HashValue render_target_name);
+
   // Sets depth function to kDepthFunctionLess if |enabled| and to
   // kDepthFunctionDisabled if !|enabled| in RenderSystemFpl.
   // Sets kDepthTest to |enabled| in RenderSystemIon.
@@ -456,6 +460,13 @@ class RenderSystem : public System {
   // Gets all possible caret positions for a given text entity. Returns nullptr
   // if given entity is not text or doesn't support caret.
   const std::vector<mathfu::vec3>* GetCaretPositions(Entity e) const;
+
+  /// Creates a render target that can be used in a pass for rendering, and as a
+  /// texture on top of an object.
+  void CreateRenderTarget(HashValue render_target_name,
+                          const mathfu::vec2i& dimensions,
+                          TextureFormat texture_format,
+                          DepthStencilFormat depth_stencil_format);
 
  private:
   std::unique_ptr<RenderSystemImpl> impl_;

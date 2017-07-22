@@ -60,6 +60,9 @@ table AnimInstanceDef {
   /// desired ending value of the animation specific to the Entity.  (The ending
   /// value will be equal to (offset + multiplier).
   multiplier: [float];
+
+  /// Time (in seconds) to blend from the previous animation.
+  blend_time: float;
 }
 
 /// Specifies how to drive the data for an animation channel towards target

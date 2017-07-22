@@ -11,7 +11,7 @@ enum DeformMode : int {
   /// Deformer's space.  The bend will be calculated as a cylinder wrap, with
   /// the cylinder centered at (0,0,horizontal_radius) in the Deformer's space.
   CylinderBend,
-  // Objects will be bent based on a set of input and output points.
+  /// Objects will be bent based on a set of input and output points.
   Waypoint,
 }
 
@@ -20,8 +20,8 @@ enum DeformMode : int {
 /// DeformerDef settings used by its parent.  If its parent doesn't have a
 /// DeformedDef or a DeformerDef, it will not deform.
 table DeformedDef {
-  // Used in the waypoint deformation mode to select which waypoint path that
-  // should apply to this deformed entity.
+  /// Used in the waypoint deformation mode to select which waypoint path that
+  /// should apply to this deformed entity.
   waypoint_path_id: string;
 }
 
@@ -38,30 +38,45 @@ table DeformerDef {
   /// CylinderBend deform mode, and negative values or 0.0 will indicate no
   /// clamping.
   clamp_angle: float = 0.0;
-  // The paths along which the Watpoint deformation mode will deform entities.
+  /// The paths along which the Watpoint deformation mode will deform entities.
   waypoint_paths: [WaypointPath];
 }
 
 table WaypointPath {
-  // Optional identifier for this path. If specified this path will only apply
-  // to Deformed entities with the matching path_id.
+  /// Optional identifier for this path. If specified this path will only apply
+  /// to Deformed entities with the matching path_id.
   path_id: string;
-  // A list of nodes for mapping original positions and rotations to their new
-  // deformations. The list should be internally ordered by the axis of interest
-  // of the original_position node.
+  /// A list of nodes for mapping original positions and rotations to their new
+  /// deformations. The list should be internally ordered by the axis of
+  /// interest of the original_position node.
   waypoints: [Waypoint];
+  /// By default, this is false and we match the waypoints with the Deformed's
+  /// entity's position.
+  /// If this is true, match with a point within the Deformed's aabb instead.
+  use_aabb_anchor: bool = false;
 }
 
 table Waypoint {
-  // The xyz position in space used as the original reference point to
-  // to match against in Waypoint deformations. Should be local to the
-  // deformer's coordinate system.
+  /// The xyz position in space used as the original reference point to
+  /// to match against in Waypoint deformations. Should be local to the
+  /// deformer's coordinate system.
   original_position: Vec3;
-  // The xyz position in space used as the new position in space in
-  // Waypoint deformations.
+  /// The xyz position in space used as the new position in space in
+  /// Waypoint deformations.
   remapped_position: Vec3;
-  // The Euler angle used as the new mapping in Waypoint deformations.
+  /// The Euler angle used as the new mapping in Waypoint deformations.
   remapped_rotation: Vec3;
+
+  /// Normalized coordinates representing a point in the Deformed's aabb that
+  /// will match with |original_position|. (0,0,0) is the left, bottom, far
+  /// corner, and (1,1,1) is the right, top, near corner.
+  /// Ignored if |use_aabb_anchor| is false.
+  original_aabb_anchor: Vec3;
+  /// Normalized coordinates representing a point in the Deformed's aabb that
+  /// will match with |remapped_position|. (0,0,0) is the left, bottom, far
+  /// corner, and (1,1,1) is the right, top, near corner.
+  /// Ignored if |use_aabb_anchor| is false
+  remapped_aabb_anchor: Vec3;
 }
 
 root_type DeformerDef;

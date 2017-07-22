@@ -17,7 +17,9 @@ limitations under the License.
 #include "lullaby/systems/reticle/reticle_trail_system.h"
 
 #include "mathfu/constants.h"
+#include "lullaby/base/input_manager.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/systems/reticle/reticle_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/mathfu_fb_conversions.h"
@@ -123,18 +125,23 @@ void ReticleTrailSystem::AdvanceFrame(const Clock::duration& delta_time) {
 }
 
 void ReticleTrailSystem::UpdateTrailMesh(Sqt sqt) {
+  auto* input = registry_->Get<InputManager>();
   auto* render_system = registry_->Get<RenderSystem>();
-
-  const mathfu::vec3 reticle_pos = sqt.translation;
-
-  const mathfu::quat reticle_rot = sqt.rotation;
+  auto* reticle_system = registry_->Get<ReticleSystem>();
 
   mathfu::vec4 reticle_color = reticle_trail_->default_color;
   render_system->GetUniform(reticle_trail_->GetEntity(), "color", 4,
                             &reticle_color[0]);
 
-  auto trail_fn = [this, render_system, reticle_pos, reticle_color,
-                   reticle_rot](MeshData* mesh) {
+  mathfu::vec3 camera_position = mathfu::kZeros3f;
+  if (input->HasPositionDof(InputManager::kHmd)) {
+    camera_position = input->GetDofPosition(InputManager::kHmd);
+  }
+
+  const float no_hit_distance = reticle_system->GetNoHitDistance();
+
+  auto trail_fn = [this, render_system, reticle_color, camera_position,
+                   no_hit_distance, sqt](MeshData* mesh) {
     uint16_t index_base = 0;
 
     for (int i = 0; i < reticle_trail_->trail_length; i++) {
@@ -145,19 +152,29 @@ void ReticleTrailSystem::UpdateTrailMesh(Sqt sqt) {
               static_cast<float>(reticle_trail_->trail_length),
           reticle_trail_->position_history[0],
           reticle_trail_->position_history[1],
-          reticle_trail_->position_history[2], reticle_pos);
+          reticle_trail_->position_history[2], sqt.translation);
+
+      // Scale the quad_size to match the same scaling as the reticle would
+      // have at that distance in ReticleSystem::SetReticleTransform().
+      const mathfu::vec3 reticle_to_camera =
+          camera_position - reticle_trail_->trail_positions[i];
+      const float scale = reticle_to_camera.Length() / no_hit_distance;
 
       VertexPTC v;
 
+      // The reticle entity is scaled in ReticleSystem::SetReticleTransform(),
+      // so we must account for that when setting the trail_position and the
+      // quad_size by dividing by sqt.scale.
       reticle_trail_->trail_positions[i] =
-          reticle_rot.Inverse() *
-          (reticle_trail_->trail_positions[i] - reticle_pos);
+          sqt.rotation.Inverse() *
+          (reticle_trail_->trail_positions[i] - sqt.translation) /
+          sqt.scale;
 
       float x = reticle_trail_->trail_positions[i][0];
       float y = reticle_trail_->trail_positions[i][1];
       float z = reticle_trail_->trail_positions[i][2];
-      float w = reticle_trail_->quad_size;
-      float h = reticle_trail_->quad_size;
+      float w = reticle_trail_->quad_size * scale / sqt.scale.x;
+      float h = reticle_trail_->quad_size * scale / sqt.scale.y;
 
       mathfu::vec4 color = reticle_color;
 

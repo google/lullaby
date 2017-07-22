@@ -391,6 +391,7 @@ PlaybackParameters AnimationSystem::GetPlaybackParameters(
   params.looping = anim->looping() != 0;
   params.speed = anim->speed();
   params.start_delay_s = anim->start_delay();
+  params.blend_time_s = anim->blend_time();
   if (anim->offset()) {
     params.offsets = anim->offset()->data();
     params.num_offsets = anim->offset()->size();

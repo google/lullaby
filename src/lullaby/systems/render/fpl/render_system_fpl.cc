@@ -215,7 +215,14 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
     text_system->CreateFromRenderDef(e, data);
   }
 
-  if (data.texture() && data.texture()->size() > 0) {
+  if (data.textures()) {
+    for (unsigned int i = 0; i < data.textures()->size(); ++i) {
+      TexturePtr texture =
+          factory_->LoadTexture(data.textures()->Get(i)->c_str(),
+                                data.create_mips());
+      SetTexture(e, i, texture);
+    }
+  } else if (data.texture() && data.texture()->size() > 0) {
     TexturePtr texture =
         factory_->LoadTexture(data.texture()->c_str(), data.create_mips());
     SetTexture(e, 0, texture);
@@ -1070,7 +1077,7 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
                                const mathfu::mat4& world_from_entity_matrix,
                                const View& view) {
   LULLABY_CPU_TRACE_CALL();
-  if (!component->shader || (!component->mesh && !component->dynamic_mesh)) {
+  if (!component->shader || !component->mesh) {
     return;
   }
 
@@ -1125,7 +1132,7 @@ void RenderSystemFpl::RenderAtMultiview(
     const RenderComponent* component,
     const mathfu::mat4& world_from_entity_matrix, const View* views) {
   LULLABY_CPU_TRACE_CALL();
-  if (!component->shader || (!component->mesh && !component->dynamic_mesh)) {
+  if (!component->shader || !component->mesh) {
     return;
   }
 
@@ -1218,18 +1225,6 @@ void RenderSystemFpl::DrawMeshFromComponent(const RenderComponent* component) {
     if (profiler) {
       profiler->RecordDraw(component->shader, component->mesh->GetNumVertices(),
                            component->mesh->GetNumTriangles());
-    }
-  }
-
-  if (component->dynamic_mesh) {
-    MeshData* mesh = component->dynamic_mesh.get();
-
-    DrawDynamicMesh(mesh);
-
-    detail::Profiler* profiler = registry_->Get<detail::Profiler>();
-    if (profiler) {
-      profiler->RecordDraw(component->shader, mesh->GetNumVertices(),
-                           static_cast<int>(mesh->GetNumIndices() / 3));
     }
   }
 }
@@ -1496,12 +1491,12 @@ void RenderSystemFpl::UpdateDynamicMesh(
         max_vertices * vertex_format.GetVertexSize());
     DataContainer index_data = DataContainer::CreateHeapDataContainer(
         max_indices * sizeof(MeshData::Index));
-    component->dynamic_mesh.reset(new MeshData(primitive_type, vertex_format,
-                                               std::move(vertex_data),
-                                               std::move(index_data)));
-    update_mesh(component->dynamic_mesh.get());
+    MeshData data(primitive_type, vertex_format, std::move(vertex_data),
+                  std::move(index_data));
+    update_mesh(&data);
+    component->mesh = factory_->CreateMesh(data);
   } else {
-    component->dynamic_mesh.reset();
+    component->mesh.reset();
   }
 }
 
@@ -1638,6 +1633,17 @@ const fplbase::RenderState& RenderSystemFpl::GetRenderState() const {
 void RenderSystemFpl::UpdateCachedRenderState(
     const fplbase::RenderState& render_state) {
   renderer_.UpdateCachedRenderState(render_state);
+}
+
+void RenderSystemFpl::CreateRenderTarget(
+    HashValue render_target_name, const mathfu::vec2i& dimensions,
+    TextureFormat texture_format, DepthStencilFormat depth_stencil_format) {
+  LOG(DFATAL) << "CreateRenderTarget is not supported with Render System Fpl.";
+}
+
+void RenderSystemFpl::SetRenderTarget(HashValue pass,
+                                      HashValue render_target_name) {
+  LOG(DFATAL) << "SetRenderTarget is not supported with Render System Fpl.";
 }
 
 }  // namespace lull

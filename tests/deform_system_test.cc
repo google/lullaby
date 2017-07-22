@@ -143,13 +143,15 @@ class DeformSystemTest : public ::testing::Test {
   }
 
   // Creates an entity for the given deformer with the given translation
-  Entity CreateWaypointDeformed(const Entity deformer, const Entity parent,
+  Entity CreateWaypointDeformed(const Entity parent,
                                 const mathfu::vec3& translation,
-                                string_view path_id) {
+                                string_view path_id, const float size = 0.f) {
     lull::Sqt sqt;
     sqt.translation = translation;
+    lull::Aabb aabb(mathfu::vec3(-size / 2.0f), mathfu::vec3(size / 2.0f));
     Entity deformed = entity_factory_->Create();
     transform_system_->Create(deformed, sqt);
+    transform_system_->SetAabb(deformed, aabb);
     deform_system_->SetAsDeformed(deformed, path_id);
     transform_system_->AddChild(parent, deformed);
     return deformed;
@@ -470,7 +472,7 @@ TEST_F(DeformSystemTest, WaypointDeformerTranslation) {
     // Test a child entity exactly matching one of the waypoint mappings.
     WaypointT waypoint = deformer_def.waypoint_paths.front().waypoints[i];
     Entity deformed = CreateWaypointDeformed(
-        deformer, deformer, waypoint.original_position, /*path_id=*/"");
+        deformer, waypoint.original_position, /*path_id=*/"");
     ExpectWaypointDeformed(deformed, waypoint.original_position,
                            waypoint.remapped_position,
                            waypoint.remapped_rotation);
@@ -479,7 +481,7 @@ TEST_F(DeformSystemTest, WaypointDeformerTranslation) {
     mathfu::vec3 original_interpolated_pos =
         waypoint.original_position + mathfu::vec3(0.5f, 0.0f, 0.0f);
     Entity deformed_interpolated = CreateWaypointDeformed(
-        deformer, deformer, original_interpolated_pos, /*path_id=*/"");
+        deformer, original_interpolated_pos, /*path_id=*/"");
     mathfu::vec3 remapped_interpolated_pos =
         waypoint.remapped_position + mathfu::vec3(0.5f, 0.5f, 0.0f);
     mathfu::vec3 remapped_interpolated_rot_euler =
@@ -491,13 +493,13 @@ TEST_F(DeformSystemTest, WaypointDeformerTranslation) {
 
   // Test that out of bounds children are clamped to the min/max
   mathfu::vec3 below_bounds_pos = mathfu::vec3(-100.0f, 0.0f, 0.0f);
-  Entity deformed = CreateWaypointDeformed(deformer, deformer, below_bounds_pos,
+  Entity deformed = CreateWaypointDeformed(deformer, below_bounds_pos,
                                            /*path_id=*/"");
   WaypointT min = deformer_def.waypoint_paths.front().waypoints[0];
   ExpectWaypointDeformed(deformed, below_bounds_pos, min.remapped_position,
                          min.remapped_rotation);
   mathfu::vec3 above_bounds_pos = mathfu::vec3(100.0f, 0.0f, 0.0f);
-  deformed = CreateWaypointDeformed(deformer, deformer, above_bounds_pos,
+  deformed = CreateWaypointDeformed(deformer, above_bounds_pos,
                                     /*path_id=*/"");
   WaypointT max = deformer_def.waypoint_paths.front().waypoints.back();
   ExpectWaypointDeformed(deformed, below_bounds_pos, max.remapped_position,
@@ -532,13 +534,13 @@ TEST_F(DeformSystemTest, WaypointDeformerTranslationGrandchildren) {
   std::vector<WaypointT> waypoints =
       deformer_def.waypoint_paths.front().waypoints;
   Entity child = CreateWaypointDeformed(
-      deformer, deformer, waypoints[0].original_position, kWaypointPathId1);
+      deformer, waypoints[0].original_position, kWaypointPathId1);
   ExpectWaypointDeformed(child, waypoints[0].original_position,
                          waypoints[0].remapped_position,
                          waypoints[0].remapped_rotation);
 
   Entity grandchild = CreateWaypointDeformed(
-      deformer, child, waypoints[1].original_position, kWaypointPathId1);
+      child, waypoints[1].original_position, kWaypointPathId1);
   // Granchild is set relative to its parent and grandparent, so should expect
   // it to be [3, 0, 0] in the deformer's space and remapped accordingly even
   // though locally it's been set as [2, 0, 0]
@@ -548,7 +550,7 @@ TEST_F(DeformSystemTest, WaypointDeformerTranslationGrandchildren) {
                          expected_pos, expected_rot);
 
   Entity babby = CreateWaypointDeformed(
-      deformer, grandchild, waypoints[2].original_position, kWaypointPathId1);
+      grandchild, waypoints[2].original_position, kWaypointPathId1);
   // Granchild is set relative to its ancestors, so should expect
   // it to be [6, 0, 0] in the deformer's space and remapped accordingly even
   // though locally it's been set as [3, 0, 0]
@@ -599,14 +601,124 @@ TEST_F(DeformSystemTest, WaypointDeformerMultiPath) {
 
   mathfu::vec3 position = mathfu::kZeros3f;
   Entity deformed1 =
-      CreateWaypointDeformed(deformer, deformer, position, kWaypointPathId1);
+      CreateWaypointDeformed(deformer, position, kWaypointPathId1);
   ExpectWaypointDeformed(deformed1, position, mathfu::vec3(1.0f, 0.0f, 0.0f),
                          mathfu::kZeros3f);
 
   Entity deformed2 =
-      CreateWaypointDeformed(deformer, deformer, position, kWaypointPathId2);
+      CreateWaypointDeformed(deformer, position, kWaypointPathId2);
   ExpectWaypointDeformed(deformed2, position, mathfu::vec3(-1.0f, 0.0f, 0.0f),
                          mathfu::kZeros3f);
+}
+
+TEST_F(DeformSystemTest, WaypointDeformerUseAabbAnchor) {
+  // Create the deformer with a waypoint mapping that remaps elements upwards
+  // on the y axis using aabb anchors.
+  Blueprint blueprint;
+  DeformerDefT deformer_def;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+
+    deformer_def.deform_mode = DeformMode_Waypoint;
+
+    WaypointPathT waypoint_path;
+    waypoint_path.use_aabb_anchor = true;
+    WaypointT node;
+    node.remapped_rotation = mathfu::kZeros3f;
+    {
+      // Left edge of the element will match (0,0).
+      node.original_position = mathfu::vec3(0.0f, 0.0f, 0.0f);
+      node.remapped_position = mathfu::vec3(0.0f, 1.0f, 0.0f);
+      node.original_aabb_anchor = mathfu::vec3(0.0f, 0.5f, 0.5f);
+      node.remapped_aabb_anchor = mathfu::vec3(0.0f, 0.5f, 0.5f);
+      waypoint_path.waypoints.push_back(node);
+    }
+    {
+      // Right edge of the element will match (4,0).
+      node.original_position = mathfu::vec3(4.0f, 0.0f, 0.0f);
+      node.remapped_position = mathfu::vec3(4.0f, 2.0f, 0.0f);
+      node.original_aabb_anchor = mathfu::vec3(1.0f, 0.5f, 0.5f);
+      node.remapped_aabb_anchor = mathfu::vec3(1.0f, 0.5f, 0.5f);
+      waypoint_path.waypoints.push_back(node);
+    }
+    {
+      // When the left edge of the element would originally match (4,0),
+      // the entity will be remapped so that the right edge is still at 4.
+      // The y will become 3 as usual.
+      node.original_position = mathfu::vec3(4.0f, 0.0f, 0.0f);
+      node.remapped_position = mathfu::vec3(4.0f, 3.0f, 0.0f);
+      node.original_aabb_anchor = mathfu::vec3(0.0f, 0.5f, 0.5f);
+      node.remapped_aabb_anchor = mathfu::vec3(1.0f, 0.5f, 0.5f);
+      waypoint_path.waypoints.push_back(node);
+    }
+    deformer_def.waypoint_paths.push_back(waypoint_path);
+    blueprint.Write(&deformer_def);
+  }
+  const Entity deformer = entity_factory_->Create(&blueprint);
+
+  // Size 1.0f. Start clamped to the left edge, move to the right edge, then
+  // move past the right edge.
+  // Original with |y value|     Remapped with |y value|
+  //     0   1   2   3   4   5   0   1   2   3   4
+  // |---#---|---|---|---#---|   #---|---|---|---#
+  //   |-0-|                     |-1-|
+  //     |-0-|   '   '   '   '   |-1-|   '   '   '
+  //           |-0-|                   |1.5|
+  //                 |-0-|   '               |-2-|
+  //                   |-0-|                 |2.5|
+  //                     |-0-|               |-3-|
+  //                       |-0-|             |-3-|
+  {
+    const mathfu::vec3 original_positions[] = {
+      {0.0f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f},
+      {3.5f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, {4.5f, 0.0f, 0.0f},
+      {5.0f, 0.0f, 0.0f},
+    };
+    const mathfu::vec3 remapped_positions[] = {
+      {0.5f, 1.0f, 0.0f}, {0.5f, 1.0f, 0.0f}, {2.0f, 1.5f, 0.0f},
+      {3.5f, 2.0f, 0.0f}, {3.5f, 2.5f, 0.0f}, {3.5f, 3.0f, 0.0f},
+      {3.5f, 3.0f, 0.0f},
+    };
+
+    for (int i = 0; i < 7; ++i) {
+      const Entity deformed = CreateWaypointDeformed(
+          deformer, original_positions[i], /*path_id=*/"", 1.0f);
+      ExpectWaypointDeformed(deformed, original_positions[i],
+                             remapped_positions[i], mathfu::kZeros3f);
+    }
+  }
+  // Size 2.0f. Start clamped to the left edge, move to the right edge, then
+  // move past the right edge.
+  // Original with |y value|         Remapped with |y value|
+  //     0   1   2   3   4   5   6   0   1   2   3   4
+  // |---#---|---|---|---#---|---|   #---|---|---|---#
+  // |---0---|                       |---1---|
+  //     |---0---|   '   '   '   '   |---1---|   '   '
+  //       |---0---|                   |--1.25-|
+  //             |---0---|   '   '           |---2---|
+  //                   |---0---|             |--2.75-|
+  //                     |---0---|           |---3---|
+  //                         |---0---|       |---3---|
+  {
+    const mathfu::vec3 original_positions[] = {
+      {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f},
+      {3.0f, 0.0f, 0.0f}, {4.5f, 0.0f, 0.0f}, {5.0f, 0.0f, 0.0f},
+      {6.0f, 0.0f, 0.0f},
+    };
+    const mathfu::vec3 remapped_positions[] = {
+      {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.5f, 1.25f, 0.0f},
+      {3.0f, 2.0f, 0.0f}, {3.0f, 2.75f, 0.0f}, {3.0f, 3.0f, 0.0f},
+      {3.0f, 3.0f, 0.0f},
+    };
+
+    for (int i = 0; i < 7; ++i) {
+      const Entity deformed = CreateWaypointDeformed(
+          deformer, original_positions[i], /*path_id=*/"", 2.0f);
+      ExpectWaypointDeformed(deformed, original_positions[i],
+                             remapped_positions[i], mathfu::kZeros3f);
+    }
+  }
 }
 
 }  // namespace

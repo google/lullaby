@@ -1700,6 +1700,50 @@ TEST(FindPositionBetweenPoints, Simple) {
   EXPECT_NEAR(match_percent, 1.f, kEpsilon);
 }
 
+TEST(FindPositionBetweenPoints, Overlapping) {
+  const std::vector<float> points_1{-2, -1, -1, 1, 2};
+  const std::vector<float> points_2{-2, -2, 0, 1, 2};
+  size_t min_index;
+  size_t max_index;
+  float match_percent;
+
+  // Test that overlapping points doesn't crash
+  FindPositionBetweenPoints(-1, points_1, &min_index, &max_index,
+                            &match_percent);
+  EXPECT_EQ((int)min_index, 0);
+  EXPECT_EQ((int)max_index, 1);
+  EXPECT_NEAR(match_percent, 1.f, kEpsilon);
+  FindPositionBetweenPoints(-2, points_2, &min_index, &max_index,
+                            &match_percent);
+  EXPECT_EQ((int)min_index, 0);
+  EXPECT_EQ((int)max_index, 0);
+  EXPECT_NEAR(match_percent, 1.f, kEpsilon);
+}
+
+TEST(FindPositionBetweenPoints, Single) {
+  const std::vector<float> points{1};
+  size_t min_index;
+  size_t max_index;
+  float match_percent;
+
+  // Test that only having 1 point doesn't crash
+  FindPositionBetweenPoints(-1, points, &min_index, &max_index,
+                            &match_percent);
+  EXPECT_EQ((int)min_index, 0);
+  EXPECT_EQ((int)max_index, 0);
+  EXPECT_NEAR(match_percent, 1.f, kEpsilon);
+  FindPositionBetweenPoints(1, points, &min_index, &max_index,
+                            &match_percent);
+  EXPECT_EQ((int)min_index, 0);
+  EXPECT_EQ((int)max_index, 0);
+  EXPECT_NEAR(match_percent, 1.f, kEpsilon);
+  FindPositionBetweenPoints(2, points, &min_index, &max_index,
+                            &match_percent);
+  EXPECT_EQ((int)min_index, 0);
+  EXPECT_EQ((int)max_index, 0);
+  EXPECT_NEAR(match_percent, 1.f, kEpsilon);
+}
+
 TEST(CheckPercentageOfLineClosestToPoint, Middle) {
   const mathfu::vec3 start_vector(0.0f, 0.0f, 0.0f);
   const mathfu::vec3 end_vector(0.0f, 0.0f, 1.0f);

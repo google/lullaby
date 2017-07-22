@@ -558,6 +558,13 @@ void ReticleSystem::SetNoHitDistance(float distance) {
   }
 }
 
+float ReticleSystem::GetNoHitDistance() const {
+  if (reticle_) {
+    return reticle_->no_hit_distance;
+  }
+  return kDefaultNoHitDistance;
+}
+
 InputManager::DeviceType ReticleSystem::GetActiveDevice() const {
   auto input = registry_->Get<InputManager>();
   if (!reticle_) {

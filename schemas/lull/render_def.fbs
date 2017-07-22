@@ -223,4 +223,9 @@ table RenderDef {
   /// bound to an external texture source (eg. camera stream, video stream,
   /// etc.)
   external_texture: bool = false;
+
+  /// The bitmaps to use as textures for the entity (supported formats: WEBP,
+  /// PNG, TGA). Each texture will be set to the corresponding texture unit
+  /// based on its index in the array.
+  textures: [string];
 }

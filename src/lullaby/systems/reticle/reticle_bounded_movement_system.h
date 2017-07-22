@@ -44,6 +44,9 @@ class ReticleBoundedMovementSystem : public System {
   void SetReticleBoundary(Entity entity, const mathfu::vec2& lower_left_bound,
                           const mathfu::vec2& upper_right_bound);
 
+  /// Manually set the waiting frames for reticle to stabilize.
+  void SetStabilizationFrames(int frames);
+
  private:
   struct ReticleBoundedMovement : Component {
     explicit ReticleBoundedMovement(Entity entity);
@@ -54,7 +57,11 @@ class ReticleBoundedMovementSystem : public System {
     // Only track yaw(x) and pitch(y) value in world space. Ignore roll value.
     mathfu::vec2 input_orientation_last_frame;
   };
+  void ResetReticlePosition(Entity entity);
+  void ResetStabilizationCounter();
   std::unordered_map<Entity, ReticleBoundedMovement> reticle_movement_map_;
+  int stabilization_counter_;
+  int stabilization_frames_;
 };
 
 }  // namespace lull

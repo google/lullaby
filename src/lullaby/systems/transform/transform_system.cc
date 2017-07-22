@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "lullaby/systems/transform/transform_system.h"
 
+#include <algorithm>
+
 #include "lullaby/base/dispatcher.h"
 #include "lullaby/base/entity_factory.h"
 #include "lullaby/events/entity_events.h"
@@ -27,7 +29,7 @@ limitations under the License.
 
 namespace {
 // Given an |index| into a list containing |list_size| elements, this transforms
-// |index| into a valid offset. Allows for negative indecies, where '-1' would
+// |index| into a valid offset. Allows for negative indices, where '-1' would
 // map to the last position, '-2', the second to last, etc. Clamps to the valid
 // range of the |list_size|.
 size_t RoundAndClampIndex(int index, size_t list_size) {
@@ -565,16 +567,20 @@ void TransformSystem::MoveChild(Entity child, int index) {
   auto& children = parent_node->children;
   const size_t num_children = children.size();
 
-  // First remove the child from the vector.
-  auto found = std::find(children.begin(), children.end(), child);
-  if (found == children.end()) {
+  // Get iterator to child's current position.
+  const auto source = std::find(children.begin(), children.end(), child);
+  if (source == children.end()) {
     LOG(DFATAL) << "Child entity not found in its parent's list of children.";
     return;
   }
-  children.erase(found);
 
   const size_t new_index = RoundAndClampIndex(index, num_children);
-  children.insert(children.begin() + new_index, child);
+  const auto destination = children.begin() + new_index;
+  if (source >= destination) {
+    std::rotate(destination, source, source + 1);
+  } else {
+    std::rotate(source, source + 1, destination + 1);
+  }
 }
 
 void TransformSystem::RemoveParentNoEvent(Entity child) {

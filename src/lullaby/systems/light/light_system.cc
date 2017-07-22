@@ -16,135 +16,76 @@ limitations under the License.
 
 #include "lullaby/systems/light/light_system.h"
 
-#include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/mathfu_fb_conversions.h"
-
 namespace lull {
 
-static constexpr HashValue kAmbientLightDef = ConstHash("AmbientLightDef");
-static constexpr HashValue kDirectionalLightDef =
-    ConstHash("DirectionalLightDef");
-static constexpr HashValue kLightableDef = ConstHash("LightableDef");
-static constexpr HashValue kPointLightDef = ConstHash("PointLightDef");
+static Sqt GetWorldFromEntitySqt(const TransformSystem* transform_system,
+                                 Entity entity) {
+  const mathfu::mat4* matrix =
+      transform_system->GetWorldFromEntityMatrix(entity);
+  return CalculateSqtFromMatrix(matrix);
+}
 
 LightSystem::LightSystem(Registry* registry) : System(registry) {
-  RegisterDef(this, kAmbientLightDef);
-  RegisterDef(this, kDirectionalLightDef);
-  RegisterDef(this, kLightableDef);
-  RegisterDef(this, kPointLightDef);
+  RegisterDef(this, ConstHash("AmbientLightDef"));
+  RegisterDef(this, ConstHash("DirectionalLightDef"));
+  RegisterDef(this, ConstHash("PointLightDef"));
+  RegisterDef(this, ConstHash("LightableDef"));
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
 }
 
-void LightSystem::Create(Entity entity, HashValue group,
-                         const AmbientLight& data) {
-  groups_[group].AddLight(entity, data);
+void LightSystem::CreateLight(Entity entity, const AmbientLightDefT& data) {
+  const auto* transform_system = registry_->Get<lull::TransformSystem>();
+  groups_[data.group].AddLight(entity, data, transform_system);
   ambients_.insert(entity);
-  entity_to_group_map_[entity] = group;
+  entity_to_group_map_[entity] = data.group;
 }
 
-void LightSystem::Create(Entity entity, HashValue group,
-                         const DirectionalLight& data) {
-  DirectionalLight light = data;
+void LightSystem::CreateLight(Entity entity, const DirectionalLightDefT& data) {
   const auto* transform_system = registry_->Get<lull::TransformSystem>();
-  const Sqt* sqt = transform_system->GetSqt(entity);
-  if (!sqt) {
-    LOG(DFATAL) << "Directional Light is missing a transform component.";
-    return;
-  }
-  light.rotation = sqt->rotation;
-
-  groups_[group].AddLight(entity, light);
+  groups_[data.group].AddLight(entity, data, transform_system);
   directionals_.insert(entity);
-  entity_to_group_map_[entity] = group;
+  entity_to_group_map_[entity] = data.group;
 }
 
-void LightSystem::Create(Entity entity, HashValue group,
-                         const Lightable& data) {
-  groups_[group].AddLightable(entity, data);
-  entity_to_group_map_[entity] = group;
-}
-
-void LightSystem::Create(Entity entity, HashValue group,
-                         const PointLight& data) {
-  PointLight light = data;
+void LightSystem::CreateLight(Entity entity, const PointLightDefT& data) {
   const auto* transform_system = registry_->Get<lull::TransformSystem>();
-  const Sqt* sqt = transform_system->GetSqt(entity);
-  if (!sqt) {
-    LOG(DFATAL) << "Point Light is missing a transform component.";
-    return;
-  }
-  light.position = sqt->translation;
-  groups_[group].AddLight(entity, light);
+  groups_[data.group].AddLight(entity, data, transform_system);
   points_.insert(entity);
-  entity_to_group_map_[entity] = group;
+  entity_to_group_map_[entity] = data.group;
 }
 
-void LightSystem::PostCreateInit(Entity entity, HashValue type,
-                                 const Def* def) {
-  if (def == nullptr) {
-    LOG(DFATAL) << "Def is null.";
-    return;
-  }
+void LightSystem::CreateLight(Entity entity, const LightableDefT& data) {
+  groups_[data.group].AddLightable(entity, data);
+  entity_to_group_map_[entity] = data.group;
+}
+
+void LightSystem::PostCreateComponent(Entity entity,
+                                      const Blueprint& blueprint) {
   if (entity_to_group_map_.count(entity)) {
     LOG(DFATAL) << "Entity already has a light.";
     return;
   }
 
-  switch (type) {
-    case kAmbientLightDef:
-      Create(entity, *ConvertDef<AmbientLightDef>(def));
-      return;
-    case kDirectionalLightDef:
-      Create(entity, *ConvertDef<DirectionalLightDef>(def));
-      return;
-    case kLightableDef:
-      Create(entity, *ConvertDef<LightableDef>(def));
-      return;
-    case kPointLightDef:
-      Create(entity, *ConvertDef<PointLightDef>(def));
-      return;
-    default:
-      LOG(DFATAL) << "Invalid light type: " << type;
-      return;
+  if (blueprint.Is<AmbientLightDefT>()) {
+    AmbientLightDefT light;
+    blueprint.Read(&light);
+    CreateLight(entity, light);
+  } else if (blueprint.Is<PointLightDefT>()) {
+    PointLightDefT light;
+    blueprint.Read(&light);
+    CreateLight(entity, light);
+  } else if (blueprint.Is<DirectionalLightDefT>()) {
+    DirectionalLightDefT light;
+    blueprint.Read(&light);
+    CreateLight(entity, light);
+  } else if (blueprint.Is<LightableDefT>()) {
+    LightableDefT lightable;
+    blueprint.Read(&lightable);
+    CreateLight(entity, lightable);
+  } else {
+    LOG(DFATAL) << "Invalid light type.";
   }
-}
-
-void LightSystem::Create(Entity entity, const AmbientLightDef& data) {
-  AmbientLight light;
-  Color4ubFromFbColor(data.color(), &light.color);
-  const HashValue group = Hash(data.group()->c_str());
-
-  Create(entity, group, light);
-}
-
-void LightSystem::Create(Entity entity, const DirectionalLightDef& data) {
-  DirectionalLight light;
-  Color4ubFromFbColor(data.color(), &light.color);
-  light.exponent = data.exponent();
-  const HashValue group = Hash(data.group()->c_str());
-
-  Create(entity, group, light);
-}
-
-void LightSystem::Create(Entity entity, const LightableDef& data) {
-  Lightable lightable;
-  lightable.max_ambient_lights = data.max_ambient_lights();
-  lightable.max_directional_lights = data.max_directional_lights();
-  lightable.max_point_lights = data.max_point_lights();
-  const HashValue group = Hash(data.group()->c_str());
-
-  Create(entity, group, lightable);
-}
-
-void LightSystem::Create(Entity entity, const PointLightDef& data) {
-  PointLight light;
-  Color4ubFromFbColor(data.color(), &light.color);
-  light.exponent = data.exponent();
-  light.intensity = data.intensity();
-  const HashValue group = Hash(data.group()->c_str());
-
-  Create(entity, group, light);
 }
 
 void LightSystem::Destroy(Entity entity) {
@@ -191,26 +132,38 @@ void LightSystem::UpdateLightTransforms(
   }
 }
 
-void LightSystem::LightGroup::AddLight(Entity entity,
-                                       const AmbientLight& light) {
-  ambients_[entity] = light;
+void LightSystem::LightGroup::AddLight(
+    Entity entity, const AmbientLightDefT& light,
+    const TransformSystem* transform_system) {
+  auto& new_light = ambients_[entity];
+  new_light = light;
   dirty_ = true;
 }
 
-void LightSystem::LightGroup::AddLight(Entity entity,
-                                       const DirectionalLight& light) {
-  directionals_[entity] = light;
+void LightSystem::LightGroup::AddLight(
+    Entity entity, const DirectionalLightDefT& light,
+    const TransformSystem* transform_system) {
+  const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
+  auto& new_light = directionals_[entity];
+  new_light = light;
+  new_light.rotation = sqt.rotation;
   dirty_ = true;
 }
 
-void LightSystem::LightGroup::AddLight(Entity entity, const PointLight& light) {
-  points_[entity] = light;
+void LightSystem::LightGroup::AddLight(
+    Entity entity, const PointLightDefT& light,
+    const TransformSystem* transform_system) {
+  const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
+  auto& new_light = points_[entity];
+  new_light = light;
+  new_light.position = sqt.translation;
   dirty_ = true;
 }
 
 void LightSystem::LightGroup::AddLightable(Entity entity,
-                                           const Lightable& lightable) {
-  lightables_[entity] = lightable;
+                                           const LightableDefT& lightable) {
+  auto& new_lightable = lightables_[entity];
+  new_lightable = lightable;
   dirty_lightables_.insert(entity);
 }
 
@@ -229,124 +182,74 @@ void LightSystem::LightGroup::Remove(Entity entity) {
 
 void LightSystem::LightGroup::Update(RenderSystem* render_system) {
   if (dirty_) {
-    dirty_lightables_.clear();
-
-    for (auto it : lightables_) {
-      UpdateLightable(render_system, it.first, &it.second);
+    for (auto& lightable : lightables_) {
+      UpdateLightable(render_system, lightable.first, lightable.second);
     }
     dirty_ = false;
   } else {
-    for (auto it : dirty_lightables_) {
-      UpdateLightable(render_system, it);
+    for (Entity dirty_lightable : dirty_lightables_) {
+      auto lightable = lightables_.find(dirty_lightable);
+      if (lightable != lightables_.end()) {
+        UpdateLightable(render_system, lightable->first, lightable->second);
+      }
     }
-    dirty_lightables_.clear();
   }
+  dirty_lightables_.clear();
 }
 
-void LightSystem::LightGroup::UpdateLightable(RenderSystem* render_system,
-                                              Entity entity) {
-  auto iter = lightables_.find(entity);
-  if (iter == lightables_.end()) {
-    return;
+template <typename T>
+void LightSystem::UpdateUniforms(UniformData* uniforms,
+                                 const std::unordered_map<Entity, T>& lights,
+                                 int max_allowed) {
+  int count = 0;
+  for (const auto& light : lights) {
+    if (count >= max_allowed) {
+#ifndef _DEBUG
+      LOG(WARNING) << "Entity has a maximum of " << max_allowed << " "
+                   << GetTypeName<T>() << " lights, however there are "
+                   << lights.size() << " defined lights.";
+#endif
+      break;
+    }
+    uniforms->Add(light.second);
+    ++count;
   }
-
-  UpdateLightable(render_system, entity, &iter->second);
+  while (count < max_allowed) {
+    const T blacklight;
+    uniforms->Add(blacklight);
+    ++count;
+  }
 }
 
 void LightSystem::LightGroup::UpdateLightable(RenderSystem* render_system,
                                               Entity entity,
-                                              const Lightable* data) {
+                                              const LightableDefT& data) {
   UniformData uniforms;
-  if (data->max_ambient_lights) {
-    int count = 0;
-    for (auto it : ambients_) {
-      if (count >= data->max_ambient_lights) {
-        LOG(WARNING)
-            << "Light group has more ambient lights than entity can accept.";
-        break;
-      }
-      uniforms.Add(it.second);
-      ++count;
-    }
-
-    while (count < data->max_ambient_lights) {
-      AmbientLight l;
-      l.color = Color4ub(0, 0, 0, 0);
-      uniforms.Add(l);
-      ++count;
-    }
-  }
-
-  if (data->max_directional_lights) {
-    int count = 0;
-    for (auto it : directionals_) {
-      if (count >= data->max_directional_lights) {
-        LOG(WARNING) << "Light group has more directional lights than entity "
-                        "can accept.";
-        break;
-      }
-      uniforms.Add(it.second);
-      ++count;
-    }
-
-    while (count < data->max_directional_lights) {
-      DirectionalLight l;
-      l.color = Color4ub(0, 0, 0, 0);
-      uniforms.Add(l);
-      ++count;
-    }
-  }
-
-  if (data->max_point_lights) {
-    int count = 0;
-    for (auto it : points_) {
-      if (count >= data->max_point_lights) {
-        LOG(WARNING)
-            << "Light group has more point lights than entity can accept.";
-        break;
-      }
-      uniforms.Add(it.second);
-      ++count;
-    }
-
-    while (count < data->max_point_lights) {
-      PointLight l;
-      l.color = Color4ub(0, 0, 0, 0);
-      uniforms.Add(l);
-      ++count;
-    }
-  }
-
+  UpdateUniforms(&uniforms, ambients_, data.max_ambient_lights);
+  UpdateUniforms(&uniforms, directionals_, data.max_directional_lights);
+  UpdateUniforms(&uniforms, points_, data.max_point_lights);
   uniforms.Apply(render_system, entity);
-}
-
-static Sqt GetWorldFromEntitySqt(TransformSystem* transform_system,
-                                 Entity entity) {
-  const mathfu::mat4* matrix =
-      transform_system->GetWorldFromEntityMatrix(entity);
-  return CalculateSqtFromMatrix(matrix);
 }
 
 void LightSystem::LightGroup::UpdateLight(TransformSystem* transform_system,
                                           Entity entity) {
   auto directional_iter = directionals_.find(entity);
   if (directional_iter != directionals_.end()) {
-    auto light = directional_iter->second;
+    auto& light = directional_iter->second;
     const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
     if (light.rotation.scalar() != sqt.rotation.scalar() ||
         light.rotation.vector() != sqt.rotation.vector()) {
       light.rotation = sqt.rotation;
-      directionals_[entity] = light;
       dirty_ = true;
     }
   }
+
   auto point_iter = points_.find(entity);
   if (point_iter != points_.end()) {
-    auto light = point_iter->second;
+    auto& light = point_iter->second;
     const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
     if (light.position != sqt.translation) {
       light.position = sqt.translation;
-      points_[entity] = light;
       dirty_ = true;
     }
   }
@@ -359,7 +262,7 @@ bool LightSystem::LightGroup::Empty() const {
 
 void LightSystem::UniformData::Clear() { buffers.clear(); }
 
-void LightSystem::UniformData::Add(const AmbientLight& light) {
+void LightSystem::UniformData::Add(const AmbientLightDefT& light) {
   auto& colors = buffers["light_ambient_color"];
   colors.dimension = 3;
 
@@ -369,7 +272,7 @@ void LightSystem::UniformData::Add(const AmbientLight& light) {
   colors.data.push_back(data.z);
 }
 
-void LightSystem::UniformData::Add(const DirectionalLight& light) {
+void LightSystem::UniformData::Add(const DirectionalLightDefT& light) {
   auto& colors = buffers["light_directional_color"];
   colors.dimension = 3;
 
@@ -379,8 +282,9 @@ void LightSystem::UniformData::Add(const DirectionalLight& light) {
   colors.data.push_back(data.z);
 
   auto& directions = buffers["light_directional_dir"];
-  const mathfu::vec3 light_dir = light.rotation * -mathfu::kAxisZ3f;
   directions.dimension = 3;
+
+  const mathfu::vec3 light_dir = light.rotation * -mathfu::kAxisZ3f;
   directions.data.push_back(light_dir.x);
   directions.data.push_back(light_dir.y);
   directions.data.push_back(light_dir.z);
@@ -390,7 +294,7 @@ void LightSystem::UniformData::Add(const DirectionalLight& light) {
   exponents.data.push_back(light.exponent);
 }
 
-void LightSystem::UniformData::Add(const PointLight& light) {
+void LightSystem::UniformData::Add(const PointLightDefT& light) {
   auto& colors = buffers["light_point_color"];
   colors.dimension = 3;
 
@@ -416,7 +320,7 @@ void LightSystem::UniformData::Add(const PointLight& light) {
 
 void LightSystem::UniformData::Apply(RenderSystem* render_system,
                                      Entity entity) const {
-  for (auto it : buffers) {
+  for (const auto& it : buffers) {
     const auto& buffer = it.second;
     const int count = static_cast<int>(buffer.data.size()) / buffer.dimension;
     render_system->SetUniform(entity, it.first.c_str(), buffer.data.data(),

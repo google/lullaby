@@ -164,6 +164,8 @@ class RenderSystemFpl : public System {
 
   void SetCullMode(RenderPass pass, CullMode mode);
 
+  void SetRenderTarget(HashValue pass, HashValue render_target_name);
+
   void SetDepthTest(const bool enabled);
   void SetDepthWrite(const bool enabled);
 
@@ -218,6 +220,11 @@ class RenderSystemFpl : public System {
   /// your app is sharing a GL context with another framework which affects the
   /// GL state, or if you are making GL calls on your own outside of Lullaby.
   void UpdateCachedRenderState(const fplbase::RenderState& render_state);
+
+  void CreateRenderTarget(HashValue render_target_name,
+                          const mathfu::vec2i& dimensions,
+                          TextureFormat texture_format,
+                          DepthStencilFormat depth_stencil_format);
 
  protected:
   using RenderComponent = detail::RenderComponent;

@@ -56,6 +56,9 @@ class ReticleSystem : public System {
   // Sets the distance for the reticle when there is no collision.
   void SetNoHitDistance(float distance);
 
+  // Gets the distance for the reticle when there is no collision.
+  float GetNoHitDistance() const;
+
   // Gets the current reticle entity.
   Entity GetReticle() const;
 

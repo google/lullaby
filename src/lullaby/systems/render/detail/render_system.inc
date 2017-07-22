@@ -330,6 +330,11 @@ void RenderSystem::SetCullMode(RenderPass pass, CullMode mode) {
   impl_->SetCullMode(pass, mode);
 }
 
+void RenderSystem::SetRenderTarget(HashValue pass,
+                                   HashValue render_target_name) {
+  impl_->SetRenderTarget(pass, render_target_name);
+}
+
 void RenderSystem::SetDepthTest(const bool enabled) {
   impl_->SetDepthTest(enabled);
 }
@@ -427,6 +432,14 @@ void RenderSystem::DrawIndexedPrimitives(PrimitiveType primitive_type,
 const std::vector<mathfu::vec3>* RenderSystem::GetCaretPositions(
     Entity e) const {
   return impl_->GetCaretPositions(e);
+}
+
+void RenderSystem::CreateRenderTarget(HashValue render_target_name,
+                        const mathfu::vec2i& dimensions,
+                        TextureFormat texture_format,
+                        DepthStencilFormat depth_stencil_format) {
+  impl_->CreateRenderTarget(render_target_name, dimensions, texture_format,
+                            depth_stencil_format);
 }
 
 }  // namespace lull

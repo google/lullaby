@@ -50,7 +50,6 @@ struct RenderComponent : Component {
 
   mathfu::vec4 default_color = mathfu::vec4(1, 1, 1, 1);
   MeshPtr mesh = nullptr;
-  std::unique_ptr<MeshData> dynamic_mesh;
   ShaderPtr shader = nullptr;
   std::map<int, TexturePtr> textures;
   UniformMap uniforms;

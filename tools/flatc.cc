@@ -211,13 +211,16 @@ std::string CodeGenerator::GetType(const flatbuffers::Type& type,
     case flatbuffers::BASE_TYPE_SHORT:
     case flatbuffers::BASE_TYPE_USHORT:
     case flatbuffers::BASE_TYPE_INT:
-    case flatbuffers::BASE_TYPE_UINT:
     case flatbuffers::BASE_TYPE_LONG:
     case flatbuffers::BASE_TYPE_ULONG:
     case flatbuffers::BASE_TYPE_FLOAT:
     case flatbuffers::BASE_TYPE_DOUBLE:
     case flatbuffers::BASE_TYPE_STRING:
       return GetBasicType(type.base_type);
+    case flatbuffers::BASE_TYPE_UINT: {
+      const auto* hashvalue = GetAttribute(*field, "hashvalue");
+      return hashvalue ? "lull::HashValue" : GetBasicType(type.base_type);
+    }
     case flatbuffers::BASE_TYPE_VECTOR: {
       const std::string name = GetType(type.VectorType(), field);
       return "std::vector<" + name + ">";

@@ -82,13 +82,26 @@ class DeformSystem : public System {
   const Aabb* UndeformedBoundingBox(Entity entity) const;
 
  private:
-  // A post deformation position and rotation for an entity that is subject to
-  // the waypoint deformation mode.
+  // All the data for one Waypoint in waypoint deformation mode.
   struct Waypoint {
+    // The original position in deformer's coordinate system that matches this
+    // waypoint.
+    mathfu::vec3 original_position;
     // The position of the deformed entity at this waypoint.
     mathfu::vec3 remapped_position;
     // The base rotation of the deformed entity at this waypoint.
     mathfu::vec3 remapped_rotation;
+
+    // Normalized coordinates representing a point in the Deformed's aabb that
+    // will match with original_position. (0,0,0) is the left, bottom, far
+    // corner, and (1,1,1) is the right, top, near corner.
+    // Ignored if use_aabb_anchor is false.
+    mathfu::vec3 original_aabb_anchor;
+    // Normalized coordinates representing a point in the Deformed's aabb that
+    // will match with remapped_position. (0,0,0) is the left, bottom, far
+    // corner, and (1,1,1) is the right, top, near corner.
+    // Ignored if use_aabb_anchor is false.
+    mathfu::vec3 remapped_aabb_anchor;
   };
 
   // A set of waypoints that define a deformation along a path.
@@ -104,6 +117,9 @@ class DeformSystem : public System {
     std::vector<float> parameterization_values;
     // The axis along which to parameterize the input points.
     mathfu::vec3 parameterization_axis;
+
+    // True if any of the waypoints in the path use_aabb_anchor.
+    bool use_aabb_anchor = false;
   };
 
   struct Deformer : Component {
@@ -127,11 +143,20 @@ class DeformSystem : public System {
     Entity deformer;
     Aabb undeformed_aabb;
     HashValue path_id;
+
+    // If the path that path_id points uses aabb anchors, Deformed needs to
+    // keep a cached version that offsets based on its entity's aabb.
+    std::unique_ptr<WaypointPath> anchored_path;
   };
 
   // Builds a WaypointPath from its def.
   Optional<WaypointPath> BuildWaypointPath(
       const lull::WaypointPath& waypoint_path_def) const;
+
+  // Calculates the parameterization axis for a path by finding the unit vector
+  // pointing to the last point in the path from the first point. Also
+  // calculates the values for each point in the path.
+  void CalculateWaypointParameterization(WaypointPath* path) const;
 
   // Determines the world from entity transformation function and applies it to
   // the deformed entity in the transform system. This does not update the mesh
@@ -184,6 +209,10 @@ class DeformSystem : public System {
                                              const Sqt& local_sqt,
                                              const Deformer* deformer,
                                              const Deformed* deformed) const;
+
+  // If |entity| is a Deformed with a waypoint path that uses aabb anchors,
+  // recalculate the cached path.
+  void RecalculateAnchoredPath(Entity entity);
 
   // DEPRECATED DO NOT USE
   Entity GetDeformerDeprecated(Entity e) const;

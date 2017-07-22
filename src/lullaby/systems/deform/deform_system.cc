@@ -43,23 +43,6 @@ mathfu::mat4 CalculateTransformMatrixFromParent(
              : parent_from_local_mat;
 }
 
-// Calculates the parameterization axis for a path by finding the unit vector
-// pointing to the last point in the path from the first point. Returns an empty
-// optional if their are less than 2 waypoints.
-Optional<mathfu::vec3> CalculateParameterizationAxis(const WaypointPath& path) {
-  if (path.waypoints() == nullptr || path.waypoints()->size() < 1) {
-    return Optional<mathfu::vec3>();
-  }
-
-  auto end_fbb = --path.waypoints()->end();
-  mathfu::vec3 end;
-  MathfuVec3FromFbVec3(end_fbb->original_position(), &end);
-  auto begin_fbb = path.waypoints()->begin();
-  mathfu::vec3 begin;
-  MathfuVec3FromFbVec3(begin_fbb->original_position(), &begin);
-  return (end - begin).Normalized();
-}
-
 }  // namespace
 
 DeformSystem::DeformSystem(Registry* registry)
@@ -72,6 +55,9 @@ DeformSystem::DeformSystem(Registry* registry)
   Dispatcher* dispatcher = registry_->Get<Dispatcher>();
   dispatcher->Connect(this, [this](const ParentChangedEvent& event) {
     OnParentChanged(event);
+  });
+  dispatcher->Connect(this, [this](const AabbChangedEvent& event) {
+    RecalculateAnchoredPath(event.target);
   });
 }
 
@@ -141,8 +127,14 @@ void DeformSystem::SetDeformationFunction(Entity entity) {
 void DeformSystem::SetAsDeformed(Entity entity, string_view path_id) {
   Deformed* deformed = deformed_.Emplace(entity);
   if (!deformed) {
+    deformed = deformed_.Get(entity);
+    const auto old_path_id = deformed->path_id;
     // If this entity is already deformed then just update its path_id.
-    deformed_.Get(entity)->path_id = Hash(path_id);
+    deformed->path_id = Hash(path_id);
+    // If the path has changed, recalculate the cached anchored path.
+    if (old_path_id != deformed->path_id) {
+      RecalculateAnchoredPath(entity);
+    }
     return;
   }
   deformed->path_id = Hash(path_id);
@@ -205,14 +197,8 @@ const Aabb* DeformSystem::UndeformedBoundingBox(Entity entity) const {
 Optional<DeformSystem::WaypointPath> DeformSystem::BuildWaypointPath(
     const lull::WaypointPath& waypoint_path_def) const {
   if (waypoint_path_def.waypoints() == nullptr ||
-      waypoint_path_def.waypoints()->size() == 0) {
-    LOG(DFATAL) << "Path missing required field waypoints";
-    return Optional<WaypointPath>();
-  }
-  Optional<mathfu::vec3> parameterization_axis =
-      CalculateParameterizationAxis(waypoint_path_def);
-  if (!parameterization_axis) {
-    LOG(DFATAL) << "Failed to calculate the parameterization axis";
+      waypoint_path_def.waypoints()->size() < 1) {
+    LOG(DFATAL) << "Path missing required number of field waypoints";
     return Optional<WaypointPath>();
   }
 
@@ -223,27 +209,45 @@ Optional<DeformSystem::WaypointPath> DeformSystem::BuildWaypointPath(
 
   WaypointPath waypoint_path;
   waypoint_path.path_id = Hash(path_id.c_str());
-  waypoint_path.parameterization_axis = parameterization_axis.value();
+  waypoint_path.use_aabb_anchor = waypoint_path_def.use_aabb_anchor();
 
   const auto& waypoints = *waypoint_path_def.waypoints();
   for (const lull::Waypoint* waypoint_def : waypoints) {
     DeformSystem::Waypoint waypoint;
-    mathfu::vec3 original_position;
-    MathfuVec3FromFbVec3(waypoint_def->original_position(), &original_position);
+    MathfuVec3FromFbVec3(waypoint_def->original_position(),
+                         &waypoint.original_position);
     MathfuVec3FromFbVec3(waypoint_def->remapped_position(),
                          &waypoint.remapped_position);
     MathfuVec3FromFbVec3(waypoint_def->remapped_rotation(),
                          &waypoint.remapped_rotation);
+    MathfuVec3FromFbVec3(waypoint_def->original_aabb_anchor(),
+                         &waypoint.original_aabb_anchor);
+    MathfuVec3FromFbVec3(waypoint_def->remapped_aabb_anchor(),
+                         &waypoint.remapped_aabb_anchor);
     waypoint_path.waypoints.push_back(waypoint);
+  }
+
+  CalculateWaypointParameterization(&waypoint_path);
+  return waypoint_path;
+}
+
+void DeformSystem::CalculateWaypointParameterization(WaypointPath* path) const {
+  if (path->waypoints.size() > 1) {
+    path->parameterization_axis =
+        (path->waypoints.back().original_position -
+         path->waypoints.front().original_position).Normalized();
+  } else {
+    path->parameterization_axis = mathfu::kZeros3f;
+  }
+  path->parameterization_values.clear();
+  for (const Waypoint& waypoint : path->waypoints) {
     const float parameterized_value = mathfu::vec3::DotProduct(
-        original_position, waypoint_path.parameterization_axis);
-    waypoint_path.parameterization_values.push_back(parameterized_value);
-    if (!waypoint_path.parameterization_values.empty() &&
-        parameterized_value < waypoint_path.parameterization_values.back()) {
+        waypoint.original_position, path->parameterization_axis);
+    path->parameterization_values.push_back(parameterized_value);
+    if (parameterized_value < path->parameterization_values.back()) {
       LOG(WARNING) << "Waypoint nodes aren't sorted";
     }
   }
-  return waypoint_path;
 }
 
 void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
@@ -279,6 +283,7 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
       break;
     }
     case DeformMode_Waypoint: {
+      RecalculateAnchoredPath(e);
       world_from_entity_fn =
           [this, e, deformer](
               const Sqt& local_sqt,
@@ -355,31 +360,37 @@ mathfu::mat4 DeformSystem::CalculateWaypointTransformMatrix(
     return CalculateTransformMatrixFromParent(local_sqt, world_from_parent_mat);
   }
 
-  auto it = deformer->paths.find(deformed->path_id);
-  if (it == deformer->paths.end()) {
-    LOG(ERROR) << "Missing deformation path: " << deformed->path_id;
-    return CalculateTransformMatrixFromParent(local_sqt, world_from_parent_mat);
+  const WaypointPath* path = nullptr;
+  if (deformed->anchored_path) {
+    path = deformed->anchored_path.get();
+  } else {
+    auto it = deformer->paths.find(deformed->path_id);
+    if (it == deformer->paths.end()) {
+      LOG(ERROR) << "Missing deformation path: " << deformed->path_id;
+      return CalculateTransformMatrixFromParent(local_sqt,
+                                                world_from_parent_mat);
+    }
+    path = &it->second;
   }
 
-  const WaypointPath& path = it->second;
   const Sqt entity_from_root_sqt =
       CalculateSqtFromMatrix(deformed->deformer_from_entity_undeformed_space);
   const float current_point = mathfu::vec3::DotProduct(
-      entity_from_root_sqt.translation, path.parameterization_axis);
+      entity_from_root_sqt.translation, path->parameterization_axis);
 
   size_t min_index;
   size_t max_index;
   float entity_match_percentage;
-  FindPositionBetweenPoints(current_point, path.parameterization_values,
+  FindPositionBetweenPoints(current_point, path->parameterization_values,
                             &min_index, &max_index, &entity_match_percentage);
 
   const mathfu::vec3 deformed_translation = mathfu::vec3::Lerp(
-      path.waypoints[min_index].remapped_position,
-      path.waypoints[max_index].remapped_position, entity_match_percentage);
+      path->waypoints[min_index].remapped_position,
+      path->waypoints[max_index].remapped_position, entity_match_percentage);
 
   const mathfu::vec3 deformed_euler_rotation = mathfu::vec3::Lerp(
-      path.waypoints[min_index].remapped_rotation,
-      path.waypoints[max_index].remapped_rotation, entity_match_percentage);
+      path->waypoints[min_index].remapped_rotation,
+      path->waypoints[max_index].remapped_rotation, entity_match_percentage);
 
   const mathfu::quat deformed_rotation = mathfu::quat::FromEulerAngles(
       deformed_euler_rotation * kDegreesToRadians);
@@ -510,6 +521,53 @@ bool DeformSystem::PrepDeformerFromEntityUndeformedSpace(
       parent_deformed->deformer_from_entity_undeformed_space *
       CalculateTransformMatrix(local_sqt);
   return true;
+}
+
+void DeformSystem::RecalculateAnchoredPath(Entity entity) {
+  auto* deformed = deformed_.Get(entity);
+  if (!deformed) {
+    return;
+  }
+
+  const Deformer* deformer = deformers_.Get(deformed->deformer);
+  if (!deformer) {
+    deformed->anchored_path.reset();
+    return;
+  }
+
+  const auto it = deformer->paths.find(deformed->path_id);
+  if (it == deformer->paths.end()) {
+    deformed->anchored_path.reset();
+    return;
+  }
+  const WaypointPath& path = it->second;
+
+  if (!path.use_aabb_anchor) {
+    deformed->anchored_path.reset();
+    return;
+  }
+
+  const auto* transform_system = registry_->Get<TransformSystem>();
+  const auto* aabb = transform_system->GetAabb(entity);
+  // First copy over the original path.
+  if (deformed->anchored_path) {
+    *deformed->anchored_path = path;
+  } else {
+    deformed->anchored_path.reset(new WaypointPath(path));
+  }
+
+  // Then offset all the waypoints by the entity's aabb.
+  for (auto& waypoint : deformed->anchored_path->waypoints) {
+    const mathfu::vec3 original_aabb_anchor = aabb->min +
+        waypoint.original_aabb_anchor * (aabb->max - aabb->min);
+    const mathfu::vec3 remapped_aabb_anchor = aabb->min +
+        waypoint.remapped_aabb_anchor * (aabb->max - aabb->min);
+
+    waypoint.original_position -= original_aabb_anchor;
+    waypoint.remapped_position -= remapped_aabb_anchor;
+  }
+
+  CalculateWaypointParameterization(deformed->anchored_path.get());
 }
 
 }  // namespace lull

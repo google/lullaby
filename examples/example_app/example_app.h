@@ -51,7 +51,6 @@ class ExampleApp {
     float far_clip_plane = 100.f;
     bool enable_hmd = true;
     bool enable_controller = true;
-    bool enable_tango = false;
   };
 
   ExampleApp() : registry_(std::make_shared<Registry>()) {}

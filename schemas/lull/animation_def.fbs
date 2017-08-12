@@ -78,6 +78,17 @@ table AnimTargetDef {
   time_ms : int;
 }
 
+/// Specifies a "defining animation" that is used to correctly initialize
+/// animation channels which will be playing an animation from a set of related
+/// animations.
+table DefiningAnimDef {
+  /// The file containing the "defining animation".
+  filename: string;
+
+  /// The channel associated with the "defining animation".
+  channel: string;
+}
+
 /// Defines a set of animations or targets to play on an Entity.
 table AnimationDef {
   animations: [AnimInstanceDef];
@@ -85,4 +96,5 @@ table AnimationDef {
   on_complete_events: [EventDef];
   on_success_events: [EventDef];
   on_cancelled_events: [EventDef];
+  defining_animation: DefiningAnimDef;
 }

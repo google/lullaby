@@ -18,8 +18,8 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/entity_factory.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace {
 

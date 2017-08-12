@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/registry.h"
+#include "lullaby/util/registry.h"
 #include "gtest/gtest.h"
 
 namespace lull {

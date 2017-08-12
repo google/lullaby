@@ -1,0 +1,33 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+table NinePatchDef {
+  // The size of the area the nine patch will expand to fill (in meters).
+  // The slices will always fit within |size|. If the calculated slice
+  // width from original_size is larger it will be scaled down to fit.
+  size: Vec2;
+
+  // TODO(b/35040276) factor asset specific data out of this def
+  // The texture space width (0 - 1) of the left slice
+  left_slice: float;
+
+  // The texture space width (0 - 1) of the right slice
+  right_slice: float;
+
+  // The texture space width (0 - 1) of the bottom slice
+  bottom_slice: float;
+
+  // The texture space width (0 - 1) of the top slice
+  top_slice: float;
+
+  // The size of the unstretched nine patch (in meters).  The ratio between
+  // this original_size and the size above combined with the slice widths
+  // will determine how the slices are placed, and how large the unstretched
+  // portions of the nine patch appear in the 3D world.
+  original_size: Vec2;
+
+  // (Optional) The number of horizontal and vertical subdivisions in the
+  // nine patch mesh.  This is provided to allow for smooth looking deformation.
+  subdivisions:  Vec2i (defaults_to_null);
+}

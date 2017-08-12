@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/event_wrapper.h"
+#include "lullaby/modules/dispatcher/event_wrapper.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/common_types.h"
+#include "lullaby/util/common_types.h"
 
 namespace lull {
 namespace {

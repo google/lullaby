@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/mapped_structure_of_arrays.h"
+#include "lullaby/util/mapped_structure_of_arrays.h"
 
 #include <string>
 #include "gtest/gtest.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

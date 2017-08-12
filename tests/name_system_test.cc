@@ -18,9 +18,9 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/name_def_generated.h"
-#include "lullaby/base/blueprint.h"
+#include "lullaby/modules/ecs/blueprint.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

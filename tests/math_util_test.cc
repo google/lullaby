@@ -19,8 +19,8 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "mathfu/io.h"
 #include "lullaby/util/math.h"
-#include "lullaby/generated/tests/mathfu_matchers.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/mathfu_matchers.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

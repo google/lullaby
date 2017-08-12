@@ -19,12 +19,12 @@ limitations under the License.
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "lullaby/base/component.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
-#include "lullaby/base/registry.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/component.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/render/detail/display_list.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/registry.h"
 
 namespace lull {
 namespace {

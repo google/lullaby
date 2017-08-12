@@ -17,9 +17,9 @@ limitations under the License.
 #include "lullaby/systems/collision/collision_system.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/collision_def_generated.h"
-#include "lullaby/base/blueprint.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/blueprint.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/generated/transform_def_generated.h"
 

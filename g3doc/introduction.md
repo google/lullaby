@@ -134,7 +134,8 @@ Finally, the rest of the folders are:
 
 ## Building
 
-Instructions on building the Lullaby libraries is available [here](building.md).
+Instructions on building the Lullaby open source libraries is available
+[here](building_github.md).
 
 ## Putting it all Together
 

@@ -16,9 +16,9 @@ limitations under the License.
 
 #include "gtest/gtest.h"
 
-#include "lullaby/util/vertex.h"
-#include "lullaby/util/vertex_format.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/modules/render/vertex.h"
+#include "lullaby/modules/render/vertex_format.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

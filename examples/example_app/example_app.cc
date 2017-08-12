@@ -14,15 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/generated/examples/example_app/example_app.h"
+#include "lullaby/examples/example_app/example_app.h"
 
 #include "fplbase/utilities.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/modules/input/input_manager.h"
+#include "lullaby/modules/script/function_binder.h"
+#include "lullaby/modules/script/function_registry.h"
 #include "mathfu/constants.h"
-#include "lullaby/base/asset_loader.h"
-#include "lullaby/base/entity_factory.h"
-#include "lullaby/base/input_manager.h"
-#include "lullaby/util/function_binder.h"
-#include "lullaby/util/function_registry.h"
 
 namespace lull {
 

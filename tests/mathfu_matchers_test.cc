@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/generated/tests/mathfu_matchers.h"
+#include "lullaby/tests/mathfu_matchers.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

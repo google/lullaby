@@ -17,11 +17,11 @@ limitations under the License.
 #include <memory>
 
 #include "gtest/gtest.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/layout/layout.h"
 #include "lullaby/systems/layout/layout_box_system.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/layout.h"
 
 namespace lull {
 namespace {
@@ -839,6 +839,88 @@ TEST_F(LayoutTest, WeightedElements_OuterHidden) {
 
   AssertTranslations(children, expectations);
   AssertDesiredSizesAndEnabled(children, desired_sizes, enabled_expectations);
+}
+
+TEST_F(LayoutTest, InsertIndex) {
+  // Layout 4 children in a 3x3 grid.
+  // 0 - 1
+  // - - -
+  // 2 - 3
+  const mathfu::vec2 expectations[] = {
+      mathfu::vec2(-1.f, 1.f), mathfu::vec2(1.f, 1.f),
+      mathfu::vec2(-1.f, -1.f), mathfu::vec2(1.f, -1.f),
+  };
+
+  LayoutParams params;
+  params.vertical_alignment = LayoutVerticalAlignment_Top;
+  params.horizontal_alignment = LayoutHorizontalAlignment_Left;
+  params.fill_order = LayoutFillOrder_RightDown;
+  params.canvas_size = mathfu::vec2(3.f, 3.f);
+  params.spacing = mathfu::vec2(1.f, 1.f);
+  params.elements_per_wrap = 2;
+  CachedPositions cached_positions;
+
+  // If layout has not occurred yet, or there were no children, don't fail and
+  // just return 0.
+  EXPECT_EQ(0u,
+      CalculateInsertIndexForPosition(cached_positions, mathfu::kZeros3f));
+  ApplyLayout(registry_.get(), params, {}, kParent, &cached_positions);
+  EXPECT_EQ(0u,
+      CalculateInsertIndexForPosition(cached_positions, mathfu::kZeros3f));
+
+
+  const std::vector<Entity> children = CreateChildren(4);
+  std::vector<LayoutElement> elements;
+  CreateElementParams(&elements, children);
+  ApplyLayout(registry_.get(), params, elements, kParent, &cached_positions);
+  AssertTranslations(children, expectations);
+
+  // Horizontal first fill orders.
+  {
+    const mathfu::vec3 positions[] = {
+      {-2.5f, 0.1f, 0.0f}, {-0.5f, 0.5f, 0.0f},
+      {1.5f, 1.5f, 0.0f}, {-2.5f, -0.1f, 0.0f},
+      {0.5f, -1.5f, 0.0f}, {2.0f, -1.0f, 0.0f},
+    };
+    const std::pair<LayoutFillOrder, std::vector<size_t>> fill_orders[] = {
+      {LayoutFillOrder_RightDown, {0, 1, 2, 2, 3, 4}},
+      {LayoutFillOrder_LeftDown, {2, 1, 0, 4, 3, 2}},
+      {LayoutFillOrder_RightUp, {2, 3, 4, 0, 1, 2}},
+      {LayoutFillOrder_LeftUp, {4, 3, 2, 2, 1, 0}},
+    };
+    for (const auto& fill_order : fill_orders) {
+      params.fill_order = fill_order.first;
+      ApplyLayout(registry_.get(), params, elements, kParent,
+                  &cached_positions);
+      for (size_t i = 0; i < 6; ++i) {
+        EXPECT_EQ(fill_order.second[i],
+            CalculateInsertIndexForPosition(cached_positions, positions[i]));
+      }
+    }
+  }
+  // Vertical first fill orders.
+  {
+    const mathfu::vec3 positions[] = {
+      {-0.1f, 2.5f, 0.0f}, {-0.5f, 0.5f, 0.0f},
+      {-1.5f, -1.5f, 0.0f}, {0.1f, 2.5f, 0.0f},
+      {1.5f, -0.5f, 0.0f}, {1.0f, -2.0f, 0.0f},
+    };
+    const std::pair<LayoutFillOrder, std::vector<size_t>> fill_orders[] = {
+      {LayoutFillOrder_DownRight, {0, 1, 2, 2, 3, 4}},
+      {LayoutFillOrder_DownLeft, {2, 3, 4, 0, 1, 2}},
+      {LayoutFillOrder_UpRight, {2, 1, 0, 4, 3, 2}},
+      {LayoutFillOrder_UpLeft, {4, 3, 2, 2, 1, 0}},
+    };
+    for (const auto& fill_order : fill_orders) {
+      params.fill_order = fill_order.first;
+      ApplyLayout(registry_.get(), params, elements, kParent,
+                  &cached_positions);
+      for (size_t i = 0; i < 6; ++i) {
+        EXPECT_EQ(fill_order.second[i],
+            CalculateInsertIndexForPosition(cached_positions, positions[i]));
+      }
+    }
+  }
 }
 
 }  // namespace

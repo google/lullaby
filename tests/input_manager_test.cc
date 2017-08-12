@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/input_manager.h"
+#include "lullaby/modules/input/input_manager.h"
 
 #include "ion/base/logchecker.h"
 #include "gtest/gtest.h"
 #include "lullaby/util/bits.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

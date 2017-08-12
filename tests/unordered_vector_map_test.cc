@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/unordered_vector_map.h"
+#include "lullaby/util/unordered_vector_map.h"
 #include "gtest/gtest.h"
 
 namespace lull {

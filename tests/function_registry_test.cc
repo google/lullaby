@@ -20,8 +20,8 @@ limitations under the License.
 
 #include "ion/base/logchecker.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/variant.h"
-#include "lullaby/util/function_binder.h"
+#include "lullaby/modules/script/function_binder.h"
+#include "lullaby/util/variant.h"
 
 namespace lull {
 

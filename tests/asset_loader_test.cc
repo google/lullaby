@@ -17,8 +17,8 @@ limitations under the License.
 #include <chrono>
 
 #include "gtest/gtest.h"
-#include "lullaby/base/asset_loader.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

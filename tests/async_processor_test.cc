@@ -22,7 +22,7 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/async_processor.h"
+#include "lullaby/util/async_processor.h"
 
 namespace lull {
 namespace {

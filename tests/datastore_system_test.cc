@@ -19,8 +19,8 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/datastore_def_generated.h"
-#include "lullaby/base/blueprint.h"
-#include "lullaby/base/common_types.h"
+#include "lullaby/modules/ecs/blueprint.h"
+#include "lullaby/util/common_types.h"
 
 namespace lull {
 namespace {
@@ -183,7 +183,7 @@ TEST(DatastoreSystem, CreateFromDatastoreDef) {
   AddVariant<DataIntT>(&data, "int_key", 123);
   AddVariant<DataFloatT>(&data, "float_key", 456.f);
   AddVariant<DataStringT>(&data, "string_key", "hello");
-  AddVariant<DataHashValueT>(&data, "hash_key", "world");
+  AddVariant<DataHashValueT>(&data, "hash_key", Hash("world"));
   AddVariant<DataVec2T>(&data, "vec2_key", mathfu::vec2(1, 2));
   AddVariant<DataVec3T>(&data, "vec3_key", mathfu::vec3(3, 4, 5));
   AddVariant<DataVec4T>(&data, "vec4_key", mathfu::vec4(6, 7, 8, 9));

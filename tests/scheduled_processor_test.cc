@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/scheduled_processor.h"
+#include "lullaby/util/scheduled_processor.h"
 
 #include "gtest/gtest.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

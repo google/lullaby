@@ -19,7 +19,7 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/config_def_generated.h"
-#include "lullaby/util/flatbuffer_writer.h"
+#include "lullaby/modules/flatbuffers/flatbuffer_writer.h"
 #include "lullaby/util/inward_buffer.h"
 
 namespace lull {
@@ -73,7 +73,7 @@ TEST(ConfigTest, SetFromFlatbuffer) {
   AddVariant<DataIntT>(&data, "int_key", 123);
   AddVariant<DataFloatT>(&data, "float_key", 456.f);
   AddVariant<DataStringT>(&data, "string_key", "hello");
-  AddVariant<DataHashValueT>(&data, "hash_key", "world");
+  AddVariant<DataHashValueT>(&data, "hash_key", Hash("world"));
 
   InwardBuffer buffer(256);
   auto flatbuffer = WriteFlatbuffer(&data, &buffer);

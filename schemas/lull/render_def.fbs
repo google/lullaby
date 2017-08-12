@@ -9,7 +9,7 @@ namespace lull;
 
 /// Render passes define the render state and high-level render order of
 /// entities. Please keep these in sync with
-/// //java/com/google/vr/internal/lullaby/Constants.java
+/// //java/com/google/third_party/lullaby/Constants.java
 enum RenderPass : int {
   /// Drawn first, so behind everything.
   Pano,
@@ -228,4 +228,8 @@ table RenderDef {
   /// PNG, TGA). Each texture will be set to the corresponding texture unit
   /// based on its index in the array.
   textures: [string];
+
+  /// Special string used to identify different render components associated
+  /// with a single entity.
+  id: uint = 0 (hashvalue);
 }

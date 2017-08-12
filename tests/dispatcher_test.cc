@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/dispatcher.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/common_types.h"
+#include "lullaby/util/common_types.h"
 
 namespace lull {
 namespace {

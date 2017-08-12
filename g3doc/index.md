@@ -31,7 +31,7 @@ and augmented reality experiences.
 Start with the [Introduction](introduction.md) which provides a high-level
 overview of the Lullaby architecture.
 
-Learn how to [build](building.md) the Lullaby libraries.
+Learn how to [build](building_github.md) the Lullaby open source libraries.
 
 
 The [Integration Guide](integration-guide.md) will provide a step-by-step

@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef VR_INTERNAL_LULLABY_TESTS_PORTABLE_TEST_MACROS_H_
-#define VR_INTERNAL_LULLABY_TESTS_PORTABLE_TEST_MACROS_H_
+#ifndef THIRD_PARTY_LULLABY_TESTS_PORTABLE_TEST_MACROS_H_
+#define THIRD_PARTY_LULLABY_TESTS_PORTABLE_TEST_MACROS_H_
 
 #define PORT_EXPECT_DEATH(expr, msg) EXPECT_DEATH_IF_SUPPORTED(expr, msg)
 
@@ -27,4 +27,4 @@ limitations under the License.
 #define PORT_EXPECT_DEBUG_DEATH(expr, msg) (void) msg; expr
 #endif  // NDEBUG ... else ...
 
-#endif  // VR_INTERNAL_LULLABY_TESTS_PORTABLE_TEST_MACROS_H_
+#endif  // THIRD_PARTY_LULLABY_TESTS_PORTABLE_TEST_MACROS_H_

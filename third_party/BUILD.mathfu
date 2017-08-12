@@ -1,0 +1,32 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "mathfu",
+    hdrs = [
+        "include/mathfu/constants.h",
+        "include/mathfu/glsl_mappings.h",
+        "include/mathfu/internal/disable_warnings_begin.h",
+        "include/mathfu/internal/disable_warnings_end.h",
+        "include/mathfu/internal/matrix_4x4_simd.h",
+        "include/mathfu/internal/vector_2.h",
+        "include/mathfu/internal/vector_2_simd.h",
+        "include/mathfu/internal/vector_3.h",
+        "include/mathfu/internal/vector_3_simd.h",
+        "include/mathfu/internal/vector_4.h",
+        "include/mathfu/internal/vector_4_simd.h",
+        "include/mathfu/io.h",
+        "include/mathfu/matrix.h",
+        "include/mathfu/matrix_4x4.h",
+        "include/mathfu/quaternion.h",
+        "include/mathfu/rect.h",
+        "include/mathfu/utilities.h",
+        "include/mathfu/vector.h",
+    ],
+    features = ["-parse_headers"],
+    includes = ["include"],
+    deps = [
+        "@vectorial//:vectorial",
+    ],
+)

@@ -2,42 +2,52 @@ include "lull/common.fbs";
 
 namespace lull;
 
+/// Data type for boolean values to be stored in a VariantDef.
 table DataBool {
   value: bool;
 }
 
+/// Data type for integer values to be stored in a VariantDef.
 table DataInt {
   value: int;
 }
 
+/// Data type for floating-point values to be stored in a VariantDef.
 table DataFloat {
   value: float;
 }
 
+/// Data type for hash values to be stored in a VariantDef.
 table DataHashValue {
-  value: string;
+  value: uint (hashvalue);
 }
 
+/// Data type for string values to be stored in a VariantDef.
 table DataString {
   value: string;
 }
 
+/// Data type for 2-dimensional vector values to be stored in a VariantDef.
 table DataVec2 {
   value: Vec2 (native_inline);
 }
 
+/// Data type for 3-dimensional vector values to be stored in a VariantDef.
 table DataVec3 {
   value: Vec3 (native_inline);
 }
 
+/// Data type for 4-dimensional vector values to be stored in a VariantDef.
 table DataVec4 {
   value: Vec4 (native_inline);
 }
 
+/// Data type for quaternion values to be stored in a VariantDef.
 table DataQuat {
   value: Quat (native_inline);
 }
 
+/// A variant type that can be converted into a lull::Variant.
 union VariantDef {
   DataBool,
   DataInt,
@@ -50,7 +60,26 @@ union VariantDef {
   DataQuat,
 }
 
+/// Internal table for VariantMapDef that associates a hash-value key with a
+/// variant type.
 table KeyVariantPairDef {
   key: string;
+  hash_key: uint (hashvalue);
   value: VariantDef;
+}
+
+/// Internal table for VariantArrayDef.  Unions need to be wrapped in a table
+/// in order to have an array of them.
+table VariantArrayDefImpl {
+  value: VariantDef;
+}
+
+/// The flatbuffer equivalent for lull::VariantArray.
+table VariantArrayDef {
+  values: [VariantArrayDefImpl];
+}
+
+/// The flatbuffer equivalent for lull::VariantMap.
+table VariantMapDef {
+  values: [KeyVariantPairDef];
 }

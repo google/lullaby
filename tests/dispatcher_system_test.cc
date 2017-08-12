@@ -18,10 +18,10 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "lullaby/modules/script/function_binder.h"
+#include "lullaby/modules/script/function_registry.h"
 #include "lullaby/systems/dispatcher/event.h"
-#include "lullaby/util/function_binder.h"
-#include "lullaby/util/function_registry.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
@@ -668,12 +668,12 @@ TEST_F(DispatcherSystemTest, EventResponseDef_Values) {
   AddVariant<DataIntT>(&output, "int_key", 123);
   AddVariant<DataFloatT>(&output, "float_key", 456.f);
   AddVariant<DataStringT>(&output, "string_key", "hello");
-  AddVariant<DataHashValueT>(&output, "hash_key", "world");
+  AddVariant<DataHashValueT>(&output, "hash_key", Hash("world"));
   AddVariant<DataVec2T>(&output, "vec2_key", mathfu::vec2(1, 2));
   AddVariant<DataVec3T>(&output, "vec3_key", mathfu::vec3(3, 4, 5));
   AddVariant<DataVec4T>(&output, "vec4_key", mathfu::vec4(6, 7, 8, 9));
   AddVariant<DataQuatT>(&output, "quat_key", mathfu::quat(1, 0, 0, 0));
-  AddVariant<DataHashValueT>(&output, "self_key", "$self");
+  AddVariant<DataHashValueT>(&output, "self_key", Hash("$self"));
 
   EventResponseDefT response;
   response.inputs.emplace_back(input);

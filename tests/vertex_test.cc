@@ -17,7 +17,7 @@ limitations under the License.
 #include "gtest/gtest.h"
 
 #include "mathfu/constants.h"
-#include "lullaby/util/vertex.h"
+#include "lullaby/modules/render/vertex.h"
 
 namespace lull {
 namespace {

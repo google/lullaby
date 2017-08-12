@@ -16,14 +16,14 @@ limitations under the License.
 
 #include <deque>
 
-#include "lullaby/systems/transform/transform_system.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
 #include "lullaby/events/entity_events.h"
-#include "lullaby/generated/tests/mathfu_matchers.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/tests/mathfu_matchers.h"
+#include "lullaby/tests/portable_test_macros.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {
@@ -34,6 +34,7 @@ using ::testing::IsNull;
 using ::testing::NotNull;
 using testing::EqualsMathfuVec3;
 using testing::EqualsMathfuQuat;
+using testing::NearMathfuVec3;
 using testing::NearMathfuQuat;
 static const float kEpsilon = 0.001f;
 
@@ -396,6 +397,60 @@ TEST_F(TransformSystemTest, SetInvalidEntity) {
   EXPECT_THAT(mx, IsNull());
   EXPECT_THAT(padding, IsNull());
   EXPECT_THAT(aabb, IsNull());
+}
+
+TEST_F(TransformSystemTest, AddChildPreserveWorldToEntity) {
+  auto* transform_system = registry_.Get<TransformSystem>();
+  const Entity child = 1;
+  const Entity parent_1 = 2;
+  const Entity parent_2 = 3;
+
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(1.f, 2.f, 3.f);
+    transform.rotation = mathfu::vec3(90.f, 0.f, 0.f);
+    transform.scale = mathfu::vec3(2.f, 3.f, 4.f);
+    Blueprint blueprint(&transform);
+    transform_system->CreateComponent(child, blueprint);
+    transform_system->CreateComponent(parent_1, blueprint);
+    transform_system->AddChild(parent_1, child);
+  }
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(1.f, 1.f, 2.f);
+    transform.rotation = mathfu::vec3(0.f, 0.f, 0.f);
+    transform.scale = mathfu::vec3(1.f, 1.f, 2.f);
+    Blueprint blueprint(&transform);
+    transform_system->CreateComponent(parent_2, blueprint);
+  }
+  Sqt sqt =
+      CalculateSqtFromMatrix(transform_system->GetWorldFromEntityMatrix(child));
+  EXPECT_THAT(sqt.translation, NearMathfuVec3({3.f, -10.f, 9.f}, kEpsilon));
+  EXPECT_THAT(sqt.rotation.ToEulerAngles(),
+              NearMathfuVec3(mathfu::vec3(180.f, 0.f, 0.f) * kDegreesToRadians,
+                             kEpsilon));
+  EXPECT_THAT(sqt.scale, NearMathfuVec3({4.f, 12.f, 12.f}, kEpsilon));
+
+  transform_system->AddChild(
+      parent_2, child,
+      TransformSystem::AddChildMode::kPreserveWorldToEntityTransform);
+
+  // Child has not changed world pose.
+  sqt =
+      CalculateSqtFromMatrix(transform_system->GetWorldFromEntityMatrix(child));
+  EXPECT_THAT(sqt.translation, NearMathfuVec3({3.f, -10.f, 9.f}, kEpsilon));
+  EXPECT_THAT(sqt.rotation.ToEulerAngles(),
+              NearMathfuVec3(mathfu::vec3(180.f, 0.f, 0.f) * kDegreesToRadians,
+                             kEpsilon));
+  EXPECT_THAT(sqt.scale, NearMathfuVec3({4.f, 12.f, 12.f}, kEpsilon));
+
+  // Child has new local sqt based on new parent's sqt.
+  sqt = *transform_system->GetSqt(child);
+  EXPECT_THAT(sqt.translation, NearMathfuVec3({2.f, -11.f, 3.5f}, kEpsilon));
+  EXPECT_THAT(sqt.rotation.ToEulerAngles(),
+              NearMathfuVec3(mathfu::vec3(180.f, 0.f, 0.f) * kDegreesToRadians,
+                             kEpsilon));
+  EXPECT_THAT(sqt.scale, NearMathfuVec3({4.f, 12.f, 6.f}, kEpsilon));
 }
 
 TEST_F(TransformSystemTest, GetChildCount) {

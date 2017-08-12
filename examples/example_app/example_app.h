@@ -18,12 +18,12 @@ limitations under the License.
 #define LULLABY_EXAMPLE_APP_EXAMPLE_APP_H_
 
 #include <memory>
-#include "mathfu/glsl_mappings.h"
-#include "lullaby/base/queued_dispatcher.h"
-#include "lullaby/base/registry.h"
+#include "lullaby/modules/dispatcher/queued_dispatcher.h"
+#include "lullaby/modules/render/render_view.h"
 #include "lullaby/util/clock.h"
-#include "lullaby/util/render_view.h"
+#include "lullaby/util/registry.h"
 #include "lullaby/util/span.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 

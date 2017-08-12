@@ -19,15 +19,15 @@ limitations under the License.
 
 #include "ion/base/logchecker.h"
 #include "lullaby/generated/deform_def_generated.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
-#include "lullaby/base/registry.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/systems/deform/deform_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/mathfu_fb_conversions.h"
-#include "lullaby/generated/tests/mathfu_matchers.h"
+#include "lullaby/util/registry.h"
+#include "lullaby/tests/mathfu_matchers.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {

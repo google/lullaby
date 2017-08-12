@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/queued_dispatcher.h"
+#include "lullaby/modules/dispatcher/queued_dispatcher.h"
 #include <string>
 #include <thread>
 #include <vector>

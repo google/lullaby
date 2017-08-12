@@ -129,7 +129,7 @@ enum LayoutVerticalAlignment : int {
 }
 
 /// Potential Input Devices (matches enum in
-/// vr/internal/lullaby/src/base/input_manager.h)
+/// third_party/lullaby/src/lullaby/base/input_manager.h)
 enum DeviceType : int {
   Hmd,
   Mouse,

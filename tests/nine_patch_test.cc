@@ -19,11 +19,11 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "mathfu/constants.h"
 #include "mathfu/glsl_mappings.h"
-#include "lullaby/util/mesh_data.h"
-#include "lullaby/util/nine_patch.h"
-#include "lullaby/util/vertex.h"
-#include "lullaby/generated/tests/mathfu_matchers.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/modules/render/nine_patch.h"
+#include "lullaby/modules/render/vertex.h"
+#include "lullaby/tests/mathfu_matchers.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

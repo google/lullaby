@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef VR_INTERNAL_LULLABY_TESTS_MATHFU_MATCHERS_H_
-#define VR_INTERNAL_LULLABY_TESTS_MATHFU_MATCHERS_H_
+#ifndef THIRD_PARTY_LULLABY_TESTS_MATHFU_MATCHERS_H_
+#define THIRD_PARTY_LULLABY_TESTS_MATHFU_MATCHERS_H_
 
 #include "gmock/gmock.h"
 #include "mathfu/glsl_mappings.h"
@@ -219,4 +219,4 @@ void PrintTo(const ::mathfu::Matrix<T, R, C>& matrix, std::ostream* os) {
 }
 }  // namespace mathfu
 
-#endif  // VR_INTERNAL_LULLABY_TESTS_MATHFU_MATCHERS_H_
+#endif  // THIRD_PARTY_LULLABY_TESTS_MATHFU_MATCHERS_H_

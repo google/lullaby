@@ -1,0 +1,34 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+table PhysicsBoxShape {
+  /// The positive XYZ dimensions of the shape will be mirrored in negative XYZ.
+  half_dimensions: Vec3;
+}
+
+/// A sphere with non-uniform scale will result in an ellipsoid.
+table PhysicsSphereShape {
+  radius: float;
+}
+
+// TODO(b/63892653): add mesh collision shape.
+
+/// Defines the types of primitive shapes that the simulation supports.
+union PhysicsShapePrimitive {
+  PhysicsBoxShape,
+  PhysicsSphereShape,
+}
+
+/// Wraps a primitive collision shape and a transformation to apply to it. The
+/// local transforms are used to offset shapes from the Entity's position.
+table PhysicsShapePart {
+  /// The collision shape.
+  shape: PhysicsShapePrimitive;
+  /// The local translation for this shape's centroid.
+  translation: Vec3 (defaults_to_null);
+  /// The local rotation for this shape's centroid.
+  rotation: Vec3 (defaults_to_null);
+  /// The local scale for this shape.
+  scale: Vec3 (defaults_to_null);
+}

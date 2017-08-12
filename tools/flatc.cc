@@ -125,9 +125,14 @@ std::string CodeGenerator::GetDefaultValue(
   // not the underlying integral value.
   if (type.enum_def && IsScalar(type.base_type)) {
     flatbuffers::EnumDef& enum_def = *type.enum_def;
-    auto* enum_value = enum_def.ReverseLookup(std::stoi(value), false);
+    const int int_value = std::stoi(value);
+    auto* enum_value = enum_def.ReverseLookup(int_value, false);
     if (enum_value) {
       const std::string full_name = enum_def.name + "_" + enum_value->name;
+      return WrapInNameSpace(enum_def.defined_namespace, full_name);
+    } else if (enum_def.attributes.Lookup("bit_flags") != nullptr &&
+               int_value == 0) {
+      const std::string full_name = enum_def.name + "_NONE";
       return WrapInNameSpace(enum_def.defined_namespace, full_name);
     }
   }
@@ -330,6 +335,8 @@ void CodeGenerator::GenerateStructDecl(const flatbuffers::StructDef& def) {
   code_ += "class {{DEF_NAME}} {";
   code_ += " public:";
   code_ += "  using FlatBufferType = {{FB_TYPE}};";
+  code_ += "";
+  code_ += "  {{DEF_NAME}}() {}";
   code_ += "";
   for (const auto& field : def.fields.vec) {
     GenerateStructMember(*field);
@@ -739,8 +746,8 @@ bool CodeGenerator::generate() {
   code_ += "#include <type_traits>";
   code_ += "#include <memory>";
   code_ += "#include \"{{INCLUDE_FILE}}\"";
-  code_ += "#include \"lullaby/base/common_types.h\"";
   code_ += "#include \"lullaby/util/color.h\"";
+  code_ += "#include \"lullaby/util/common_types.h\"";
   code_ += "#include \"lullaby/util/math.h\"";
   code_ += "#include \"lullaby/util/optional.h\"";
   code_ += "#include \"lullaby/util/typeid.h\"";

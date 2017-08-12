@@ -17,11 +17,11 @@ limitations under the License.
 #include "lullaby/systems/layout/layout_box_system.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/asset_loader.h"
-#include "lullaby/base/entity_factory.h"
-#include "lullaby/base/queued_dispatcher.h"
+#include "lullaby/modules/dispatcher/queued_dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/file/asset_loader.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/generated/tests/mathfu_matchers.h"
+#include "lullaby/tests/mathfu_matchers.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {

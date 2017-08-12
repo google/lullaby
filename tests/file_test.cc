@@ -16,7 +16,7 @@ limitations under the License.
 
 #include "gtest/gtest.h"
 
-#include "lullaby/util/file.h"
+#include "lullaby/modules/file/file.h"
 
 namespace lull {
 namespace {
@@ -28,11 +28,9 @@ TEST(File, EndsWith) {
 }
 
 TEST(File, GetBasenameFromFilename) {
-#ifdef COMPILER_MSVC
   EXPECT_EQ(GetBasenameFromFilename("foo\\bar\\test.ttf"), "test.ttf");
   EXPECT_EQ(GetBasenameFromFilename("\\foo\\bar\\test.ttf"), "test.ttf");
   EXPECT_EQ(GetBasenameFromFilename("foo\\test"), "test");
-#endif
   EXPECT_EQ(GetBasenameFromFilename("foo/bar/test.ttf"), "test.ttf");
   EXPECT_EQ(GetBasenameFromFilename("/foo/bar/test.ttf"), "test.ttf");
   EXPECT_EQ(GetBasenameFromFilename("foo/test"), "test");
@@ -48,6 +46,26 @@ TEST(File, GetExtensionFromFilename) {
   EXPECT_EQ(GetExtensionFromFilename("foo/test."), ".");
   EXPECT_EQ(GetExtensionFromFilename("foo/test"), "");
   EXPECT_EQ(GetExtensionFromFilename("Not A Path"), "");
+}
+
+TEST(File, RemoveExtensionFromFilename) {
+  EXPECT_EQ(RemoveExtensionFromFilename("foo/bar/test.ttf"), "foo/bar/test");
+  EXPECT_EQ(RemoveExtensionFromFilename("/foo/bar/test.mpeg"), "/foo/bar/test");
+  EXPECT_EQ(RemoveExtensionFromFilename("test.fplmesh"), "test");
+  EXPECT_EQ(RemoveExtensionFromFilename("foo/bar/text.temp.0.txt"),
+            "foo/bar/text.temp.0");
+  EXPECT_EQ(RemoveExtensionFromFilename("foo/test."), "foo/test");
+  EXPECT_EQ(RemoveExtensionFromFilename("foo/test"), "foo/test");
+}
+
+TEST(File, GetDirectoryFromFilename) {
+  EXPECT_EQ(GetDirectoryFromFilename("foo/bar/test.ttf"), "foo/bar");
+  EXPECT_EQ(GetDirectoryFromFilename("/foo/bar/test.mpeg"), "/foo/bar");
+  EXPECT_EQ(GetDirectoryFromFilename("test.fplmesh"), "");
+  EXPECT_EQ(GetDirectoryFromFilename("foo/bar/text.temp.0.txt"), "foo/bar");
+  EXPECT_EQ(GetDirectoryFromFilename("foo/test."), "foo");
+  EXPECT_EQ(GetDirectoryFromFilename("foo/test"), "foo");
+  EXPECT_EQ(GetDirectoryFromFilename("Not A Path"), "");
 }
 
 }  // namespace

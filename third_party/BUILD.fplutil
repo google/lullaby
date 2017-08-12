@@ -1,0 +1,25 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "fplutil",
+    srcs = [
+        "libfplutil/src/android_utils.cpp",
+        "libfplutil/src/file_utils.cpp",
+        "libfplutil/src/print_cxx.cc",
+        "libfplutil/src/string_utils.cpp",
+    ],
+    hdrs = [
+        "libfplutil/include/fplutil/android_utils.h",
+        "libfplutil/include/fplutil/file_utils.h",
+        "libfplutil/include/fplutil/index_allocator.h",
+        "libfplutil/include/fplutil/intrusive_list.h",
+        "libfplutil/include/fplutil/mutex.h",
+        "libfplutil/include/fplutil/print.h",
+        "libfplutil/include/fplutil/string_utils.h",
+        "libfplutil/include/fplutil/version.h",
+    ],
+    features = ["-parse_headers"],
+    includes = ["libfplutil/include"],
+)

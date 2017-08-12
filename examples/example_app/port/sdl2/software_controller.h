@@ -18,7 +18,7 @@ limitations under the License.
 #define LULLABY_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_
 
 #include "mathfu/glsl_mappings.h"
-#include "lullaby/base/registry.h"
+#include "lullaby/util/registry.h"
 
 namespace lull {
 

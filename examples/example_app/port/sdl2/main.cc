@@ -19,9 +19,9 @@ limitations under the License.
 #include "ion/base/logging.h"
 #include "fplbase/utilities.h"
 #include ""
-#include "lullaby/generated/examples/example_app/example_app.h"
-#include "lullaby/generated/examples/example_app/port/sdl2/software_controller.h"
-#include "lullaby/generated/examples/example_app/port/sdl2/software_hmd.h"
+#include "lullaby/examples/example_app/example_app.h"
+#include "lullaby/examples/example_app/port/sdl2/software_controller.h"
+#include "lullaby/examples/example_app/port/sdl2/software_hmd.h"
 
 namespace lull {
 

@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/variant.h"
+#include "lullaby/util/variant.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/serialize.h"
-#include "lullaby/base/variant_serializer.h"
+#include "lullaby/modules/serialize/serialize.h"
+#include "lullaby/modules/serialize/variant_serializer.h"
 #include "lullaby/util/logging.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

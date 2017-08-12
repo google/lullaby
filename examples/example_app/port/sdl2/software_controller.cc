@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/generated/examples/example_app/port/sdl2/software_controller.h"
+#include "lullaby/examples/example_app/port/sdl2/software_controller.h"
 
-#include "lullaby/base/input_manager.h"
+#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/math.h"
 
 namespace lull {

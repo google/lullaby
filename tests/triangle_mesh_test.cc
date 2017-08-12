@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/util/triangle_mesh.h"
+#include "lullaby/modules/render/triangle_mesh.h"
 #include "gtest/gtest.h"
 #include "lullaby/util/math.h"
 

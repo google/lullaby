@@ -20,7 +20,7 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/generated/tests/portable_test_macros.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
 

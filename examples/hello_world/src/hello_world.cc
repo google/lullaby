@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/generated/examples/hello_world/src/hello_world.h"
+#include "lullaby/examples/hello_world/hello_world.h"
 
-#include "lullaby/generated/examples/hello_world/entity_generated.h"
-#include "lullaby/base/entity_factory.h"
+#include "lullaby/examples/hello_world/entity_generated.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/text/text_system.h"
 #include "lullaby/systems/transform/transform_system.h"

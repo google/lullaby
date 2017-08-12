@@ -5,6 +5,7 @@ namespace lull;
 /// The language of the script.
 enum Language : int {
   Unknown,
+  LullScript,
   Lua5_2,
   JavaScript,
 }

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Tests for the TypedScheduleProcessor.
-#include "lullaby/base/typed_scheduled_processor.h"
+#include "lullaby/util/typed_scheduled_processor.h"
 
 #include "gtest/gtest.h"
 

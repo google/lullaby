@@ -18,8 +18,8 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
+#include "lullaby/modues/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"

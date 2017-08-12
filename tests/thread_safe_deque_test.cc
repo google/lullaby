@@ -20,7 +20,7 @@ limitations under the License.
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "lullaby/base/thread_safe_deque.h"
+#include "lullaby/util/thread_safe_deque.h"
 
 namespace lull {
 namespace {

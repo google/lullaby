@@ -17,12 +17,12 @@ limitations under the License.
 #include "lullaby/systems/text/text_system.h"
 
 #include "gtest/gtest.h"
-#include "lullaby/base/dispatcher.h"
-#include "lullaby/base/entity_factory.h"
-#include "lullaby/base/registry.h"
+#include "lullaby/modules/dispathcer/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/registry.h"
 #include "lullaby/generated/text_def_generated.h"
 #include "lullaby/generated/transform_def_generated.h"
 

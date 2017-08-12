@@ -17,7 +17,7 @@ limitations under the License.
 #include <chrono>
 
 #include "gtest/gtest.h"
-#include "lullaby/base/resource_manager.h"
+#include "lullaby/util/resource_manager.h"
 
 namespace lull {
 namespace {
@@ -116,6 +116,21 @@ TEST(ResourceManagerTest, RecreateAlive) {
 
   auto res2 = manager.Find(123);
   EXPECT_EQ(res, res2);
+}
+
+TEST(ResourceManagerTest, TrackNewInstances) {
+  constexpr HashValue key = 123;
+  ResourceManager<TestResource> manager;
+
+  for (int i = 0; i < 10; ++i) {
+    auto obj = manager.Create(
+        key, []() { return std::shared_ptr<TestResource>(new TestResource); });
+    EXPECT_EQ(manager.Find(key), obj);
+    manager.Release(key);
+    EXPECT_EQ(manager.Find(key), obj);
+    obj.reset();
+    EXPECT_EQ(manager.Find(key), nullptr);
+  }
 }
 
 }  // namespace

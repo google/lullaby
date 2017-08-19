@@ -164,10 +164,10 @@ TexturePtr RenderFactory::CreateTextureFromMemory(const void* data,
 }
 
 
-
 TexturePtr RenderFactory::CreateProcessedTexture(
     const TexturePtr& texture, bool create_mips,
-    RenderSystem::TextureProcessor processor) {
+    const RenderSystem::TextureProcessor& processor,
+    const mathfu::vec2i& output_dimensions) {
   LULLABY_CPU_TRACE_CALL();
 
   if (!texture) {
@@ -181,9 +181,9 @@ TexturePtr RenderFactory::CreateProcessedTexture(
   GL_CALL(glGenFramebuffers(1, &framebuffer_id));
   GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id));
 
-  // Make an empty FPL texture for the render target, of same dimensions as
-  // the input texture.
-  auto size = texture->GetDimensions();
+  // Make an empty FPL texture for the render target, sized to the specified
+  // dimensions.
+  mathfu::vec2i size = output_dimensions;
   bool target_is_subtexture = false;
   float texture_u_bound = 1.f;
   float texture_v_bound = 1.f;
@@ -269,6 +269,13 @@ TexturePtr RenderFactory::CreateProcessedTexture(
   GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, current_framebuffer_id));
 
   return out_ptr;
+}
+
+TexturePtr RenderFactory::CreateProcessedTexture(
+    const TexturePtr& source_texture, bool create_mips,
+    const RenderSystem::TextureProcessor& processor) {
+  auto size = source_texture->GetDimensions();
+  return CreateProcessedTexture(source_texture, create_mips, processor, size);
 }
 
 TexturePtr RenderFactory::CreateTexture(uint32_t texture_target,

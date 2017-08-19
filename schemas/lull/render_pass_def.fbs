@@ -1,0 +1,44 @@
+include "lull/common.fbs";
+include "lull/render_state_def.fbs";
+
+namespace lull;
+
+// Sort modes used to order objects inside a render pass for rendering.
+enum SortMode : ushort {
+  // Do not sort.
+  None,
+  // Hierarchical based sort order derived from the scene graph and explicit
+  /// sort values.
+  SortOrderDecreasing,
+  SortOrderIncreasing,
+  // Sort based only on Z-position of the entity.  Used for simple UIs.
+  WorldSpaceZBackToFront,
+  WorldSpaceZFrontToBack,
+  // Average space: eye space of the camera calculated by averaging the
+  // cameras of each of the known views.  Sorting in average space is only
+  // performed once, ie it's not done for every view.
+  AverageSpaceOriginBackToFront,
+  AverageSpaceOriginFrontToBack,
+  // Sort in an optimal way for rendering to reduce overhead (reduce state
+  // changes and resource swaps).
+  Optimized,
+}
+
+// Properties of a render pass object. Render passes contain entities to be
+// renderered.
+table RenderPassDef {
+  // Name of the render pass.
+  name: string;
+
+  // Default render state to be used when materials do not define an explicit
+  // state.
+  render_state: RenderState;
+
+  // Sort mode to be used for determining the order in which to render objects
+  // contained within this pass.
+  sort_mode: SortMode = None;
+
+  // Name of render target to be used when rendering this pass. Not specifying a
+  // target will draw directly to the display.
+  render_target_ref: string;
+}

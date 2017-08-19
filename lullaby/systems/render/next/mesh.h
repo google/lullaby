@@ -17,14 +17,14 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_MESH_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_MESH_H_
 
-#include <memory>
 #include "fplbase/mesh.h"
 #include "fplbase/renderer.h"
-#include "lullaby/generated/render_def_generated.h"
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/triangle_mesh.h"
+#include "lullaby/systems/render/mesh.h"
 #include "lullaby/util/math.h"
+#include "lullaby/generated/render_def_generated.h"
 
 namespace lull {
 
@@ -99,8 +99,6 @@ class Mesh {
   MeshImplPtr impl_;
   int num_triangles_;
 };
-
-typedef std::shared_ptr<Mesh> MeshPtr;
 
 }  // namespace lull
 

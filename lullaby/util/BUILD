@@ -310,6 +310,20 @@ cc_library(
 )
 
 cc_library(
+    name = "selector",
+    srcs = [
+    ],
+    hdrs = [
+        "selector.h",
+    ],
+    deps = [
+        ":optional",
+        ":span",
+        ":variant",
+    ],
+)
+
+cc_library(
     name = "span",
     hdrs = [
         "span.h",
@@ -418,6 +432,18 @@ cc_library(
     ],
     deps = [
         ":hash",
+    ],
+)
+
+cc_library(
+    name = "type_name_generator",
+    hdrs = [
+        "type_name_generator.h",
+    ],
+    deps = [
+        ":common_types",
+        ":type_util",
+        ":typeid",
     ],
 )
 

@@ -136,7 +136,7 @@ class Archiver {
 
   // If |Value| has a Serialize member function, defer the serialization to it.
   template <typename Value>
-  typename std::enable_if<IsSerializable<Value>::value, void>::type operator()(
+  typename std::enable_if<IsSerializable<Value>::kValue, void>::type operator()(
       Value* value, HashValue key) {
     Begin(key);
     value->Serialize(*this);
@@ -146,8 +146,8 @@ class Archiver {
   // If |Value| does not have a Serialize function, allow the Serializer to
   // process the object directly.
   template <typename Value>
-  typename std::enable_if<!IsSerializable<Value>::value, void>::type operator()(
-      Value* value, HashValue key) {
+  typename std::enable_if<!IsSerializable<Value>::kValue, void>::type
+  operator()(Value* value, HashValue key) {
     (*serializer_)(value, key);
   }
 
@@ -159,7 +159,7 @@ class Archiver {
   // If |Serializer| has a Begin(HashValue) function, call it before a new
   // serializable Value type is being serialized.
   template <typename U = Serializer>
-  typename std::enable_if<IsScopedSerializer<U>::value, void>::type Begin(
+  typename std::enable_if<IsScopedSerializer<U>::kValue, void>::type Begin(
       HashValue key) {
     serializer_->Begin(key);
   }
@@ -167,20 +167,20 @@ class Archiver {
   // If |Serializer| has a Begin(HashValue) function, call End() after a
   // serializable Value type has been serialized.
   template <typename U = Serializer>
-  typename std::enable_if<IsScopedSerializer<U>::value, void>::type End() {
+  typename std::enable_if<IsScopedSerializer<U>::kValue, void>::type End() {
     serializer_->End();
   }
 
   // If |Serializer| does not have a Begin(HashValue) function, do nothing
   // before a new serializable Value type is being serialized.
   template <typename U = Serializer>
-  typename std::enable_if<!IsScopedSerializer<U>::value, void>::type Begin(
+  typename std::enable_if<!IsScopedSerializer<U>::kValue, void>::type Begin(
       HashValue key) {}
 
   // If |Serializer| does not have a Begin(HashValue) function, call End() after
   // a serializable Value type has been serialized.
   template <typename U = Serializer>
-  typename std::enable_if<!IsScopedSerializer<U>::value, void>::type End() {}
+  typename std::enable_if<!IsScopedSerializer<U>::kValue, void>::type End() {}
 
   Serializer* serializer_;  // The wrapped Serializer instance.
 };

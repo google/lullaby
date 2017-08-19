@@ -1,4 +1,3 @@
-
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -15,7 +14,10 @@ cc_library(
         "motive_generated.h",
         "spline_anim_generated.h",
     ],
-    includes = [".", ".."],
+    includes = [
+        ".",
+        "..",
+    ],
     deps = [
         "@flatbuffers//:flatbuffers",
     ],

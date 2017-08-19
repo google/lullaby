@@ -29,7 +29,7 @@ namespace detail {
 template <typename T>
 struct IsSerializeFundamental {
   using U = typename std::remove_cv<T>::type;
-  static const bool value =
+  static const bool kValue =
       std::is_same<U, bool>::value || std::is_same<U, int8_t>::value ||
       std::is_same<U, uint8_t>::value || std::is_same<U, int16_t>::value ||
       std::is_same<U, uint16_t>::value || std::is_same<U, int32_t>::value ||
@@ -69,7 +69,7 @@ class IsSerializable {
  public:
   // The boolean value exposed by this class is the same as the value of the
   // return type of the static Helper function.
-  static const bool value = decltype(Helper<T>(nullptr))::value;
+  static const bool kValue = decltype(Helper<T>(nullptr))::value;
 };
 
 // Determines if |Serializer| has a member function with the signature:
@@ -96,7 +96,7 @@ class IsScopedSerializer {
  public:
   // The boolean value exposed by this class is the same as the value of the
   // return type of the static Helper function.
-  static const bool value = decltype(Helper<Serializer>(nullptr))::value;
+  static const bool kValue = decltype(Helper<Serializer>(nullptr))::value;
 };
 
 }  // namespace detail

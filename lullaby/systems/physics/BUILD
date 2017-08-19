@@ -24,6 +24,7 @@ cc_library(
         "//lullaby/modules/flatbuffers",
         "//lullaby/systems/dispatcher",
         "//lullaby/systems/transform",
+        "//lullaby/util:bits",
         "//lullaby/util:clock",
         "//lullaby/util:logging",
         "//lullaby/util:make_unique",

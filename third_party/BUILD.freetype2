@@ -1,0 +1,21 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "freetype",
+    hdrs = glob([
+        "freetype-2.6.1/src/**/*.h",
+        "freetype-2.6.1/builds/unix/*.h",
+        "freetype-2.6.1/include/freetype/internal/**/*.h",
+        "freetype-2.6.1/include/freetype/*.h",
+        "freetype-2.6.1/include/freetype/config/*.h",
+        "freetype-2.6.1/include/ft2build.h",
+    ]),
+    includes = [
+        "freetype-2.6.1/include",
+    ],
+    deps = [
+        "@zlib//:zlib",
+    ],
+)

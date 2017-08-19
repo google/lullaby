@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_
-#define LULLABY_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_
+#ifndef LULLABY_EXAMPLES_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_
+#define LULLABY_EXAMPLES_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_
 
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/util/registry.h"
@@ -48,4 +48,4 @@ class SoftwareController {
 
 }  // namespace lull
 
-#endif  // LULLABY_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_
+#endif  // LULLABY_EXAMPLES_EXAMPLE_APP_PORT_SDL2_SOFTWARE_CONTROLLER_H_

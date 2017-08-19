@@ -230,7 +230,7 @@ EventWrapper::EventWrapper(const Event& event)
       data_(nullptr),
       handler_(&Handler<Event>),
       owned_(kDoNotOwn),
-      serializable_(detail::IsSerializable<Event, SaveToVariant>::value) {
+      serializable_(detail::IsSerializable<Event, SaveToVariant>::kValue) {
   assert(ptr_ != nullptr);
 #if LULLABY_TRACK_EVENT_NAMES
   name_ = GetTypeName<Event>();

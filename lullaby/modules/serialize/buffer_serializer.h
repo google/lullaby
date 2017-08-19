@@ -40,7 +40,7 @@ class SaveToBuffer {
   // Saves types like ints, floats, bools, etc.) to the buffer by directly
   // copying them.
   template <typename T>
-  typename std::enable_if<detail::IsSerializeFundamental<T>::value, void>::type
+  typename std::enable_if<detail::IsSerializeFundamental<T>::kValue, void>::type
   operator()(const T* ptr, lull::HashValue key) {
     Save(ptr, sizeof(T));
   }
@@ -118,7 +118,7 @@ class LoadFromBuffer {
   // Loads types like ints, floats, bools, etc.) from the buffer by directly
   // copying them.
   template <typename T>
-  typename std::enable_if<detail::IsSerializeFundamental<T>::value, void>::type
+  typename std::enable_if<detail::IsSerializeFundamental<T>::kValue, void>::type
   operator()(T* ptr, lull::HashValue key) {
     Load(ptr, sizeof(T));
   }

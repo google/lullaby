@@ -76,8 +76,8 @@ ScriptEnv::ScriptEnv() {
   Register("make-map", NativeFunction{&lull::CreateMap});
 }
 
-void ScriptEnv::SetFunctionRegistry(FunctionRegistry* registry) {
-  registry_ = registry;
+void ScriptEnv::SetFunctionCallHandler(FunctionCall::Handler handler) {
+  call_handler_ = std::move(handler);
 }
 
 void ScriptEnv::SetPrintFunction(PrintFn fn) {
@@ -183,18 +183,18 @@ ScriptValue ScriptEnv::CallInternal(ScriptValue fn, const ScriptValue& args) {
       result = ExecuteBody(macro->body);
     }
   } else if (const Symbol* symbol = fn.Get<Symbol>()) {
-    result = CallRegistryFunction(symbol->value, args);
+    result = InvokeFunctionCall(symbol->value, args);
   } else {
     Error("Expected callable type.", fn);
   }
   return result;
 }
 
-ScriptValue ScriptEnv::CallRegistryFunction(HashValue id,
-                                            const ScriptValue& args) {
+ScriptValue ScriptEnv::InvokeFunctionCall(HashValue id,
+                                          const ScriptValue& args) {
   ScriptValue result;
-  if (registry_ && registry_->IsFunctionRegistered(id)) {
-    FunctionCall call(id, "");
+  if (call_handler_) {
+    FunctionCall call(id);
 
     ScriptArgList arg_list(this, args);
     while (arg_list.HasNext()) {
@@ -206,8 +206,10 @@ ScriptValue ScriptEnv::CallRegistryFunction(HashValue id,
       }
     }
 
+    call_handler_(&call);
+
     result = ScriptValue::Create(0);
-    result.SetFromVariant(registry_->Call(call));
+    result.SetFromVariant(call.GetReturnValue());
   }
   return result;
 }

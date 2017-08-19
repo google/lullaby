@@ -274,8 +274,8 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
     const mathfu::mat4* target_mat =
         transform_system->GetWorldFromEntityMatrix(reticle_->locked_target);
     if (target_mat) {
-      mathfu::vec3 target_position = target_mat->TranslationVector3D();
-      reticle_position = target_position + reticle_->lock_offset;
+      mathfu::vec3 target_position = *target_mat * reticle_->lock_offset;
+      reticle_position = target_position;
     } else {
       LOG(DFATAL) << "Reticle is locked on to an entity that has no transform.";
     }

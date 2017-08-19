@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_SCRIPT_LULL_SCRIPT_ENV_H_
-#define LULLABY_MODULES_SCRIPT_LULL_SCRIPT_ENV_H_
+#ifndef LULLABY_SCRIPT_LULL_SCRIPT_ENV_H_
+#define LULLABY_SCRIPT_LULL_SCRIPT_ENV_H_
 
 #include <stdint.h>
 #include <cstddef>
-#include "lullaby/modules/script/function_registry.h"
+#include "lullaby/modules/function/function_call.h"
 #include "lullaby/modules/script/lull/script_scoped_symbol_table.h"
 #include "lullaby/modules/script/lull/script_types.h"
 #include "lullaby/modules/script/lull/script_value.h"
@@ -48,9 +48,9 @@ class ScriptEnv {
 
   ScriptEnv();
 
-  // Sets the function registry which allows scripts to call functions in the
-  // function registry directly.
-  void SetFunctionRegistry(FunctionRegistry* registry);
+  // Sets the handler which allows scripts to call functions registered
+  // externally via a FunctionCall object.
+  void SetFunctionCallHandler(FunctionCall::Handler handler);
 
   // Sets the function to use for print commands.
   void SetPrintFunction(PrintFn fn);
@@ -120,14 +120,14 @@ class ScriptEnv {
 
   ScriptValue CallInternal(ScriptValue fn, const ScriptValue& args);
 
-  ScriptValue CallRegistryFunction(HashValue id, const ScriptValue& args);
+  ScriptValue InvokeFunctionCall(HashValue id, const ScriptValue& args);
 
   bool AssignArgs(ScriptValue params, ScriptValue args, bool eval);
   ScriptValue ExecuteBody(const ScriptValue& body);
 
   ScriptScopedSymbolTable table_;
-  FunctionRegistry* registry_ = nullptr;
   PrintFn print_fn_ = nullptr;
+  FunctionCall::Handler call_handler_ = nullptr;
 
   ScriptEnv(const ScriptEnv& rhs);
   ScriptEnv& operator=(const ScriptEnv& rhs);
@@ -152,4 +152,4 @@ ScriptValue ScriptEnv::Create(T&& value) {
 }
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_SCRIPT_LULL_SCRIPT_ENV_H_
+#endif  // LULLABY_SCRIPT_LULL_SCRIPT_ENV_H_

@@ -1,0 +1,25 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libunibreak",
+    srcs = [
+        "src/linebreak.c",
+        "src/linebreakdata.c",
+        "src/linebreakdef.c",
+        "src/unibreakbase.c",
+        "src/unibreakdef.c",
+        "src/wordbreak.c",
+    ],
+    hdrs = [
+        "src/linebreak.h",
+        "src/linebreakdef.h",
+        "src/unibreakbase.h",
+        "src/unibreakdef.h",
+        "src/wordbreak.h",
+        "src/wordbreakdata.c",
+        "src/wordbreakdef.h",
+    ],
+    includes = ["src"],
+)

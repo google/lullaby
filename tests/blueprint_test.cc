@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/blueprint.h"
+#include "lullaby/modules/ecs/blueprint.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/datastore_def_generated.h"

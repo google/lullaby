@@ -18,13 +18,37 @@ limitations under the License.
 #define LULLABY_UTIL_DETAIL_TYPE_UTIL_H_
 
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "lullaby/util/optional.h"
 
 namespace lull {
+
+class EventWrapper;
+
 namespace detail {
+
+template <typename T>
+struct IsString {
+  static constexpr bool kValue = false;
+};
+
+template <>
+struct IsString<std::string> {
+  static constexpr bool kValue = true;
+};
+
+template <typename T>
+struct IsEventWrapper {
+  static constexpr bool kValue = false;
+};
+
+template <>
+struct IsEventWrapper<EventWrapper> {
+  static constexpr bool kValue = true;
+};
 
 template <typename T>
 struct IsVector {

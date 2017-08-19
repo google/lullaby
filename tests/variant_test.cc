@@ -92,11 +92,15 @@ TEST(Variant, Basics) {
   EXPECT_FALSE(var.Empty());
   EXPECT_EQ(1, *var.Get<int>());
   EXPECT_EQ(nullptr, var.Get<float>());
+  EXPECT_EQ(1, var.ValueOr(0));
+  EXPECT_EQ(0.f, var.ValueOr(0.f));
 
   var = 2.f;
   EXPECT_FALSE(var.Empty());
   EXPECT_EQ(nullptr, var.Get<int>());
   EXPECT_EQ(2.f, *var.Get<float>());
+  EXPECT_EQ(0, var.ValueOr(0));
+  EXPECT_EQ(2.f, var.ValueOr(0.f));
 
   var.Clear();
   EXPECT_TRUE(var.Empty());

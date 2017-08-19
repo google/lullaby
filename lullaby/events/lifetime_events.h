@@ -58,4 +58,3 @@ LULLABY_SETUP_TYPEID(lull::OnResumeEvent);
 LULLABY_SETUP_TYPEID(lull::OnQuitRequestEvent);
 
 #endif  // LULLABY_EVENTS_LIFETIME_EVENTS_H_
-

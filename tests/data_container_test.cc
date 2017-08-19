@@ -16,8 +16,8 @@ limitations under the License.
 
 #include "gtest/gtest.h"
 
+#include "lullaby/modules/render/vertex.h"
 #include "lullaby/util/data_container.h"
-#include "lullaby/util/vertex.h"
 #include "lullaby/tests/portable_test_macros.h"
 #include "lullaby/tests/test_data_container.h"
 

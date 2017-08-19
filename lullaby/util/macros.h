@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_UTIL_MACROS_H_
 #define LULLABY_UTIL_MACROS_H_
 
-// This is a fork of the CLANG_WARN_UNUSED_RESULT macro from base/macros.h for
+// This is a fork of the CLANG_WARN_UNUSED_RESULT macro from util/macros.h for
 // use in lullaby (which doesn't have a //base dependency).
 #if defined(__clang__)
 # if defined(LANG_CXX11) && __has_feature(cxx_attributes)

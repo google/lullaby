@@ -34,6 +34,8 @@ namespace lull {
 template <typename T>
 class Optional {
  public:
+  using ValueType = T;
+
   // Default constructor, no value set.
   Optional() : set_(false) {}
 
@@ -211,10 +213,10 @@ class Optional {
     kSize = sizeof(T),
     kAlign = alignof(T),
   };
-  using ValueType = typename std::aligned_storage<kSize, kAlign>::type;
+  using StorageType = typename std::aligned_storage<kSize, kAlign>::type;
 
-  ValueType value_;  // Memory buffer for value that can be set.
-  bool set_;         // Indicates whether the value is set or not.
+  StorageType value_;  // Memory buffer for value that can be set.
+  bool set_;           // Indicates whether the value is set or not.
 };
 
 }  // namespace lull

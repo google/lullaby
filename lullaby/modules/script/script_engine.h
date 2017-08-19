@@ -54,8 +54,11 @@ class ScriptId {
 // engines.
 class ScriptEngine {
  public:
-  explicit ScriptEngine(Registry* registry)
-      : registry_(registry), lull_engine_(registry) {}
+  explicit ScriptEngine(Registry* registry);
+
+  // Sets the function that will allow LullScript to invoke native functions via
+  // a FunctionCall object.
+  void SetFunctionCallHandler(FunctionCall::Handler handler);
 
   // Loads a script from a file, and infer the language from the filename.
   ScriptId LoadScript(const std::string& filename);
@@ -111,7 +114,6 @@ class ScriptEngine {
 template <typename Fn>
 void ScriptEngine::RegisterFunction(const std::string& name,
                                     const Fn& function) {
-  lull_engine_.RegisterFunction(name, function);
 #ifdef LULLABY_SCRIPT_LUA
   lua_engine_.RegisterFunction(name, function);
 #endif

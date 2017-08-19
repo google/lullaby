@@ -1,0 +1,85 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "Bullet3Common",
+    srcs = glob([
+        "src/Bullet3Common/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "src/Bullet3Common/**/*.h",
+    ]),
+    includes = ["src"],
+)
+
+cc_library(
+    name = "LinearMath",
+    srcs = glob([
+        "src/LinearMath/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "src/LinearMath/**/*.h",
+    ]),
+    includes = ["src"],
+)
+
+cc_library(
+    name = "BulletCollision",
+    srcs = glob([
+        "src/BulletCollision/**/*.cpp",
+    ]),
+    hdrs = [
+        "src/btBulletCollisionCommon.h",
+    ] + glob([
+        "src/BulletCollision/**/*.h",
+    ]),
+    includes = ["src"],
+    deps = [":LinearMath"],
+)
+
+cc_library(
+    name = "BulletDynamics",
+    srcs = glob([
+        "src/BulletDynamics/**/*.cpp",
+    ]),
+    hdrs = [
+        "src/btBulletDynamicsCommon.h",
+    ] + glob([
+        "src/BulletDynamics/**/*.h",
+    ]),
+    includes = ["src"],
+    deps = [":BulletCollision"],
+)
+
+cc_library(
+    name = "BulletSoftBody",
+    srcs = glob([
+        "src/BulletSoftBody/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "src/BulletSoftBody/**/*.h",
+    ]),
+    includes = ["src"],
+    deps = [
+        ":BulletCollision",
+        ":BulletDynamics",
+        ":LinearMath",
+    ],
+)
+
+cc_library(
+    name = "BulletInverseDynamics",
+    srcs = glob([
+        "src/BulletInverseDynamics/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "src/BulletInverseDynamics/**/*.h",
+        "src/BulletInverseDynamics/**/*.hpp",
+    ]),
+    includes = ["src"],
+    deps = [
+        ":BulletDynamics",
+        ":LinearMath",
+    ],
+)

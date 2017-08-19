@@ -119,6 +119,10 @@ void RenderSystem::LoadTextureAtlas(const std::string& filename) {
   impl_->LoadTextureAtlas(filename);
 }
 
+MeshPtr RenderSystem::LoadMesh(const std::string& filename) {
+  return impl_->LoadMesh(filename);
+}
+
 
 ShaderPtr RenderSystem::LoadShader(const std::string& filename) {
   return impl_->LoadShader(filename);
@@ -130,11 +134,19 @@ void RenderSystem::Create(Entity e, HashValue type, const Def* def) {
 
 void RenderSystem::Create(Entity e, RenderPass pass) { impl_->Create(e, pass); }
 
+void RenderSystem::Create(Entity e, HashValue component_id, RenderPass pass) {
+  impl_->Create(e, component_id, pass);
+}
+
 void RenderSystem::PostCreateInit(Entity e, HashValue type, const Def* def) {
   impl_->PostCreateInit(e, type, def);
 }
 
 void RenderSystem::Destroy(Entity e) { impl_->Destroy(e); }
+
+void RenderSystem::Destroy(Entity e, HashValue component_id) {
+  impl_->Destroy(e, component_id);
+}
 
 void RenderSystem::ProcessTasks() { impl_->ProcessTasks(); }
 
@@ -168,6 +180,18 @@ void RenderSystem::SetUniform(Entity e, const char* name, const float* data,
 void RenderSystem::SetUniform(Entity e, const char* name, const float* data,
                               int dimension, int count) {
   impl_->SetUniform(e, name, data, dimension, count);
+}
+
+void RenderSystem::SetUniform(Entity e, HashValue component_id,
+                              const char* name, const float* data,
+                              int dimension, int count) {
+  impl_->SetUniform(e, component_id, name, data, dimension, count);
+}
+
+bool RenderSystem::GetUniform(Entity e, HashValue component_id,
+                              const char* name, size_t length,
+                              float* data_out) const {
+  return impl_->GetUniform(e, component_id, name, length, data_out);
 }
 
 bool RenderSystem::GetUniform(Entity e, const char* name, size_t length,
@@ -211,6 +235,16 @@ void RenderSystem::SetTexture(Entity e, int unit, const TexturePtr& texture) {
   impl_->SetTexture(e, unit, texture);
 }
 
+void RenderSystem::SetTexture(Entity e, HashValue component_id, int unit,
+                              const TexturePtr& texture) {
+  // Texture unit is an int, but must be positive and below the number of
+  // samplers. Currently we aren't checking how many samplers are available,
+  // therefore we at best ensure the value is below 256.
+  DCHECK_GE(unit, 0);
+  DCHECK_LE(unit, 255);
+  impl_->SetTexture(e, component_id, unit, texture);
+}
+
 void RenderSystem::SetTexture(Entity e, int unit, const std::string& file) {
 // Texture unit is an int, but must be positive and below the number of
   // samplers. Currently we aren't checking how many samplers are available,
@@ -218,6 +252,16 @@ void RenderSystem::SetTexture(Entity e, int unit, const std::string& file) {
   DCHECK_GE(unit, 0);
   DCHECK_LE(unit, 255);
   SetTexture(e, unit, LoadTexture(file));
+}
+
+void RenderSystem::SetTextureId(Entity e, HashValue component_id, int unit,
+                                uint32_t texture_target, uint32_t texture_id) {
+  // Texture unit is an int, but must be positive and below the number of
+  // samplers. Currently we aren't checking how many samplers are available,
+  // therefore we at best ensure the value is below 256.
+  DCHECK_GE(unit, 0);
+  DCHECK_LE(unit, 255);
+  impl_->SetTextureId(e, component_id, unit, texture_target, texture_id);
 }
 
 void RenderSystem::SetTextureId(Entity e, int unit, uint32_t texture_target,
@@ -234,6 +278,13 @@ TexturePtr RenderSystem::CreateProcessedTexture(
     const TexturePtr& source_texture, bool create_mips,
     TextureProcessor processor) {
   return impl_->CreateProcessedTexture(source_texture, create_mips, processor);
+}
+
+TexturePtr RenderSystem::CreateProcessedTexture(
+    const TexturePtr& source_texture, bool create_mips,
+    TextureProcessor processor, const mathfu::vec2i& output_dimensions) {
+  return impl_->CreateProcessedTexture(source_texture, create_mips, processor,
+                                       output_dimensions);
 }
 
 TexturePtr RenderSystem::GetTexture(Entity entity, int unit) const {
@@ -257,13 +308,36 @@ void RenderSystem::SetQuad(Entity e, const Quad& quad) {
   impl_->SetQuad(e, quad);
 }
 
+void RenderSystem::SetQuad(Entity e, HashValue component_id, const Quad& quad) {
+  impl_->SetQuad(e, component_id, quad);
+}
+
+MeshPtr RenderSystem::GetMesh(Entity e, HashValue component_id) {
+  return impl_->GetMesh(e, component_id);
+}
+
+void RenderSystem::SetMesh(Entity e, HashValue component_id,
+                           const MeshPtr& mesh) {
+  impl_->SetMesh(e, component_id, mesh);
+}
+
 void RenderSystem::SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh) {
   impl_->SetMesh(e, mesh);
+}
+
+void RenderSystem::SetMesh(Entity e, HashValue component_id,
+                           const TriangleMesh<VertexPT>& mesh) {
+  impl_->SetMesh(e, component_id, mesh);
 }
 
 void RenderSystem::SetAndDeformMesh(Entity entity,
     const TriangleMesh<VertexPT>& mesh) {
   impl_->SetAndDeformMesh(entity, mesh);
+}
+
+void RenderSystem::SetAndDeformMesh(Entity entity, HashValue component_id,
+                                    const TriangleMesh<VertexPT>& mesh) {
+  impl_->SetAndDeformMesh(entity, component_id, mesh);
 }
 
 void RenderSystem::SetMesh(Entity e, const MeshData& mesh) {
@@ -278,8 +352,17 @@ ShaderPtr RenderSystem::GetShader(Entity entity) const {
   return impl_->GetShader(entity);
 }
 
+ShaderPtr RenderSystem::GetShader(Entity entity, HashValue component_id) const {
+  return impl_->GetShader(entity, component_id);
+}
+
 void RenderSystem::SetShader(Entity entity, const ShaderPtr& shader) {
   impl_->SetShader(entity, shader);
+}
+
+void RenderSystem::SetShader(Entity entity, HashValue component_id,
+                             const ShaderPtr& shader) {
+  impl_->SetShader(entity, component_id, shader);
 }
 
 void RenderSystem::SetShader(Entity entity, const std::string& file) {
@@ -301,6 +384,11 @@ RenderSystem::SortOrderOffset RenderSystem::GetSortOrderOffset(Entity e) const {
 void RenderSystem::SetSortOrderOffset(Entity e,
                                       SortOrderOffset sort_order_offset) {
   impl_->SetSortOrderOffset(e, sort_order_offset);
+}
+
+void RenderSystem::SetSortOrderOffset(Entity e, HashValue component_id,
+                                      SortOrderOffset sort_order_offset) {
+  impl_->SetSortOrderOffset(e, component_id, sort_order_offset);
 }
 
 void RenderSystem::SetStencilMode(Entity e, StencilMode mode, int value) {

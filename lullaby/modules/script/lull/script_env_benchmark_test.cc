@@ -79,7 +79,7 @@ static void Benchmark(benchmark::State& state) {
   RegisterTestFunctions(&reg);
 
   ScriptEnv env;
-  env.SetFunctionRegistry(&reg);
+  env.SetFunctionCallHandler([&reg](FunctionCall* call) { reg.Call(call); });
 
   auto script = env.Read(kBenchmarkTestSrc);
   while (state.KeepRunning()) {
@@ -94,7 +94,7 @@ TEST(ScriptEnvBenchmarkTest, BenchmarkTestVerification) {
   RegisterTestFunctions(&reg);
 
   ScriptEnv env;
-  env.SetFunctionRegistry(&reg);
+  env.SetFunctionCallHandler([&reg](FunctionCall* call) { reg.Call(call); });
 
   auto script = env.Read(kBenchmarkTestSrc);
   env.Eval(script);

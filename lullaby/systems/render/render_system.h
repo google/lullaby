@@ -21,22 +21,53 @@ limitations under the License.
 #include <string>
 
 #include "fplbase/renderer.h"
-#include "lullaby/generated/render_def_generated.h"
-#include "lullaby/generated/render_target_def_generated.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/render_view.h"
 #include "lullaby/modules/render/triangle_mesh.h"
 #include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/render/material.h"
+#include "lullaby/systems/render/mesh.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
 #include "lullaby/systems/render/uniform.h"
 #include "lullaby/systems/text/html_tags.h"
 #include "lullaby/systems/text/text_system.h"
+#include "lullaby/generated/render_def_generated.h"
+#include "lullaby/generated/render_target_def_generated.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
+
+class Mesh;
+using MeshPtr = std::shared_ptr<Mesh>;
+
+/// A pair of an Entity and a HashValue id.
+union EntityIdPair {
+  struct {
+    /// An entity associated with this pair.
+    Entity entity;
+    /// A unique id used to differentiate multiple components associated with a
+    /// given entity.
+    HashValue id;
+  };
+  /// The combined bit value of the union, used for hashing and indexing the
+  /// entity id pair. Entity and HashValue are both 32-bit ints, and value is
+  /// their unified 64-bit value.
+  uint64_t value;
+
+  EntityIdPair(Entity e, HashValue id = 0)
+      : entity(e), id(id) {}
+  bool operator==(const EntityIdPair& other) const {
+    return value == other.value;
+  }
+};
+
+struct EntityIdPairHash {
+  size_t operator()(const EntityIdPair& entity_id_pair) const {
+    return std::hash<uint64_t>{}(entity_id_pair.value);
+  }
+};
 
 enum class StencilMode {
   kDisabled,
@@ -149,6 +180,11 @@ class RenderSystem : public System {
   // maintains a reference to all atlases.
   void LoadTextureAtlas(const std::string& filename);
 
+  // Loads a mesh with the given filename. When using the next backend the
+  // render system holds a weak reference to the Mesh, otherwise it is a strong
+  // reference.
+  MeshPtr LoadMesh(const std::string& filename);
+
 
   // Loads the shader with the given |filename|.
   ShaderPtr LoadShader(const std::string& filename);
@@ -166,11 +202,17 @@ class RenderSystem : public System {
   // populated in code.
   void Create(Entity e, RenderPass pass);
 
+  // Creates an empty render component for an Entity identified by |comp_id|.
+  void Create(Entity e, HashValue comp_id, RenderPass pass);
+
   // Performs post creation initialization.
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
 
   // Disassociates all rendering data from the Entity.
   void Destroy(Entity e) override;
+
+  // Disassociates all rendering data identified by |comp_id| from the Entity.
+  void Destroy(Entity e, HashValue comp_id);
 
   // Call once per frame before other draw calls, will execute zero or one
   // image processing tasks per call.
@@ -208,10 +250,22 @@ class RenderSystem : public System {
   void SetUniform(Entity e, const char* name, const float* data, int dimension,
                   int count);
 
+  // Sets an array of shader uniform values for the specified Entity identified
+  // via |comp_id|.  The |dimension| must be either 1, 2, 4, or 16.  The size
+  // of the |data| array is assumed to be the same as |dimension| * |count|.
+  void SetUniform(Entity e, HashValue comp_id, const char* name,
+                  const float* data, int dimension, int count);
+
   // Copies the cached value of the uniform |name| into |data_out|, respecting
   // the |length| limit. Returns false if the value of the uniform was not
   // found.
   bool GetUniform(Entity e, const char* name, size_t length,
+                  float* data_out) const;
+
+  // Copies an |entity|'s (associated with an |comp_id|) cached value of the
+  // uniform |name| into |data_out|, respecting the |length| limit. Returns
+  // false if the value of the uniform was not found.
+  bool GetUniform(Entity e, HashValue comp_id, const char* name, size_t length,
                   float* data_out) const;
 
   // Makes |entity| use all the same uniform values as |source|.
@@ -241,6 +295,8 @@ class RenderSystem : public System {
 
   // Attaches a texture to the specified Entity.
   void SetTexture(Entity e, int unit, const TexturePtr& texture);
+  void SetTexture(Entity e, HashValue component_id, int unit,
+                  const TexturePtr& texture);
 
   // Loads and attach a texture to the specified Entity.
   void SetTexture(Entity e, int unit, const std::string& file);
@@ -252,10 +308,17 @@ class RenderSystem : public System {
                                     bool create_mips,
                                     TextureProcessor processor);
 
+  TexturePtr CreateProcessedTexture(const TexturePtr& source_texture,
+                                    bool create_mips,
+                                    RenderSystem::TextureProcessor processor,
+                                    const mathfu::vec2i& output_dimensions);
+
   // Attaches a texture object with given GL |texture_target| and |texture_id|
   // to the specified Entity.
   void SetTextureId(Entity e, int unit, uint32_t texture_target,
                     uint32_t texture_id);
+  void SetTextureId(Entity e, HashValue component_id, int unit,
+                    uint32_t texture_target, uint32_t texture_id);
 
   // Returns a pointer to the texture assigned to |entity|'s |unit|.
   TexturePtr GetTexture(Entity entity, int unit) const;
@@ -279,6 +342,15 @@ class RenderSystem : public System {
   // this entity then the quad generation will be deferred until ProcessTasks is
   // called.
   void SetQuad(Entity e, const Quad& quad);
+  void SetQuad(Entity e, HashValue component_id, const Quad& quad);
+
+  // Retrieves a mesh attached to the specified |entity| identified by
+  // |comp_id|.
+  MeshPtr GetMesh(Entity e, HashValue comp_id);
+
+  // Attaches a mesh to the specified |entity| identified by |comp_id|. Does
+  // not apply deformation.
+  void SetMesh(Entity e, HashValue comp_id, const MeshPtr& mesh);
 
   // Attaches a mesh to the specified Entity.
   // TODO(b/34981311): This is not a template because it would be annoying to
@@ -286,9 +358,13 @@ class RenderSystem : public System {
   // it back up into a TriangleMesh anyways to use some nice helper methods.
   // This will get fixed when we migrate over to using MeshData instead.
   void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
+  void SetMesh(Entity e, HashValue component_id,
+               const TriangleMesh<VertexPT>& mesh);
 
   // Like SetMesh, but applies |entity|'s deformation, if any.
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
+  void SetAndDeformMesh(Entity entity, HashValue component_id,
+                        const TriangleMesh<VertexPT>& mesh);
 
   // Attaches a mesh to the specified Entity. Does not apply deformation.
   void SetMesh(Entity e, const MeshData& mesh);
@@ -297,7 +373,13 @@ class RenderSystem : public System {
   void SetMesh(Entity e, const std::string& file);
 
   // Returns |entity|'s shader, or nullptr if it isn't known to RenderSystem.
+  ShaderPtr GetShader(Entity entity, HashValue comp_id) const;
+
+  // Returns |entity|'s shader, or nullptr if it isn't known to RenderSystem.
   ShaderPtr GetShader(Entity entity) const;
+
+  // Attaches a shader program to specified |entity| identified by |comp_id|.
+  void SetShader(Entity entity, HashValue comp_id, const ShaderPtr& shader);
 
   // Attaches a shader program to |entity|.
   void SetShader(Entity entity, const ShaderPtr& shader);
@@ -316,6 +398,8 @@ class RenderSystem : public System {
 
   // Sets the offset used when determining this Entity's draw order.
   void SetSortOrderOffset(Entity e, SortOrderOffset sort_order_offset);
+  void SetSortOrderOffset(Entity e, HashValue component_id,
+                          SortOrderOffset sort_order_offset);
 
   // Defines an entity's stencil mode.
   void SetStencilMode(Entity e, StencilMode mode, int value);

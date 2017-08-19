@@ -59,7 +59,6 @@ class RenderSystemNext : public System {
   using SortOrderOffset = RenderSystem::SortOrderOffset;
   using View = RenderSystem::View;
   using RenderComponentID = HashValue;
-  using EntityIdPair = detail::EntityIdPair;
 
   explicit RenderSystemNext(Registry* registry);
   ~RenderSystemNext() override;
@@ -74,13 +73,16 @@ class RenderSystemNext : public System {
   const TexturePtr& GetInvalidTexture() const;
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
   void LoadTextureAtlas(const std::string& filename);
+  MeshPtr LoadMesh(const std::string& filename);
 
   ShaderPtr LoadShader(const std::string& filename);
 
   void Create(Entity e, HashValue type, const Def* def) override;
+  void Create(Entity e, HashValue component_id, HashValue pass);
   void Create(Entity e, HashValue pass);
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
   void Destroy(Entity e) override;
+  void Destroy(Entity e, HashValue component_id);
 
   void ProcessTasks();
   void WaitForAssetsToLoad();
@@ -97,8 +99,12 @@ class RenderSystemNext : public System {
 
   void SetUniform(Entity e, const char* name, const float* data, int dimension,
                   int count);
+  void SetUniform(Entity e, HashValue component_id, const char* name,
+                  const float* data, int dimension, int count);
   bool GetUniform(Entity e, const char* name, size_t length,
                   float* data_out) const;
+  bool GetUniform(Entity e, HashValue component_id, const char* name,
+                  size_t length, float* data_out) const;
   void CopyUniforms(Entity entity, Entity source);
 
   int GetNumBones(Entity entity) const;
@@ -111,13 +117,22 @@ class RenderSystemNext : public System {
                          int num_transforms);
 
   void SetTexture(Entity e, int unit, const TexturePtr& texture);
+  void SetTexture(Entity e, HashValue component_id, int unit,
+                  const TexturePtr& texture);
 
   TexturePtr CreateProcessedTexture(const TexturePtr& source_texture,
                                     bool create_mips,
                                     RenderSystem::TextureProcessor processor);
 
+  TexturePtr CreateProcessedTexture(
+      const TexturePtr& source_texture, bool create_mips,
+      const RenderSystem::TextureProcessor& processor,
+      const mathfu::vec2i& output_dimensions);
+
   void SetTextureId(Entity e, int unit, uint32_t texture_target,
                     uint32_t texture_id);
+  void SetTextureId(Entity e, HashValue component_id, int unit,
+                    uint32_t texture_target, uint32_t texture_id);
 
   TexturePtr GetTexture(Entity entity, int unit) const;
 
@@ -129,16 +144,25 @@ class RenderSystemNext : public System {
 
   bool GetQuad(Entity e, Quad* quad) const;
   void SetQuad(Entity e, const Quad& quad);
+  void SetQuad(Entity e, HashValue component_id, const Quad& quad);
 
   // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
+  void SetMesh(Entity e, HashValue component_id,
+               const TriangleMesh<VertexPT>& mesh);
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
+  void SetAndDeformMesh(Entity entity, HashValue component_id,
+                        const TriangleMesh<VertexPT>& mesh);
 
   void SetMesh(Entity e, const MeshData& mesh);
 
   void SetMesh(Entity e, const std::string& file);
+  void SetMesh(Entity e, HashValue component_id, const MeshPtr& mesh);
+  MeshPtr GetMesh(Entity e, HashValue component_id);
 
   ShaderPtr GetShader(Entity entity) const;
+  ShaderPtr GetShader(Entity entity, HashValue component_id) const;
+  void SetShader(Entity e, HashValue component_id, const ShaderPtr& shader);
   void SetShader(Entity e, const ShaderPtr& shader);
 
   void SetFont(Entity entity, const FontPtr& font);
@@ -146,8 +170,12 @@ class RenderSystemNext : public System {
 
   SortOrderOffset GetSortOrderOffset(Entity e) const;
   void SetSortOrderOffset(Entity e, SortOrderOffset sort_order_offset);
+  void SetSortOrderOffset(Entity e, HashValue component_id,
+                          SortOrderOffset sort_order_offset);
 
   void SetStencilMode(Entity e, StencilMode mode, int value);
+  void SetStencilMode(Entity e, HashValue component_id, StencilMode mode,
+                      int value);
 
   bool IsTextureSet(Entity e, int unit) const;
 
@@ -287,7 +315,7 @@ class RenderSystemNext : public System {
 
   struct DeferredMesh {
     enum Type { kQuad, kMesh };
-    Entity e = kNullEntity;
+    EntityIdPair entity_id_pair = kNullEntity;
     Type type;
     RenderSystem::Quad quad;
     TriangleMesh<VertexPT> mesh;
@@ -308,16 +336,17 @@ class RenderSystemNext : public System {
 
   void SetMesh(Entity e, MeshPtr mesh);
   template <typename Vertex>
-  MeshPtr CreateQuad(Entity e, const Quad& quad);
+  MeshPtr CreateQuad(Entity e, HashValue component_id, const Quad& quad);
   template <typename Vertex>
-  void DeformMesh(Entity entity, TriangleMesh<Vertex>* mesh);
+  void DeformMesh(Entity entity, HashValue component_id,
+                  TriangleMesh<Vertex>* mesh);
   void BindStencilMode(StencilMode mode, int ref);
   void BindVertexArray(uint32_t ref);
   void ClearSamplers();
 
   // Triggers the generation of a quad mesh for the given entity and deforms
   // that mesh if a deformation exists on that entity.
-  void SetQuadImpl(Entity e, const Quad& quad);
+  void SetQuadImpl(Entity e, HashValue component_id, const Quad& quad);
 
   void CreateDeferredMeshes();
 
@@ -374,7 +403,7 @@ class RenderSystemNext : public System {
   fplbase::BlendMode blend_mode_ = fplbase::kBlendModeOff;
   int max_texture_unit_ = 0;
 
-  std::unordered_map<Entity, Deformation> deformations_;
+  std::unordered_map<EntityIdPair, Deformation, EntityIdPairHash> deformations_;
   std::queue<DeferredMesh> deferred_meshes_;
 
   std::unordered_map<HashValue, std::unique_ptr<fplbase::RenderTarget>>

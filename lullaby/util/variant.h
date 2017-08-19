@@ -156,6 +156,14 @@ class Variant {
     return GetImpl<const T>(this);
   }
 
+  // Gets the variant value if it is of type |T|, otherwise returns
+  // |default_value|.
+  template <typename T>
+  const T& ValueOr(const T& default_value) const {
+    const T* value = Get<T>();
+    return value ? *value : default_value;
+  }
+
   // Returns the TypeId of the value currently being stored.
   TypeId GetTypeId() const {
     return (handler_) ? handler_(kNone, nullptr, nullptr, nullptr) : 0;

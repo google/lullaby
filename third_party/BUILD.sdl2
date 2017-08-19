@@ -1,0 +1,29 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+
+cc_library(
+    name = "sdl2",
+    #srcs = glob([
+    #    "src/**/*.c",
+    #    "src/**/*.h",
+    #], exclude = [
+    #    "src/libm/*.c",
+    #    "src/test/*.c",
+    #    "src/thread/generic/*.c",
+    #    # No directx support.
+    #    "src/render/direct3d*/**",
+    #    "src/render/SDL_d3d*",
+    #    "src/haptic/windows/**",
+    #]),
+    hdrs = glob([
+        "include/**/*.h",
+    ]),
+    # copts = sdl_copts,
+    includes = ["include"],
+    # linkopts = sdl_linkopts,
+    linkstatic = 1,
+    # deps = [],
+)
+

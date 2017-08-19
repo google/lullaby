@@ -55,6 +55,20 @@ constexpr const char* kBoneTransformsUniform = "bone_transforms";
 // We break the naming convention here for compatibility with early VR apps.
 constexpr const char* kIsRightEyeUniform = "uIsRightEye";
 
+template <typename T>
+void RemoveFromVector(std::vector<T>* vector, const T& value) {
+  if (!vector) {
+    return;
+  }
+
+  for (auto it = vector->cbegin(); it != vector->cend(); ++it) {
+    if (*it == value) {
+      // vector->erase(it.base());
+      return;
+    }
+  }
+}
+
 bool IsSupportedUniformDimension(int dimension) {
   return (dimension == 1 || dimension == 2 || dimension == 3 ||
           dimension == 4 || dimension == 16);
@@ -221,22 +235,32 @@ void RenderSystemNext::LoadTextureAtlas(const std::string& filename) {
   factory_->LoadTextureAtlas(filename, create_mips);
 }
 
+MeshPtr RenderSystemNext::LoadMesh(const std::string& filename) {
+  return factory_->LoadMesh(filename);
+}
+
+
 ShaderPtr RenderSystemNext::LoadShader(const std::string& filename) {
   return factory_->LoadShader(filename);
 }
 
-void RenderSystemNext::Create(Entity e, HashValue pass) {
-  const EntityIdPair entity_id_pair(e, kDefaultRenderId);
+void RenderSystemNext::Create(Entity e, HashValue component_id,
+                              HashValue pass) {
+  const EntityIdPair entity_id_pair(e, component_id);
   RenderComponent* component = components_.Emplace(entity_id_pair);
   if (!component) {
     LOG(DFATAL) << "RenderComponent for Entity " << e << " with id "
-                << kDefaultRenderId << " already exists.";
+                << component_id << " already exists.";
     return;
   }
 
   entity_ids_[e].push_back(entity_id_pair);
   component->pass = pass;
   SetSortOrderOffset(e, 0);
+}
+
+void RenderSystemNext::Create(Entity e, HashValue pass) {
+  Create(e, kDefaultRenderId, pass);
 }
 
 void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
@@ -277,7 +301,7 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
   component->hidden = data.hidden();
 
   if (data.shader()) {
-    SetShader(e, LoadShader(data.shader()->str()));
+    SetShader(e, data.id(), LoadShader(data.shader()->str()));
   }
 
   if (data.textures()) {
@@ -285,12 +309,12 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
       TexturePtr texture =
           factory_->LoadTexture(data.textures()->Get(i)->c_str(),
                                 data.create_mips());
-      SetTexture(e, i, texture);
+      SetTexture(e, data.id(), i, texture);
     }
   } else if (data.texture() && data.texture()->size() > 0) {
     TexturePtr texture =
         factory_->LoadTexture(data.texture()->c_str(), data.create_mips());
-    SetTexture(e, 0, texture);
+    SetTexture(e, data.id(), 0, texture);
   } else if (data.external_texture()) {
 #ifdef GL_TEXTURE_EXTERNAL_OES
     GLuint texture_id;
@@ -304,24 +328,24 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
                             GL_NEAREST));
     GL_CALL(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER,
                             GL_NEAREST));
-    SetTextureId(e, 0, GL_TEXTURE_EXTERNAL_OES, texture_id);
+    SetTextureId(e, data.id(), 0, GL_TEXTURE_EXTERNAL_OES, texture_id);
 #else
     LOG(WARNING) << "External textures are not available.";
 #endif  // GL_TEXTURE_EXTERNAL_OES
   }
 
   if (data.mesh()) {
-    SetMesh(e, factory_->LoadMesh(data.mesh()->c_str()));
+    SetMesh(e, data.id(), factory_->LoadMesh(data.mesh()->c_str()));
   }
   if (data.color()) {
     mathfu::vec4 color;
     MathfuVec4FromFbColor(data.color(), &color);
-    SetUniform(e, kColorUniform, &color[0], 4, 1);
+    SetUniform(e, data.id(), kColorUniform, &color[0], 4, 1);
     component->default_color = color;
   } else if (data.color_hex()) {
     mathfu::vec4 color;
     MathfuVec4FromFbColorHex(data.color_hex()->c_str(), &color);
-    SetUniform(e, kColorUniform, &color[0], 4, 1);
+    SetUniform(e, data.id(), kColorUniform, &color[0], 4, 1);
     component->default_color = color;
   }
   if (data.uniforms()) {
@@ -345,11 +369,12 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
                     << uniform->float_value()->size();
         continue;
       }
-      SetUniform(e, uniform->name()->c_str(), uniform->float_value()->data(),
-                 uniform->dimension(), uniform->count());
+      SetUniform(e, data.id(), uniform->name()->c_str(),
+                 uniform->float_value()->data(), uniform->dimension(),
+                 uniform->count());
     }
   }
-  SetSortOrderOffset(e, data.sort_order_offset());
+  SetSortOrderOffset(e, data.id(), data.sort_order_offset());
 }
 
 void RenderSystemNext::PostCreateInit(Entity e, HashValue type,
@@ -370,7 +395,7 @@ void RenderSystemNext::PostCreateInit(Entity e, HashValue type,
       if (data.shape_id()) {
         quad.id = Hash(data.shape_id()->c_str());
       }
-      SetQuad(e, quad);
+      SetQuad(e, data.id(), quad);
     }
   }
 }
@@ -389,11 +414,25 @@ void RenderSystemNext::Destroy(Entity e) {
   sort_order_manager_.Destroy(e);
 }
 
-void RenderSystemNext::SetQuadImpl(Entity e, const Quad& quad) {
+void RenderSystemNext::Destroy(Entity e, HashValue component_id) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  SetStencilMode(e, component_id, StencilMode::kDisabled, 0);
+
+  auto iter = entity_ids_.find(e);
+  if (iter != entity_ids_.end()) {
+    RemoveFromVector(&iter->second, entity_id_pair);
+  }
+
+  deformations_.erase(e);
+  sort_order_manager_.Destroy(entity_id_pair);
+}
+
+void RenderSystemNext::SetQuadImpl(Entity e, HashValue component_id,
+                                   const Quad& quad) {
   if (quad.has_uv) {
-    SetMesh(e, CreateQuad<VertexPT>(e, quad));
+    SetMesh(e, component_id, CreateQuad<VertexPT>(e, component_id, quad));
   } else {
-    SetMesh(e, CreateQuad<VertexP>(e, quad));
+    SetMesh(e, component_id, CreateQuad<VertexP>(e, component_id, quad));
   }
 }
 
@@ -402,11 +441,14 @@ void RenderSystemNext::CreateDeferredMeshes() {
     DeferredMesh& defer = deferred_meshes_.front();
     switch (defer.type) {
       case DeferredMesh::kQuad:
-        SetQuadImpl(defer.e, defer.quad);
+        SetQuadImpl(defer.entity_id_pair.entity, defer.entity_id_pair.id,
+                    defer.quad);
         break;
       case DeferredMesh::kMesh:
-        DeformMesh(defer.e, &defer.mesh);
-        SetMesh(defer.e, defer.mesh);
+        DeformMesh(defer.entity_id_pair.entity, defer.entity_id_pair.id,
+                   &defer.mesh);
+        SetMesh(defer.entity_id_pair.entity, defer.entity_id_pair.id,
+                defer.mesh);
         break;
     }
     deferred_meshes_.pop();
@@ -450,12 +492,20 @@ void RenderSystemNext::SetColor(Entity entity, const mathfu::vec4& color) {
 }
 
 void RenderSystemNext::SetUniform(Entity e, const char* name, const float* data,
-                                 int dimension, int count) {
+                                  int dimension, int count) {
+  SetUniform(e, kDefaultRenderId, name, data, dimension, count);
+}
+
+void RenderSystemNext::SetUniform(Entity e, HashValue component_id,
+                                  const char* name, const float* data,
+                                  int dimension, int count) {
   if (!IsSupportedUniformDimension(dimension)) {
     LOG(DFATAL) << "Unsupported uniform dimension " << dimension;
     return;
   }
-  auto* render_component = components_.Get(e);
+
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component || !render_component->material.GetShader()) {
     return;
   }
@@ -483,7 +533,14 @@ void RenderSystemNext::SetUniform(Entity e, const char* name, const float* data,
 
 bool RenderSystemNext::GetUniform(Entity e, const char* name, size_t length,
                                  float* data_out) const {
-  auto* render_component = components_.Get(e);
+  return GetUniform(e, kDefaultRenderId, name, length, data_out);
+}
+
+bool RenderSystemNext::GetUniform(Entity e, HashValue component_id,
+                                  const char* name, size_t length,
+                                  float* data_out) const {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component) {
     return false;
   }
@@ -629,7 +686,13 @@ void RenderSystemNext::OnTextureLoaded(const RenderComponent& component,
 
 void RenderSystemNext::SetTexture(Entity e, int unit,
                                  const TexturePtr& texture) {
-  auto* render_component = components_.Get(e);
+  SetTexture(e, kDefaultRenderId, unit, texture);
+}
+
+void RenderSystemNext::SetTexture(Entity e, HashValue component_id, int unit,
+                                  const TexturePtr& texture) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component) {
     return;
   }
@@ -639,13 +702,14 @@ void RenderSystemNext::SetTexture(Entity e, int unit,
 
   // Add subtexture coordinates so the vertex shaders will pick them up.  These
   // are known when the texture is created; no need to wait for load.
-  SetUniform(e, kTextureBoundsUniform, &texture->UvBounds()[0], 4, 1);
+  SetUniform(e, component_id, kTextureBoundsUniform, &texture->UvBounds()[0], 4,
+             1);
 
   if (texture->IsLoaded()) {
     OnTextureLoaded(*render_component, unit, texture);
   } else {
-    texture->AddOnLoadCallback([this, unit, e, texture]() {
-      RenderComponent* render_component = components_.Get(e);
+    texture->AddOnLoadCallback([this, unit, entity_id_pair, texture]() {
+      RenderComponent* render_component = components_.Get(entity_id_pair);
       if (render_component &&
           render_component->material.GetTexture(unit) == texture) {
         OnTextureLoaded(*render_component, unit, texture);
@@ -661,14 +725,29 @@ TexturePtr RenderSystemNext::CreateProcessedTexture(
                                           processor);
 }
 
+TexturePtr RenderSystemNext::CreateProcessedTexture(
+    const TexturePtr& source_texture, bool create_mips,
+    const RenderSystem::TextureProcessor& processor,
+    const mathfu::vec2i& output_dimensions) {
+  return factory_->CreateProcessedTexture(source_texture, create_mips,
+                                          processor, output_dimensions);
+}
+
 void RenderSystemNext::SetTextureId(Entity e, int unit, uint32_t texture_target,
                                    uint32_t texture_id) {
-  auto* render_component = components_.Get(e);
+  SetTextureId(e, kDefaultRenderId, unit, texture_target, texture_id);
+}
+
+void RenderSystemNext::SetTextureId(Entity e, HashValue component_id, int unit,
+                                    uint32_t texture_target,
+                                    uint32_t texture_id) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component) {
     return;
   }
   auto texture = factory_->CreateTexture(texture_target, texture_id);
-  SetTexture(e, unit, texture);
+  SetTexture(e, component_id, unit, texture);
 }
 
 TexturePtr RenderSystemNext::GetTexture(Entity entity, int unit) const {
@@ -717,41 +796,59 @@ bool RenderSystemNext::GetQuad(Entity e, Quad* quad) const {
 }
 
 void RenderSystemNext::SetQuad(Entity e, const Quad& quad) {
-  auto* render_component = components_.Get(e);
+  SetQuad(e, kDefaultRenderId, quad);
+}
+
+void RenderSystemNext::SetQuad(Entity e, HashValue component_id,
+                               const Quad& quad) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component) {
-    LOG(WARNING) << "Missing entity for SetQuad: " << e;
+    LOG(WARNING) << "Missing entity for SetQuad: " << entity_id_pair.entity
+                 << ", with id: " << entity_id_pair.id;
     return;
   }
   render_component->quad = quad;
 
-  auto iter = deformations_.find(e);
+  auto iter = deformations_.find(entity_id_pair);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
-    defer.e = e;
+    defer.entity_id_pair = entity_id_pair;
     defer.type = DeferredMesh::kQuad;
     defer.quad = quad;
     deferred_meshes_.push(std::move(defer));
   } else {
-    SetQuadImpl(e, quad);
+    SetQuadImpl(e, component_id, quad);
   }
 }
 
 void RenderSystemNext::SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh) {
-  SetMesh(e, factory_->CreateMesh(mesh));
+  SetMesh(e, kDefaultRenderId, mesh);
+}
+
+void RenderSystemNext::SetMesh(Entity e, HashValue component_id,
+                               const TriangleMesh<VertexPT>& mesh) {
+  SetMesh(e, component_id, factory_->CreateMesh(mesh));
 }
 
 void RenderSystemNext::SetAndDeformMesh(Entity entity,
-                                       const TriangleMesh<VertexPT>& mesh) {
-  auto iter = deformations_.find(entity);
+                                        const TriangleMesh<VertexPT>& mesh) {
+  SetAndDeformMesh(entity, kDefaultRenderId, mesh);
+}
+
+void RenderSystemNext::SetAndDeformMesh(Entity entity, HashValue component_id,
+                                        const TriangleMesh<VertexPT>& mesh) {
+  const EntityIdPair entity_id_pair(entity, component_id);
+  auto iter = deformations_.find(entity_id_pair);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
-    defer.e = entity;
+    defer.entity_id_pair = entity_id_pair;
     defer.type = DeferredMesh::kMesh;
     defer.mesh.GetVertices() = mesh.GetVertices();
     defer.mesh.GetIndices() = mesh.GetIndices();
     deferred_meshes_.emplace(std::move(defer));
   } else {
-    SetMesh(entity, mesh);
+    SetMesh(entity, component_id, mesh);
   }
 }
 
@@ -768,10 +865,19 @@ RenderSystemNext::SortOrderOffset RenderSystemNext::GetSortOrderOffset(
   return sort_order_manager_.GetOffset(entity);
 }
 
-void RenderSystemNext::SetSortOrderOffset(Entity e, SortOrderOffset offset) {
-  sort_order_manager_.SetOffset(e, offset);
-  sort_order_manager_.UpdateSortOrder(
-      e, [this](Entity entity) { return components_.Get(entity); });
+void RenderSystemNext::SetSortOrderOffset(Entity e,
+                                          SortOrderOffset sort_order_offset) {
+  SetSortOrderOffset(e, kDefaultRenderId, sort_order_offset);
+}
+
+void RenderSystemNext::SetSortOrderOffset(Entity e, HashValue component_id,
+                                          SortOrderOffset sort_order_offset) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  sort_order_manager_.SetOffset(entity_id_pair, sort_order_offset);
+  sort_order_manager_.UpdateSortOrder(entity_id_pair,
+                                      [this](EntityIdPair entity_id_pair) {
+                                        return components_.Get(entity_id_pair);
+                                      });
 }
 
 bool RenderSystemNext::IsTextureSet(Entity e, int unit) const {
@@ -829,13 +935,26 @@ bool RenderSystemNext::IsHidden(Entity e) const {
   return (render_component_hidden || !render_component);
 }
 
+ShaderPtr RenderSystemNext::GetShader(Entity entity,
+                                      HashValue component_id) const {
+  const EntityIdPair entity_id_pair(entity, component_id);
+  const RenderComponent* component = components_.Get(entity_id_pair);
+  return component ? component->material.GetShader() : ShaderPtr();
+}
+
 ShaderPtr RenderSystemNext::GetShader(Entity entity) const {
   const RenderComponent* component = components_.Get(entity);
   return component ? component->material.GetShader() : ShaderPtr();
 }
 
 void RenderSystemNext::SetShader(Entity e, const ShaderPtr& shader) {
-  auto* render_component = components_.Get(e);
+  SetShader(e, kDefaultRenderId, shader);
+}
+
+void RenderSystemNext::SetShader(Entity e, HashValue component_id,
+                                 const ShaderPtr& shader) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component) {
     return;
   }
@@ -846,10 +965,17 @@ void RenderSystemNext::SetShader(Entity e, const ShaderPtr& shader) {
 }
 
 void RenderSystemNext::SetMesh(Entity e, MeshPtr mesh) {
-  auto* render_component = components_.Get(e);
+  SetMesh(e, kDefaultRenderId, mesh);
+}
+
+void RenderSystemNext::SetMesh(Entity e, HashValue component_id,
+                               const MeshPtr& mesh) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component) {
     LOG(WARNING) << "Missing RenderComponent, "
-                 << "skipping mesh update for entity: " << e;
+                 << "skipping mesh update for entity: " << e
+                 << ", with id: " << component_id;
     return;
   }
 
@@ -868,14 +994,29 @@ void RenderSystemNext::SetMesh(Entity e, MeshPtr mesh) {
       const float* data = &(shader_transforms_[0][0]);
       const int dimension = 4;
       const int count = kNumVec4sInAffineTransform * num_shader_bones;
-      SetUniform(e, kBoneTransformsUniform, data, dimension, count);
+      SetUniform(e, component_id, kBoneTransformsUniform, data, dimension,
+                 count);
     }
   }
 }
 
+MeshPtr RenderSystemNext::GetMesh(Entity e, HashValue component_id) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
+  if (!render_component) {
+    LOG(WARNING) << "Missing RenderComponent for entity: " << e
+                 << ", with id: " << component_id;
+    return nullptr;
+  }
+
+  return render_component->mesh;
+}
+
 template <typename Vertex>
-void RenderSystemNext::DeformMesh(Entity entity, TriangleMesh<Vertex>* mesh) {
-  auto iter = deformations_.find(entity);
+void RenderSystemNext::DeformMesh(Entity entity, HashValue component_id,
+                                  TriangleMesh<Vertex>* mesh) {
+  const EntityIdPair entity_id_pair(entity, component_id);
+  auto iter = deformations_.find(entity_id_pair);
   const Deformation deform =
       iter != deformations_.end() ? iter->second : nullptr;
   if (deform) {
@@ -892,7 +1033,8 @@ void RenderSystemNext::DeformMesh(Entity entity, TriangleMesh<Vertex>* mesh) {
 }
 
 template <typename Vertex>
-MeshPtr RenderSystemNext::CreateQuad(Entity e, const Quad& quad) {
+MeshPtr RenderSystemNext::CreateQuad(Entity e, HashValue component_id,
+                                     const Quad& quad) {
   if (quad.size.x == 0 || quad.size.y == 0) {
     return nullptr;
   }
@@ -901,7 +1043,7 @@ MeshPtr RenderSystemNext::CreateQuad(Entity e, const Quad& quad) {
   mesh.SetQuad(quad.size.x, quad.size.y, quad.verts.x, quad.verts.y,
                quad.corner_radius, quad.corner_verts, quad.corner_mask);
 
-  DeformMesh<Vertex>(e, &mesh);
+  DeformMesh<Vertex>(e, component_id, &mesh);
 
   if (quad.id != 0) {
     return factory_->CreateMesh(quad.id, mesh);
@@ -911,7 +1053,13 @@ MeshPtr RenderSystemNext::CreateQuad(Entity e, const Quad& quad) {
 }
 
 void RenderSystemNext::SetStencilMode(Entity e, StencilMode mode, int value) {
-  auto* render_component = components_.Get(e);
+  SetStencilMode(e, kDefaultRenderId, mode, value);
+}
+
+void RenderSystemNext::SetStencilMode(Entity e, HashValue component_id,
+                                      StencilMode mode, int value) {
+  const EntityIdPair entity_id_pair(e, component_id);
+  auto* render_component = components_.Get(entity_id_pair);
   if (!render_component || render_component->stencil_mode == mode) {
     return;
   }
@@ -994,6 +1142,18 @@ const fplbase::RenderState* RenderSystemNext::GetRenderState(
 
 void RenderSystemNext::SetDepthTest(const bool enabled) {
   if (enabled) {
+#if !ION_PRODUCTION
+    // GL_DEPTH_BITS was deprecated in desktop GL 3.3, so make sure this get
+    // succeeds before checking depth_bits.
+    GLint depth_bits = 0;
+    glGetIntegerv(GL_DEPTH_BITS, &depth_bits);
+    if (glGetError() == 0 && depth_bits == 0) {
+      // This has been known to cause problems on iOS 10.
+      LOG_ONCE(WARNING) << "Enabling depth test without a depth buffer; this "
+                           "has known issues on some platforms.";
+    }
+#endif  // !ION_PRODUCTION
+
     renderer_.SetDepthFunction(fplbase::kDepthFunctionLess);
     return;
   }
@@ -1664,7 +1824,8 @@ void RenderSystemNext::RenderDebugStats(const View* views, size_t num_views) {
 
 void RenderSystemNext::OnParentChanged(const ParentChangedEvent& event) {
   sort_order_manager_.UpdateSortOrder(
-      event.target, [this](Entity entity) { return components_.Get(entity); });
+      event.target,
+      [this](EntityIdPair entity) { return components_.Get(entity); });
 }
 
 const fplbase::RenderState& RenderSystemNext::GetRenderState() const {

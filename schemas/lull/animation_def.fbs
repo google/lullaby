@@ -96,5 +96,11 @@ table AnimationDef {
   on_complete_events: [EventDef];
   on_success_events: [EventDef];
   on_cancelled_events: [EventDef];
+
+  /// The defining animation is contains the entire skeleton of the animation.
+  /// Specifically, it ensures that the animation channel is initialized such
+  /// that it will be able to animate any animation using the same skeleton,
+  /// regardless of if the animation itself animates all the bones.  The term
+  /// "defining animation" comes from the motive library and can be generated
   defining_animation: DefiningAnimDef;
 }

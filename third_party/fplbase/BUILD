@@ -1,4 +1,3 @@
-
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -14,7 +13,10 @@ cc_library(
         "shader_generated.h",
         "texture_atlas_generated.h",
     ],
-    includes = [".", ".."],
+    includes = [
+        ".",
+        "..",
+    ],
     deps = [
         "@flatbuffers//:flatbuffers",
     ],

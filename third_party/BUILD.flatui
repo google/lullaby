@@ -1,0 +1,73 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "flatui_layout",
+    srcs = [
+        "src/version.cpp",
+    ],
+    hdrs = [
+        "include/flatui/flatui.h",
+        "include/flatui/flatui_common.h",
+        "include/flatui/internal/flatui_layout.h",
+        "include/flatui/version.h",
+        "src/precompiled.h",
+    ],
+    includes = [
+        "include",
+        "include/flatui/",
+    ],
+)
+
+cc_library(
+    name = "flatui",
+    srcs = [
+        "src/flatui.cpp",
+        "src/flatui_common.cpp",
+        "src/font_buffer.cpp",
+        "src/font_manager.cpp",
+        "src/font_systemfont.cpp",
+        "src/font_util.cpp",
+        "src/glyph_cache.cpp",
+        "src/hb_complex_font.cpp",
+        "src/hyphenator.cpp",
+        "src/micro_edit.cpp",
+        "src/script_table.cpp",
+    ],
+    hdrs = [
+        "external/include/harfbuzz/hb-version.h",
+        "include/flatui/flatui.h",
+        "include/flatui/flatui_common.h",
+        "include/flatui/flatui_serialization.h",
+        "include/flatui/font_buffer.h",
+        "include/flatui/font_manager.h",
+        "include/flatui/font_util.h",
+        "include/flatui/internal/distance_computer.h",
+        "include/flatui/internal/flatui_util.h",
+        "include/flatui/internal/glyph_cache.h",
+        "include/flatui/internal/hb_complex_font.h",
+        "include/flatui/internal/hyphenator.h",
+        "include/flatui/internal/micro_edit.h",
+        "include/flatui/version.h",
+        "src/precompiled.h",
+    ],
+    includes = [
+        "external/include/harfbuzz",
+        "include",
+        "include/flatui/",
+    ],
+    linkstatic = 1,
+    deps = [
+        ":flatui_layout",
+        "@fplbase//:fplbase",
+        "@fplutil//:fplutil",
+        "@freetype2//:freetype",
+        "@gumbo//:gumbo",
+        "@harfbuzz//:harfbuzz",
+        "@libunibreak//:libunibreak",
+        "@mathfu//:mathfu",
+        "@motive//:motive",
+        "@stb//:stb",
+    ],
+)

@@ -1,0 +1,131 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+// Corresponds to the GL functions used by glAlphaFunc, glDepthFunc, and
+// glStencilFunc.
+enum RenderFunction : ushort {
+  Always,
+  Equal,
+  Greater,
+  GreaterEqual,
+  Less,
+  LessEqual,
+  Never,
+  NotEqual,
+}
+
+// Corresponds to the GL blending factors used by glBlendFunc and
+// glBlendFuncSeparate.
+enum BlendFactor : ushort {
+  Zero,
+  One,
+  SrcColor,
+  OneMinusSrcColor,
+  DstColor,
+  OneMinusDstColor,
+  SrcAlpha,
+  OneMinusSrcAlpha,
+  DstAlpha,
+  OneMinusDstAlpha,
+  ConstantColor,
+  OneMinusConstantColor,
+  ConstantAlpha,
+  OneMinusConstantAlpha,
+  SrcAlphaSaturate,
+}
+
+// Corresponds to the GL arguments used by glCullFace.
+enum CullFace : ushort {
+  Front,
+  Back,
+  FrontAndBack
+}
+
+// Corresponds to the GL stencil actions used by glStencilOp.
+enum StencilAction : ushort {
+  Keep,
+  Zero,
+  Replace,
+  Increment,
+  IncrementAndWrap,
+  Decrement,
+  DecrementAndWrap,
+  Invert,
+}
+
+// Corresponds to the state set by glAlphaFunc.
+table AlphaTestState {
+  enabled: bool = false;
+  function: RenderFunction = Always;
+  ref: float = 0.0;
+}
+
+// Corresponds to the state set by glBlendFunc.
+table BlendState {
+  enabled: bool = false;
+  src_alpha: BlendFactor = One;
+  src_color: BlendFactor = One;
+  dst_alpha: BlendFactor = Zero;
+  dst_color: BlendFactor = Zero;
+}
+
+// Corresponds to the state set by glCullState.
+table CullState {
+  face: CullFace = Back;
+  enabled: bool = false;
+}
+
+// Corresponds to the state set by glDepthFunc and glDepthMask.
+table DepthState {
+  function: RenderFunction = Always;
+  test_enabled: bool = false;
+  write_enabled: bool = true;
+}
+
+// Corresponds to the state set by glStencilFunc and glStencilMask.
+table StencilFunction {
+  function: RenderFunction = Always;
+  ref: int = 0;
+  mask: uint = 1;
+}
+
+// Corresponds to the state set by glStencilOp.
+table StencilOperation {
+  // Specifies the action to take when the stencil test fails.
+  stencil_fail: StencilAction = Keep;
+
+  // Specifies the stencil action when the stencil test passes, but the depth
+  // test fails.
+  depth_fail: StencilAction = Keep;
+
+  // Specifies the stencil action when both the stencil test and the depth test
+  // pass, or when the stencil test passes and either there is no depth buffer
+  // or depth testing is not enabled.
+  pass: StencilAction = Keep;
+}
+
+// Corresponds to the state set by glStencilOpSeparate.
+table StencilState {
+  enabled: bool = false;
+  back_function: StencilFunction;
+  back_op: StencilOperation;
+  front_function: StencilFunction;
+  front_op: StencilOperation;
+}
+
+// Corresponds to the state set by glScissor.
+table ScissorState {
+  enabled: bool = false;
+}
+
+// Corresponds to the GL state tracked by fplbase.
+table RenderState {
+  alpha_test_state: AlphaTestState (defaults_to_null);
+  blend_state: BlendState (defaults_to_null);
+  cull_state: CullState (defaults_to_null);
+  depth_state: DepthState (defaults_to_null);
+  scissor_state: ScissorState (defaults_to_null);
+  stencil_state: StencilState (defaults_to_null);
+  viewport: Rect (defaults_to_null);
+}

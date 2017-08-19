@@ -48,10 +48,6 @@ limitations under the License.
 
 #include "lullaby/util/string_view.h"
 
-#ifdef PROFILE_LULLABY
-#define ION_ATRACE_TAG ION_ATRACE_TAG_APP
-#include "ion/port/trace.h"
-#endif
 
 namespace lull {
 namespace detail {
@@ -139,31 +135,5 @@ std::ostream& operator<<(std::ostream& os, const ProfilerData& profiler);
 
 }  // namespace lull
 
-#ifdef PROFILE_LULLABY
-
-// Generate an index id for profile sample by creating a local static variable
-// that is initialized to a specific value. Inside the ProfileSampleStart
-// function the variable is checked for the value and is given a valid index.
-#define LULL_PROFILE_START(sample)                                         \
-  static size_t sample##_index__ = lull::kUninitializedProfileSampleIndex; \
-  ION_ATRACE_NAME(#sample);                                                \
-  ::lull::detail::ProfileSampleStart(#sample, &sample##_index__);
-
-#define LULL_PROFILE_END(sample) \
-  ::lull::detail::ProfileSampleEnd(&sample##_index__);
-
-// Generate an index id for profile sample by creating a local static variable
-// that is initialized to a specific value. Inside the ProfileSampleStart
-// function the variable is checked for the value and is given a valid index.
-#define LULL_PROFILE(sample)                                               \
-  static size_t sample##_index__ = lull::kUninitializedProfileSampleIndex; \
-  ION_ATRACE_NAME(#sample);                                                \
-  ::lull::ScopedSampleProfiler sample##_profiler__(#sample, &sample##_index__)
-
-#else
-#define LULL_PROFILE(sample)
-#define LULL_PROFILE_START(sample)
-#define LULL_PROFILE_END(sample)
-#endif
 
 #endif  // LULLABY_UTIL_PROFILER_H_

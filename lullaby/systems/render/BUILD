@@ -7,6 +7,7 @@ licenses(["notice"])  # Apache 2.0
 
 common_headers = [
     "material.h",
+    "mesh.h",
     "render_stats.h",
     "render_system.h",
     "shader.h",
@@ -37,6 +38,7 @@ common_deps = [
     "//lullaby/modules/config",
     "//lullaby/modules/ecs",
     "//lullaby/modules/ecs:entity",
+    "//lullaby/modules/file",
     "//lullaby/modules/script",
     "//lullaby/modules/render",
     "//lullaby/systems/text",
@@ -45,8 +47,10 @@ common_deps = [
     "//lullaby/util:logging",
     "//lullaby/util:math",
     "//lullaby/util:registry",
+    "//lullaby/util:resource_manager",
     "//lullaby/util:string_preprocessor",
     "//lullaby/util:trace",
+    "//lullaby/util:typeid",
     "//lullaby/generated",
     "@mathfu//:mathfu",
 ]
@@ -81,16 +85,12 @@ cc_library(
         "-Ithird_party/GL/gl/include/",
     ],
     deps = common_deps + [
+        ":profiler",
         "//lullaby/modules/dispatcher",
-        "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
         "//lullaby/systems/dispatcher",
         "//lullaby/util:async_processor",
-        "//lullaby/util:resource_manager",
         "//lullaby/util:time",
-        "//lullaby/util:typeid",
-        ":profiler",
-        ":render",
     ],
 )
 
@@ -109,6 +109,8 @@ cc_library(
     deps = common_deps + [
         ":binding_impl",
         ":fpl_render_system",
+        ":render",
+        "//lullaby/util:async_processor",
     ],
     alwayslink = 1,
 )
@@ -144,37 +146,13 @@ cc_library(
         ":profiler",
         ":render",
         "//lullaby/modules/dispatcher",
-        "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
         "//lullaby/systems/dispatcher",
         "//lullaby/util:async_processor",
         "//lullaby/util:buffered_data",
         "//lullaby/util:make_unique",
-        "//lullaby/util:resource_manager",
         "//lullaby/util:string_view",
-        "//lullaby/util:typeid",
-    ],
-    alwayslink = 1,
-)
-
-cc_library(
-    name = "render_system_mock",
-    testonly = 1,
-    srcs = [
-        "detail/port/default/gpu_profiler.cc",
-        "detail/render_stats.cc",
-        "detail/sort_order.cc",
-        "testing/mock_render_system_impl.cc",
-    ],
-    hdrs = [
-        "testing/mock_render_system_impl.h",
-        "testing/texture.h",
-    ] + common_headers + private_headers,
-    defines = ["LULLABY_RENDER_BACKEND_MOCK"],
-    deps = common_deps + [
-        ":binding_impl",
-        ":profiler",
-        ":render",
+        "//lullaby/util:unordered_vector_map",
     ],
     alwayslink = 1,
 )
@@ -195,10 +173,8 @@ cc_library(
     name = "profiler",
     srcs = [
         "detail/profiler.cc",
-    ] + select({
-        # "//tools/cc_target_os:android": ["detail/port/android/gpu_profiler.cc"],
-        "//conditions:default": ["detail/port/default/gpu_profiler.cc"],
-    }),
+        "detail/port/default/gpu_profiler.cc"
+    ],
     hdrs = [
         "detail/gpu_profiler.h",
         "detail/profiler.h",
@@ -209,8 +185,5 @@ cc_library(
         "//lullaby/util:logging",
         "//lullaby/util:time",
         "//lullaby/util:typeid",
-    ] + select({
-        # "//tools/cc_target_os:android": ["//third_party/GLES_khronos_headers:GLES2"],
-        "//conditions:default": [],
-    }),
+    ],
 )

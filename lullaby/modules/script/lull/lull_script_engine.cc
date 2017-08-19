@@ -18,16 +18,15 @@ limitations under the License.
 
 namespace lull {
 
-LullScriptEngine::LullScriptEngine(Registry* registry) : registry_(registry) {}
+void LullScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {
+  handler_ = std::move(handler);
+}
 
 uint64_t LullScriptEngine::LoadScript(const std::string& code,
                                       const std::string& debug_name) {
-  auto* function_registry = registry_->Get<FunctionRegistry>();
-  CHECK_NOTNULL(function_registry);
-
   const uint64_t id = ++next_script_id_;
   Script& script = scripts_[id];
-  script.env.SetFunctionRegistry(function_registry);
+  script.env.SetFunctionCallHandler(handler_);
   script.debug_name = debug_name;
   script.script = script.env.Read(code);
   return id;

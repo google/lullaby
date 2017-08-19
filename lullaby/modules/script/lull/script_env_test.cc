@@ -153,7 +153,7 @@ TEST(ScriptEnvTest, CallFunctionInRegistry) {
   reg.RegisterFunction("foo", [](int x, int y) { return x + y + y; });
 
   ScriptEnv env;
-  env.SetFunctionRegistry(&reg);
+  env.SetFunctionCallHandler([&reg](FunctionCall* call) { reg.Call(call); });
 
   ScriptValue res = env.Eval(env.Read("(foo 1 2)"));
 

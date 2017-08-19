@@ -1,0 +1,38 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+// Format options for texture render targets.
+enum TextureFormat : ushort {
+  A8,
+  R8,
+  RGB8,
+  RGBA8,
+}
+
+// Format options for the depth/stencil buffer.
+enum DepthStencilFormat : ushort {
+  None,
+  Depth16,
+  Depth24,
+  Depth32F,
+  Depth24Stencil8,
+  Depth32FStencil8,
+  Stencil8,
+}
+
+// Definition of a render target texture.
+table RenderTargetDef {
+  // Name of the render target, to be used when attaching to a pass or binding
+  // as a texture.
+  name: string;
+
+  // Resolution of the render target.
+  size: Vec2i;
+
+  // Format for the render target texture.
+  texture_format: TextureFormat = RGBA8;
+
+  // Format for the depth stencil buffer, if used (None = unused).
+  depth_stencil_format: DepthStencilFormat = None;
+}

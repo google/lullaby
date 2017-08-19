@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/util/config.h"
+#include "lullaby/modules/config/config.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

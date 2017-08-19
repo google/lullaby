@@ -102,7 +102,7 @@ void AnimationSystem::Create(Entity entity, HashValue type, const Def* def) {
       auto def_anim = data->defining_animation();
       if (def_anim->channel() && def_anim->filename()) {
         DefiningAnimation& animation = defining_animations_[entity];
-        animation.channel = Hash(def_anim->channel()->c_str());
+        animation.channel = FindChannel(def_anim->channel()->c_str());
         animation.asset = LoadAnimation(def_anim->filename()->str());
       }
     }
@@ -142,7 +142,7 @@ AnimationAssetPtr AnimationSystem::LoadAnimation(const std::string& filename) {
 
 void AnimationSystem::AdvanceFrame(Clock::duration delta_time) {
   LULLABY_CPU_TRACE_CALL();
-  const motive::MotiveTime timestep = GetMotiveTime(delta_time);
+  const motive::MotiveTime timestep = GetMotiveTimeFromDuration(delta_time);
   engine_.AdvanceFrame(timestep);
 
   std::vector<AnimationId> completed;
@@ -170,7 +170,13 @@ bool AnimationSystem::IsAnimationPlaying(AnimationId id) const {
 AnimationId AnimationSystem::SetTarget(Entity e, HashValue channel,
                                        const float* data, size_t len,
                                        Clock::duration time) {
-  AnimationId id = SetTargetInternal(e, channel, data, len, time);
+  AnimationChannel* channel_ptr = FindChannel(channel);
+  if (channel_ptr == nullptr) {
+    LOG(DFATAL) << "Could not find channel: " << channel;
+    return kNullAnimation;
+  }
+
+  AnimationId id = SetTargetInternal(e, channel_ptr, data, len, time);
   if (id == kNullAnimation) {
     return kNullAnimation;
   }
@@ -204,32 +210,62 @@ AnimationId AnimationSystem::PlayAnimation(Entity e,
     return kNullAnimation;
   }
 
-  const HashValue channel = Hash(target->channel()->c_str());
+  AnimationChannel* channel_ptr = FindChannel(target->channel()->c_str());
+  if (channel_ptr == nullptr) {
+    LOG(DFATAL) << "Could not find channel: " << target->channel()->c_str();
+    return kNullAnimation;
+  }
+
   const float* values = target->values()->data();
   const size_t len = target->values()->size();
   const std::chrono::milliseconds time(target->time_ms());
-  return SetTargetInternal(e, channel, values, len, time);
+  return SetTargetInternal(e, channel_ptr, values, len, time);
 }
 
 AnimationId AnimationSystem::PlayAnimation(Entity e,
                                            const AnimInstanceDef* anim) {
-  const HashValue channel_id = Hash(anim->channel()->c_str());
-  auto iter = channels_.find(channel_id);
-  if (iter == channels_.end()) {
+  AnimationChannel* channel_ptr = FindChannel(anim->channel()->c_str());
+  if (channel_ptr == nullptr) {
     LOG(DFATAL) << "Could not find channel: " << anim->channel()->c_str();
     return kNullAnimation;
   }
 
-  if (iter->second->IsRigChannel()) {
-    return PlayRigAnimation(e, anim, channel_id, iter->second);
+  if (channel_ptr->IsRigChannel()) {
+    return PlayRigAnimation(e, channel_ptr, anim);
   } else {
-    return PlaySplineAnimation(e, anim, channel_id, iter->second);
+    return PlaySplineAnimation(e, channel_ptr, anim);
   }
 }
 
-AnimationId AnimationSystem::PlayRigAnimation(
-    Entity e, const AnimInstanceDef* anim, HashValue channel_id,
-    const AnimationChannelPtr& channel) {
+AnimationId AnimationSystem::PlayAnimation(Entity e, HashValue channel,
+                                           const AnimationAssetPtr& anim,
+                                           const PlaybackParameters& params) {
+  AnimationChannel* channel_ptr = FindChannel(channel);
+  if (channel_ptr == nullptr) {
+    LOG(DFATAL) << "Could not find channel: " << channel;
+    return kNullAnimation;
+  }
+
+  AnimationId id = kNullAnimation;
+  if (channel_ptr->IsRigChannel()) {
+    id = PlayRigAnimationInternal(e, channel_ptr, anim, params);
+  } else {
+    // TODO(b/64588043): Add support for spline animations.
+    LOG(DFATAL) << "Only rig animations supported for now.";
+  }
+
+  if (id == kNullAnimation) {
+    return kNullAnimation;
+  } else {
+    AnimationSet anims;
+    anims.emplace(id);
+    return TrackAnimations(e, std::move(anims), nullptr);
+  }
+}
+
+AnimationId AnimationSystem::PlayRigAnimation(Entity e,
+                                              AnimationChannel* channel,
+                                              const AnimInstanceDef* anim) {
   const int num_names = anim->filenames()->size();
   if (num_names != 1) {
     LOG(DFATAL) << "Expecting exactly 1 animation in def.";
@@ -250,33 +286,13 @@ AnimationId AnimationSystem::PlayRigAnimation(
     return kNullAnimation;
   }
 
-  const motive::RigAnim* rig_anim =
-      asset ? asset->GetRigAnim(list_index) : nullptr;
-  if (!rig_anim) {
-    LOG(DFATAL) << "Animation is not a rig animation: " << filename;
-    return kNullAnimation;
-  }
-
-  auto iter = defining_animations_.find(e);
-  if (iter != defining_animations_.end()) {
-    if (iter->second.channel == channel_id && iter->second.asset) {
-      const motive::RigAnim* defining_anim = iter->second.asset->GetRigAnim(0);
-      if (defining_anim) {
-        channel->Init(e, &engine_, defining_anim);
-      }
-    }
-  }
-
-  const AnimationId id = GenerateAnimationId();
   const PlaybackParameters params = GetPlaybackParameters(anim);
-  const AnimationId prev_id = channel->Play(e, &engine_, id, rig_anim, params);
-  UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
-  return id;
+  return PlayRigAnimationInternal(e, channel, asset, params, list_index);
 }
 
-AnimationId AnimationSystem::PlaySplineAnimation(
-    Entity e, const AnimInstanceDef* anim, HashValue channel_id,
-    const AnimationChannelPtr& channel) {
+AnimationId AnimationSystem::PlaySplineAnimation(Entity e,
+                                                 AnimationChannel* channel,
+                                                 const AnimInstanceDef* anim) {
   float constants[AnimationChannel::kMaxDimensions] = {0.0f};
   const motive::CompactSpline* splines[AnimationChannel::kMaxDimensions] = {
       nullptr};
@@ -318,25 +334,67 @@ AnimationId AnimationSystem::PlaySplineAnimation(
   return id;
 }
 
-AnimationId AnimationSystem::SetTargetInternal(Entity e, HashValue channel,
-                                               const float* data, size_t len,
-                                               Clock::duration time) {
-  auto iter = channels_.find(channel);
-  if (iter == channels_.end()) {
-    LOG(DFATAL) << "Could not find channel: " << channel;
+AnimationId AnimationSystem::PlayRigAnimationInternal(
+    Entity e, AnimationChannel* channel, const AnimationAssetPtr& anim,
+    const PlaybackParameters& params, int rig_index) {
+  if (channel == nullptr || !channel->IsRigChannel()) {
+    LOG(DFATAL) << "Invalid channel.";
+    return kNullAnimation;
+  } else if (anim == nullptr) {
+    LOG(DFATAL) << "No animation specified!";
     return kNullAnimation;
   }
-  if (iter->second->GetDimensions() != len) {
+
+  const motive::RigAnim* rig_anim = anim->GetRigAnim(rig_index);
+  if (!rig_anim) {
+    LOG(DFATAL) << "Animation is not a rig animation.";
+    return kNullAnimation;
+  }
+
+  PrepareDefiningAnimation(e, channel);
+
+  const AnimationId id = GenerateAnimationId();
+  const AnimationId prev_id = channel->Play(e, &engine_, id, rig_anim, params);
+  UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
+  return id;
+}
+
+AnimationId AnimationSystem::SetTargetInternal(Entity e,
+                                               AnimationChannel* channel,
+                                               const float* data, size_t len,
+                                               Clock::duration time) {
+  if (channel->GetDimensions() != len) {
     LOG(DFATAL) << "Target data size does not match channel dimensions.  "
                    "Skipping playback.";
     return kNullAnimation;
   }
 
   const AnimationId id = GenerateAnimationId();
-  const AnimationId prev_id =
-      iter->second->Play(e, &engine_, id, data, len, time);
+  const AnimationId prev_id = channel->Play(e, &engine_, id, data, len, time);
   UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
   return id;
+}
+
+void AnimationSystem::PrepareDefiningAnimation(Entity e,
+                                               AnimationChannel* channel) {
+  auto iter = defining_animations_.find(e);
+  if (iter == defining_animations_.end()) {
+    return;
+  }
+  if (iter->second.channel != channel) {
+    return;
+  }
+  if (iter->second.channel == nullptr) {
+    return;
+  }
+  if (iter->second.asset == nullptr) {
+    return;
+  }
+  const motive::RigAnim* defining_anim = iter->second.asset->GetRigAnim(0);
+  if (defining_anim == nullptr) {
+    return;
+  }
+  channel->Init(e, &engine_, defining_anim);
 }
 
 AnimationId AnimationSystem::GenerateAnimationId() {
@@ -408,6 +466,15 @@ void AnimationSystem::UntrackAnimation(AnimationId internal_id,
   }
 }
 
+AnimationChannel* AnimationSystem::FindChannel(string_view channel_name) {
+  return FindChannel(Hash(channel_name));
+}
+
+AnimationChannel* AnimationSystem::FindChannel(HashValue channel_id) {
+  auto iter = channels_.find(channel_id);
+  return iter != channels_.end() ? iter->second.get() : nullptr;
+}
+
 PlaybackParameters AnimationSystem::GetPlaybackParameters(
     const AnimInstanceDef* anim) {
   PlaybackParameters params;
@@ -426,8 +493,13 @@ PlaybackParameters AnimationSystem::GetPlaybackParameters(
   return params;
 }
 
-motive::MotiveTime AnimationSystem::GetMotiveTime(
-    const Clock::duration& timestep) {
+Clock::duration AnimationSystem::GetDurationFromMotiveTime(
+    motive::MotiveTime time) {
+  return std::chrono::duration_cast<Clock::duration>(MotiveTimeUnit(time));
+}
+
+motive::MotiveTime AnimationSystem::GetMotiveTimeFromDuration(
+    Clock::duration timestep) {
   return std::chrono::duration_cast<MotiveTimeUnit>(timestep).count();
 }
 

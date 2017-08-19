@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/script/lull/lull_script_engine.h"
+#include "lullaby/modules/script/lull/lull_script_engine.h"
 
 #include "gtest/gtest.h"
+#include "lullaby/modules/script/function_registry.h"
+#include "lullaby/util/registry.h"
 
 namespace lull {
 namespace {
@@ -27,8 +29,10 @@ class LullScriptEngineTest : public testing::Test {
   LullScriptEngine* engine_;
 
   void SetUp() override {
-    registry_.Create<FunctionRegistry>();
-    engine_ = registry_.Create<LullScriptEngine>(&registry_);
+    auto* fr = registry_.Create<FunctionRegistry>();
+    engine_ = registry_.Create<LullScriptEngine>();
+    engine_->SetFunctionCallHandler(
+        [fr](FunctionCall* call) { fr->Call(call); });
   }
 };
 

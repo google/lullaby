@@ -17,8 +17,8 @@ limitations under the License.
 #ifndef LULLABY_UTIL_INWARD_BUFFER_H_
 #define LULLABY_UTIL_INWARD_BUFFER_H_
 
+#include <cstring>
 #include <memory>
-#include <string.h>
 
 namespace lull {
 

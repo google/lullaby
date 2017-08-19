@@ -83,6 +83,10 @@ T CheckNotNull(T&& t) {
 #define DLOG LULLABY_LOG
 #endif
 
+#ifndef LOG_ONCE
+#define LOG_ONCE LULLABY_LOG
+#endif
+
 #ifndef DCHECK
 #define DCHECK LULLABY_DCHECK
 #define DCHECK_OP(val1, val2, op) DCHECK((val1) op (val2))

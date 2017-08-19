@@ -71,14 +71,17 @@ class RenderSystemFpl : public System {
   const TexturePtr& GetInvalidTexture() const;
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
   void LoadTextureAtlas(const std::string& filename);
+  MeshPtr LoadMesh(const std::string& filename);
 
 
   ShaderPtr LoadShader(const std::string& filename);
 
   void Create(Entity e, HashValue type, const Def* def) override;
   void Create(Entity e, RenderPass pass);
+  void Create(Entity e, HashValue component_id, RenderPass pass);
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
   void Destroy(Entity e) override;
+  void Destroy(Entity e, HashValue component_id);
 
   void ProcessTasks();
   void WaitForAssetsToLoad();
@@ -93,8 +96,12 @@ class RenderSystemFpl : public System {
 
   void SetUniform(Entity e, const char* name, const float* data, int dimension,
                   int count);
+  void SetUniform(Entity e, HashValue component_id, const char* name,
+                  const float* data, int dimension, int count);
   bool GetUniform(Entity e, const char* name, size_t length,
                   float* data_out) const;
+  bool GetUniform(Entity e, HashValue component_id, const char* name,
+                  size_t length, float* data_out) const;
   void CopyUniforms(Entity entity, Entity source);
 
   int GetNumBones(Entity entity) const;
@@ -107,13 +114,22 @@ class RenderSystemFpl : public System {
                          int num_transforms);
 
   void SetTexture(Entity e, int unit, const TexturePtr& texture);
+  void SetTexture(Entity e, HashValue component_id, int unit,
+                  const TexturePtr& texture);
 
   TexturePtr CreateProcessedTexture(const TexturePtr& source_texture,
                                     bool create_mips,
                                     RenderSystem::TextureProcessor processor);
 
+  TexturePtr CreateProcessedTexture(
+      const TexturePtr& source_texture, bool create_mips,
+      const RenderSystem::TextureProcessor& processor,
+      const mathfu::vec2i& output_dimensions);
+
   void SetTextureId(Entity e, int unit, uint32_t texture_target,
                     uint32_t texture_id);
+  void SetTextureId(Entity e, HashValue component_id, int unit,
+                    uint32_t texture_target, uint32_t texture_id);
 
   TexturePtr GetTexture(Entity entity, int unit) const;
 
@@ -123,23 +139,34 @@ class RenderSystemFpl : public System {
 
   bool GetQuad(Entity e, Quad* quad) const;
   void SetQuad(Entity e, const Quad& quad);
+  void SetQuad(Entity e, HashValue component_id, const Quad& quad);
 
   // TODO(b/31523782): Remove once pipeline for MeshData is stable.
   void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
+  void SetMesh(Entity e, HashValue component_id,
+               const TriangleMesh<VertexPT>& mesh);
   void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
+  void SetAndDeformMesh(Entity entity, HashValue component_id,
+                        const TriangleMesh<VertexPT>& mesh);
 
   void SetMesh(Entity e, const MeshData& mesh);
 
   void SetMesh(Entity e, const std::string& file);
+  void SetMesh(Entity e, HashValue component_id, const MeshPtr& mesh);
+  MeshPtr GetMesh(Entity e, HashValue component_id);
 
   ShaderPtr GetShader(Entity entity) const;
+  ShaderPtr GetShader(Entity entity, HashValue component_id) const;
   void SetShader(Entity e, const ShaderPtr& shader);
+  void SetShader(Entity e, HashValue component_id, const ShaderPtr& shader);
 
   void SetFont(Entity entity, const FontPtr& font);
   void SetTextSize(Entity entity, int size);
 
   SortOrderOffset GetSortOrderOffset(Entity e) const;
   void SetSortOrderOffset(Entity e, SortOrderOffset sort_order_offset);
+  void SetSortOrderOffset(Entity e, HashValue component_id,
+                          SortOrderOffset offset);
 
   void SetStencilMode(Entity e, StencilMode mode, int value);
 
@@ -234,7 +261,7 @@ class RenderSystemFpl : public System {
   using DisplayList = detail::DisplayList<RenderComponent>;
   using RenderPool = detail::RenderPool<RenderComponent>;
   using RenderPoolMap = detail::RenderPoolMap<RenderComponent>;
-  using UniformMap = detail::RenderComponent::UniformMap;
+  using UniformVector = std::vector<Uniform>;
 
   struct DeferredMesh {
     enum Type { kQuad, kMesh };
@@ -279,7 +306,7 @@ class RenderSystemFpl : public System {
   void OnTextureLoaded(const RenderComponent& component, int unit,
                        const TexturePtr& texture);
   bool IsReadyToRenderImpl(const RenderComponent& component) const;
-  void SetShaderUniforms(const UniformMap& uniforms);
+  void SetShaderUniforms(const UniformVector& uniforms);
   void DrawMeshFromComponent(const RenderComponent* component);
 
   // Thread-specific render API. Holds rendering context.

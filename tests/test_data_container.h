@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef THIRD_PARTY_LULLABY_TESTS_TEST_DATA_CONTAINER_H_
-#define THIRD_PARTY_LULLABY_TESTS_TEST_DATA_CONTAINER_H_
+#ifndef LULLABY_TESTS_TEST_DATA_CONTAINER_H_
+#define LULLABY_TESTS_TEST_DATA_CONTAINER_H_
 
 #include <memory>
 
@@ -56,4 +56,4 @@ inline DataContainer CreateWriteDataContainer(size_t capacity) {
 }  // namespace testing
 }  // namespace lull
 
-#endif  // THIRD_PARTY_LULLABY_TESTS_TEST_DATA_CONTAINER_H_
+#endif  // LULLABY_TESTS_TEST_DATA_CONTAINER_H_

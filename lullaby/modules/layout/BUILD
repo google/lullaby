@@ -14,7 +14,7 @@ cc_library(
         "layout.h",
     ],
     deps = [
-        "@flatui//:flatui_layout",
+        "@flatui//:flatui",
         "//lullaby/generated",
         "//lullaby/modules/ecs:entity",
         "//lullaby/systems/layout:layout_box",

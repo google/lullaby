@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_SCRIPT_LULL_LULL_SCRIPT_ENGINE_H_
-#define LULLABY_MODULES_SCRIPT_LULL_LULL_SCRIPT_ENGINE_H_
+#ifndef LULLABY_SCRIPT_LULL_LULL_SCRIPT_ENGINE_H_
+#define LULLABY_SCRIPT_LULL_LULL_SCRIPT_ENGINE_H_
 
 #include <string>
 #include <vector>
 
+#include "lullaby/modules/function/function_call.h"
 #include "lullaby/modules/script/lull/script_env.h"
-#include "lullaby/util/registry.h"
 
 namespace lull {
 
@@ -29,7 +29,11 @@ namespace lull {
 // scripts.
 class LullScriptEngine {
  public:
-  explicit LullScriptEngine(Registry* registry);
+  LullScriptEngine() {}
+
+  // Sets the function that will allow LullScript to invoke native functions via
+  // a FunctionCall object.
+  void SetFunctionCallHandler(FunctionCall::Handler handler);
 
   // Load a script from inline code. The debug_name is used when reporting error
   // messages.
@@ -40,13 +44,6 @@ class LullScriptEngine {
 
   // Run a loaded script.
   void RunScript(uint64_t id);
-
-  // Register a function.
-  template <typename Fn>
-  void RegisterFunction(const std::string& name, const Fn& fn);
-
-  // Unregister a function.
-  void UnregisterFunction(const std::string& name) {}
 
   // Set a value in the script's environment.
   template <typename T>
@@ -63,8 +60,8 @@ class LullScriptEngine {
     std::string debug_name;
   };
 
-  Registry* registry_;
   uint64_t next_script_id_;
+  FunctionCall::Handler handler_;
   std::unordered_map<uint64_t, Script> scripts_;
 };
 
@@ -99,16 +96,8 @@ bool LullScriptEngine::GetValue(uint64_t id, const std::string& name,
   }
 }
 
-template <typename Fn>
-void LullScriptEngine::RegisterFunction(const std::string& name, const Fn& fn) {
-  auto* function_registry = registry_->Get<FunctionRegistry>();
-  if (function_registry) {
-    DCHECK(function_registry->IsFunctionRegistered(name));
-  }
-}
-
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::LullScriptEngine);
 
-#endif  // LULLABY_MODULES_SCRIPT_LULL_LULL_SCRIPT_ENGINE_H_
+#endif  // LULLABY_SCRIPT_LULL_LULL_SCRIPT_ENGINE_H_

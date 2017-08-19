@@ -94,20 +94,23 @@ class PhysicsSystem : public System {
   };
 
   struct RigidBody : Component {
-    explicit RigidBody(Entity entity)
-        : Component(entity),
-          enabled(false) {}
+    explicit RigidBody(Entity entity) : Component(entity) {}
 
     std::unique_ptr<btRigidBody> bt_body;
     std::unique_ptr<MotionState> bt_motion_state;
     // The shape that actually represents this rigid body. The owning unique_ptr
     // of this shape will be the last member of bt_shapes.
     btCollisionShape* bt_primary_shape = nullptr;
+    // The scale applied to bt_primary_shape prior to any Entity-related
+    // scaling. Required for applying scale changes while updating simulation
+    // transforms.
+    mathfu::vec3 primary_shape_scale = mathfu::kOnes3f;
     // Ownership of the shape(s) that this RigidBody uses.
     std::vector<std::unique_ptr<btCollisionShape>> bt_shapes;
 
     mathfu::vec3 center_of_mass_translation = mathfu::kZeros3f;
     RigidBodyType type = RigidBodyType::RigidBodyType_Dynamic;
+    ColliderType collider_type = ColliderType::ColliderType_Standard;
     // This flag persists when the Entity becomes disabled, and is used to
     // determine whether or not the Entity should be re-added to the simulation
     // when re-enabled.
@@ -115,8 +118,20 @@ class PhysicsSystem : public System {
   };
 
   void InitRigidBody(Entity entity, const RigidBodyDef* data);
-  void SetupCollisionShape(RigidBody* body, const RigidBodyDef* data,
-                           const mathfu::vec3& entity_scale);
+  void InitCollisionShape(RigidBody* body, const RigidBodyDef* data);
+
+  // Setup Bullet flags. Should be called whenever the body changes rigid body
+  // types or collider types. Will be called by SetupBtIntertialProperties() as
+  // well.
+  void SetupBtFlags(RigidBody* body) const;
+
+  // Setup mass and local inertia. Should be called whenever a Dynamic body
+  // changes mass or shape.
+  void SetupBtIntertialProperties(RigidBody* body) const;
+
+  // Setup the collision shape to match the AABB of the Entity. Assumes that the
+  // shape has already been constructed and only needs to be re-scaled.
+  void SetupAabbCollisionShape(RigidBody* body);
 
   // The post-tick internal callback allows contact events to be dispatched.
   static void InternalTickCallback(btDynamicsWorld* world, btScalar time_step);
@@ -125,12 +140,19 @@ class PhysicsSystem : public System {
       Entity entity, const mathfu::mat4& world_from_entity_mat);
   void UpdateLullabyTransform(Entity entity);
 
+  // Delegate |one| and |two| to the outputs |primary| and |secondary| for
+  // accessing the ContactMap.
   static void PickPrimaryAndSecondaryEntities(
       Entity one, Entity two, Entity* primary, Entity* secondary);
+
+  // Determine if this rigid body is using the motion state to push transforms
+  // to Bullet.
+  static bool UsesKinematicMotionState(const RigidBody* body);
 
   void OnEntityDisabled(Entity entity);
   void OnEntityEnabled(Entity entity);
   void OnParentChanged(Entity entity, Entity new_parent);
+  void OnAabbChanged(Entity entity);
 
   ComponentPool<RigidBody> rigid_bodies_;
   TransformSystem* transform_system_;

@@ -26,16 +26,16 @@ cc_inc_library(
 cc_library(
     name = "webp_decode_impl",
     srcs = [
-        "src/dec/webp_dec.c",
-        "src/dec/io_dec.c",
+        "src/dec/alpha_dec.c",
         "src/dec/buffer_dec.c",
+        "src/dec/frame_dec.c",
+        "src/dec/idec_dec.c",
+        "src/dec/io_dec.c",
+        "src/dec/quant_dec.c",
+        "src/dec/tree_dec.c",
         "src/dec/vp8_dec.c",
         "src/dec/vp8l_dec.c",
-        "src/dec/quant_dec.c",
-        "src/dec/frame_dec.c",
-        "src/dec/tree_dec.c",
-        "src/dec/idec_dec.c",
-        "src/dec/alpha_dec.c",
+        "src/dec/webp_dec.c",
     ],
     includes = ["src/"],
     deps = [
@@ -58,8 +58,8 @@ cc_library(
         "src/utils/thread_utils.c",
         "src/utils/utils.c",
         "src/utils/utils.h",
-        "src/webp/encode.h",
         "src/webp/decode.h",
+        "src/webp/encode.h",
     ],
     includes = ["src/utils"],
     deps = [

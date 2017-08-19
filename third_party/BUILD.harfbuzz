@@ -1,0 +1,38 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "harfbuzz",
+    hdrs = glob(["src/hb-*.hh"]) + [
+        "src/hb.h",
+        "src/hb-ucdn/ucdn.h",
+        "src/hb-ucdn/unicodedata_db.h",
+        "src/hb-blob.h",
+        "src/hb-buffer.h",
+        "src/hb-common.h",
+        "src/hb-deprecated.h",
+        "src/hb-face.h",
+        "src/hb-font.h",
+        "src/hb-ft.h",
+        "src/hb-ot.h",
+        "src/hb-ot-font.h",
+        "src/hb-ot-layout.h",
+        "src/hb-ot-math.h",
+        "src/hb-ot-shape.h",
+        "src/hb-ot-tag.h",
+        "src/hb-ot-var.h",
+        "src/hb-set.h",
+        "src/hb-shape.h",
+        "src/hb-shape-plan.h",
+        "src/hb-unicode.h",
+        "src/hb-version.h.in",
+    ],
+    includes = [
+        "src",
+        "src/hb-ucdn",
+    ],
+    deps = [
+        "@freetype2//:freetype",
+    ],
+)

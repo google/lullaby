@@ -83,7 +83,8 @@ class TextSystem : public System {
       const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*
           names);
 
-  // Sets |font| on |entity|.  Takes effect on the next call to SetText.
+  // Sets |font| on |entity|.
+  // TODO(b/37951300) Doesn't take effect until the next call to SetText.
   void SetFont(Entity entity, FontPtr font);
 
   // Returns |entity|'s current text value, or nullptr if it isn't registered.
@@ -114,11 +115,13 @@ class TextSystem : public System {
   // single line.
   // If just the height is zero, the text will break to multiple lines based
   // on the TextWrapMode.
+  // TODO(b/37951300) Doesn't take effect until the next call to SetText.
   void SetBounds(Entity entity, const mathfu::vec2& bounds);
 
   // Sets how |entity|'s text will wrap based on the text bounds.
   // See the documentation for TextWrapMode for info on how different values
   // affect the wrapping.
+  // TODO(b/37951300) Doesn't take effect until the next call to SetText.
   void SetWrapMode(Entity entity, TextWrapMode wrap_mode);
 
   // Sets |entity|'s |ellipsis| string, which will be appended to the last of

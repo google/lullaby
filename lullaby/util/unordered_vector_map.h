@@ -43,7 +43,8 @@ namespace lull {
 // container is also not thread safe.  Finally, the ForEach function is not
 // re-entrant - do not insert/remove objects from the container during
 // iteration.
-template <typename Key, typename Object, typename KeyFn>
+template <typename Key, typename Object, typename KeyFn,
+          typename LookupHash = std::hash<Key>>
 class UnorderedVectorMap {
   template <bool IsConst>
   class Iterator;
@@ -292,7 +293,7 @@ class UnorderedVectorMap {
   using Index = std::pair<size_t, size_t>;
 
   // Table that maps a Key to a specific element in the ArrayVector.
-  using LookupTable = std::unordered_map<Key, Index>;
+  using LookupTable = std::unordered_map<Key, Index, LookupHash>;
 
   // An STL style iterator for accessing the elements of an UnorderedVectorMap.
   // This class provides both the const and non-const implementation. If the

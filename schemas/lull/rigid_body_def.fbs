@@ -3,15 +3,15 @@ include "lull/physics_shapes.fbs";
 
 namespace lull;
 
-/// Defines how a physics simulation should treat this rigid body.
+/// Defines how the physics simulation should treat a rigid body.
 enum RigidBodyType : int {
   /// A standard rigid body (i.e. a pool ball or tumbling block).
   Dynamic,
 
   /// A completely immovable object (i.e. a floor).
   /// Note that Static rigid bodies will not produce contact events with other
-  /// Static and Kinematic rigid bodies.
-  /// TODO(b/63851094): mention ghost objects as a way of solving this.
+  /// Static and Kinematic rigid bodies. To achieve this behaviour, use
+  /// ColliderType::Trigger.
   Static,
 
   /// A non-physics object that can move (i.e. an anchored moving platform). A
@@ -19,9 +19,22 @@ enum RigidBodyType : int {
   /// transform updated prior to each simulation update based on the
   /// TransformSystem.
   /// Note that Kinematic rigid bodies will not produce contact events with
-  /// other Static and Kinematic rigid bodies.
-  /// TODO(b/63851094): mention ghost objects as a way of solving this.
+  /// other Static and Kinematic rigid bodies. To achieve this behaviour, use
+  /// ColliderType::Trigger.
   Kinematic,
+}
+
+/// Defines how a rigid body responds to collisions.
+enum ColliderType : int {
+  /// Collisions between this body and other Standard rigid bodies will produce
+  /// contact events and a physical contact response (in the form of forces or
+  /// impulses applied on one or both bodies). All other collisions will only
+  /// produce contact events.
+  Standard,
+
+  /// This body will act purely as a collision volume. Collisions between this
+  /// body and any other rigid body will only produce contact events.
+  Trigger,
 }
 
 /// Describes the rigid body properties of an Entity for the physics simulation.
@@ -30,14 +43,21 @@ table RigidBodyDef {
   /// How the body should be simulated.
   type: RigidBodyType = Dynamic;
 
-  /// The list of shapes for this body.
-  /// TODO(b/64477700): add something about an empty / absent shape using the
-  /// Entity's AABB.
+  /// How the body should respond to collisions.
+  collider_type: ColliderType = Standard;
+
+  /// The list of shapes for this body. If absent or empty, the Entity's AABB
+  /// will be used to create the appropriate PhysicsBoxShape. The shape will
+  /// automatically resize itself if the AABB for the Entity changes. Doing so
+  /// will not change the center of mass of the rigid body, meaning if the AABB
+  /// of the shape is min = (1,1,1), max = (2,2,2), the center of mass will not
+  /// be inside the shape.
   shapes: [PhysicsShapePart];
 
   /// The mass of the physics object in kg. If the body is Static, this will
-  /// automatically be assigned a value of 0.
-  mass: float;
+  /// automatically be assigned a value of 0. If the body is Dynamic, this must
+  /// be positive. If the body is Kinematic, this value is irrelevant.
+  mass: float = 1.0;
 
   /// The frictional coefficient of the physics object. When two objects
   /// collide, the "total coefficient of friction" determines how much energy is
@@ -58,10 +78,12 @@ table RigidBodyDef {
   /// Whether or not to enable simulation of this rigid body on create.
   enable_on_create: bool = true;
 
-  /// The initial linear velocity for this rigid body.
+  /// The initial linear velocity for this rigid body. Only applies to Dynamic
+  /// rigid bodies.
   linear_velocity: Vec3 (defaults_to_null);
 
-  /// The initial angular velocity for this rigid body (in Euler angles).
+  /// The initial angular velocity for this rigid body (in Euler angles). Only
+  /// applies to Dynamic rigid bodies.
   angular_velocity: Vec3 (defaults_to_null);
 
   /// A translation to be applied to this rigid body's center of mass before

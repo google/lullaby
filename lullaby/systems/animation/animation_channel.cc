@@ -144,7 +144,7 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
   }
 
   const motive::MotiveTime min_time = AnimationSystem::GetMinimalStep();
-  anim->total_time = AnimationSystem::GetMotiveTime(time);
+  anim->total_time = AnimationSystem::GetMotiveTimeFromDuration(time);
   if (anim->total_time < min_time) {
     anim->total_time = min_time;
   }

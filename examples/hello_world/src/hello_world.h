@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_HELLO_WORLD_SRC_HELLO_WORLD_H_
-#define LULLABY_HELLO_WORLD_SRC_HELLO_WORLD_H_
+#ifndef LULLABY_EXAMPLES_HELLO_WORLD_SRC_HELLO_WORLD_H_
+#define LULLABY_EXAMPLES_HELLO_WORLD_SRC_HELLO_WORLD_H_
 
 #include "lullaby/examples/example_app/example_app.h"
 
@@ -30,4 +30,4 @@ class HelloWorld : public lull::ExampleApp {
   void OnRender(lull::Span<lull::RenderView> views) override;
 };
 
-#endif  // LULLABY_HELLO_WORLD_SRC_HELLO_WORLD_H_
+#endif  // LULLABY_EXAMPLES_HELLO_WORLD_SRC_HELLO_WORLD_H_

@@ -22,13 +22,14 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include "lullaby/generated/render_def_generated.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/systems/render/fpl/mesh.h"
+#include "lullaby/systems/render/material.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
 #include "lullaby/util/hash.h"
+#include "lullaby/generated/render_def_generated.h"
 
 namespace lull {
 namespace detail {
@@ -39,20 +40,9 @@ namespace detail {
 struct RenderComponent : Component {
   explicit RenderComponent(Entity e) : Component(e) {}
 
-  struct UniformData {
-    std::string name;
-    std::vector<float> values;
-    fplbase::UniformHandle location = fplbase::InvalidUniformHandle();
-    int dimension = 0;
-    int count = 0;
-  };
-  using UniformMap = std::map<HashValue, UniformData>;
-
   mathfu::vec4 default_color = mathfu::vec4(1, 1, 1, 1);
   MeshPtr mesh = nullptr;
-  ShaderPtr shader = nullptr;
-  std::map<int, TexturePtr> textures;
-  UniformMap uniforms;
+  Material material;
   RenderPass pass = RenderPass_Main;
   RenderSystem::SortOrder sort_order = 0;
   StencilMode stencil_mode = StencilMode::kDisabled;

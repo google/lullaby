@@ -28,25 +28,11 @@ limitations under the License.
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
-#include "lullaby/util/hash.h"
+#include "lullaby/util/unordered_vector_map.h"
 #include "lullaby/generated/render_def_generated.h"
 
 namespace lull {
 namespace detail {
-
-/// A pair of an Entity and a HashValue id.
-union EntityIdPair {
-  struct {
-    Entity entity;
-    HashValue id;
-  };
-  uint64_t value;
-
-  EntityIdPair(Entity e, HashValue id = 0) : entity(e), id(id) {}
-  bool operator==(const EntityIdPair& other) const {
-    return value == other.value;
-  }
-};
 
 // RenderComponent contains all the data for rendering an Entity using the FPL
 // backend.  This is a private class, and should not be used outside of
@@ -75,19 +61,11 @@ struct RenderComponentHash {
     return pair;
   }
 };
-using RenderComponentPool = UnorderedVectorMap<EntityIdPair, RenderComponent,
-                                               detail::RenderComponentHash>;
+using RenderComponentPool =
+    UnorderedVectorMap<EntityIdPair, RenderComponent,
+                       detail::RenderComponentHash, EntityIdPairHash>;
 
 }  // namespace detail
 }  // namespace lull
-
-namespace std {
-template <>
-struct hash<lull::detail::EntityIdPair> {
-  size_t operator()(const lull::detail::EntityIdPair& x) const {
-    return x.value;
-  }
-};
-}  // namespace std
 
 #endif  // LULLABY_SYSTEMS_RENDER_NEXT_RENDER_COMPONENT_H_

@@ -91,6 +91,13 @@ class AnimationSystem : public System {
   // dispatched when this animation finishes or is interrupted.
   AnimationId PlayAnimation(Entity e, const AnimationDef* data);
 
+  // Plays the specified animation on the channel with the given params. Returns
+  // a unique AnimationId, which will be included in the AnimationCompleteEvent
+  // dispatched when this animation finishes or is interrupted.
+  AnimationId PlayAnimation(Entity e, HashValue channel,
+                            const AnimationAssetPtr& anim,
+                            const PlaybackParameters& params);
+
   // Drives the data specified by the |channel| towards the |target| values
   // over the given |time|. Returns a unique AnimationId, which will be included
   // in the AnimationCompleteEvent dispatched when this animation finishes or is
@@ -107,9 +114,16 @@ class AnimationSystem : public System {
   // |rate| multiplies the animation's natural timestep.
   void SetPlaybackRate(Entity entity, HashValue channel, float speed);
 
+  // Loads and returns the animation asset associated with the filename. The
+  // asset is loaded synchronously and will remain in the AnimationSystem's
+  // internal cache indefinitely.
+  AnimationAssetPtr LoadAnimation(const std::string& filename);
+
+  // Converts MotiveTime |time| units to Clock::duration units.
+  static Clock::duration GetDurationFromMotiveTime(motive::MotiveTime time);
+
   // Converts Clock::duration |timestamp| to MotiveTime units.
-  static motive::MotiveTime GetMotiveTime(
-      const Clock::duration& timestep);
+  static motive::MotiveTime GetMotiveTimeFromDuration(Clock::duration timestep);
 
   // Converts |seconds| to MotiveTime units.
   static motive::MotiveTime GetMotiveTimeFromSeconds(float seconds);
@@ -140,7 +154,8 @@ class AnimationSystem : public System {
 
   static PlaybackParameters GetPlaybackParameters(const AnimInstanceDef* anim);
 
-  AnimationAssetPtr LoadAnimation(const std::string& filename);
+  AnimationChannel* FindChannel(string_view channel_name);
+  AnimationChannel* FindChannel(HashValue channel_id);
 
   AnimationId GenerateAnimationId();
   AnimationId TrackAnimations(Entity e, AnimationSet anims,
@@ -148,22 +163,28 @@ class AnimationSystem : public System {
   void UntrackAnimation(AnimationId internal_id,
                         AnimationCompletionReason status);
 
+  // Initializes the |channel| with the defining animation for the Entity |e|
+  // if one has been specified. This function should be called before playing
+  // any rig animations for an Entity on the specified channel.
+  void PrepareDefiningAnimation(Entity e, AnimationChannel* channel);
+
   AnimationId PlayAnimation(Entity e, const AnimTargetDef* target);
   AnimationId PlayAnimation(Entity e, const AnimInstanceDef* anim);
-  AnimationId PlayRigAnimation(Entity e, const AnimInstanceDef* anim,
-                               HashValue channel_id,
-                               const AnimationChannelPtr& channel);
-  AnimationId PlaySplineAnimation(Entity e, const AnimInstanceDef* anim,
-                                  HashValue channel_id,
-                                  const AnimationChannelPtr& channel);
-
-  AnimationId SetTargetInternal(Entity e, HashValue channel,
-                                const float* target, size_t len,
+  AnimationId PlayRigAnimation(Entity e, AnimationChannel* channel,
+                               const AnimInstanceDef* anim);
+  AnimationId PlaySplineAnimation(Entity e, AnimationChannel* channel,
+                                  const AnimInstanceDef* anim);
+  AnimationId PlayRigAnimationInternal(Entity e, AnimationChannel* channel,
+                                       const AnimationAssetPtr& anim,
+                                       const PlaybackParameters& params,
+                                       int rig_index = 0);
+  AnimationId SetTargetInternal(Entity e, AnimationChannel* channel,
+                                const float* data, size_t len,
                                 Clock::duration time);
 
   struct DefiningAnimation {
-    HashValue channel;
     AnimationAssetPtr asset;
+    AnimationChannel* channel = nullptr;
   };
 
   AnimationId current_id_;

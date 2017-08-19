@@ -1,0 +1,77 @@
+include "lull/common.fbs";
+include "lull/animation_def.fbs";
+include "lull/variant_def.fbs";
+
+namespace lull;
+
+/// Animation selector that picks the first track in a state.
+table FirstAnimationSelectorDef {}
+
+/// Union of all animation selectors.
+union AnimationSelectorDef {
+  FirstAnimationSelectorDef,
+}
+
+/// An animation window within a single track of animation.
+table AnimationSignalDef {
+  /// The unique name (id) of the signal.
+  id: uint = 0 (hashvalue);
+
+  /// The start time (in seconds) when the signal is active.
+  start_time_s: float;
+
+  /// The end time (in seconds) when the signal is no longer active.
+  end_time_s: float;
+}
+
+/// An animation track representing a single animation to play.
+table AnimationTrackDef {
+  /// The filename of the animation to load and play.
+  animation: string;
+
+  /// The speed at which to playback the animation.
+  playback_speed: float = 1.0;
+
+  /// The collection of signals associated with the track.
+  signals: [AnimationSignalDef];
+
+  /// The parameters associated with the animation that can be used in
+  /// conjunction with the owning state's selector to pick this track.
+  selection_params: VariantMapDef;
+}
+
+/// A transition between two states within the stategraph.
+table AnimationTransitionDef {
+  /// The name (id) of the destination/target state.
+  to_state: uint = 0 (hashvalue);
+
+  /// The time before the end of the animation at which this transition is
+  /// valid.
+  active_time_from_end_s: float;
+
+  /// The time to blend between the source animation and the target animation.
+  blend_time_s: float;
+}
+
+/// A single animation state within a stategraph.
+table AnimationStateDef {
+  /// The unique name (id) of the state.
+  id: uint = 0 (hashvalue);
+
+  /// The selector to use to pick a track when entering the state.
+  selector: AnimationSelectorDef;
+
+  /// The list of tracks associated with the state.
+  tracks: [AnimationTrackDef];
+
+  /// The transitions exiting this state to enter the next state.
+  transitions: [AnimationTransitionDef];
+}
+
+/// An animation stategraph which is a collection of animation states.
+table AnimationStategraphDef {
+  /// Collection of states associated with the stategraph.
+  states: [AnimationStateDef];
+}
+
+root_type AnimationStategraphDef;

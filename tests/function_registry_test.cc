@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/util/function_registry.h"
+#include "lullaby/modules/script/function_registry.h"
 
 #include <string>
 
@@ -161,15 +161,14 @@ TEST_F(FunctionRegistryTest, WrongArgTypeError) {
   EXPECT_TRUE(
       log_checker_->HasMessage("ERROR",
                                "ExpectMap expects the type of arg 1 to be "
-                               "std::map<lull::HashValue, double>"));
+                               "std::map<uint32_t, double>"));
 
   result = fn_registry_->Call("ExpectUnorderedMap", 123);
   EXPECT_TRUE(result.Empty());
   EXPECT_TRUE(log_checker_->HasMessage(
       "ERROR",
       "ExpectUnorderedMap expects the type of arg 1 to be "
-      "std::unordered_map<lull::HashValue, "
-      "mathfu::vec3>"));
+      "std::unordered_map<uint32_t, mathfu::vec3>"));
 
   result = fn_registry_->Call("ExpectOptional", 123);
   EXPECT_TRUE(result.Empty());
@@ -187,8 +186,7 @@ TEST_F(FunctionRegistryTest, UnregisteredFunctionError) {
   std::string b("def");
   Variant result = fn_registry_->Call("Concat", a, b);
   EXPECT_TRUE(result.Empty());
-  EXPECT_TRUE(log_checker_->HasMessage(
-      "ERROR", "Unknown function: Concat"));
+  EXPECT_TRUE(log_checker_->HasMessage("ERROR", "Unknown function: Concat"));
 }
 
 }  // namespace lull

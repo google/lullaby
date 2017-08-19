@@ -84,6 +84,23 @@ void DrawDynamicMesh(const MeshData* mesh) {
   }
 }
 
+void UpdateUniformBinding(Uniform::Description* desc, const ShaderPtr& shader) {
+  if (!desc) {
+    return;
+  }
+
+  if (!shader) {
+    desc->binding = -1;
+  }
+
+  const Shader::UniformHnd handle = shader->FindUniform(desc->name.c_str());
+  if (fplbase::ValidUniformHandle(handle)) {
+    desc->binding = fplbase::GlUniformHandle(handle);
+  } else {
+    desc->binding = -1;
+  }
+}
+
 }  // namespace
 
 RenderSystemFpl::RenderSystemFpl(Registry* registry)
@@ -165,6 +182,10 @@ void RenderSystemFpl::LoadTextureAtlas(const std::string& filename) {
   factory_->LoadTextureAtlas(filename, create_mips);
 }
 
+MeshPtr RenderSystemFpl::LoadMesh(const std::string& filename) {
+  return factory_->LoadMesh(filename);
+}
+
 
 ShaderPtr RenderSystemFpl::LoadShader(const std::string& filename) {
   return factory_->LoadShader(filename);
@@ -184,10 +205,9 @@ void RenderSystemFpl::Create(Entity e, RenderPass pass) {
       render_component_pools_.EmplaceComponent(e, pass);
   component.pass = pass;
 
-  sort_order_manager_.UpdateSortOrder(
-      e, [this](Entity entity) {
-        return render_component_pools_.GetComponent(entity);
-      });
+  sort_order_manager_.UpdateSortOrder(e, [this](EntityIdPair entity_id_pair) {
+    return render_component_pools_.GetComponent(entity_id_pair.entity);
+  });
 }
 
 
@@ -393,21 +413,29 @@ void RenderSystemFpl::SetUniform(Entity e, const char* name, const float* data,
     return;
   }
   auto* render_component = render_component_pools_.GetComponent(e);
-  if (!render_component || !render_component->shader) {
+  if (!render_component || !render_component->material.GetShader()) {
     return;
   }
 
-  const lull::HashValue key = Hash(name);
-  const bool is_new = (render_component->uniforms.count(key) == 0);
-  auto& uniform = render_component->uniforms[key];
-  uniform.name = name;
-  uniform.values.clear();
-  uniform.values.assign(data, data + (dimension * count));
-  if (is_new) {
-    uniform.location = render_component->shader->FindUniform(name);
+  const size_t num_bytes = dimension * count * sizeof(float);
+  Uniform* uniform = render_component->material.GetUniformByName(name);
+  if (!uniform || uniform->GetDescription().num_bytes != num_bytes) {
+    Uniform::Description desc(
+        name, (dimension > 4) ? Uniform::Type::kMatrix : Uniform::Type::kFloats,
+        num_bytes, count);
+    if (!uniform) {
+      render_component->material.AddUniform(desc);
+    } else {
+      render_component->material.UpdateUniform(desc);
+    }
   }
-  uniform.count = count;
-  uniform.dimension = dimension;
+
+  render_component->material.SetUniformByName(name, data, dimension * count);
+  uniform = render_component->material.GetUniformByName(name);
+  if (uniform && uniform->GetDescription().binding == -1) {
+    UpdateUniformBinding(&uniform->GetDescription(),
+                         render_component->material.GetShader());
+  }
 }
 
 bool RenderSystemFpl::GetUniform(Entity e, const char* name, size_t length,
@@ -417,18 +445,20 @@ bool RenderSystemFpl::GetUniform(Entity e, const char* name, size_t length,
     return false;
   }
 
-  const auto& iter = render_component->uniforms.find(Hash(name));
-  if (iter == render_component->uniforms.end()) {
+  const Uniform* uniform = render_component->material.GetUniformByName(name);
+  if (!uniform) {
     return false;
   }
 
-  const RenderComponent::UniformData& uniform = iter->second;
-  if (length < uniform.values.size()) {
+  const Uniform::Description& desc = uniform->GetDescription();
+  // Length is the number of floats expected. Convert it into size in bytes.
+  const size_t expected_bytes = length * sizeof(float);
+  if (expected_bytes < desc.num_bytes) {
     return false;
   }
-  for (size_t i = 0; i < uniform.values.size(); ++i) {
-    data_out[i] = uniform.values[i];
-  }
+
+  memcpy(data_out, uniform->GetData<float>(), sizeof(float) * length);
+
   return true;
 }
 
@@ -438,14 +468,18 @@ void RenderSystemFpl::CopyUniforms(Entity entity, Entity source) {
     return;
   }
 
-  component->uniforms.clear();
+  component->material.ClearUniforms();
 
   const RenderComponent* source_component =
       render_component_pools_.GetComponent(source);
   if (source_component) {
-    component->uniforms = source_component->uniforms;
+    const UniformVector& uniforms = source_component->material.GetUniforms();
+    for (auto& uniform : uniforms) {
+      component->material.AddUniform(uniform);
+    }
 
-    if (component->shader != source_component->shader) {
+    if (component->material.GetShader() !=
+        source_component->material.GetShader()) {
       // Fix the locations using |entity|'s shader.
       UpdateUniformLocations(component);
     }
@@ -453,13 +487,14 @@ void RenderSystemFpl::CopyUniforms(Entity entity, Entity source) {
 }
 
 void RenderSystemFpl::UpdateUniformLocations(RenderComponent* component) {
-  if (!component->shader) {
+  if (!component->material.GetShader()) {
     return;
   }
 
-  for (auto& iter : component->uniforms) {
-    RenderComponent::UniformData& uniform = iter.second;
-    uniform.location = component->shader->FindUniform(uniform.name.c_str());
+  auto& uniforms = component->material.GetUniforms();
+  for (auto& uniform : uniforms) {
+    UpdateUniformBinding(&uniform.GetDescription(),
+                         component->material.GetShader());
   }
 }
 
@@ -558,12 +593,7 @@ void RenderSystemFpl::SetTexture(Entity e, int unit,
     return;
   }
 
-  if (!texture) {
-    render_component->textures.erase(unit);
-    return;
-  }
-
-  render_component->textures[unit] = texture;
+  render_component->material.SetTexture(unit, texture);
   max_texture_unit_ = std::max(max_texture_unit_, unit);
 
   // Add subtexture coordinates so the vertex shaders will pick them up.  These
@@ -576,8 +606,8 @@ void RenderSystemFpl::SetTexture(Entity e, int unit,
     texture->AddOnLoadCallback([this, unit, e, texture]() {
       RenderComponent* render_component =
           render_component_pools_.GetComponent(e);
-      if (render_component && render_component->textures.count(unit) != 0 &&
-          render_component->textures[unit] == texture) {
+      if (render_component &&
+          render_component->material.GetTexture(unit) == texture) {
         OnTextureLoaded(*render_component, unit, texture);
       }
     });
@@ -589,6 +619,14 @@ TexturePtr RenderSystemFpl::CreateProcessedTexture(
     RenderSystem::TextureProcessor processor) {
   return factory_->CreateProcessedTexture(source_texture, create_mips,
                                           processor);
+}
+
+TexturePtr RenderSystemFpl::CreateProcessedTexture(
+    const TexturePtr& source_texture, bool create_mips,
+    const RenderSystem::TextureProcessor& processor,
+    const mathfu::vec2i& output_dimensions) {
+  return factory_->CreateProcessedTexture(source_texture, create_mips,
+                                          processor, output_dimensions);
 }
 
 void RenderSystemFpl::SetTextureId(Entity e, int unit, uint32_t texture_target,
@@ -606,11 +644,7 @@ TexturePtr RenderSystemFpl::GetTexture(Entity entity, int unit) const {
   if (!render_component) {
     return TexturePtr();
   }
-  auto iter = render_component->textures.find(unit);
-  if (iter == render_component->textures.end()) {
-    return TexturePtr();
-  }
-  return iter->second;
+  return render_component->material.GetTexture(unit);
 }
 
 
@@ -691,10 +725,9 @@ RenderSystemFpl::SortOrderOffset RenderSystemFpl::GetSortOrderOffset(
 
 void RenderSystemFpl::SetSortOrderOffset(Entity e, SortOrderOffset offset) {
   sort_order_manager_.SetOffset(e, offset);
-  sort_order_manager_.UpdateSortOrder(
-      e, [this](Entity entity) {
-        return render_component_pools_.GetComponent(entity);
-      });
+  sort_order_manager_.UpdateSortOrder(e, [this](EntityIdPair entity_id_pair) {
+    return render_component_pools_.GetComponent(entity_id_pair.entity);
+  });
 }
 
 bool RenderSystemFpl::IsTextureSet(Entity e, int unit) const {
@@ -702,7 +735,7 @@ bool RenderSystemFpl::IsTextureSet(Entity e, int unit) const {
   if (!render_component) {
     return false;
   }
-  return render_component->textures.count(unit) != 0;
+  return render_component->material.GetTexture(unit) != nullptr;
 }
 
 bool RenderSystemFpl::IsTextureLoaded(Entity e, int unit) const {
@@ -711,10 +744,10 @@ bool RenderSystemFpl::IsTextureLoaded(Entity e, int unit) const {
     return false;
   }
 
-  if (render_component->textures.count(unit) == 0) {
+  if (!render_component->material.GetTexture(unit)) {
     return false;
   }
-  return render_component->textures.at(unit)->IsLoaded();
+  return render_component->material.GetTexture(unit)->IsLoaded();
 }
 
 bool RenderSystemFpl::IsTextureLoaded(const TexturePtr& texture) const {
@@ -732,7 +765,8 @@ bool RenderSystemFpl::IsReadyToRender(Entity entity) const {
 
 bool RenderSystemFpl::IsReadyToRenderImpl(
     const RenderComponent& component) const {
-  for (const auto& pair : component.textures) {
+  const auto& textures = component.material.GetTextures();
+  for (const auto& pair : textures) {
     const TexturePtr& texture = pair.second;
     if (!texture->IsLoaded() || !factory_->IsTextureValid(texture)) {
       return false;
@@ -755,7 +789,7 @@ bool RenderSystemFpl::IsHidden(Entity e) const {
 ShaderPtr RenderSystemFpl::GetShader(Entity entity) const {
   const RenderComponent* component =
       render_component_pools_.GetComponent(entity);
-  return component ? component->shader : ShaderPtr();
+  return component ? component->material.GetShader() : ShaderPtr();
 }
 
 void RenderSystemFpl::SetShader(Entity e, const ShaderPtr& shader) {
@@ -763,7 +797,7 @@ void RenderSystemFpl::SetShader(Entity e, const ShaderPtr& shader) {
   if (!render_component) {
     return;
   }
-  render_component->shader = shader;
+  render_component->material.SetShader(shader);
 
   // Update the uniforms' locations in the new shader.
   UpdateUniformLocations(render_component);
@@ -926,6 +960,18 @@ void RenderSystemFpl::SetCullMode(RenderPass pass, CullMode mode) {
 
 void RenderSystemFpl::SetDepthTest(const bool enabled) {
   if (enabled) {
+#if !ION_PRODUCTION
+    // GL_DEPTH_BITS was deprecated in desktop GL 3.3, so make sure this get
+    // succeeds before checking depth_bits.
+    GLint depth_bits = 0;
+    glGetIntegerv(GL_DEPTH_BITS, &depth_bits);
+    if (glGetError() == 0 && depth_bits == 0) {
+      // This has been known to cause problems on iOS 10.
+      LOG_ONCE(WARNING) << "Enabling depth test without a depth buffer; this "
+                           "has known issues on some platforms.";
+    }
+#endif  // !ION_PRODUCTION
+
     renderer_.SetDepthFunction(fplbase::kDepthFunctionLess);
     return;
   }
@@ -1080,7 +1126,8 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
                                const mathfu::mat4& world_from_entity_matrix,
                                const View& view) {
   LULLABY_CPU_TRACE_CALL();
-  if (!component->shader || !component->mesh) {
+  const ShaderPtr& shader = component->material.GetShader();
+  if (!shader || !component->mesh) {
     return;
   }
 
@@ -1089,11 +1136,11 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
   renderer_.set_model_view_projection(clip_from_entity_matrix);
   renderer_.set_model(world_from_entity_matrix);
 
-  BindShader(component->shader);
-  SetShaderUniforms(component->uniforms);
+  BindShader(shader);
+  SetShaderUniforms(component->material.GetUniforms());
 
   const Shader::UniformHnd mat_normal_uniform_handle =
-      component->shader->FindUniform("mat_normal");
+      shader->FindUniform("mat_normal");
   if (fplbase::ValidUniformHandle(mat_normal_uniform_handle)) {
     const int uniform_gl = fplbase::GlUniformHandle(mat_normal_uniform_handle);
     // Compute the normal matrix. This is the transposed matrix of the inversed
@@ -1107,7 +1154,7 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
     GL_CALL(glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data));
   }
   const Shader::UniformHnd camera_dir_handle =
-      component->shader->FindUniform("camera_dir");
+      shader->FindUniform("camera_dir");
   if (fplbase::ValidUniformHandle(camera_dir_handle)) {
     const int uniform_gl = fplbase::GlUniformHandle(camera_dir_handle);
     mathfu::vec3_packed camera_dir;
@@ -1115,7 +1162,8 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
     GL_CALL(glUniform3fv(uniform_gl, 1, camera_dir.data));
   }
 
-  for (const auto& texture : component->textures) {
+  const auto& textures = component->material.GetTextures();
+  for (const auto& texture : textures) {
     texture.second->Bind(texture.first);
   }
 
@@ -1135,7 +1183,8 @@ void RenderSystemFpl::RenderAtMultiview(
     const RenderComponent* component,
     const mathfu::mat4& world_from_entity_matrix, const View* views) {
   LULLABY_CPU_TRACE_CALL();
-  if (!component->shader || !component->mesh) {
+  const ShaderPtr& shader = component->material.GetShader();
+  if (!shader || !component->mesh) {
     return;
   }
 
@@ -1144,18 +1193,18 @@ void RenderSystemFpl::RenderAtMultiview(
       views[1].clip_from_world_matrix * world_from_entity_matrix,
   };
 
-  BindShader(component->shader);
-  SetShaderUniforms(component->uniforms);
+  BindShader(shader);
+  SetShaderUniforms(component->material.GetUniforms());
 
   const Shader::UniformHnd mvp_uniform_handle =
-      component->shader->FindUniform("model_view_projection");
+      shader->FindUniform("model_view_projection");
   if (fplbase::ValidUniformHandle(mvp_uniform_handle)) {
     const int uniform_gl = fplbase::GlUniformHandle(mvp_uniform_handle);
     GL_CALL(glUniformMatrix4fv(uniform_gl, 2, false,
                                &(clip_from_entity_matrix[0][0])));
   }
   const Shader::UniformHnd mat_normal_uniform_handle =
-      component->shader->FindUniform("mat_normal");
+      shader->FindUniform("mat_normal");
   if (fplbase::ValidUniformHandle(mat_normal_uniform_handle)) {
     const int uniform_gl = fplbase::GlUniformHandle(mat_normal_uniform_handle);
     const mathfu::mat3 normal_matrix =
@@ -1165,7 +1214,7 @@ void RenderSystemFpl::RenderAtMultiview(
     GL_CALL(glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data));
   }
   const Shader::UniformHnd camera_dir_handle =
-      component->shader->FindUniform("camera_dir");
+      shader->FindUniform("camera_dir");
   if (fplbase::ValidUniformHandle(camera_dir_handle)) {
     const int uniform_gl = fplbase::GlUniformHandle(camera_dir_handle);
     mathfu::vec3_packed camera_dir[2];
@@ -1176,7 +1225,8 @@ void RenderSystemFpl::RenderAtMultiview(
     GL_CALL(glUniform3fv(uniform_gl, 2, camera_dir[0].data));
   }
 
-  for (const auto& texture : component->textures) {
+  const auto& textures = component->material.GetTextures();
+  for (const auto& texture : textures) {
     texture.second->Bind(texture.first);
   }
 
@@ -1192,33 +1242,9 @@ void RenderSystemFpl::RenderAtMultiview(
   DrawMeshFromComponent(component);
 }
 
-void RenderSystemFpl::SetShaderUniforms(const UniformMap& uniforms) {
-  for (const auto& iter : uniforms) {
-    const RenderComponent::UniformData& uniform = iter.second;
-    if (fplbase::ValidUniformHandle(uniform.location)) {
-      const float* values = uniform.values.data();
-      // TODO(b/62000164): Add a `count` parameter to
-      // fplbase::Shader::SetUniform() so that we don't have to make OpenGL
-      // calls here.
-      const int uniform_gl = fplbase::GlUniformHandle(uniform.location);
-      switch (uniform.dimension) {
-        case 1:
-          GL_CALL(glUniform1fv(uniform_gl, uniform.count, values));
-          break;
-        case 2:
-          GL_CALL(glUniform2fv(uniform_gl, uniform.count, values));
-          break;
-        case 3:
-          GL_CALL(glUniform3fv(uniform_gl, uniform.count, values));
-          break;
-        case 4:
-          GL_CALL(glUniform4fv(uniform_gl, uniform.count, values));
-          break;
-        case 16:
-          GL_CALL(glUniformMatrix4fv(uniform_gl, uniform.count, false, values));
-          break;
-      }
-    }
+void RenderSystemFpl::SetShaderUniforms(const UniformVector& uniforms) {
+  for (const auto& uniform : uniforms) {
+    BindUniform(uniform);
   }
 }
 
@@ -1227,7 +1253,8 @@ void RenderSystemFpl::DrawMeshFromComponent(const RenderComponent* component) {
     component->mesh->Render(&renderer_, blend_mode_);
     detail::Profiler* profiler = registry_->Get<detail::Profiler>();
     if (profiler) {
-      profiler->RecordDraw(component->shader, component->mesh->GetNumVertices(),
+      profiler->RecordDraw(component->material.GetShader(),
+                           component->mesh->GetNumVertices(),
                            component->mesh->GetNumTriangles());
     }
   }
@@ -1624,8 +1651,8 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
 
 void RenderSystemFpl::OnParentChanged(const ParentChangedEvent& event) {
   sort_order_manager_.UpdateSortOrder(
-      event.target, [this](Entity entity) {
-        return render_component_pools_.GetComponent(entity);
+      event.target, [this](EntityIdPair entity_id_pair) {
+        return render_component_pools_.GetComponent(entity_id_pair.entity);
       });
 }
 
@@ -1659,14 +1686,18 @@ void RenderSystemFpl::BindUniform(const Uniform& uniform) {
     if (fplbase::ValidUniformHandle(handle)) {
       binding = fplbase::GlUniformHandle(handle);
     } else {
-      LOG(DFATAL) << "Uniform named \"" << desc.name
-                  << "\" does not exist in currently bound shader.";
+      // Material has a uniform which is not present in the shader. Ideally we
+      // should spit a warning and avoid the situation from happening, but
+      // currently there are some defaults uniforms being set and a warning will
+      // spam the logs.
+      return;
     }
   }
 
+  const size_t bytes_per_component = desc.num_bytes / desc.count;
   switch (desc.type) {
     case Uniform::Type::kFloats: {
-      switch (desc.num_bytes) {
+      switch (bytes_per_component) {
         case 4:
           GL_CALL(glUniform1fv(binding, desc.count, uniform.GetData<float>()));
           break;
@@ -1687,7 +1718,7 @@ void RenderSystemFpl::BindUniform(const Uniform& uniform) {
     } break;
 
     case Uniform::Type::kMatrix: {
-      switch (desc.num_bytes) {
+      switch (bytes_per_component) {
         case 64:
           GL_CALL(glUniformMatrix4fv(binding, desc.count, false,
                                      uniform.GetData<float>()));
@@ -1711,6 +1742,68 @@ void RenderSystemFpl::BindUniform(const Uniform& uniform) {
       // Error or missing implementation.
       LOG(DFATAL) << "Trying to bind uniform of unknown type.";
   }
+}
+
+void RenderSystemFpl::Create(Entity /*e*/, HashValue component_id,
+                             RenderPass pass) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::Destroy(Entity /*e*/, HashValue component_id) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetUniform(Entity /*e*/, HashValue component_id,
+                                 const char* name, const float* data,
+                                 int dimension, int /*count*/) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+bool RenderSystemFpl::GetUniform(Entity /*e*/, HashValue component_id,
+                                 const char* name, size_t length,
+                                 float* data_out) const {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  return false;
+}
+void RenderSystemFpl::SetMesh(Entity /*e*/, HashValue component_id,
+                              const MeshPtr& mesh) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+MeshPtr RenderSystemFpl::GetMesh(Entity /*e*/, HashValue component_id) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  return nullptr;
+}
+ShaderPtr RenderSystemFpl::GetShader(Entity /*entity*/,
+                                     HashValue component_id) const {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  return nullptr;
+}
+void RenderSystemFpl::SetShader(Entity /*e*/, HashValue component_id,
+                                const ShaderPtr& shader) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetTexture(Entity /*e*/, HashValue component_id, int unit,
+                                 const TexturePtr& texture) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetTextureId(Entity /*e*/, HashValue component_id,
+                                   int unit, uint32_t texture_target,
+                                   uint32_t texture_id) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetQuad(Entity /*e*/, HashValue component_id,
+                              const Quad& quad) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetMesh(Entity /*e*/, HashValue component_id,
+                              const TriangleMesh<VertexPT>& mesh) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetAndDeformMesh(Entity /*entity*/,
+                                       HashValue component_id,
+                                       const TriangleMesh<VertexPT>& mesh) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+void RenderSystemFpl::SetSortOrderOffset(Entity /*e*/, HashValue component_id,
+                                         SortOrderOffset offset) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 
 }  // namespace lull

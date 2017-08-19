@@ -71,7 +71,7 @@ class SaveToVariant {
 
   // Saves fundamental types as leaf-nodes on the current node/map.
   template <typename T>
-  typename std::enable_if<detail::IsSerializeFundamental<T>::value, void>::type
+  typename std::enable_if<detail::IsSerializeFundamental<T>::kValue, void>::type
   operator()(T* ptr, HashValue key) {
     Save(ptr, key);
   }
@@ -103,7 +103,8 @@ class SaveToVariant {
 
   // Errors on all other types.
   template <typename T>
-  typename std::enable_if<!detail::IsSerializeFundamental<T>::value, void>::type
+  typename std::enable_if<!detail::IsSerializeFundamental<T>::kValue,
+                          void>::type
   operator()(T* ptr, HashValue key) {
     LOG(DFATAL) << "Serialize not implemented for this type.";
   }
@@ -172,7 +173,7 @@ class LoadFromVariant {
 
   // Loads fundamental types from leaf-nodes on the current node/map.
   template <typename T>
-  typename std::enable_if<detail::IsSerializeFundamental<T>::value, void>::type
+  typename std::enable_if<detail::IsSerializeFundamental<T>::kValue, void>::type
   operator()(T* ptr, HashValue key) {
     Load(ptr, key);
   }
@@ -217,7 +218,8 @@ class LoadFromVariant {
 
   // Errors on all other types.
   template <typename T>
-  typename std::enable_if<!detail::IsSerializeFundamental<T>::value, void>::type
+  typename std::enable_if<!detail::IsSerializeFundamental<T>::kValue,
+                          void>::type
   operator()(T* ptr, HashValue key) {
     LOG(DFATAL) << "Serialize not implemented for this type.";
   }

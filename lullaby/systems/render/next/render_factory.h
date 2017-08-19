@@ -95,12 +95,20 @@ class RenderFactory {
                                      fplbase::TextureFormat format,
                                      bool create_mips);
 
+
   // Create and return a pre-processed texture.  This will set up a rendering
   // environment suitable to render |sourcE_texture| with a pre-process shader.
   // texture and shader binding / setup should be performed in |processor|.
-  TexturePtr CreateProcessedTexture(const TexturePtr& source_texture,
-                                    bool create_mips,
-                                    RenderSystem::TextureProcessor processor);
+  TexturePtr CreateProcessedTexture(
+      const TexturePtr& source_texture, bool create_mips,
+      const RenderSystem::TextureProcessor& processor);
+
+  // Create and return a pre-processed texture as above, but size the output
+  // according to |output_dimensions|.
+  TexturePtr CreateProcessedTexture(
+      const TexturePtr& texture, bool create_mips,
+      const RenderSystem::TextureProcessor& processor,
+      const mathfu::vec2i& output_dimensions);
 
   // Creates a texture from specified GL |texture_target| and |texture_id|.
   TexturePtr CreateTexture(uint32_t texture_target, uint32_t texture_id);

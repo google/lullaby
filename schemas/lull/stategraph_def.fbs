@@ -1,0 +1,21 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// The StategraphSystem is responsible for advancing and tracking the progress
+/// of an entity within a stategraph.
+///
+/// A stategraph is a collection of states and transitions that allows entity
+/// animations to be played and transitioned at a higher level.  Instead of
+/// focusing on the specific animation to play at a given time, the logic of
+/// playing and transitioning animations is encoded in a graph.  Users of the
+/// StategraphSystem can then issue requests to transition to a target state
+/// (eg. idle, walk, jump, etc.), and all the logic of how to reach that target
+/// state will be handled by the StategraphSystem.
+table StategraphDef {
+  /// The path to the stategraph to use for this entity.
+  animation_stategraph: string;
+
+  /// The first state within the stategraph at which to start.
+  initial_state: uint (hashvalue);
+}

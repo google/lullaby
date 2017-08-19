@@ -45,66 +45,73 @@ class SortOrderManager {
 
   explicit SortOrderManager(Registry* registry) : registry_(registry) {}
 
-  // Removes |entity|'s data.
-  void Destroy(Entity entity);
+  // Removes |entity_id_pair|'s data.
+  void Destroy(EntityIdPair entity_id_pair);
 
-  // Returns |entity|'s sort order offset, or kUseDefaultOffset if it's not
-  // known.
-  SortOrderOffset GetOffset(Entity entity) const;
+  // Returns |entity_id_pair|'s sort order offset, or kUseDefaultOffset if it's
+  // not known.
+  SortOrderOffset GetOffset(EntityIdPair entity_id_pair) const;
 
-  // Sets |entity|'s sort order offset without recalculating its sort order.  An
-  // offset of kUseDefaultOffset signifies that a default, auto-calculated value
-  // be used when determining the sort order.
-  void SetOffset(Entity entity, SortOrderOffset offset);
+  // Sets |entity_id_pair|'s sort order offset without recalculating its sort
+  // order.  An offset of kUseDefaultOffset signifies that a default,
+  // auto-calculated value be used when determining the sort order.
+  void SetOffset(EntityIdPair entity_id_pair, SortOrderOffset offset);
 
-  // Returns the sort order for |entity| based on its offset and hierarchy.  For
-  // entities that have a render component, prefer the cached value in the
-  // component.
-  SortOrder CalculateSortOrder(Entity entity);
+  // Returns the sort order for |entity_id_pair| based on its offset and
+  // hierarchy.  For entities that have a render component, prefer the cached
+  // value in the component.
+  SortOrder CalculateSortOrder(EntityIdPair entity_id_pair);
 
-  // Calculates |entity|'s sort order, stores it in its render component (if it
-  // has one), and recurses through its children.
+  // Calculates |entity_id_pair|'s sort order, stores it in its render component
+  // (if it has one), and recurses through its children.
   template <typename GetComponentFn>
-  void UpdateSortOrder(Entity entity, const GetComponentFn& get_component);
+  void UpdateSortOrder(EntityIdPair entity_id_pair,
+                       const GetComponentFn& get_component);
 
  private:
-  // Returns the sibling offset of |entity|.  Result is undefined if |parent| is
-  // kNullEntity.
-  SortOrderOffset CalculateSiblingOffset(Entity entity, Entity parent) const;
+  // Returns the sibling offset of |entity_id_pair|.  Result is undefined if
+  // |parent| is kNullEntity.
+  SortOrderOffset CalculateSiblingOffset(EntityIdPair entity_id_pair,
+                                         Entity parent) const;
 
-  // Calculates the sort order for root-level |entity|.  If |entity| does not
-  // yet have an offset assigned, this will assign one.
-  SortOrder CalculateRootSortOrder(Entity entity);
+  // Calculates the sort order for root-level |entity_id_pair|.  If
+  // |entity_id_pair| does not yet have an offset assigned, this will assign
+  // one.
+  SortOrder CalculateRootSortOrder(EntityIdPair entity_id_pair);
 
   // Calculates the sort order for |entity|, also returning its hierarchical
-  // depth.  If |entity| has no parent, this will assign it a rolling offset if
-  // one does not exist.
-  std::pair<SortOrder, int> CalculateSortOrderAndDepth(Entity entity);
+  // depth.  If |entity_id_pair| has no parent, this will assign it a rolling
+  // offset if one does not exist.
+  std::pair<SortOrder, int> CalculateSortOrderAndDepth(
+      EntityIdPair entity_id_pair);
 
   // Registry of shared systems, owned by the app.
   Registry* registry_;
 
   // Per-entity offsets requested via SetOffset.
-  std::unordered_map<Entity, SortOrderOffset> requested_offset_map_;
+  std::unordered_map<EntityIdPair, SortOrderOffset, EntityIdPairHash>
+      requested_offset_map_;
 
   // Offsets assigned to root level entities, which need to remain consistent
   // across hierarchy changes and calls to SetOffset.
-  std::unordered_map<Entity, SortOrderOffset> root_offset_map_;
+  std::unordered_map<EntityIdPair, SortOrderOffset, EntityIdPairHash>
+      root_offset_map_;
 
   // Offset to use for the next root-level entity to be registered.
   SortOrderOffset next_root_offset_ = 1;
 };
 
 template <typename GetComponentFn>
-void SortOrderManager::UpdateSortOrder(Entity entity,
+void SortOrderManager::UpdateSortOrder(EntityIdPair entity_id_pair,
                                        const GetComponentFn& get_component) {
-  auto* component = get_component(entity);
+  auto* component = get_component(entity_id_pair);
   if (component) {
-    component->sort_order = CalculateSortOrder(entity);
+    component->sort_order = CalculateSortOrder(entity_id_pair);
   }
 
   const auto* transform_system = registry_->Get<TransformSystem>();
-  const std::vector<Entity>* children = transform_system->GetChildren(entity);
+  const std::vector<Entity>* children =
+      transform_system->GetChildren(entity_id_pair.entity);
   if (children) {
     for (const auto& child : *children) {
       UpdateSortOrder(child, get_component);

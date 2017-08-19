@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/base/job_processor.h"
+#include "lullaby/util/job_processor.h"
 
 #include <future>
 

@@ -32,7 +32,14 @@ struct TestKeyFn {
   }
 };
 
-using TestUnorderedVectorMap = UnorderedVectorMap<int, TestClass, TestKeyFn>;
+struct TestLookupHash {
+  size_t operator()(const int key) const {
+    return static_cast<size_t>(key + 1);
+  }
+};
+
+using TestUnorderedVectorMap =
+    UnorderedVectorMap<int, TestClass, TestKeyFn, TestLookupHash>;
 
 TEST(UnorderedVectorMap, Empty) {
   TestUnorderedVectorMap map(32);

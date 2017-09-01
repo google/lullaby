@@ -157,8 +157,10 @@ class FlatuiTextSystem : public TextSystemImpl {
   mathfu::vec2i glyph_cache_size_ =
       mathfu::vec2i(flatui::kGlyphCacheWidth, flatui::kGlyphCacheHeight);
 
-  // Max number of glyph cache slices.
-  int max_glyph_cache_slices_ = flatui::kGlyphCacheMaxSlices;
+  // Max number of glyph cache slices. Flatui's default is 4, but given how
+  // disastrous flushing the cache is, and since these aren't all pre-allocated,
+  // we'll set our default limit higher.
+  int max_glyph_cache_slices_ = 8;
 
   // Stores all text data, indexed by entity.
   ComponentPool<TextComponent> components_;

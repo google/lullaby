@@ -17,6 +17,7 @@ cc_library(
         "animation_channel.h",
         "animation_system.h",
         "playback_parameters.h",
+        "spline_modifiers.h",
     ],
     deps = [
         "//lullaby/generated",
@@ -33,6 +34,7 @@ cc_library(
         "//lullaby/util:resource_manager",
         "//lullaby/util:time",
         "//lullaby/util:trace",
+        "//lullaby/util:typeid",
         "@motive//:motive",
         "//third_party/motive:motive_fbs",
     ],

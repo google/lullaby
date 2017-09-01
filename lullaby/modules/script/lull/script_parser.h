@@ -24,20 +24,34 @@ namespace lull {
 // Interface that provides a function that will be called during the parsing
 // of a script source code.
 struct ParserCallbacks {
-  enum CodeType {
-    kEof,
-    kNil,
-    kPush,
-    kPop,
-    kBool,
-    kInt,
-    kFloat,
-    kSymbol,
-    kString,
+  enum TokenType {
+    kEof,        // End of parsing stream.
+    kPush,       // Start of a new scope block, eg. "("
+    kPop,        // End of a scope block, eg. ")"
+    kPushArray,  // Start of a new array block, eg. "["
+    kPopArray,   // End of an array block, eg. "]"
+    kPushMap,    // Start of a new map block, eg. "{"
+    kPopMap,     // End of a map block, eg. "}"
+    kBool,       // A boolean constant, eg. "true" or "false"
+    kInt8,       // An 8-bit signed integral constant.
+    kUint8,      // An 8-bit unsigned integral constant.
+    kInt16,      // A 16-bit signed integral constant.
+    kUint16,     // A 16-bit unsigned integral constant.
+    kInt32,      // A 32-bit signed integral constant, eg. "123"
+    kUint32,     // A 32-bit unsigned integral constant, eg. "123u"
+    kInt64,      // A 64-bit signed integral constant, eg. "123l"
+    kUint64,     // A 64-bit unsigned integral constant, eg. "123ul"
+    kFloat,      // A 32-bit floating-point constant, eg. "123.456f"
+    kDouble,     // A 64-bit floating-point constant, eg. "123.456"
+    kHashValue,  // A hash of a string literal that was prefixed with a colon.
+    kString,     // A literal string constant (eg. text enclosed in either
+                 // single- or double-quotes.
+    kSymbol,     // A hash of a string literal, basically anything that isn't
+                 // one of the above.
   };
 
   virtual ~ParserCallbacks() {}
-  virtual void Process(CodeType type, const void* ptr, string_view token) = 0;
+  virtual void Process(TokenType type, const void* ptr, string_view token) = 0;
   virtual void Error(string_view token, string_view message) = 0;
 };
 

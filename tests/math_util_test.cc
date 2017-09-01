@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "ion/math/matrixutils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "mathfu/io.h"
@@ -1030,6 +1029,20 @@ TEST(IsNearlyZero, Simple) {
   EXPECT_FALSE(IsNearlyZero(.0001f, .00001f));
 }
 
+TEST(AreNearlyEqual, Quaternion) {
+  const mathfu::quat positive = mathfu::quat::FromEulerAngles(mathfu::kOnes3f);
+  EXPECT_TRUE(AreNearlyEqual(positive, positive));
+  EXPECT_FALSE(AreNearlyEqual(positive, mathfu::quat::identity));
+
+  const mathfu::quat negative =
+      mathfu::quat(-positive.scalar(), -1.f * positive.vector());
+  EXPECT_TRUE(AreNearlyEqual(positive, negative));
+
+  const mathfu::quat offset =
+      mathfu::quat(positive.scalar() + 0.1f, positive.vector()).Normalized();
+  EXPECT_FALSE(AreNearlyEqual(positive, offset));
+}
+
 TEST(GetMatrixColumn3D, Simple) {
   const mathfu::mat4 m = mathfu::mat4::Identity();
 
@@ -1174,20 +1187,17 @@ TEST(CalculateDeterminant3x3, Simple) {
   const int kNumValues = sizeof(kValues) / sizeof(kValues[0]);
   const int kMatrixDimension = 3;
   const int kMatrixSize = kMatrixDimension * kMatrixDimension;
-  // Test the 3x3 determinants by comparing them against the determinants of
-  // 3x3 Ion matrices.
-  ion::math::Matrix3f ion_matrix = ion::math::Matrix3f::Identity();
   mathfu::mat4 mathfu_matrix = mathfu::mat4::Identity();
+  const int determinants[3] = {-32, -425, -51};
   for (int i = 0; i < kNumValues; ++i) {
     for (int k = 0; k < kMatrixSize; ++k) {
       const float value = kValues[(i + k) % kMatrixSize];
       const int row = k / kMatrixDimension;
       const int col = k % kMatrixDimension;
-      ion_matrix(row, col) = value;
       mathfu_matrix(row, col) = value;
     }
-    EXPECT_NEAR(ion::math::Determinant(ion_matrix),
-                CalculateDeterminant3x3(mathfu_matrix), kEpsilon);
+    EXPECT_NEAR(determinants[i % 3], CalculateDeterminant3x3(mathfu_matrix),
+                kEpsilon);
   }
 }
 

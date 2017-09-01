@@ -27,15 +27,15 @@ namespace lull {
 // struct Context {
 //   // Converts an arg contained in the context to a C++ type.
 //   template <typename T>
-//   bool ArgToCpp(const char* func_name, size_t arg, T* value);
+//   bool ArgToCpp(const char* function_name, size_t arg_index, T* value);
 //
 //   // Converts the return value of the function from a C++ type and stores it
 //   // in the context->
 //   template <typename T>
-//   bool ReturnFromCpp(const char* func_name, const T& value);
+//   bool ReturnFromCpp(const char* function_name, const T& value);
 //
 //   // Returns whether the number of arguments in the context is correct.
-//   bool CheckNumArgs(const char* func_name, size_t expected_args);
+//   bool CheckNumArgs(const char* function_name, size_t expected_args);
 // };
 template <typename Context, typename Fn>
 bool CallNativeFunction(Context* context, const char* name, const Fn& fn);
@@ -147,10 +147,9 @@ struct NativeFunctionWrapper<Context, Return (Fn::*)(Args...) const> {
 template <typename Context, typename Fn>
 inline bool CallNativeFunction(Context* context, const char* name,
                                const Fn& fn) {
-  return detail::NativeFunctionWrapper<Context,
-                                       decltype(&Fn::operator())>::Call(context,
-                                                                        name,
-                                                                        fn);
+  using FunctionType = decltype(&Fn::operator());
+  using Helper = detail::NativeFunctionWrapper<Context, FunctionType>;
+  return Helper::Call(context, name, fn);
 }
 
 }  // namespace lull

@@ -18,15 +18,16 @@ limitations under the License.
 #define LULLABY_SYSTEMS_ANIMATION_ANIMATION_CHANNEL_H_
 
 #include <memory>
+#include "lullaby/events/animation_events.h"
+#include "lullaby/modules/ecs/component.h"
+#include "lullaby/systems/animation/playback_parameters.h"
+#include "lullaby/systems/animation/spline_modifiers.h"
+#include "lullaby/util/clock.h"
+#include "lullaby/util/hash.h"
+#include "lullaby/util/registry.h"
 #include "motive/init.h"
 #include "motive/motivator.h"
 #include "motive/util.h"
-#include "lullaby/modules/ecs/component.h"
-#include "lullaby/util/registry.h"
-#include "lullaby/events/animation_events.h"
-#include "lullaby/systems/animation/playback_parameters.h"
-#include "lullaby/util/clock.h"
-#include "lullaby/util/hash.h"
 
 namespace lull {
 
@@ -39,7 +40,7 @@ namespace lull {
 // Entity.
 class AnimationChannel {
  public:
-  static const size_t kMaxDimensions = 4;
+  static const size_t kMaxDimensions = 6;
 
   AnimationChannel(Registry* registry, int num_dimensions, size_t pool_size);
   virtual ~AnimationChannel() {}
@@ -58,24 +59,25 @@ class AnimationChannel {
 
   // Plays a new animation (with the given |id|) on the |entity|.  The animation
   // sets the motivator to animate towards the specified |target_value| array
-  // (of size |length|) over the given |time| duration.  Returns the AnimationId
-  // of the previously running animation, or kNullAnimation if no animation was
-  // active.
+  // (of size |length|) over the given |time| duration, after a |delay|.
+  // Returns the AnimationId of the previously running animation, or
+  // kNullAnimation if no animation was active.
   AnimationId Play(Entity e, motive::MotiveEngine* engine, AnimationId id,
                    const float* target_value, size_t length,
-                   Clock::duration time);
+                   Clock::duration time, Clock::duration delay);
 
   // Plays a new animation (with the given |id|) on the |entity|.  The animation
   // to be played is defined by the array of |splines| and |constants|, both
   // of which are of size |length|.  For each dimension, the associated spline
   // is used, unless it is NULL in which case the associated constant value is
-  // set.  |params| can be specified to provide extra control of how the
-  // animation is played.  Returns the AnimationId of the previously running
-  // animation, or kNullAnimation if no animation was active.
+  // set.  |params| and |modifiers| can be specified to provide extra control of
+  // how the animation is played.  Returns the AnimationId of the previously
+  // running animation, or kNullAnimation if no animation was active.
   AnimationId Play(Entity e, motive::MotiveEngine* engine, AnimationId id,
                    const motive::CompactSpline* const* splines,
                    const float* constants, size_t length,
-                   const PlaybackParameters& params);
+                   const PlaybackParameters& params,
+                   const SplineModifiers& modifiers);
 
   // Plays a new animation (with the given |id|) on the |entity|.  The animation
   // is specified by the |rig_anim|.  |params| can be specified to provide extra

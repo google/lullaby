@@ -21,13 +21,9 @@ namespace lull {
 
 ScriptAstBuilder::ScriptAstBuilder(ScriptEnv* env) : env_(env) { Push(); }
 
-void ScriptAstBuilder::Process(CodeType type, const void* ptr,
+void ScriptAstBuilder::Process(TokenType type, const void* ptr,
                                string_view token) {
   switch (type) {
-    case kNil: {
-      Append(ScriptValue(), token);
-      break;
-    }
     case kPush: {
       Push();
       break;
@@ -36,18 +32,83 @@ void ScriptAstBuilder::Process(CodeType type, const void* ptr,
       Pop();
       break;
     }
+    case kPushArray: {
+      Push();
+      const auto value = env_->Create(Symbol(ConstHash("array")));
+      Append(value, "array");
+      break;
+    }
+    case kPopArray: {
+      Pop();
+      break;
+    }
+    case kPushMap: {
+      Push();
+      const auto value = env_->Create(Symbol(ConstHash("map")));
+      Append(value, "map");
+      break;
+    }
+    case kPopMap: {
+      Pop();
+      break;
+    }
     case kBool: {
       const auto value = env_->Create(*reinterpret_cast<const bool*>(ptr));
       Append(value, token);
       break;
     }
-    case kInt: {
-      const auto value = env_->Create(*reinterpret_cast<const int*>(ptr));
+    case kInt8: {
+      const auto value = env_->Create(*reinterpret_cast<const int8_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kUint8: {
+      const auto value = env_->Create(*reinterpret_cast<const uint8_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kInt16: {
+      const auto value = env_->Create(*reinterpret_cast<const int16_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kUint16: {
+      const auto value = env_->Create(*reinterpret_cast<const uint16_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kInt32: {
+      const auto value = env_->Create(*reinterpret_cast<const int32_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kUint32: {
+      const auto value = env_->Create(*reinterpret_cast<const uint32_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kInt64: {
+      const auto value = env_->Create(*reinterpret_cast<const int64_t*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kUint64: {
+      const auto value = env_->Create(*reinterpret_cast<const uint64_t*>(ptr));
       Append(value, token);
       break;
     }
     case kFloat: {
       const auto value = env_->Create(*reinterpret_cast<const float*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kDouble: {
+      const auto value = env_->Create(*reinterpret_cast<const double*>(ptr));
+      Append(value, token);
+      break;
+    }
+    case kHashValue: {
+      const auto value = env_->Create(*reinterpret_cast<const HashValue*>(ptr));
       Append(value, token);
       break;
     }

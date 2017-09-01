@@ -27,24 +27,27 @@ const StategraphSignal* StategraphTrack::GetSignal(HashValue id) const {
   return nullptr;
 }
 
-void StategraphTrack::EnterActiveSignals(Clock::duration timestamp) const {
+void StategraphTrack::EnterActiveSignals(Clock::duration timestamp,
+                                         TypedPointer userdata) const {
   for (auto& signal : signals_) {
     if (signal->IsActive(timestamp)) {
-      signal->Enter();
+      signal->Enter(userdata);
     }
   }
 }
 
-void StategraphTrack::ExitActiveSignals(Clock::duration timestamp) const {
+void StategraphTrack::ExitActiveSignals(Clock::duration timestamp,
+                                        TypedPointer userdata) const {
   for (auto& signal : signals_) {
     if (signal->IsActive(timestamp)) {
-      signal->Exit();
+      signal->Exit(userdata);
     }
   }
 }
 
 void StategraphTrack::ProcessSignals(Clock::duration start_time,
-                                     Clock::duration end_time) const {
+                                     Clock::duration end_time,
+                                     TypedPointer userdata) const {
   for (auto& signal : signals_) {
     const bool active_at_start = signal->IsActive(start_time);
     const bool active_at_end = signal->IsActive(end_time);
@@ -55,10 +58,10 @@ void StategraphTrack::ProcessSignals(Clock::duration start_time,
         signal->GetEndTime() <= end_time;
 
     if (starting || only_active_within_window) {
-      signal->Enter();
+      signal->Enter(userdata);
     }
     if (ending || only_active_within_window) {
-      signal->Exit();
+      signal->Exit(userdata);
     }
   }
 }

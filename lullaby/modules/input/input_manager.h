@@ -291,6 +291,9 @@ class InputManager {
                  const mathfu::rectf& eye_fov,
                  const mathfu::recti& eye_viewport = {0, 0, 0, 0});
 
+  // Gets the DeviceParams for a |device|.
+  DeviceParams GetDeviceParamsCopy(DeviceType device) const;
+
  private:
   static const Clock::time_point kInvalidSampleTime;
 

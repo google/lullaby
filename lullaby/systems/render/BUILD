@@ -158,6 +158,28 @@ cc_library(
 )
 
 cc_library(
+    name = "render_system_mock",
+    testonly = 1,
+    srcs = [
+        "detail/port/default/gpu_profiler.cc",
+        "detail/render_stats.cc",
+        "detail/sort_order.cc",
+        "testing/mock_render_system_impl.cc",
+    ],
+    hdrs = [
+        "testing/mock_render_system_impl.h",
+        "testing/texture.h",
+    ] + common_headers + private_headers,
+    defines = ["LULLABY_RENDER_BACKEND_MOCK"],
+    deps = common_deps + [
+        ":binding_impl",
+        ":profiler",
+        ":render",
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
     name = "render_helpers",
     srcs = ["render_helpers.cc"],
     hdrs = ["render_helpers.h"],
@@ -173,8 +195,10 @@ cc_library(
     name = "profiler",
     srcs = [
         "detail/profiler.cc",
-        "detail/port/default/gpu_profiler.cc"
-    ],
+    ] + select({
+        "//tools/cc_target_os:android": ["detail/port/android/gpu_profiler.cc"],
+        "//conditions:default": ["detail/port/default/gpu_profiler.cc"],
+    }),
     hdrs = [
         "detail/gpu_profiler.h",
         "detail/profiler.h",
@@ -185,5 +209,8 @@ cc_library(
         "//lullaby/util:logging",
         "//lullaby/util:time",
         "//lullaby/util:typeid",
-    ],
+    ] + select({
+        "//tools/cc_target_os:android": ["//third_party/GLES_khronos_headers:GLES2"],
+        "//conditions:default": [],
+    }),
 )

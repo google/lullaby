@@ -215,5 +215,32 @@ TEST_F(LayoutBoxSystemTest, NoSetOnlyTransformAabb) {
   }
 }
 
+// If we set desired_size only, the System will default to reading from
+// transform's aabb for OriginalBox and AcutalBox.
+TEST_F(LayoutBoxSystemTest, SetDesiredAndTransformAabb) {
+  Entity e = CreateEntity();
+  bool changed = false;
+  Entity source = kNullEntity;
+  ConnectOriginalBoxChangedListener(&changed);
+  ConnectActualBoxChangedListener(&changed, &source);
+
+  float f;
+  int count;
+  for (f = 1.f, count = 1; f < 5.f; ++f, ++count) {
+    changed = false;
+    layout_box_system_->SetDesiredSize(e, 123, 4.f, 5.f, 6.f);
+    transform_system_->SetAabb(e, Aabb({-f, -f, 0.f}, {f, f, 0.f}));
+
+    EXPECT_EQ(false, changed);
+    dispatcher_->Dispatch();
+    EXPECT_EQ(false, changed);
+
+    AssertAabbEq(layout_box_system_->GetOriginalBox(e),
+                 Aabb({-f, -f, 0.f}, {f, f, 0.f}));
+    AssertAabbEq(layout_box_system_->GetActualBox(e),
+                 Aabb({-f, -f, 0.f}, {f, f, 0.f}));
+  }
+}
+
 }  // namespace
 }  // namespace lull

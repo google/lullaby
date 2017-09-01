@@ -10,9 +10,7 @@
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
-#include "animation_def_generated.h"
 #include "common_generated.h"
-#include "dispatcher_def_generated.h"
 #include "variant_def_generated.h"
 
 namespace lull {
@@ -103,6 +101,8 @@ class AnimationSignalDefT {
   lull::HashValue id = 0;
   float start_time_s = 0.0f;
   float end_time_s = 0.0f;
+  std::string on_enter;
+  std::string on_exit;
 
   template <typename Archive>
   void SerializeFlatbuffer(Archive archive);
@@ -118,6 +118,7 @@ class AnimationTrackDefT {
   float playback_speed = 1.0f;
   std::vector<lull::AnimationSignalDefT> signals;
   lull::VariantMapDefT selection_params;
+  lull::HashValue animation_channel = 0;
 
   template <typename Archive>
   void SerializeFlatbuffer(Archive archive);
@@ -229,6 +230,8 @@ void AnimationSelectorDefT::SerializeFlatbuffer(FlatBufferType type, Archive arc
 
 template <typename Archive>
 void AnimationSignalDefT::SerializeFlatbuffer(Archive archive) {
+  archive.String(&on_enter, 10);
+  archive.String(&on_exit, 12);
   archive.Scalar(&id, 4, 0);
   archive.Scalar(&start_time_s, 6, 0.0f);
   archive.Scalar(&end_time_s, 8, 0.0f);
@@ -240,6 +243,7 @@ void AnimationTrackDefT::SerializeFlatbuffer(Archive archive) {
   archive.VectorOfTables(&signals, 8);
   archive.Table(&selection_params, 10);
   archive.Scalar(&playback_speed, 6, 1.0f);
+  archive.Scalar(&animation_channel, 12, 0);
 }
 
 template <typename Archive>

@@ -63,7 +63,7 @@ void RemoveFromVector(std::vector<T>* vector, const T& value) {
 
   for (auto it = vector->cbegin(); it != vector->cend(); ++it) {
     if (*it == value) {
-      // vector->erase(it.base());
+      vector->erase(it);
       return;
     }
   }
@@ -228,6 +228,10 @@ const TexturePtr& RenderSystemNext::GetInvalidTexture() const {
 TexturePtr RenderSystemNext::LoadTexture(const std::string& filename,
                                         bool create_mips) {
   return factory_->LoadTexture(filename, create_mips);
+}
+
+TexturePtr RenderSystemNext::GetTexture(HashValue texture_hash) const {
+  return factory_->GetCachedTexture(texture_hash);
 }
 
 void RenderSystemNext::LoadTextureAtlas(const std::string& filename) {
@@ -2034,15 +2038,19 @@ void RenderSystemNext::CreateRenderTarget(
     TextureFormat texture_format, DepthStencilFormat depth_stencil_format) {
   DCHECK_EQ(render_targets_.count(render_target_name), 0);
 
+  // Create the render target.
   auto render_target = MakeUnique<fplbase::RenderTarget>();
   render_target->Initialize(dimensions,
                             RenderTargetTextureFormatToFpl(texture_format),
                             DepthStencilFormatToFpl(depth_stencil_format));
-  render_targets_[render_target_name] = std::move(render_target);
 
+  // Create a bindable texture.
   TexturePtr texture = factory_->CreateTexture(
       GL_TEXTURE_2D, fplbase::GlTextureHandle(render_target->GetTextureId()));
   factory_->CacheTexture(render_target_name, texture);
+
+  // Store the render target.
+  render_targets_[render_target_name] = std::move(render_target);
 }
 
 void RenderSystemNext::SetRenderTarget(HashValue pass,

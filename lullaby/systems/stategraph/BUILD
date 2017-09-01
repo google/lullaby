@@ -23,6 +23,7 @@ cc_library(
         "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/script",
+        "//lullaby/modules/script/lull",
         "//lullaby/modules/stategraph",
         "//lullaby/systems/animation",
         "//lullaby/util:clock",

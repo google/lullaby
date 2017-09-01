@@ -40,7 +40,7 @@ class ScriptCompiler : public ParserCallbacks {
   explicit ScriptCompiler(ScriptByteCode* code);
 
   // Stores the |type| and associated data into the byte array buffer.
-  void Process(CodeType type, const void* ptr, string_view token) override;
+  void Process(TokenType type, const void* ptr, string_view token) override;
 
   // Processes the stored byte array buffer into another sequence of
   // ParserCallbacks.

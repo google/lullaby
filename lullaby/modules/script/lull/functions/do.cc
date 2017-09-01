@@ -14,11 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "lullaby/modules/script/lull/functions/functions.h"
 #include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/modules/script/lull/script_frame.h"
 #include "lullaby/modules/script/lull/script_types.h"
 
+// This file implements the following script functions:
+//
+// (do [statement] [statement] [statement] ...)
+//   Evaluates a sequence of statements, returning the result of the last one.
+
 namespace lull {
+namespace {
 
 void Do(ScriptFrame* frame) {
   while (frame->HasNext()) {
@@ -26,4 +33,7 @@ void Do(ScriptFrame* frame) {
   }
 }
 
+LULLABY_SCRIPT_FUNCTION(Do, "do");
+
+}  // namespace
 }  // namespace lull

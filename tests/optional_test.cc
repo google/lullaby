@@ -176,6 +176,17 @@ TEST_F(OptionalTest, Equality) {
   EXPECT_THAT(opt4 != opt5, Eq(false));
 }
 
+TEST_F(OptionalTest, NullOpt) {
+  Optional<int> opt;
+  EXPECT_FALSE(opt);
+
+  opt = 1;
+  EXPECT_TRUE(opt);
+
+  opt = NullOpt;
+  EXPECT_FALSE(opt);
+}
+
 }  // namespace
 }  // namespace lull
 

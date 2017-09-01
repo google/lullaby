@@ -18,6 +18,7 @@ limitations under the License.
 #define LULLABY_UTIL_CLOCK_H_
 
 #include <chrono>
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 
@@ -50,5 +51,7 @@ inline ClockBase<std::nano>::time_point ClockBase<std::nano>::now() {
 
 
 }  //  namespace lull
+
+LULLABY_SETUP_TYPEID(lull::Clock::duration);
 
 #endif  // LULLABY_UTIL_CLOCK_H_

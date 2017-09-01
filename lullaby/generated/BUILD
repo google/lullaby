@@ -1,14 +1,13 @@
 package(
     default_visibility = ["//visibility:public"],
 )
-
 licenses(["notice"])  # Apache 2.0
-
 cc_library(
     name = "generated",
     hdrs = [
         "animation_def_generated.h",
         "animation_response_def_generated.h",
+        "animation_stategraph_generated.h",
         "collision_def_generated.h",
         "common_generated.h",
         "config_def_generated.h",
@@ -20,6 +19,7 @@ cc_library(
         "map_events_def_generated.h",
         "name_def_generated.h",
         "nine_patch_def_generated.h",
+        "physics_shapes_generated.h",
         "render_def_generated.h",
         "render_pass_def_generated.h",
         "render_state_def_generated.h",
@@ -27,14 +27,17 @@ cc_library(
         "reticle_behaviour_def_generated.h",
         "reticle_def_generated.h",
         "reticle_trail_def_generated.h",
+        "rigid_body_def_generated.h",
         "script_def_generated.h",
         "scroll_def_generated.h",
+        "stategraph_def_generated.h",
         "text_def_generated.h",
         "text_input_def_generated.h",
         "transform_def_generated.h",
         "variant_def_generated.h",
         "flatbuffers/animation_def_generated.h",
         "flatbuffers/animation_response_def_generated.h",
+        "flatbuffers/animation_stategraph_generated.h",
         "flatbuffers/collision_def_generated.h",
         "flatbuffers/common_generated.h",
         "flatbuffers/config_def_generated.h",
@@ -46,15 +49,18 @@ cc_library(
         "flatbuffers/map_events_def_generated.h",
         "flatbuffers/name_def_generated.h",
         "flatbuffers/nine_patch_def_generated.h",
+        "flatbuffers/physics_shapes_generated.h",
         "flatbuffers/render_def_generated.h",
         "flatbuffers/render_pass_def_generated.h",
         "flatbuffers/render_state_def_generated.h",
         "flatbuffers/render_target_def_generated.h",
+        "flatbuffers/rigid_body_def_generated.h",
         "flatbuffers/reticle_behaviour_def_generated.h",
         "flatbuffers/reticle_def_generated.h",
         "flatbuffers/reticle_trail_def_generated.h",
         "flatbuffers/script_def_generated.h",
         "flatbuffers/scroll_def_generated.h",
+        "flatbuffers/stategraph_def_generated.h",
         "flatbuffers/text_def_generated.h",
         "flatbuffers/text_input_def_generated.h",
         "flatbuffers/transform_def_generated.h",
@@ -68,3 +74,4 @@ cc_library(
         "//lullaby/util:typeid",
     ],
 )
+

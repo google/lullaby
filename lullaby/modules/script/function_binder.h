@@ -19,7 +19,8 @@ limitations under the License.
 
 #include <string>
 
-#include "lullaby/modules/script/function_registry.h"
+#include "lullaby/modules/function/call_native_function.h"
+#include "lullaby/modules/function/function_call.h"
 #include "lullaby/modules/script/script_engine.h"
 #include "lullaby/util/built_in_functions.h"
 #include "lullaby/util/hash.h"
@@ -32,85 +33,91 @@ namespace lull {
 // by delegating to a number of other systems, such as the ScriptEngine.
 class FunctionBinder {
  public:
-  explicit FunctionBinder(Registry* registry) : registry_(registry) {
-    RegisterBuiltInFunctions(this);
-  }
+  explicit FunctionBinder(Registry* registry);
 
   // Registers a function with a name. Overloading function names is not
   // supported.
   template <typename Fn>
-  void RegisterFunction(const std::string& name, Fn&& function);
+  void RegisterFunction(string_view name, Fn function);
 
   // Registers a method from a class. The class must be in the Registry.
   template <typename Method>
-  void RegisterMethod(const std::string& name, Method method);
+  void RegisterMethod(string_view name, Method method);
 
   // Unregister a function by name.
-  void UnregisterFunction(const std::string& name) {
-    auto it = functions_.find(Hash(name.c_str()));
-    if (it == functions_.end()) {
-      LOG(ERROR) << "FunctionBinder tried to unregister a "
-                 << "non-existent function: " << name;
-      return;
-    }
-    functions_.erase(it);
+  void UnregisterFunction(string_view name);
 
-    auto* script_engine = registry_->Get<ScriptEngine>();
-    if (script_engine) {
-      script_engine->UnregisterFunction(name);
-    }
+  // Returns true if the function with the given |name| has been registered.
+  bool IsFunctionRegistered(string_view name) const;
 
-    auto* function_registry = registry_->Get<FunctionRegistry>();
-    if (function_registry) {
-      function_registry->UnregisterFunction(name);
-    }
-  }
+  // Returns true if the function with the given |id| (which is simply the Hash
+  // of its name) has been registered.
+  bool IsFunctionRegistered(HashValue id) const;
+
+  // Call the function with given |name| with the provided |args|.
+  template <typename... Args>
+  Variant Call(string_view name, Args&&... args);
+
+  // Call the function with data bundled in the |call| object.
+  Variant Call(FunctionCall* call);
 
  private:
   struct FunctionWrapper {
     virtual ~FunctionWrapper() {}
+    virtual void Call(FunctionCall* call) = 0;
   };
 
-  template <typename Fn>
+  template <typename NativeFunction>
   struct TypedFunctionWrapper : public FunctionWrapper {
-    explicit TypedFunctionWrapper(Fn&& fn) : fn(fn) {}
-    ~TypedFunctionWrapper() override {}
-    Fn fn;
+    TypedFunctionWrapper(std::string name, NativeFunction fn)
+        : name(std::move(name)), fn(std::move(fn)) {}
+
+    void Call(FunctionCall* call) override {
+      CallNativeFunction(call, name.c_str(), fn);
+    }
+
+    std::string name;
+    NativeFunction fn;
   };
+
+  template <typename Method>
+  struct CreateMethodHelper;
 
   Registry* registry_;
   std::unordered_map<HashValue, std::unique_ptr<FunctionWrapper>> functions_;
 };
 
 template <typename Fn>
-void FunctionBinder::RegisterFunction(const std::string& name, Fn&& function) {
-  const HashValue name_hash = Hash(name.c_str());
-  if (functions_.find(name_hash) != functions_.end()) {
-    LOG(ERROR) << "FunctionBinder tried to register a duplicate: " << name;
+void FunctionBinder::RegisterFunction(string_view name, Fn function) {
+  const HashValue id = Hash(name);
+  if (IsFunctionRegistered(id)) {
+    LOG(ERROR) << "Cannot register function twice: " << name;
     return;
   }
-  auto wrapper = new TypedFunctionWrapper<Fn>(std::move(function));
-  functions_.emplace(name_hash,
-                     std::unique_ptr<TypedFunctionWrapper<Fn>>(wrapper));
 
-  auto* function_registry = registry_->Get<FunctionRegistry>();
-  if (function_registry) {
-    function_registry->RegisterFunction(name, wrapper->fn);
-  }
+  auto ptr =
+      new TypedFunctionWrapper<Fn>(name.to_string(), std::move(function));
+  functions_.emplace(id, std::unique_ptr<FunctionWrapper>(ptr));
 
   auto* script_engine = registry_->Get<ScriptEngine>();
   if (script_engine) {
-    script_engine->RegisterFunction(name, wrapper->fn);
+    script_engine->RegisterFunction(name.to_string(), ptr->fn);
   }
 }
 
-namespace detail {
-
 template <typename Method>
-struct CreateMethod;
+void FunctionBinder::RegisterMethod(string_view name, Method method) {
+  RegisterFunction(name, CreateMethodHelper<Method>::Call(registry_, method));
+}
+
+template <typename... Args>
+Variant FunctionBinder::Call(string_view name, Args&&... args) {
+  FunctionCall call = FunctionCall::Create(name, std::forward<Args>(args)...);
+  return Call(&call);
+}
 
 template <typename Class, typename Return, typename... Args>
-struct CreateMethod<Return (Class::*)(Args...)> {
+struct FunctionBinder::CreateMethodHelper<Return (Class::*)(Args...)> {
   static std::function<Return(Args...)> Call(Registry* registry,
                                              Return (Class::*method)(Args...)) {
     return [registry, method](Args... args) {
@@ -118,8 +125,7 @@ struct CreateMethod<Return (Class::*)(Args...)> {
       if (cls != nullptr) {
         return (cls->*method)(std::forward<Args>(args)...);
       } else {
-        LOG(ERROR) << "FunctionBinder tried to call a method on a class that "
-                      "isn't in the registry";
+        LOG(ERROR) << "Class not in registry, cannot call method.";
         return Return();
       }
     };
@@ -127,7 +133,7 @@ struct CreateMethod<Return (Class::*)(Args...)> {
 };
 
 template <typename Class, typename... Args>
-struct CreateMethod<void (Class::*)(Args...)> {
+struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...)> {
   static std::function<void(Args...)> Call(Registry* registry,
                                            void (Class::*method)(Args...)) {
     return [registry, method](Args... args) {
@@ -135,15 +141,14 @@ struct CreateMethod<void (Class::*)(Args...)> {
       if (cls != nullptr) {
         (cls->*method)(std::forward<Args>(args)...);
       } else {
-        LOG(ERROR) << "FunctionBinder tried to call a method on a class that "
-                      "isn't in the registry";
+        LOG(ERROR) << "Class not in registry, cannot call method.";
       }
     };
   }
 };
 
 template <typename Class, typename Return, typename... Args>
-struct CreateMethod<Return (Class::*)(Args...) const> {
+struct FunctionBinder::CreateMethodHelper<Return (Class::*)(Args...) const> {
   static std::function<Return(Args...)> Call(Registry* registry,
                                              Return (Class::*method)(Args...)
                                                  const) {
@@ -152,8 +157,7 @@ struct CreateMethod<Return (Class::*)(Args...) const> {
       if (cls != nullptr) {
         return (cls->*method)(std::forward<Args>(args)...);
       } else {
-        LOG(ERROR) << "FunctionBinder tried to call a method on a class that "
-                      "isn't in the registry";
+        LOG(ERROR) << "Class not in registry, cannot call method.";
         return Return();
       }
     };
@@ -161,7 +165,7 @@ struct CreateMethod<Return (Class::*)(Args...) const> {
 };
 
 template <typename Class, typename... Args>
-struct CreateMethod<void (Class::*)(Args...) const> {
+struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...) const> {
   static std::function<void(Args...)> Call(Registry* registry,
                                            void (Class::*method)(Args...)
                                                const) {
@@ -170,19 +174,11 @@ struct CreateMethod<void (Class::*)(Args...) const> {
       if (cls != nullptr) {
         (cls->*method)(std::forward<Args>(args)...);
       } else {
-        LOG(ERROR) << "FunctionBinder tried to call a method on a class that "
-                      "isn't in the registry";
+        LOG(ERROR) << "Class not in registry, cannot call method.";
       }
     };
   }
 };
-
-}  // namespace detail
-
-template <typename Method>
-void FunctionBinder::RegisterMethod(const std::string& name, Method method) {
-  RegisterFunction(name, detail::CreateMethod<Method>::Call(registry_, method));
-}
 
 }  // namespace lull
 

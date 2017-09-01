@@ -17,11 +17,23 @@ limitations under the License.
 #include "lullaby/modules/script/lull/lull_script_engine.h"
 
 #include "gtest/gtest.h"
-#include "lullaby/modules/script/function_registry.h"
+#include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/registry.h"
 
 namespace lull {
 namespace {
+
+struct Serializable {
+  Serializable(string name, int value) : name(std::move(name)), value(value) {}
+  std::string name;
+  int value;
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&name, ConstHash("name"));
+    archive(&value, ConstHash("value"));
+  }
+};
 
 class LullScriptEngineTest : public testing::Test {
  public:
@@ -29,10 +41,10 @@ class LullScriptEngineTest : public testing::Test {
   LullScriptEngine* engine_;
 
   void SetUp() override {
-    auto* fr = registry_.Create<FunctionRegistry>();
+    auto* binder = registry_.Create<FunctionBinder>(&registry_);
     engine_ = registry_.Create<LullScriptEngine>();
     engine_->SetFunctionCallHandler(
-        [fr](FunctionCall* call) { fr->Call(call); });
+        [binder](FunctionCall* call) { binder->Call(call); });
   }
 };
 
@@ -50,9 +62,9 @@ TEST_F(LullScriptEngineTest, SimpleScript) {
 
 TEST_F(LullScriptEngineTest, RegisterFunction) {
   int x = 10;
-  FunctionRegistry* fr = registry_.Get<FunctionRegistry>();
-  fr->RegisterFunction("Foo", [x](int y) { return x + y; });
-  fr->RegisterFunction("lull.Foo", [x](int y) { return x - y; });
+  FunctionBinder* binder = registry_.Get<FunctionBinder>();
+  binder->RegisterFunction("Foo", [x](int y) { return x + y; });
+  binder->RegisterFunction("lull.Foo", [x](int y) { return x - y; });
 
   const char* src =
       "(do"
@@ -116,6 +128,18 @@ TEST_F(LullScriptEngineTest, ReloadScript) {
 
   EXPECT_TRUE(engine_->GetValue(id, "y", &value));
   EXPECT_EQ(10, value);
+}
+
+TEST_F(LullScriptEngineTest, SerializableObjects) {
+  const char* src = "(= y (map-size obj))";
+
+  const uint64_t id = engine_->LoadScript(src, "script");
+  engine_->SetValue(id, "obj", Serializable("baz", 123));
+  engine_->RunScript(id);
+
+  int value = 0;
+  EXPECT_TRUE(engine_->GetValue(id, "y", &value));
+  EXPECT_EQ(2, value);
 }
 
 }  // namespace

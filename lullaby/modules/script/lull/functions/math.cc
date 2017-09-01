@@ -14,12 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "lullaby/modules/script/lull/functions/functions.h"
 #include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/modules/script/lull/script_frame.h"
 #include "lullaby/modules/script/lull/script_types.h"
 
-namespace lull {
+// This file implements the following script functions:
+//
+// (+ [value] [value] ...)
+//   Returns the sum of all arguments.  Only valid for integer or floating-point
+//   types.
+//
+// (- [value] [value] ...)
+//   Returns the difference of all arguments.  Only valid for integer or
+//   floating-point types.
+//
+// (* [value] [value] ...)
+//   Returns the multiplicative product of all arguments.  Only valid for
+//   integer or floating-point types.
+//
+// (/ [value] [value] ...)
+//   Returns the divided quotient of all arguments.  Only valid for integer or
+//   floating-point types.
+//
+// (% [value] [value])
+//   Returns the modulo of two arguments.  Valid only for integral types.
 
+namespace lull {
 namespace {
 
 template <typename T, T (*Fn)(T, T)>
@@ -59,8 +80,6 @@ template <typename T>
 T ModFn(T lhs, T rhs) {
   return lhs % rhs;
 }
-
-}  // namespace
 
 void Add(ScriptFrame* frame) {
   ScriptValue value = frame->EvalNext();
@@ -115,4 +134,11 @@ void Modulo(ScriptFrame* frame) {
   }
 }
 
+LULLABY_SCRIPT_FUNCTION(Add, "+");
+LULLABY_SCRIPT_FUNCTION(Divide, "/");
+LULLABY_SCRIPT_FUNCTION(Modulo, "%");
+LULLABY_SCRIPT_FUNCTION(Multiply, "*");
+LULLABY_SCRIPT_FUNCTION(Subtract, "-");
+
+}  // namespace
 }  // namespace lull

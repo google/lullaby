@@ -40,6 +40,15 @@ const VertexFormat VertexPTT::kFormat({
                     VertexAttribute::kFloat32, 1),
 });
 
+const VertexFormat VertexPTTN::kFormat({
+    PositionAttribute(),
+    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32),
+    VertexAttribute(20, VertexAttribute::kTexCoord, 2,
+                    VertexAttribute::kFloat32, 1),
+    VertexAttribute(28, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
+});
+
 const VertexFormat VertexPN::kFormat({
     PositionAttribute(),
     VertexAttribute(12, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),

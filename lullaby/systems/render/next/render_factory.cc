@@ -395,6 +395,10 @@ void RenderFactory::CacheTexture(HashValue name, const TexturePtr& texture) {
   textures_.Create(name, [&]() { return texture; });
 }
 
+TexturePtr RenderFactory::GetCachedTexture(HashValue texture_hash) {
+  return textures_.Find(texture_hash);
+}
+
 MeshPtr RenderFactory::CreateMesh(const MeshData& mesh) {
   if (mesh.GetNumVertices() == 0) {
     return MeshPtr();

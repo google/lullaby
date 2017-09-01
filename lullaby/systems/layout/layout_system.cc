@@ -551,9 +551,9 @@ void LayoutSystem::SetDirty(Entity e, LayoutPass pass, Entity source) {
 }
 
 void LayoutSystem::SetParentDirty(Entity e, LayoutPass pass, Entity source) {
-  auto transform_system = registry_->Get<TransformSystem>();
+  const auto* transform_system = registry_->Get<TransformSystem>();
   Entity parent = transform_system->GetParent(e);
-  if (parent != kNullEntity) {
+  if (parent != kNullEntity && layouts_.Get(parent)) {
     SetDirty(parent, pass, source);
   }
 }
@@ -574,7 +574,9 @@ void LayoutSystem::OnOriginalBoxChanged(Entity e) {
 }
 
 void LayoutSystem::OnDesiredSizeChanged(const DesiredSizeChangedEvent& event) {
-  SetDirty(event.target, kDesired, event.source);
+  if (layouts_.Get(event.target)) {
+    SetDirty(event.target, kDesired, event.source);
+  }
 }
 
 void LayoutSystem::OnAabbChanged(Entity e) {

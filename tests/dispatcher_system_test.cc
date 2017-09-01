@@ -19,7 +19,6 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/modules/script/function_binder.h"
-#include "lullaby/modules/script/function_registry.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/tests/portable_test_macros.h"
 
@@ -69,7 +68,6 @@ class DispatcherSystemTest : public testing::Test {
  public:
   void SetUp() override {
     registry_.Create<FunctionBinder>(&registry_);
-    func_registry_ = registry_.Create<FunctionRegistry>();
     registry_.Create<Dispatcher>();
     registry_.Create<DispatcherSystem>(&registry_);
     dispatcher_ = registry_.Get<DispatcherSystem>();
@@ -79,7 +77,6 @@ class DispatcherSystemTest : public testing::Test {
 
  protected:
   DispatcherSystem* dispatcher_;
-  FunctionRegistry* func_registry_;
   Registry registry_;
 };
 
@@ -609,7 +606,7 @@ TEST_F(DispatcherSystemTest, SendEventDefsImmediately) {
   EXPECT_THAT(count, Eq(4));
 }
 
-TEST_F(DispatcherSystemTest, SendViaFunctionRegistry) {
+TEST_F(DispatcherSystemTest, SendViaFunctionBinder) {
   const Entity entity = Hash("test");
   int x = 0;
 
@@ -619,7 +616,7 @@ TEST_F(DispatcherSystemTest, SendViaFunctionRegistry) {
 
   EventClass e(123);
   EventWrapper wrap(e);
-  func_registry_->Call("lull.Dispatcher.Send", entity, wrap);
+  registry_.Get<FunctionBinder>()->Call("lull.Dispatcher.Send", entity, wrap);
   EXPECT_THAT(x, Eq(123));
 }
 

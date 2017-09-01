@@ -23,6 +23,13 @@ limitations under the License.
 
 namespace lull {
 
+static ScriptFunctionEntry* g_fn = nullptr;
+ScriptFunctionEntry::ScriptFunctionEntry(Fn fn, string_view name)
+    : fn(fn), name(name) {
+  next = g_fn;
+  g_fn = this;
+}
+
 ScriptEnv::ScriptEnv() {
   auto eval_fn = [this](ScriptFrame* frame) {
     frame->Return(Eval(frame->GetArgs()));
@@ -55,25 +62,9 @@ ScriptEnv::ScriptEnv() {
   Register("macro", NativeFunction{mac_fn});
   Register("return", NativeFunction{ret_fn});
   Register("?", NativeFunction{print_fn});
-
-  Register("do", NativeFunction{&lull::Do});
-  Register("if", NativeFunction{&lull::Cond});
-  Register("==", NativeFunction{&lull::Equal});
-  Register("!=", NativeFunction{&lull::NotEqual});
-  Register("<", NativeFunction{&lull::LessThan});
-  Register(">", NativeFunction{&lull::GreaterThan});
-  Register("<=", NativeFunction{&lull::LessThanOrEqual});
-  Register(">=", NativeFunction{&lull::GreaterThanOrEqual});
-  Register("+", NativeFunction{&lull::Add});
-  Register("-", NativeFunction{&lull::Subtract});
-  Register("*", NativeFunction{&lull::Multiply});
-  Register("/", NativeFunction{&lull::Divide});
-  Register("%", NativeFunction{&lull::Modulo});
-  Register("vec2", NativeFunction{&lull::CreateVec2});
-  Register("vec3", NativeFunction{&lull::CreateVec3});
-  Register("vec4", NativeFunction{&lull::CreateVec4});
-  Register("quat", NativeFunction{&lull::CreateQuat});
-  Register("make-map", NativeFunction{&lull::CreateMap});
+  for (auto* fn = g_fn; fn != nullptr; fn = fn->next) {
+    Register(fn->name, NativeFunction{fn->fn});
+  }
 }
 
 void ScriptEnv::SetFunctionCallHandler(FunctionCall::Handler handler) {

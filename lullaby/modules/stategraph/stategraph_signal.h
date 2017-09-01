@@ -20,6 +20,7 @@ limitations under the License.
 #include "lullaby/util/clock.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/typed_pointer.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -47,11 +48,13 @@ class StategraphSignal {
     return start_time_ <= timestamp && timestamp < end_time_;
   }
 
-  // Called when the Signal is entered during Track playback.
-  virtual void Enter() {}
+  // Called when the Signal is entered during Track playback.  The userdata can
+  // be used to provide additional context around the signal.
+  virtual void Enter(TypedPointer userdata) {}
 
-  // Called when the Signal is exited during Track playback.
-  virtual void Exit() {}
+  // Called when the Signal is exited during Track playback.  The userdata can
+  // be used to provide additional context around the signal.
+  virtual void Exit(TypedPointer userdata) {}
 
  protected:
   StategraphSignal(HashValue id, Clock::duration start_time,

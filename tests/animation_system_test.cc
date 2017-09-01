@@ -66,13 +66,61 @@ TEST_F(AnimationSystemTest, Create) {
                               &target_pos.x, 3, std::chrono::seconds(1));
   animation_system->SetTarget(entity, ScaleChannel::kChannelName,
                               &target_scale.x, 3, std::chrono::seconds(1));
-  animation_system->AdvanceFrame(std::chrono::seconds(2));
+  animation_system->AdvanceFrame(std::chrono::seconds(1));
 
   auto transform_system = registry_->Get<TransformSystem>();
   const Sqt* sqt = transform_system->GetSqt(entity);
 
   static const float kEpsilon = 0.001f;
 
+  EXPECT_NE(sqt, nullptr);
+  EXPECT_NEAR(sqt->translation.x, 1.f, kEpsilon);
+  EXPECT_NEAR(sqt->translation.y, 2.f, kEpsilon);
+  EXPECT_NEAR(sqt->translation.z, 3.f, kEpsilon);
+
+  EXPECT_NEAR(sqt->scale.x, 10.f, kEpsilon);
+  EXPECT_NEAR(sqt->scale.y, 20.f, kEpsilon);
+  EXPECT_NEAR(sqt->scale.z, 30.f, kEpsilon);
+}
+
+TEST_F(AnimationSystemTest, CreateWithDelay) {
+  Blueprint blueprint(512);
+  {
+    TransformDefT transform;
+    transform.position = mathfu::vec3(0.f, 0.f, 0.f);
+    transform.rotation = mathfu::vec3(0.f, 0.f, 0.f);
+    transform.scale = mathfu::vec3(1.f, 1.f, 1.f);
+    blueprint.Write(&transform);
+  }
+
+  auto* entity_factory = registry_->Get<EntityFactory>();
+  const Entity entity = entity_factory->Create(&blueprint);
+
+  const mathfu::vec3 target_pos(1.f, 2.f, 3.f);
+  const mathfu::vec3 target_scale(10.f, 20.f, 30.f);
+
+  auto animation_system = registry_->Get<AnimationSystem>();
+  animation_system->SetTarget(entity, PositionChannel::kChannelName,
+                              &target_pos.x, 3, std::chrono::seconds(1),
+                              std::chrono::seconds(1));
+  animation_system->SetTarget(entity, ScaleChannel::kChannelName,
+                              &target_scale.x, 3, std::chrono::seconds(1),
+                              std::chrono::seconds(1));
+  const auto transform_system = registry_->Get<TransformSystem>();
+  static const float kEpsilon = 0.001f;
+
+  animation_system->AdvanceFrame(std::chrono::seconds(1));
+  const Sqt* sqt = transform_system->GetSqt(entity);
+  EXPECT_NE(sqt, nullptr);
+  EXPECT_NEAR(sqt->translation.x, 0.f, kEpsilon);
+  EXPECT_NEAR(sqt->translation.y, 0.f, kEpsilon);
+  EXPECT_NEAR(sqt->translation.z, 0.f, kEpsilon);
+
+  EXPECT_NEAR(sqt->scale.x, 1.f, kEpsilon);
+  EXPECT_NEAR(sqt->scale.y, 1.f, kEpsilon);
+  EXPECT_NEAR(sqt->scale.z, 1.f, kEpsilon);
+
+  animation_system->AdvanceFrame(std::chrono::seconds(1));
   EXPECT_NE(sqt, nullptr);
   EXPECT_NEAR(sqt->translation.x, 1.f, kEpsilon);
   EXPECT_NEAR(sqt->translation.y, 2.f, kEpsilon);

@@ -6,9 +6,7 @@
 
 #include "flatbuffers/flatbuffers.h"
 
-#include "animation_def_generated.h"
 #include "common_generated.h"
-#include "dispatcher_def_generated.h"
 #include "variant_def_generated.h"
 
 namespace lull {
@@ -106,7 +104,9 @@ struct AnimationSignalDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_ID = 4,
     VT_START_TIME_S = 6,
-    VT_END_TIME_S = 8
+    VT_END_TIME_S = 8,
+    VT_ON_ENTER = 10,
+    VT_ON_EXIT = 12
   };
   /// The unique name (id) of the signal.
   uint32_t id() const {
@@ -120,11 +120,23 @@ struct AnimationSignalDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   float end_time_s() const {
     return GetField<float>(VT_END_TIME_S, 0.0f);
   }
+  /// Inline script to execute when entering the signal.
+  const flatbuffers::String *on_enter() const {
+    return GetPointer<const flatbuffers::String *>(VT_ON_ENTER);
+  }
+  /// Inline script to execute when exiting the signal.
+  const flatbuffers::String *on_exit() const {
+    return GetPointer<const flatbuffers::String *>(VT_ON_EXIT);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_ID) &&
            VerifyField<float>(verifier, VT_START_TIME_S) &&
            VerifyField<float>(verifier, VT_END_TIME_S) &&
+           VerifyOffset(verifier, VT_ON_ENTER) &&
+           verifier.Verify(on_enter()) &&
+           VerifyOffset(verifier, VT_ON_EXIT) &&
+           verifier.Verify(on_exit()) &&
            verifier.EndTable();
   }
 };
@@ -141,13 +153,19 @@ struct AnimationSignalDefBuilder {
   void add_end_time_s(float end_time_s) {
     fbb_.AddElement<float>(AnimationSignalDef::VT_END_TIME_S, end_time_s, 0.0f);
   }
+  void add_on_enter(flatbuffers::Offset<flatbuffers::String> on_enter) {
+    fbb_.AddOffset(AnimationSignalDef::VT_ON_ENTER, on_enter);
+  }
+  void add_on_exit(flatbuffers::Offset<flatbuffers::String> on_exit) {
+    fbb_.AddOffset(AnimationSignalDef::VT_ON_EXIT, on_exit);
+  }
   AnimationSignalDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AnimationSignalDefBuilder &operator=(const AnimationSignalDefBuilder &);
   flatbuffers::Offset<AnimationSignalDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_, 5);
     auto o = flatbuffers::Offset<AnimationSignalDef>(end);
     return o;
   }
@@ -157,12 +175,32 @@ inline flatbuffers::Offset<AnimationSignalDef> CreateAnimationSignalDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     uint32_t id = 0,
     float start_time_s = 0.0f,
-    float end_time_s = 0.0f) {
+    float end_time_s = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> on_enter = 0,
+    flatbuffers::Offset<flatbuffers::String> on_exit = 0) {
   AnimationSignalDefBuilder builder_(_fbb);
+  builder_.add_on_exit(on_exit);
+  builder_.add_on_enter(on_enter);
   builder_.add_end_time_s(end_time_s);
   builder_.add_start_time_s(start_time_s);
   builder_.add_id(id);
   return builder_.Finish();
+}
+
+inline flatbuffers::Offset<AnimationSignalDef> CreateAnimationSignalDefDirect(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    uint32_t id = 0,
+    float start_time_s = 0.0f,
+    float end_time_s = 0.0f,
+    const char *on_enter = nullptr,
+    const char *on_exit = nullptr) {
+  return lull::CreateAnimationSignalDef(
+      _fbb,
+      id,
+      start_time_s,
+      end_time_s,
+      on_enter ? _fbb.CreateString(on_enter) : 0,
+      on_exit ? _fbb.CreateString(on_exit) : 0);
 }
 
 /// An animation track representing a single animation to play.
@@ -174,7 +212,8 @@ struct AnimationTrackDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_ANIMATION = 4,
     VT_PLAYBACK_SPEED = 6,
     VT_SIGNALS = 8,
-    VT_SELECTION_PARAMS = 10
+    VT_SELECTION_PARAMS = 10,
+    VT_ANIMATION_CHANNEL = 12
   };
   /// The filename of the animation to load and play.
   const flatbuffers::String *animation() const {
@@ -193,6 +232,10 @@ struct AnimationTrackDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const lull::VariantMapDef *selection_params() const {
     return GetPointer<const lull::VariantMapDef *>(VT_SELECTION_PARAMS);
   }
+  /// The channel to use for animations.  Defaults to "render-rig".
+  uint32_t animation_channel() const {
+    return GetField<uint32_t>(VT_ANIMATION_CHANNEL, 0);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_ANIMATION) &&
@@ -203,6 +246,7 @@ struct AnimationTrackDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.VerifyVectorOfTables(signals()) &&
            VerifyOffset(verifier, VT_SELECTION_PARAMS) &&
            verifier.VerifyTable(selection_params()) &&
+           VerifyField<uint32_t>(verifier, VT_ANIMATION_CHANNEL) &&
            verifier.EndTable();
   }
 };
@@ -222,13 +266,16 @@ struct AnimationTrackDefBuilder {
   void add_selection_params(flatbuffers::Offset<lull::VariantMapDef> selection_params) {
     fbb_.AddOffset(AnimationTrackDef::VT_SELECTION_PARAMS, selection_params);
   }
+  void add_animation_channel(uint32_t animation_channel) {
+    fbb_.AddElement<uint32_t>(AnimationTrackDef::VT_ANIMATION_CHANNEL, animation_channel, 0);
+  }
   AnimationTrackDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AnimationTrackDefBuilder &operator=(const AnimationTrackDefBuilder &);
   flatbuffers::Offset<AnimationTrackDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_, 5);
     auto o = flatbuffers::Offset<AnimationTrackDef>(end);
     return o;
   }
@@ -239,8 +286,10 @@ inline flatbuffers::Offset<AnimationTrackDef> CreateAnimationTrackDef(
     flatbuffers::Offset<flatbuffers::String> animation = 0,
     float playback_speed = 1.0f,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<AnimationSignalDef>>> signals = 0,
-    flatbuffers::Offset<lull::VariantMapDef> selection_params = 0) {
+    flatbuffers::Offset<lull::VariantMapDef> selection_params = 0,
+    uint32_t animation_channel = 0) {
   AnimationTrackDefBuilder builder_(_fbb);
+  builder_.add_animation_channel(animation_channel);
   builder_.add_selection_params(selection_params);
   builder_.add_signals(signals);
   builder_.add_playback_speed(playback_speed);
@@ -253,13 +302,15 @@ inline flatbuffers::Offset<AnimationTrackDef> CreateAnimationTrackDefDirect(
     const char *animation = nullptr,
     float playback_speed = 1.0f,
     const std::vector<flatbuffers::Offset<AnimationSignalDef>> *signals = nullptr,
-    flatbuffers::Offset<lull::VariantMapDef> selection_params = 0) {
+    flatbuffers::Offset<lull::VariantMapDef> selection_params = 0,
+    uint32_t animation_channel = 0) {
   return lull::CreateAnimationTrackDef(
       _fbb,
       animation ? _fbb.CreateString(animation) : 0,
       playback_speed,
       signals ? _fbb.CreateVector<flatbuffers::Offset<AnimationSignalDef>>(*signals) : 0,
-      selection_params);
+      selection_params,
+      animation_channel);
 }
 
 /// A transition between two states within the stategraph.

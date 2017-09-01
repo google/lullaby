@@ -80,8 +80,8 @@ void LayoutBoxSystem::SetOriginalBox(Entity e, const Aabb& original_box) {
 
 const Aabb* LayoutBoxSystem::GetOriginalBox(Entity e) const {
   const auto* layout_box = GetLayoutBox(e);
-  if (layout_box) {
-    return &layout_box->original_box;
+  if (layout_box && layout_box->original_box) {
+    return layout_box->original_box.get();
   } else {
     return registry_->Get<TransformSystem>()->GetAabb(e);
   }
@@ -133,8 +133,8 @@ void LayoutBoxSystem::SetActualBox(Entity e, Entity source,
 
 const Aabb* LayoutBoxSystem::GetActualBox(Entity e) const {
   const auto* layout_box = GetLayoutBox(e);
-  if (layout_box) {
-    return &layout_box->actual_box;
+  if (layout_box && layout_box->actual_box) {
+    return layout_box->actual_box.get();
   } else {
     return registry_->Get<TransformSystem>()->GetAabb(e);
   }
@@ -144,17 +144,7 @@ LayoutBoxSystem::LayoutBox*
     LayoutBoxSystem::GetOrCreateLayoutBox(Entity e) {
   auto iter = layout_boxes_.find(e);
   if (iter == layout_boxes_.end()) {
-    LayoutBox layout_box;
-    auto* transform_system = registry_->Get<TransformSystem>();
-    const Aabb* aabb = transform_system->GetAabb(e);
-    if (aabb) {
-      layout_box.original_box = *aabb;
-      layout_box.actual_box = *aabb;
-    } else {
-      LOG(DFATAL) << "Invalid - the entity's transform doesn't exist.";
-      return nullptr;
-    }
-    iter = layout_boxes_.emplace(e, layout_box).first;
+    iter = layout_boxes_.emplace(e, LayoutBox()).first;
   }
   return &iter->second;
 }

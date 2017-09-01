@@ -17,6 +17,8 @@ limitations under the License.
 #include "lullaby/systems/stategraph/stategraph_system.h"
 
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/modules/script/function_binder.h"
+#include "lullaby/util/make_unique.h"
 #include "lullaby/generated/stategraph_def_generated.h"
 
 namespace lull {
@@ -26,6 +28,22 @@ static constexpr HashValue kStategraphDef = ConstHash("StategraphDef");
 StategraphSystem::StategraphSystem(Registry* registry)
     : System(registry), components_(32) {
   RegisterDef(this, kStategraphDef);
+
+  FunctionBinder* binder = registry->Get<FunctionBinder>();
+  if (binder) {
+    binder->RegisterMethod("lull.Stategraph.SetSelectionArgs",
+                           &lull::StategraphSystem::SetSelectionArgs);
+    binder->RegisterMethod("lull.Stategraph.SetDesiredState",
+                           &lull::StategraphSystem::SetDesiredState);
+  }
+}
+
+StategraphSystem::~StategraphSystem() {
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.Stategraph.SetSelectionArgs");
+    binder->UnregisterFunction("lull.Stategraph.SetDesiredState");
+  }
 }
 
 void StategraphSystem::Create(Entity entity, HashValue type, const Def* def) {
@@ -45,6 +63,13 @@ void StategraphSystem::Create(Entity entity, HashValue type, const Def* def) {
     component->stategraph =
         LoadStategraph(data->animation_stategraph()->c_str());
     component->current_state = data->initial_state();
+  }
+  component->env = MakeUnique<ScriptEnv>();
+
+  auto* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    component->env->SetFunctionCallHandler(
+        [binder](FunctionCall* call) { binder->Call(call); });
   }
 }
 
@@ -105,7 +130,8 @@ void StategraphSystem::EnterState(StategraphComponent* component,
 
   // Exit the current track.
   if (component->track) {
-    component->track->ExitActiveSignals(component->time);
+    component->track->ExitActiveSignals(component->time,
+                                        TypedPointer(component->env.get()));
   }
 
   // Select a new track.
@@ -132,7 +158,8 @@ void StategraphSystem::EnterState(StategraphComponent* component,
 
   // Enter the new track and start playing the animation at the correct time.
   component->current_state = state;
-  component->track->EnterActiveSignals(component->time);
+  component->track->EnterActiveSignals(component->time,
+                                       TypedPointer(component->env.get()));
   component->stategraph->PlayTrack(component->GetEntity(), component->track,
                                    component->time, blend_time);
 }
@@ -170,7 +197,8 @@ void StategraphSystem::AdvanceFrame(StategraphComponent* component,
   const Clock::duration adjusted_delta_time =
       component->stategraph->AdjustTime(delta_time, component->track);
   const Clock::duration next_time = component->time + adjusted_delta_time;
-  component->track->ProcessSignals(component->time, next_time);
+  component->track->ProcessSignals(component->time, next_time,
+                                   TypedPointer(component->env.get()));
   component->time = next_time;
 
   const StategraphTransition* transition = GetNextTransition(component);

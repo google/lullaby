@@ -64,6 +64,7 @@ cc_library(
     name = "clock",
     hdrs = ["clock.h"],
     deps = [
+        ":typeid",
     ],
 )
 
@@ -421,6 +422,16 @@ cc_library(
     deps = [
         ":clock",
         ":scheduled_processor",
+        ":typeid",
+    ],
+)
+
+cc_library(
+    name = "typed_pointer",
+    hdrs = [
+        "typed_pointer.h",
+    ],
+    deps = [
         ":typeid",
     ],
 )

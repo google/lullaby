@@ -114,10 +114,21 @@ struct Aabb {
     return max - min;
   }
 
+  mathfu::vec3 Center() const { return (max + min) * 0.5f; }
+
   template <typename Archive>
   void Serialize(Archive archive) {
     archive(&min, ConstHash("min"));
     archive(&max, ConstHash("max"));
+  }
+
+  void ToArray(float* array) const {
+    array[0] = min.x;
+    array[1] = min.y;
+    array[2] = min.z;
+    array[3] = max.x;
+    array[4] = max.y;
+    array[5] = max.z;
   }
 };
 
@@ -354,6 +365,11 @@ bool AreNearlyEqual(float a, float b, float epsilon = kDefaultEpsilon);
 
 // Returns true if |n| is within |epsilon| of 0.0.
 bool IsNearlyZero(float n, float epsilon = kDefaultEpsilon);
+
+// Returns true if |one| and |two| are nearly the same orientation. Note that
+// this is different than two rotations being the same.
+bool AreNearlyEqual(const mathfu::quat& one, const mathfu::quat& two,
+                    float epsilon = kDefaultEpsilon);
 
 // Returns the |index|th 3D column vector of |mat|.
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index);

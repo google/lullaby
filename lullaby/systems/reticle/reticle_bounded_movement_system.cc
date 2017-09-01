@@ -27,8 +27,9 @@ limitations under the License.
 namespace lull {
 namespace {
 
-static const float kMinFloat = std::numeric_limits<float>::min();
+static const float kMinFloat = std::numeric_limits<float>::lowest();
 static const float kMaxFloat = std::numeric_limits<float>::max();
+static const float kDefaultControllerHeight = -0.6f;
 
 const HashValue kReticleBoundedMovementDefHash = Hash("ReticleBoundaryDef");
 const lull::InputManager::DeviceType kDevice = lull::InputManager::kController;
@@ -186,20 +187,17 @@ void ReticleBoundedMovementSystem::Enable(Entity entity) {
 
       bounded_reticle->input_orientation_last_frame = input_orientation;
 
-      // Calculate collision ray from camera position to reticle position.
+      // Calculate collision ray from  controller origin to reticle position.
+      sqt.translation = mathfu::vec3(0, kDefaultControllerHeight, 0);
       const mathfu::vec3 reticle_position_in_world_space =
           *(transform_system->GetWorldFromEntityMatrix(entity)) *
           mathfu::vec3(reticle_position, 0);
       mathfu::vec3 direction =
-          (reticle_position_in_world_space - camera_position).Normalized();
-      sqt.translation = camera_position;
+          (reticle_position_in_world_space - sqt.translation).Normalized();
 
       if (bounded_reticle->is_horizontal_only) {
         // Abadon the relative movement in vertical direction.
         direction.y = 0.0f;
-        // Adjust the height of collision ray starting position to the actual
-        // controller height got from InputManager.
-        sqt.translation.y += input->GetDofPosition(input_device).y;
         // First rotate around x axis using the absolute pitch value in vertical
         // direction, then rotate around y axis using the relative movement in
         // horizontal direction.
@@ -213,7 +211,6 @@ void ReticleBoundedMovementSystem::Enable(Entity entity) {
     } else {
       ResetStabilizationCounter();
     }
-
     return sqt;
   };
   auto* reticle_system = registry_->Get<ReticleSystem>();

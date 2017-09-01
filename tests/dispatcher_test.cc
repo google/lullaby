@@ -189,6 +189,27 @@ TEST(Dispatcher, MultiFunctionAndEvent) {
   EXPECT_EQ("hello", h.other_static_value);
 }
 
+TEST(Dispatcher, MutableFunction) {
+  Dispatcher d;
+  int temp = 0;  // Only used in lambda scope.
+  int sum = 0;
+  auto c = d.Connect([temp, &sum](const Event& event) mutable {
+    temp += event.value;
+    sum = temp;
+  });
+  EXPECT_EQ(0, sum);
+
+  Event e(123);
+  d.Send(e);
+  EXPECT_EQ(123, sum);
+
+  sum = 0;
+  EXPECT_EQ(0, sum);
+
+  d.Send(e);
+  EXPECT_EQ(246, sum);
+}
+
 TEST(Dispatcher, AddRentrant) {
   Dispatcher d;
   EventHandlerClass h;

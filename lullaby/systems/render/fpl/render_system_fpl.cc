@@ -588,6 +588,11 @@ void RenderSystemFpl::OnTextureLoaded(const RenderComponent& component,
 
 void RenderSystemFpl::SetTexture(Entity e, int unit,
                                  const TexturePtr& texture) {
+  if (texture == nullptr) {
+    LOG(DFATAL) << "Can't set a null texture";
+    return;
+  }
+
   auto* render_component = render_component_pools_.GetComponent(e);
   if (!render_component) {
     return;

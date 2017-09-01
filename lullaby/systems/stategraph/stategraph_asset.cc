@@ -18,6 +18,7 @@ limitations under the License.
 
 #include "lullaby/generated/animation_stategraph_generated.h"
 #include "lullaby/modules/flatbuffers/variant_fb_conversions.h"
+#include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/util/make_unique.h"
 
@@ -45,6 +46,7 @@ class AnimationTrack : public StategraphTrack {
     signals_.emplace_back(std::move(signal));
   }
   AnimationAssetPtr asset = nullptr;
+  HashValue channel = ConstHash("render-rig");
   Clock::duration total_time = Clock::duration(0);
   float playback_speed = 0.f;
 };
@@ -71,7 +73,25 @@ class AnimationSignal : public StategraphSignal {
   AnimationSignal(HashValue id, Clock::duration start_time,
                   Clock::duration end_time)
       : StategraphSignal(id, start_time, end_time) {}
+  void Enter(TypedPointer userdata) override;
+  void Exit(TypedPointer userdata) override;
+  ScriptValue on_enter_;
+  ScriptValue on_exit_;
 };
+
+void AnimationSignal::Enter(TypedPointer userdata) {
+  ScriptEnv* env = userdata.Get<ScriptEnv>();
+  if (env) {
+    env->Eval(on_enter_);
+  }
+}
+
+void AnimationSignal::Exit(TypedPointer userdata) {
+  ScriptEnv* env = userdata.Get<ScriptEnv>();
+  if (env) {
+    env->Eval(on_exit_);
+  }
+}
 
 }  // namespace
 
@@ -121,6 +141,15 @@ std::unique_ptr<StategraphSignal> StategraphAsset::CreateSignal(
   const Clock::duration start_time = DurationFromSeconds(def->start_time_s());
   const Clock::duration end_time = DurationFromSeconds(def->end_time_s());
   AnimationSignal* signal = new AnimationSignal(id, start_time, end_time);
+
+  ScriptEnv compiler;
+  if (def->on_enter()) {
+    signal->on_enter_ = compiler.Read(def->on_enter()->c_str());
+  }
+  if (def->on_exit()) {
+    signal->on_exit_ = compiler.Read(def->on_exit()->c_str());
+  }
+
   return std::unique_ptr<StategraphSignal>(signal);
 }
 
@@ -149,6 +178,9 @@ std::unique_ptr<StategraphTrack> StategraphAsset::CreateTrack(
   track->total_time = AnimationSystem::GetDurationFromMotiveTime(
       asset->GetRigAnim(0)->end_time());
   track->playback_speed = def->playback_speed();
+  if (def->animation_channel() != 0) {
+    track->channel = def->animation_channel();
+  }
 
   VariantMap selection_params;
   VariantMapFromFbVariantMap(def->selection_params(), &selection_params);
@@ -264,7 +296,7 @@ AnimationId StategraphAsset::PlayTrack(Entity entity,
   params.speed = anim_track->playback_speed;
   params.blend_time_s = SecondsFromDuration(blend_time);
   params.start_delay_s = -1.f * SecondsFromDuration(timestamp);
-  return animation_system->PlayAnimation(entity, ConstHash("render-rig"),
+  return animation_system->PlayAnimation(entity, anim_track->channel,
                                          anim_track->asset, params);
 }
 

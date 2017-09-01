@@ -72,6 +72,7 @@ class RenderSystemNext : public System {
   const TexturePtr& GetWhiteTexture() const;
   const TexturePtr& GetInvalidTexture() const;
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
+  TexturePtr GetTexture(HashValue texture_hash) const;
   void LoadTextureAtlas(const std::string& filename);
   MeshPtr LoadMesh(const std::string& filename);
 

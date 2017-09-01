@@ -19,9 +19,10 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
-#include "lullaby/modules/script/function_registry.h"
+#include "lullaby/modules/script/function_binder.h"
 #include "lullaby/modules/script/lull/script_frame.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/registry.h"
 
 namespace lull {
 namespace {
@@ -90,14 +91,14 @@ TEST(ScriptEnvText, SetGetValue) {
 
 TEST(ScriptEnvTest, Def) {
   ScriptEnv env;
-  ScriptValue res = env.Exec("(do (def foo (x y) ((+ x y y))) (foo 1 2))");
+  ScriptValue res = env.Exec("(do (def foo (x y) ((+ x (+ y y)))) (foo 1 2))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(5));
 }
 
 TEST(ScriptEnvTest, Call) {
   ScriptEnv env;
-  env.Exec("(def foo (x y) ((+ x y y)))");
+  env.Exec("(def foo (x y) ((+ x (+ y y))))");
 
   ScriptValue res = env.Call("foo", 1, 2);
   EXPECT_THAT(res.Is<int>(), Eq(true));
@@ -106,7 +107,7 @@ TEST(ScriptEnvTest, Call) {
 
 TEST(ScriptEnvTest, CallWithArray) {
   ScriptEnv env;
-  env.Exec("(def foo (x y) ((+ x y y)))");
+  env.Exec("(def foo (x y) ((+ x (+ y y))))");
 
   ScriptValue args[] = {
       env.Create(1),
@@ -119,7 +120,7 @@ TEST(ScriptEnvTest, CallWithArray) {
 
 TEST(ScriptEnvTest, CallWithMap) {
   ScriptEnv env;
-  env.Exec("(def foo (x y) ((+ x y y)))");
+  env.Exec("(def foo (x y) ((+ x (+ y y))))");
 
   VariantMap args;
   args[Hash("x")] = 1;
@@ -134,8 +135,8 @@ TEST(ScriptEnvTest, CallNativeFunction) {
   auto fn = [](ScriptFrame* frame) {
     auto arg1 = frame->EvalNext();
     auto arg2 = frame->EvalNext();
-    const int x = arg1.GetAs<int>();
-    const int y = arg2.GetAs<int>();
+    const int x = *arg1.Get<int>();
+    const int y = *arg2.Get<int>();
     frame->Return(x + y + y);
   };
 
@@ -148,12 +149,14 @@ TEST(ScriptEnvTest, CallNativeFunction) {
   EXPECT_THAT(*res.Get<int>(), Eq(5));
 }
 
-TEST(ScriptEnvTest, CallFunctionInRegistry) {
-  FunctionRegistry reg;
-  reg.RegisterFunction("foo", [](int x, int y) { return x + y + y; });
+TEST(ScriptEnvTest, CallFunctionBinder) {
+  Registry registry;
+  FunctionBinder binder(&registry);
+  binder.RegisterFunction("foo", [](int x, int y) { return x + y + y; });
 
   ScriptEnv env;
-  env.SetFunctionCallHandler([&reg](FunctionCall* call) { reg.Call(call); });
+  env.SetFunctionCallHandler(
+      [&binder](FunctionCall* call) { binder.Call(call); });
 
   ScriptValue res = env.Eval(env.Read("(foo 1 2)"));
 

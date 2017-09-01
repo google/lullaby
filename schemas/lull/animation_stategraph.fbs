@@ -1,5 +1,4 @@
 include "lull/common.fbs";
-include "lull/animation_def.fbs";
 include "lull/variant_def.fbs";
 
 namespace lull;
@@ -22,6 +21,12 @@ table AnimationSignalDef {
 
   /// The end time (in seconds) when the signal is no longer active.
   end_time_s: float;
+
+  /// Inline script to execute when entering the signal.
+  on_enter: string;
+
+  /// Inline script to execute when exiting the signal.
+  on_exit: string;
 }
 
 /// An animation track representing a single animation to play.
@@ -38,6 +43,9 @@ table AnimationTrackDef {
   /// The parameters associated with the animation that can be used in
   /// conjunction with the owning state's selector to pick this track.
   selection_params: VariantMapDef;
+
+  /// The channel to use for animations.  Defaults to "render-rig".
+  animation_channel: uint = 0 (hashvalue);
 }
 
 /// A transition between two states within the stategraph.

@@ -32,7 +32,7 @@ namespace lull {
 /// for the return value (also as a Variant).
 ///
 /// The FunctionCall class can be used as a CallNativeFunction Context.  It
-/// is used by the FunctionRegistry to programmatically "call" registered
+/// is used by the FunctionBinder to programmatically "call" registered
 /// functions dynamically.
 class FunctionCall {
  public:
@@ -57,7 +57,7 @@ class FunctionCall {
   const Name& GetName() const { return name_; }
 
   /// Returns the Variant returned when the function was "called" by the
-  /// FunctionRegistry.
+  /// FunctionBinder.
   const Variant& GetReturnValue() const { return return_value_; }
 
   /// Adds a value to the argument list.
@@ -120,8 +120,8 @@ bool FunctionCall::ArgToCpp(string_view name, size_t arg_index,
                             T* value) const {
   const bool result = VariantConverter::FromVariant(args_[arg_index], value);
   if (!result) {
-    LOG(ERROR) << name << " expects the type of arg " << arg_index + 1
-               << " to be " << TypeNameGenerator::Generate<T>();
+    LOG(DFATAL) << name << " expects the type of arg " << arg_index + 1
+                << " to be " << TypeNameGenerator::Generate<T>();
   }
   return result;
 }
@@ -135,8 +135,8 @@ bool FunctionCall::ReturnFromCpp(string_view name, const T& value) {
 inline bool FunctionCall::CheckNumArgs(string_view name,
                                        size_t expected_args) const {
   if (num_args_ != expected_args) {
-    LOG(ERROR) << name << " expects " << expected_args << " args, but got "
-               << num_args_;
+    LOG(DFATAL) << name << " expects " << expected_args << " args, but got "
+                << num_args_;
     return false;
   }
   return true;

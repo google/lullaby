@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "lullaby/systems/physics/physics_system.h"
 
+#include <algorithm>
+
 #include "lullaby/events/entity_events.h"
 #include "lullaby/events/physics_events.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
@@ -30,26 +32,30 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kRigidBodyDef = Hash("RigidBodyDef");
+const HashValue kRigidBodyDef = ConstHash("RigidBodyDef");
 
-PhysicsSystem::PhysicsSystem(Registry* registry, const mathfu::vec3& gravity)
+PhysicsSystem::PhysicsSystem(Registry* registry)
+    : PhysicsSystem(registry, InitParams()) {}
+
+PhysicsSystem::PhysicsSystem(Registry* registry, const InitParams& params)
     : System(registry),
       rigid_bodies_(16),
       transform_system_(nullptr),
       transform_flag_(TransformSystem::kInvalidFlag),
+      timestep_(params.timestep),
+      max_substeps_(params.max_substeps),
       bt_config_(MakeUnique<btDefaultCollisionConfiguration>()),
       bt_dispatcher_(MakeUnique<btCollisionDispatcher>(bt_config_.get())),
       bt_broadphase_(MakeUnique<btDbvtBroadphase>()),
       bt_solver_(MakeUnique<btSequentialImpulseConstraintSolver>()),
-      bt_world_(MakeUnique<btDiscreteDynamicsWorld>(bt_dispatcher_.get(),
-                                                    bt_broadphase_.get(),
-                                                    bt_solver_.get(),
-                                                    bt_config_.get())) {
+      bt_world_(MakeUnique<btDiscreteDynamicsWorld>(
+          bt_dispatcher_.get(), bt_broadphase_.get(), bt_solver_.get(),
+          bt_config_.get())) {
   RegisterDef(this, kRigidBodyDef);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<TransformSystem>(this);
 
-  bt_world_->setGravity(BtVectorFromMathfu(gravity));
+  bt_world_->setGravity(BtVectorFromMathfu(params.gravity));
   bt_world_->setInternalTickCallback(
       InternalTickCallback, static_cast<void*>(this));
 }
@@ -181,7 +187,6 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
 
   // Setup Bullet and Lullaby flags.
   SetupBtFlags(body);
-  transform_system_->SetFlag(entity, transform_flag_);
 
   // Give the rigid body a pointer to the Lullaby entity.
   body->bt_body->setUserPointer(reinterpret_cast<void*>(entity));
@@ -245,11 +250,8 @@ void PhysicsSystem::InitCollisionShape(RigidBody* body,
 
     // If no local transforms are applied, make this shape the primary shape and
     // avoid using a compound shape altogether.
-    const float rotation_delta =
-        1.f -
-        mathfu::quat::DotProduct(shape_sqt.rotation, mathfu::quat::identity);
     if (shape_sqt.translation == mathfu::kZeros3f &&
-        std::fabs(rotation_delta) <= kDefaultEpsilon) {
+        AreNearlyEqual(shape_sqt.rotation, mathfu::quat::identity)) {
       body->bt_primary_shape = shape.get();
       // Mark that local scaling was applied directly to bt_primary_shape.
       body->primary_shape_scale = shape_sqt.scale;
@@ -489,12 +491,12 @@ void PhysicsSystem::UpdateSimulationTransform(
   }
 }
 
+void PhysicsSystem::MarkForUpdate(Entity entity) {
+  updated_entities_.push_back(entity);
+}
+
 void PhysicsSystem::UpdateLullabyTransform(Entity entity) {
   auto* body = rigid_bodies_.Get(entity);
-  // Only Dynamic bodies are simulated by Bullet.
-  if (body->type != RigidBodyType::RigidBodyType_Dynamic) {
-    return;
-  }
 
   // Un-apply any local offset transforms.
   const btTransform& world_transform = body->bt_body->getWorldTransform();
@@ -509,6 +511,7 @@ void PhysicsSystem::UpdateLullabyTransform(Entity entity) {
 void PhysicsSystem::AdvanceFrame(Clock::duration delta_time) {
   LULLABY_CPU_TRACE_CALL();
 
+  // Ensure that all Bullet transforms match their Lullaby counterparts.
   transform_system_->ForEach(
       transform_flag_,
       [this](Entity e, const mathfu::mat4& world_from_entity_mat,
@@ -516,11 +519,24 @@ void PhysicsSystem::AdvanceFrame(Clock::duration delta_time) {
         UpdateSimulationTransform(e, world_from_entity_mat);
       });
 
-  // Update the simulation MotionStates will take care of exporting the
-  // transforms to the TransformSystem for bodies that are Dynamic, which are
-  // the only kind that Bullet will update.
+  // During one AdvanceFrame() call, do at most a set number of 1/60 second
+  // updates. Bullet will update the MotionStates of every Dynamic Entity that
+  // has a transform update. These Entities will be marked for synchronization.
   const float delta_time_sec = SecondsFromDuration(delta_time);
-  bt_world_->stepSimulation(delta_time_sec);
+  bt_world_->stepSimulation(delta_time_sec, max_substeps_, timestep_);
+
+  // Sort the list of Entities to de-duplicate update requests.
+  std::sort(updated_entities_.begin(), updated_entities_.end());
+
+  // Ensure that all Lullaby transforms match their Bullet counterparts.
+  Entity previous = kNullEntity;
+  for (const auto entity : updated_entities_) {
+    if (previous != entity) {
+      UpdateLullabyTransform(entity);
+      previous = entity;
+    }
+  }
+  updated_entities_.clear();
 }
 
 void PhysicsSystem::PickPrimaryAndSecondaryEntities(
@@ -568,21 +584,39 @@ void PhysicsSystem::SetAngularVelocity(Entity entity,
   body->bt_body->activate(true);
 }
 
+void PhysicsSystem::SetGravity(const mathfu::vec3& gravity) {
+  bt_world_->setGravity(BtVectorFromMathfu(gravity));
+}
+
 void PhysicsSystem::DisablePhysics(Entity entity) {
   if (IsPhysicsEnabled(entity)) {
     auto* body = rigid_bodies_.Get(entity);
-    bt_world_->removeRigidBody(body->bt_body.get());
-    body->enabled = false;
-    transform_system_->ClearFlag(entity, transform_flag_);
+    if (body) {
+      body->enabled = false;
+      transform_system_->ClearFlag(entity, transform_flag_);
+
+      if (transform_system_->IsEnabled(entity)) {
+        bt_world_->removeRigidBody(body->bt_body.get());
+      }
+    } else {
+      LOG(ERROR) << "Cannot disable physics for an Entity with no rigid body.";
+    }
   }
 }
 
 void PhysicsSystem::EnablePhysics(Entity entity) {
   if (!IsPhysicsEnabled(entity)) {
     auto* body = rigid_bodies_.Get(entity);
-    bt_world_->addRigidBody(body->bt_body.get());
-    body->enabled = true;
-    transform_system_->SetFlag(entity, transform_flag_);
+    if (body) {
+      body->enabled = true;
+      transform_system_->SetFlag(entity, transform_flag_);
+
+      if (transform_system_->IsEnabled(entity)) {
+        bt_world_->addRigidBody(body->bt_body.get());
+      }
+    } else {
+      LOG(ERROR) << "Cannot enable physics for an Entity with no rigid body.";
+    }
   }
 }
 
@@ -632,7 +666,7 @@ void PhysicsSystem::MotionState::setWorldTransform(
   // Ignore the input transform because Bullet has interpolated it - we want the
   // raw world transform instead, else we will diverge when pushing data into
   // the simulation.
-  physics_system_->UpdateLullabyTransform(entity_);
+  physics_system_->MarkForUpdate(entity_);
 }
 
 void PhysicsSystem::MotionState::SetKinematicTransform(

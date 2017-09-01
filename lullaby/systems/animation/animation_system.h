@@ -29,6 +29,7 @@ limitations under the License.
 #include "lullaby/systems/animation/animation_asset.h"
 #include "lullaby/systems/animation/animation_channel.h"
 #include "lullaby/systems/animation/playback_parameters.h"
+#include "lullaby/systems/animation/spline_modifiers.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/resource_manager.h"
@@ -99,11 +100,12 @@ class AnimationSystem : public System {
                             const PlaybackParameters& params);
 
   // Drives the data specified by the |channel| towards the |target| values
-  // over the given |time|. Returns a unique AnimationId, which will be included
-  // in the AnimationCompleteEvent dispatched when this animation finishes or is
-  // interrupted.
+  // over the given |time|, after |delay|. Returns a unique AnimationId, which
+  // will be included in the AnimationCompleteEvent dispatched when this
+  // animation finishes or is interrupted.
   AnimationId SetTarget(Entity e, HashValue channel, const float* target,
-                        size_t len, Clock::duration time);
+                        size_t len, Clock::duration time,
+                        Clock::duration delay = Clock::duration::zero());
 
   // Cancels the current animation for |e| in |channel|.
   void CancelAnimation(Entity e, HashValue channel);
@@ -153,6 +155,7 @@ class AnimationSystem : public System {
   };
 
   static PlaybackParameters GetPlaybackParameters(const AnimInstanceDef* anim);
+  static SplineModifiers GetSplineModifiers(const AnimInstanceDef* anim);
 
   AnimationChannel* FindChannel(string_view channel_name);
   AnimationChannel* FindChannel(HashValue channel_id);
@@ -180,7 +183,7 @@ class AnimationSystem : public System {
                                        int rig_index = 0);
   AnimationId SetTargetInternal(Entity e, AnimationChannel* channel,
                                 const float* data, size_t len,
-                                Clock::duration time);
+                                Clock::duration time, Clock::duration delay);
 
   struct DefiningAnimation {
     AnimationAssetPtr asset;

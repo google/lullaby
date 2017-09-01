@@ -19,6 +19,7 @@ limitations under the License.
 
 #include "lullaby/modules/script/lull/script_arg_list.h"
 #include "lullaby/modules/script/lull/script_types.h"
+#include "lullaby/util/typed_pointer.h"
 
 namespace lull {
 
@@ -59,7 +60,7 @@ class ScriptFrame : public ScriptArgList {
 
   template <typename Value>
   typename EnableIfPointer<Value>::type Return(const Value& value) {
-    Return(NativePointer(value));
+    Return(TypedPointer(value));
   }
 
   // Gets the return value that was set by calling Return().

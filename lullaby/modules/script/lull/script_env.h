@@ -152,4 +152,6 @@ ScriptValue ScriptEnv::Create(T&& value) {
 }
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::ScriptEnv);
+
 #endif  // LULLABY_SCRIPT_LULL_SCRIPT_ENV_H_

@@ -1,5 +1,6 @@
 licenses(["notice"])  # Apache 2.0
 
+
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -45,6 +46,7 @@ cc_library(
         "//lullaby/util:optional",
         "//lullaby/util:span",
         "//lullaby/util:string_view",
+        "//lullaby/util:typed_pointer",
         "//lullaby/util:typeid",
         "//lullaby/util:variant",
         "@mathfu//:mathfu",

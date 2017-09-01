@@ -18,5 +18,7 @@ limitations under the License.
 #define LULLABY_UTIL_TRACE_H_
 
 #define LULLABY_CPU_TRACE_CALL()
+#define LULLABY_CPU_TRACE(name)
+#define LULLABY_CPU_TRACE_INT(name, value)
 
 #endif  // LULLABY_UTIL_TRACE_H_

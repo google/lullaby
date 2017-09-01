@@ -18,6 +18,8 @@ limitations under the License.
 #define LULLABY_SYSTEMS_ANIMATION_PLAYBACK_PARAMETERS_H_
 
 #include <stdlib.h>
+#include "lullaby/util/hash.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 
@@ -35,15 +37,17 @@ struct PlaybackParameters {
   // Duration (in seconds) to blend from previous animation.
   float blend_time_s = 0.f;
 
-  // Values added to each dimension of the animation.
-  const float* offsets = nullptr;
-  size_t num_offsets = 0;
-
-  // Values multiplied on each dimension of the animation.
-  const float* multipliers = nullptr;
-  size_t num_multipliers = 0;
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&looping, ConstHash("looping"));
+    archive(&speed, ConstHash("speed"));
+    archive(&start_delay_s, ConstHash("start_delay_s"));
+    archive(&blend_time_s, ConstHash("blend_time_s"));
+  }
 };
 
 }  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::PlaybackParameters);
 
 #endif  // LULLABY_SYSTEMS_ANIMATION_PLAYBACK_PARAMETERS_H_

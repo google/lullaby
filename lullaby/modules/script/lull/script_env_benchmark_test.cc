@@ -17,41 +17,42 @@ limitations under the License.
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lullaby/modules/script/function_registry.h"
+#include "lullaby/modules/script/function_binder.h"
 #include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/registry.h"
 
 namespace lull {
 namespace {
 
 using ::testing::Eq;
 
-static void RegisterTestFunctions(FunctionRegistry* reg) {
-  reg->RegisterFunction("FlipBool", [](bool x) { return !x; });
-  reg->RegisterFunction("AddInt16",
-                        [](int16_t x) { return static_cast<int16_t>(x + 1); });
-  reg->RegisterFunction("AddInt32",
-                        [](int32_t x) { return static_cast<int32_t>(x + 1); });
-  reg->RegisterFunction("AddInt64",
-                        [](int64_t x) { return static_cast<int64_t>(x + 1); });
-  reg->RegisterFunction(
+static void RegisterTestFunctions(FunctionBinder* binder) {
+  binder->RegisterFunction("FlipBool", [](bool x) { return !x; });
+  binder->RegisterFunction(
+      "AddInt16", [](int16_t x) { return static_cast<int16_t>(x + 1); });
+  binder->RegisterFunction(
+      "AddInt32", [](int32_t x) { return static_cast<int32_t>(x + 1); });
+  binder->RegisterFunction(
+      "AddInt64", [](int64_t x) { return static_cast<int64_t>(x + 1); });
+  binder->RegisterFunction(
       "AddUInt16", [](uint16_t x) { return static_cast<uint16_t>(x + 1); });
-  reg->RegisterFunction(
+  binder->RegisterFunction(
       "AddUInt32", [](uint32_t x) { return static_cast<uint32_t>(x + 1); });
-  reg->RegisterFunction(
+  binder->RegisterFunction(
       "AddUInt64", [](uint64_t x) { return static_cast<uint64_t>(x + 1); });
-  reg->RegisterFunction("RepeatString",
-                        [](const std::string& s) { return s + s; });
-  reg->RegisterFunction("RotateVec2", [](const mathfu::vec2& v) {
+  binder->RegisterFunction("RepeatString",
+                           [](const std::string& s) { return s + s; });
+  binder->RegisterFunction("RotateVec2", [](const mathfu::vec2& v) {
     return mathfu::vec2(v.y, v.x);
   });
-  reg->RegisterFunction("RotateVec3", [](const mathfu::vec3& v) {
+  binder->RegisterFunction("RotateVec3", [](const mathfu::vec3& v) {
     return mathfu::vec3(v.y, v.z, v.x);
   });
-  reg->RegisterFunction("RotateVec4", [](const mathfu::vec4& v) {
+  binder->RegisterFunction("RotateVec4", [](const mathfu::vec4& v) {
     return mathfu::vec4(v.y, v.z, v.w, v.x);
   });
-  reg->RegisterFunction("RotateQuat", [](const mathfu::quat& v) {
+  binder->RegisterFunction("RotateQuat", [](const mathfu::quat& v) {
     return mathfu::quat(v.vector().x, v.vector().y, v.vector().z, v.scalar());
   });
 }
@@ -68,18 +69,20 @@ static const char* kBenchmarkTestSrc =
     "(= entity (AddInt32 123)) "
     "(= entity (AddInt32 123)) "
     "(= str (RepeatString 'abc')) "
-    "(= v2 (RotateVec2 (vec2 1.0 2.0))) "
-    "(= v3 (RotateVec3 (vec3 1.0 2.0 3.0))) "
-    "(= v4 (RotateVec4 (vec4 1.0 2.0 3.0 4.0))) "
-    "(= qt (RotateQuat (quat 1.0 2.0 3.0 4.0))) "
+    "(= v2 (RotateVec2 (vec2 1.0f 2.0f))) "
+    "(= v3 (RotateVec3 (vec3 1.0f 2.0f 3.0f))) "
+    "(= v4 (RotateVec4 (vec4 1.0f 2.0f 3.0f 4.0f))) "
+    "(= qt (RotateQuat (quat 1.0f 2.0f 3.0f 4.0f))) "
     ")";
 
 static void Benchmark(benchmark::State& state) {
-  FunctionRegistry reg;
-  RegisterTestFunctions(&reg);
+  Registry registry;
+  FunctionBinder binder(&registry);
+  RegisterTestFunctions(&binder);
 
   ScriptEnv env;
-  env.SetFunctionCallHandler([&reg](FunctionCall* call) { reg.Call(call); });
+  env.SetFunctionCallHandler(
+      [&binder](FunctionCall* call) { binder.Call(call); });
 
   auto script = env.Read(kBenchmarkTestSrc);
   while (state.KeepRunning()) {
@@ -90,37 +93,38 @@ BENCHMARK(Benchmark);
 
 // This test verifies that the benchmark code actually behaves correctly.
 TEST(ScriptEnvBenchmarkTest, BenchmarkTestVerification) {
-  FunctionRegistry reg;
-  RegisterTestFunctions(&reg);
+  Registry registry;
+  FunctionBinder binder(&registry);
+  RegisterTestFunctions(&binder);
 
   ScriptEnv env;
-  env.SetFunctionCallHandler([&reg](FunctionCall* call) { reg.Call(call); });
+  env.SetFunctionCallHandler(
+      [&binder](FunctionCall* call) { binder.Call(call); });
 
   auto script = env.Read(kBenchmarkTestSrc);
   env.Eval(script);
 
-  EXPECT_THAT(env.GetValue(Hash("bool")).GetAs<bool>(), Eq(false));
-  EXPECT_THAT(env.GetValue(Hash("int16")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("int32")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("int64")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("uint16")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("uint32")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("uint64")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("entity")).GetAs<int32_t>(), Eq(124));
-  EXPECT_THAT(env.GetValue(Hash("str")).GetAs<std::string>(),
+  EXPECT_THAT(*env.GetValue(Hash("bool")).Get<bool>(), Eq(false));
+  EXPECT_THAT(*env.GetValue(Hash("int16")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("int32")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("int64")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("uint16")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("uint32")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("uint64")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("entity")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Hash("str")).Get<std::string>(),
               Eq(std::string("abcabc")));
 
-  auto v2 = env.GetValue(Hash("v2")).GetAs<mathfu::vec2>();
-  auto v3 = env.GetValue(Hash("v3")).GetAs<mathfu::vec3>();
-  auto v4 = env.GetValue(Hash("v4")).GetAs<mathfu::vec4>();
-  auto qt = env.GetValue(Hash("qt")).GetAs<mathfu::quat>();
+  auto v2 = *env.GetValue(Hash("v2")).Get<mathfu::vec2>();
+  auto v3 = *env.GetValue(Hash("v3")).Get<mathfu::vec3>();
+  auto v4 = *env.GetValue(Hash("v4")).Get<mathfu::vec4>();
+  auto qt = *env.GetValue(Hash("qt")).Get<mathfu::quat>();
   EXPECT_THAT(v2, Eq(mathfu::vec2(2, 1)));
   EXPECT_THAT(v3, Eq(mathfu::vec3(2, 3, 1)));
   EXPECT_THAT(v4, Eq(mathfu::vec4(2, 3, 4, 1)));
   EXPECT_THAT(qt.vector(), Eq(mathfu::quat(2, 3, 4, 1).vector()));
   EXPECT_THAT(qt.scalar(), Eq(mathfu::quat(2, 3, 4, 1).scalar()));
 }
-
 
 }  // namespace
 }  // namespace lull

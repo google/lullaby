@@ -31,6 +31,16 @@ namespace lull {
 //
 // This class implements a subset of C++17's std::optional, so that once that
 // class is standardized we can easily switch to it.
+
+// A helper class and global variable that can be used to specify an empty
+// optional.
+struct NullOptT {
+  struct DetailInit {};
+  static DetailInit init;
+  explicit constexpr NullOptT(DetailInit&) {}
+};
+extern const NullOptT NullOpt;
+
 template <typename T>
 class Optional {
  public:
@@ -38,6 +48,9 @@ class Optional {
 
   // Default constructor, no value set.
   Optional() : set_(false) {}
+
+  // Constructor that takes a NullOpt to indicate an empty optional.
+  Optional(NullOptT) : set_(false) {}
 
   // Copy constructor, copies value from |rhs| if set.
   Optional(const Optional& rhs) : set_(false) {

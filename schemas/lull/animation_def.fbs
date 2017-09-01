@@ -69,13 +69,16 @@ table AnimInstanceDef {
 /// values over the specified amount of time.
 table AnimTargetDef {
   /// The AnimationChannel on which to set these targets.
-  channel : string;
+  channel: string;
 
   /// The target values for the channel.
-  values : [float];
+  values: [float];
 
   /// The amount of time (in milliseconds) to take to reach the target values.
-  time_ms : int;
+  time_ms: int;
+
+  /// The amount of time (in milliseconds) to delay starting the animation.
+  start_delay_ms: int = 0;
 }
 
 /// Specifies a "defining animation" that is used to correctly initialize

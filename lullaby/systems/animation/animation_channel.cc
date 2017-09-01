@@ -50,10 +50,7 @@ AnimationChannel::Animation* AnimationChannel::DoInitialize(
     anim->rig_motivator.Initialize(init, engine);
   } else {
     // Get the current values for the channel.
-    float target_values[kMaxDimensions];
-    for (int i = 0; i < dimensions_; ++i) {
-      target_values[i] = 0.f;
-    }
+    float target_values[kMaxDimensions] = {0.f};
     Get(entity, target_values, dimensions_);
 
     // Set the motive targets to the current values.
@@ -126,7 +123,8 @@ AnimationId AnimationChannel::Cancel(Entity entity) {
 
 AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
                                    AnimationId id, const float* target_values,
-                                   size_t length, Clock::duration time) {
+                                   size_t length, Clock::duration time,
+                                   Clock::duration delay) {
   if (length != static_cast<size_t>(dimensions_)) {
     LOG(DFATAL) << "Dimensions do not match!";
     return kNullAnimation;
@@ -144,16 +142,28 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
   }
 
   const motive::MotiveTime min_time = AnimationSystem::GetMinimalStep();
-  anim->total_time = AnimationSystem::GetMotiveTimeFromDuration(time);
-  if (anim->total_time < min_time) {
-    anim->total_time = min_time;
-  }
+  motive::MotiveTime anim_time =
+      AnimationSystem::GetMotiveTimeFromDuration(time);
+  motive::MotiveTime delay_time =
+      AnimationSystem::GetMotiveTimeFromDuration(delay);
 
+  anim_time = std::max(anim_time, min_time);
+  if (delay_time > 0) {
+    delay_time = std::max(delay_time, min_time);
+  } else {
+    delay_time = 0;  // Don't allow negative times.
+  }
+  anim->total_time = anim_time + delay_time;
+
+  float current_values[kMaxDimensions] = {0.f};
+  Get(entity, current_values, length);
   motive::MotiveTarget1f targets[kMaxDimensions];
   for (int i = 0; i < dimensions_; ++i) {
     anim->base_offset[i] = 0.f;
     anim->multiplier[i] = 1.f;
-    targets[i] = motive::Target1f(target_values[i], 0.f, anim->total_time);
+    targets[i] =
+        motive::TargetToTarget1f(current_values[i], 0.f, delay_time,
+                                 target_values[i], 0.f, anim->total_time);
   }
 
   anim->motivator.SetTargets(targets);
@@ -176,7 +186,8 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
                                    AnimationId id,
                                    const motive::CompactSpline* const* splines,
                                    const float* constants, size_t length,
-                                   const PlaybackParameters& params) {
+                                   const PlaybackParameters& params,
+                                   const SplineModifiers& modifiers) {
   if (length != static_cast<size_t>(dimensions_)) {
     LOG(DFATAL) << "Wrong size of constants and splines array.";
     return kNullAnimation;
@@ -202,9 +213,10 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
 
   // Initialize the overall curve offset and multiplier.
   for (size_t i = 0; i < static_cast<size_t>(dimensions_); ++i) {
-    anim->base_offset[i] = (i < params.num_offsets) ? params.offsets[i] : 0.f;
+    anim->base_offset[i] =
+        (i < modifiers.num_offsets) ? modifiers.offsets[i] : 0.f;
     anim->multiplier[i] =
-        (i < params.num_multipliers) ? params.multipliers[i] : 1.f;
+        (i < modifiers.num_multipliers) ? modifiers.multipliers[i] : 1.f;
   }
 
   // Blend motivator to the new splines and constant values.

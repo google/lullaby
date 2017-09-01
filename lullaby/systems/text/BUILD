@@ -71,7 +71,6 @@ cc_library(
     ],
 )
 
-
 # The GMock implementation.
 cc_library(
     name = "mock",

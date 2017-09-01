@@ -30,7 +30,7 @@ class ScriptAstBuilder : public ParserCallbacks {
   explicit ScriptAstBuilder(ScriptEnv* env);
 
   // Creates an AstNode from the given |type| and associated data.
-  void Process(CodeType type, const void* ptr, string_view token) override;
+  void Process(TokenType type, const void* ptr, string_view token) override;
 
   // Returns the root of the AST from the processed data.
   AstNode GetRoot() const;

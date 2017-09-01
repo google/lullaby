@@ -25,11 +25,11 @@ config_setting(
 cc_library(
     name = "script",
     srcs = [
+        "function_binder.cc",
         "script_engine.cc",
     ],
     hdrs = [
         "function_binder.h",
-        "function_registry.h",
         "script_engine.h",
     ],
     defines = select({

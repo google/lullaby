@@ -38,9 +38,15 @@ namespace lull {
 /// enter or exit collision.
 class PhysicsSystem : public System {
  public:
-  explicit PhysicsSystem(
-      Registry* registry,
-      const mathfu::vec3& gravity = mathfu::vec3(0.f, -9.81f, 0.f));
+  /// Configuration params for the physics simulation.
+  struct InitParams {
+    mathfu::vec3 gravity = mathfu::vec3(0.f, -9.81f, 0.f);
+    float timestep = 1.f / 60.f;
+    int max_substeps = 4;
+  };
+
+  explicit PhysicsSystem(Registry* registry);
+  PhysicsSystem(Registry* registry, const InitParams& params);
   ~PhysicsSystem() override;
 
   void Initialize() override;
@@ -58,6 +64,9 @@ class PhysicsSystem : public System {
   /// bodies.
   void SetLinearVelocity(Entity entity, const mathfu::vec3& velocity);
   void SetAngularVelocity(Entity entity, const mathfu::vec3& velocity);
+
+  /// Set gravity for the entire world.
+  void SetGravity(const mathfu::vec3& gravity);
 
   /// Enable, disable, or check the enabled state of |entity|'s physics body.
   void EnablePhysics(Entity entity);
@@ -136,8 +145,13 @@ class PhysicsSystem : public System {
   // The post-tick internal callback allows contact events to be dispatched.
   static void InternalTickCallback(btDynamicsWorld* world, btScalar time_step);
   void PostSimulationTick();
+
+  // For Lullaby -> simulation transform syncs.
   void UpdateSimulationTransform(
       Entity entity, const mathfu::mat4& world_from_entity_mat);
+
+  // For simulation -> Lullaby transform syncs.
+  void MarkForUpdate(Entity entity);
   void UpdateLullabyTransform(Entity entity);
 
   // Delegate |one| and |two| to the outputs |primary| and |secondary| for
@@ -157,6 +171,9 @@ class PhysicsSystem : public System {
   ComponentPool<RigidBody> rigid_bodies_;
   TransformSystem* transform_system_;
   TransformSystem::TransformFlags transform_flag_;
+  // The list of Entities that changed during the most recent set of simulation
+  // updates.
+  std::vector<Entity> updated_entities_;
 
   // Maps each Entity to the set of its current contacts (as of the last
   // simulation update). For each pair of Entities A and B, the contact will be
@@ -164,6 +181,9 @@ class PhysicsSystem : public System {
   // Entities 3 and 7, for example, will be stored in current_contacts_[3].
   using ContactMap =  std::unordered_map<Entity, std::unordered_set<Entity>>;
   ContactMap current_contacts_;
+
+  float timestep_;
+  int max_substeps_;
 
   std::unique_ptr<btCollisionConfiguration> bt_config_;
   std::unique_ptr<btCollisionDispatcher> bt_dispatcher_;

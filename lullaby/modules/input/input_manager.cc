@@ -898,6 +898,12 @@ const InputManager::DeviceParams* InputManager::GetDeviceParams(
                                       : nullptr;
 }
 
+InputManager::DeviceParams InputManager::GetDeviceParamsCopy(
+    DeviceType device) const {
+  const DeviceParams* params = GetDeviceParams(device);
+  return params ? *params : DeviceParams();
+}
+
 InputManager::DeviceState* InputManager::GetDeviceStateForWriteLocked(
     DeviceType device) {
   if (device == kMaxNumDeviceTypes) {

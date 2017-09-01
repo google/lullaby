@@ -48,7 +48,7 @@ std::string Stringify(const ScriptValue& value) {
     return "[macro]";
   } else if (auto val = value.Get<NativeFunction>()) {
     return "[native func]";
-  } else if (auto val = value.Get<NativePointer>()) {
+  } else if (auto val = value.Get<TypedPointer>()) {
     return "[native ptr]";
   } else if (auto val = value.Get<AstNode>()) {
     return "[node]";

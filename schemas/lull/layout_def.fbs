@@ -51,7 +51,7 @@ table LayoutDef {
 
 /// This component is attached to a child of LayoutDef if the child wishes to be
 /// resizable.  This only works on child elements that have a Def for a System
-/// that supports LayoutResizeEvent.  As of 4/2017 these are supported:
+/// that supports DesiredSizeChangedEvent.  As of 4/2017 these are supported:
 ///   LayoutDef
 ///   TextDef (flatui)
 ///   NinePatchDef
@@ -70,10 +70,11 @@ table LayoutElementDef {
   /// vertically up to canvas_size.y if non-zero.
   vertical_weight: float = 0.0;
 }
-// Note that for a LayoutDef to properly resize by its weight, all of its
-// children will also need to have LayoutElementDefs with weight if they wish
-// to resize along with their parent Layout.
-// A (LayoutDef) -> B (LayoutElementDef)(LayoutDef) -> C (LayoutElementDef)
+// Example of Layout (A) forcing Layout (B) to resize:
+//   A (LayoutDef) -> B (LayoutElementDef)(LayoutDef) -> C (LayoutElementDef)
+// Note that for a LayoutDef (B) to properly resize by its weight, all of its
+// children (C) will also need to have LayoutElementDefs with weight so that
+// they resize along with their parent Layout (B).
 //
 // This weight will apply intuitively to the primary direction, whereas the
 // the secondary direction weight will look at the max of all the elements in

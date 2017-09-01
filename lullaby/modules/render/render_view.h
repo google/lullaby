@@ -28,11 +28,18 @@ struct RenderView {
   static const float kDefaultNearClipPlane;
   static const float kDefaultFarClipPlane;
 
+  /// The offset of the viewport.
   mathfu::vec2i viewport;
+  /// The size of the viewport in pixels.
   mathfu::vec2i dimensions;
+  /// The camera's world position. The inverse of this is the view matrix.
   mathfu::mat4 world_from_eye_matrix;
+  /// The projection matrix.
   mathfu::mat4 clip_from_eye_matrix;
+  /// The combined view projection matrix.
   mathfu::mat4 clip_from_world_matrix;
+  /// The eye this view renders to. 0 = left, 1 = right. For monoscopic
+  /// rendering leave this at 0.
   InputManager::EyeType eye = 1;
 };
 

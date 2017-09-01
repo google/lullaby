@@ -21,6 +21,7 @@ limitations under the License.
 #include <vector>
 
 #include "lullaby/modules/function/function_call.h"
+#include "lullaby/modules/function/variant_converter.h"
 #include "lullaby/modules/script/lull/script_env.h"
 
 namespace lull {
@@ -70,10 +71,12 @@ void LullScriptEngine::SetValue(uint64_t id, const std::string& name,
                                 const T& value) {
   auto iter = scripts_.find(id);
   if (iter != scripts_.end()) {
+    Variant var;
+    VariantConverter::ToVariant(value, &var);
+    ScriptValue script_value = ScriptValue::CreateFromVariant(std::move(var));
+
     ScriptEnv& env = iter->second.env;
-    const HashValue symbol = Hash(name);
-    const ScriptValue script_value = env.Create(value);
-    env.SetValue(symbol, script_value);
+    env.SetValue(Hash(name), std::move(script_value));
   }
 }
 
@@ -86,11 +89,10 @@ bool LullScriptEngine::GetValue(uint64_t id, const std::string& name,
   }
 
   ScriptEnv& env = iter->second.env;
-  const HashValue symbol = Hash(name);
-  const ScriptValue script_value = env.GetValue(symbol);
-  if (script_value.Is<T>()) {
-    *value = *script_value.Get<T>();
-    return true;
+  const ScriptValue script_value = env.GetValue(Hash(name));
+  const Variant* var = script_value.GetVariant();
+  if (var) {
+    return VariantConverter::FromVariant(*var, value);
   } else {
     return false;
   }

@@ -111,11 +111,11 @@ class LayoutBoxSystem : public System {
 
  private:
   struct LayoutBox {
-    Aabb original_box;
+    Optional<Aabb> original_box;
     Optional<float> desired_size_x;
     Optional<float> desired_size_y;
     Optional<float> desired_size_z;
-    Aabb actual_box;
+    Optional<Aabb> actual_box;
   };
 
   // If the box doesn't exist yet, but the transform does, we will create one.

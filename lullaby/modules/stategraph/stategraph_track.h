@@ -46,14 +46,22 @@ class StategraphTrack {
   const StategraphSignal* GetSignal(HashValue id) const;
 
   // Calls Enter() and/or Exit() on Signals within the specified time window.
-  void ProcessSignals(Clock::duration start_time,
-                      Clock::duration end_time) const;
+  // The userdata can be used to pass arbitary contexts to the underlying
+  // signal callbacks.
+  void ProcessSignals(Clock::duration start_time, Clock::duration end_time,
+                      TypedPointer userdata = TypedPointer()) const;
 
   // Calls Enter() on all Signals that are active at the given |timestamp|.
-  void EnterActiveSignals(Clock::duration timestamp) const;
+  // The userdata can be used to pass arbitary contexts to the underlying
+  // signal callbacks.
+  void EnterActiveSignals(Clock::duration timestamp,
+                          TypedPointer userdata = TypedPointer()) const;
 
   // Calls Exit() on all Signals that are active at the given |timestamp|.
-  void ExitActiveSignals(Clock::duration timestamp) const;
+  // The userdata can be used to pass arbitary contexts to the underlying
+  // signal callbacks.
+  void ExitActiveSignals(Clock::duration timestamp,
+                         TypedPointer userdata = TypedPointer()) const;
 
  protected:
   StategraphTrack() {}

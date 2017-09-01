@@ -229,6 +229,11 @@ class Dispatcher {
   template <typename Fn, typename Arg>
   Arg ConnectHelper(void (Fn::*)(const Arg&) const);
 
+  /// Mutable helper function declaration that is used to extract the Event type
+  /// from an event handler.
+  template <typename Fn, typename Arg>
+  Arg ConnectHelper(void (Fn::*)(const Arg&));
+
   /// Creates the actual Handler instance, registers it with the map, and
   /// returns the corresponding Connection object.
   Connection ConnectImpl(TypeId type, const void* owner, EventHandler handler);
@@ -268,7 +273,7 @@ Dispatcher::Connection Dispatcher::Connect(const void* owner, Fn&& handler) {
   using Event = decltype(ConnectHelper(&FnType::operator()));
 
   const TypeId type = GetTypeId<Event>();
-  return ConnectImpl(type, owner, [handler](const EventWrapper& event) {
+  return ConnectImpl(type, owner, [handler](const EventWrapper& event) mutable {
     const Event* obj = event.Get<Event>();
     handler(*obj);
   });

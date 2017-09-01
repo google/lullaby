@@ -22,6 +22,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/entity.h"
 #include "lullaby/modules/ecs/system.h"
+#include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/systems/stategraph/stategraph_asset.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/resource_manager.h"
@@ -41,6 +42,8 @@ namespace lull {
 class StategraphSystem : public System {
  public:
   explicit StategraphSystem(Registry* registry);
+
+  ~StategraphSystem() override;
 
   /// Associates the entity with a Stategraph as specified by the blueprint.
   void Create(Entity entity, HashValue type, const Def* def) override;
@@ -83,6 +86,9 @@ class StategraphSystem : public System {
 
     /// The stategraph associated with the Entity.
     std::shared_ptr<StategraphAsset> stategraph;
+
+    /// The script context in which to run signals in the stategraph.
+    std::unique_ptr<ScriptEnv> env;
 
     /// The current state in the stategraph.
     HashValue current_state = 0;

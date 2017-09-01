@@ -663,6 +663,11 @@ bool IsNearlyZero(float n, float epsilon /* = kDefaultEpsilon */) {
   return (std::abs(n) < epsilon);
 }
 
+bool AreNearlyEqual(const mathfu::quat& one, const mathfu::quat& two,
+                    float epsilon) {
+  return std::abs(mathfu::quat::DotProduct(one, two)) > 1.f - epsilon;
+}
+
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index) {
   DCHECK(index >= 0 && index < 4);
   return mathfu::vec3(mat(0, index), mat(1, index), mat(2, index));

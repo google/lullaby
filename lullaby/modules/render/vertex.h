@@ -26,6 +26,14 @@ namespace lull {
 // Below are several common vertex structures and utilities to access their
 // properties.  All vertex structures that are going to be used for dynamic
 // rendering must include a static VertexFormat kFormat.
+//
+// The structure names are composed of Vertex followed by letters that describe
+// the vertex attributes:
+// P = Position.
+// T = Texture.
+// N = Normal.
+// C = Color.
+// I = Indices.
 
 struct VertexP {
   static const VertexFormat kFormat;
@@ -79,6 +87,48 @@ struct VertexPTT {
   float v0;
   float u1;
   float v1;
+};
+
+// Position, Texture, Texture, Normal.
+struct VertexPTTN {
+  static const VertexFormat kFormat;
+
+  VertexPTTN() {}
+  VertexPTTN(float px, float py, float pz, float u0, float v0, float u1,
+             float v1, float pnx, float pny, float pnz)
+      : x(px),
+        y(py),
+        z(pz),
+        u0(u0),
+        v0(v0),
+        u1(u1),
+        v1(v1),
+        nx(pnx),
+        ny(pny),
+        nz(pnz) {}
+  VertexPTTN(const mathfu::vec3& pos, const mathfu::vec2& uv0,
+             const mathfu::vec2& uv1, const mathfu::vec3& n)
+      : x(pos.x),
+        y(pos.y),
+        z(pos.z),
+        u0(uv0.x),
+        v0(uv0.y),
+        u1(uv1.x),
+        v1(uv1.y),
+        nx(n.x),
+        ny(n.y),
+        nz(n.z) {}
+
+  float x;
+  float y;
+  float z;
+  float u0;
+  float v0;
+  float u1;
+  float v1;
+  float nx;
+  float ny;
+  float nz;
 };
 
 struct VertexPN {
@@ -265,7 +315,16 @@ inline void SetUv1<VertexPTT>(VertexPTT* vertex, float u, float v) {
 }
 
 template <>
+inline void SetUv1<VertexPTTN>(VertexPTTN* vertex, float u, float v) {
+  vertex->u1 = u;
+  vertex->v1 = v;
+}
+
+template <>
 inline void SetUv0<VertexP>(VertexP* vertex, float u, float v) {}
+
+template <>
+inline void SetUv0<VertexPN>(VertexPN* vertex, float u, float v) {}
 
 template <typename Vertex>
 inline void SetUv0(Vertex* vertex, const mathfu::vec2& uv) {
@@ -290,6 +349,9 @@ inline void SetUv1<VertexPTTI>(VertexPTTI* vertex, const mathfu::vec2& uv) {
 
 template <>
 inline void SetUv0<VertexP>(VertexP* vertex, const mathfu::vec2& uv) {}
+
+template <>
+inline void SetUv0<VertexPN>(VertexPN* vertex, const mathfu::vec2& uv) {}
 
 template <>
 inline void SetUv0<VertexPC>(VertexPC* vertex, const mathfu::vec2& uv) {}
@@ -321,6 +383,13 @@ inline void SetNormal(VertexPTN* vertex, float nx, float ny, float nz) {
   vertex->nz = nz;
 }
 
+template <>
+inline void SetNormal(VertexPTTN* vertex, float nx, float ny, float nz) {
+  vertex->nx = nx;
+  vertex->ny = ny;
+  vertex->nz = nz;
+}
+
 template <typename Vertex>
 inline void SetNormal(Vertex* vertex, const mathfu::vec3& n) {}
 
@@ -333,6 +402,13 @@ inline void SetNormal(VertexPN* vertex, const mathfu::vec3& n) {
 
 template <>
 inline void SetNormal(VertexPTN* vertex, const mathfu::vec3& n) {
+  vertex->nx = n.x;
+  vertex->ny = n.y;
+  vertex->nz = n.z;
+}
+
+template <>
+inline void SetNormal(VertexPTTN* vertex, const mathfu::vec3& n) {
   vertex->nx = n.x;
   vertex->ny = n.y;
   vertex->nz = n.z;
@@ -352,6 +428,9 @@ inline void SetColor<VertexPN>(VertexPN* vertex, Color4ub color) {}
 
 template <>
 inline void SetColor<VertexPTN>(VertexPTN* vertex, Color4ub color) {}
+
+template <>
+inline void SetColor<VertexPTTN>(VertexPTTN* vertex, Color4ub color) {}
 
 // Calls |fn| for each vertex position in |vertex_data|.  |fn| should match the
 // prototype void()(const vec3&).  This vec3 is a copy of, not a reference to,

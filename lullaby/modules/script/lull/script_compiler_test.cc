@@ -24,7 +24,7 @@ namespace {
 using ::testing::Eq;
 
 struct Entry {
-  ParserCallbacks::CodeType type;
+  ParserCallbacks::TokenType type;
   Variant value;
 };
 
@@ -45,18 +45,42 @@ bool operator==(const Entry& lhs, const Entry& rhs) {
   switch (lhs.type) {
     case ParserCallbacks::kEof:
       return true;
-    case ParserCallbacks::kNil:
-      return true;
     case ParserCallbacks::kPush:
       return true;
     case ParserCallbacks::kPop:
       return true;
+    case ParserCallbacks::kPushArray:
+      return true;
+    case ParserCallbacks::kPopArray:
+      return true;
+    case ParserCallbacks::kPushMap:
+      return true;
+    case ParserCallbacks::kPopMap:
+      return true;
     case ParserCallbacks::kBool:
       return Compare<bool>(lhs.value, rhs.value);
-    case ParserCallbacks::kInt:
-      return Compare<int>(lhs.value, rhs.value);
+    case ParserCallbacks::kInt8:
+      return Compare<int8_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kUint8:
+      return Compare<uint8_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kInt16:
+      return Compare<int16_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kUint16:
+      return Compare<uint16_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kInt32:
+      return Compare<int32_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kUint32:
+      return Compare<uint32_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kInt64:
+      return Compare<int64_t>(lhs.value, rhs.value);
+    case ParserCallbacks::kUint64:
+      return Compare<uint64_t>(lhs.value, rhs.value);
     case ParserCallbacks::kFloat:
       return Compare<float>(lhs.value, rhs.value);
+    case ParserCallbacks::kDouble:
+      return Compare<double>(lhs.value, rhs.value);
+    case ParserCallbacks::kHashValue:
+      return Compare<HashValue>(lhs.value, rhs.value);
     case ParserCallbacks::kSymbol:
       return Compare<HashValue>(lhs.value, rhs.value);
     case ParserCallbacks::kString:
@@ -65,31 +89,64 @@ bool operator==(const Entry& lhs, const Entry& rhs) {
 }
 
 struct TestParserCallbacks : ParserCallbacks {
-  void Expect(CodeType type, Variant var = Variant()) {
+  void Expect(TokenType type, Variant var = Variant()) {
     expected.push_back({type, std::move(var)});
   }
 
-  void Process(CodeType type, const void* ptr, string_view token) override {
+  void Process(TokenType type, const void* ptr, string_view token) override {
     Variant var;
     switch (type) {
       case kEof:
-        break;
-      case kNil:
         break;
       case kPush:
         break;
       case kPop:
         break;
+      case kPushArray:
+        break;
+      case kPopArray:
+        break;
+      case kPushMap:
+        break;
+      case kPopMap:
+        break;
       case kBool:
         var = *reinterpret_cast<const bool*>(ptr);
         break;
-      case kInt:
-        var = *reinterpret_cast<const int*>(ptr);
+      case kInt8:
+        var = *reinterpret_cast<const int8_t*>(ptr);
+        break;
+      case kUint8:
+        var = *reinterpret_cast<const uint8_t*>(ptr);
+        break;
+      case kInt16:
+        var = *reinterpret_cast<const int16_t*>(ptr);
+        break;
+      case kUint16:
+        var = *reinterpret_cast<const uint16_t*>(ptr);
+        break;
+      case kInt32:
+        var = *reinterpret_cast<const int32_t*>(ptr);
+        break;
+      case kUint32:
+        var = *reinterpret_cast<const uint32_t*>(ptr);
+        break;
+      case kInt64:
+        var = *reinterpret_cast<const int64_t*>(ptr);
+        break;
+      case kUint64:
+        var = *reinterpret_cast<const uint64_t*>(ptr);
         break;
       case kFloat:
         var = *reinterpret_cast<const float*>(ptr);
         break;
+      case kDouble:
+        var = *reinterpret_cast<const double*>(ptr);
+        break;
       case kSymbol:
+        var = *reinterpret_cast<const HashValue*>(ptr);
+        break;
+      case kHashValue:
         var = *reinterpret_cast<const HashValue*>(ptr);
         break;
       case kString:
@@ -112,7 +169,7 @@ TEST(ScriptCompilerTest, CompileAndBuild) {
   std::vector<uint8_t> buffer;
 
   ScriptCompiler saver(&buffer);
-  ParseScript("(1 (2.0 (true (false) 'hello') world))", &saver);
+  ParseScript("(1 (2.0f (true (false) 'hello') world))", &saver);
 
   ScriptCompiler loader(&buffer);
 
@@ -120,7 +177,7 @@ TEST(ScriptCompilerTest, CompileAndBuild) {
   loader.Build(&callbacks);
 
   callbacks.Expect(ParserCallbacks::kPush, Variant());
-  callbacks.Expect(ParserCallbacks::kInt, 1);
+  callbacks.Expect(ParserCallbacks::kInt32, 1);
   callbacks.Expect(ParserCallbacks::kPush);
   callbacks.Expect(ParserCallbacks::kFloat, 2.f);
   callbacks.Expect(ParserCallbacks::kPush);

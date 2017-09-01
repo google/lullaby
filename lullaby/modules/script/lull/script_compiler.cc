@@ -24,7 +24,7 @@ static const uint8_t kByteCodeMarker = 0;
 ScriptCompiler::ScriptCompiler(ScriptByteCode* code)
     : code_(code), writer_(code) {}
 
-void ScriptCompiler::Process(CodeType type, const void* ptr,
+void ScriptCompiler::Process(TokenType type, const void* ptr,
                              string_view token) {
   if (error_) {
     return;
@@ -41,11 +41,38 @@ void ScriptCompiler::Process(CodeType type, const void* ptr,
     case kBool:
       writer_(reinterpret_cast<const bool*>(ptr), 0);
       break;
-    case kInt:
-      writer_(reinterpret_cast<const int*>(ptr), 0);
+    case kInt8:
+      writer_(reinterpret_cast<const int8_t*>(ptr), 0);
+      break;
+    case kUint8:
+      writer_(reinterpret_cast<const uint8_t*>(ptr), 0);
+      break;
+    case kInt16:
+      writer_(reinterpret_cast<const int16_t*>(ptr), 0);
+      break;
+    case kUint16:
+      writer_(reinterpret_cast<const uint16_t*>(ptr), 0);
+      break;
+    case kInt32:
+      writer_(reinterpret_cast<const int32_t*>(ptr), 0);
+      break;
+    case kUint32:
+      writer_(reinterpret_cast<const uint32_t*>(ptr), 0);
+      break;
+    case kInt64:
+      writer_(reinterpret_cast<const int64_t*>(ptr), 0);
+      break;
+    case kUint64:
+      writer_(reinterpret_cast<const uint64_t*>(ptr), 0);
       break;
     case kFloat:
       writer_(reinterpret_cast<const float*>(ptr), 0);
+      break;
+    case kDouble:
+      writer_(reinterpret_cast<const double*>(ptr), 0);
+      break;
+    case kHashValue:
+      writer_(reinterpret_cast<const HashValue*>(ptr), 0);
       break;
     case kSymbol:
       writer_(reinterpret_cast<const HashValue*>(ptr), 0);
@@ -54,15 +81,18 @@ void ScriptCompiler::Process(CodeType type, const void* ptr,
       writer_(reinterpret_cast<const string_view*>(ptr), 0);
       break;
     case kEof:
-    case kNil:
     case kPush:
     case kPop:
+    case kPushArray:
+    case kPopArray:
+    case kPushMap:
+    case kPopMap:
       break;
   }
 }
 
 template <typename Value>
-static void DoProcess(ParserCallbacks::CodeType type, ParserCallbacks* builder,
+static void DoProcess(ParserCallbacks::TokenType type, ParserCallbacks* builder,
                       LoadFromBuffer* reader, Value value) {
   (*reader)(&value, 0);
   builder->Process(type, &value, "");
@@ -88,18 +118,54 @@ void ScriptCompiler::Build(ParserCallbacks* builder) {
     int code = 0;
     reader(&code, 0);
 
-    const CodeType type = static_cast<CodeType>(code);
+    const TokenType type = static_cast<TokenType>(code);
     switch (type) {
       case kBool: {
         DoProcess(type, builder, &reader, false);
         break;
       }
-      case kInt: {
-        DoProcess(type, builder, &reader, 0);
+      case kInt8: {
+        DoProcess(type, builder, &reader, int8_t(0));
+        break;
+      }
+      case kUint8: {
+        DoProcess(type, builder, &reader, uint8_t(0));
+        break;
+      }
+      case kInt16: {
+        DoProcess(type, builder, &reader, int16_t(0));
+        break;
+      }
+      case kUint16: {
+        DoProcess(type, builder, &reader, uint16_t(0));
+        break;
+      }
+      case kInt32: {
+        DoProcess(type, builder, &reader, int32_t(0));
+        break;
+      }
+      case kUint32: {
+        DoProcess(type, builder, &reader, uint32_t(0));
+        break;
+      }
+      case kInt64: {
+        DoProcess(type, builder, &reader, int64_t(0));
+        break;
+      }
+      case kUint64: {
+        DoProcess(type, builder, &reader, uint64_t(0));
         break;
       }
       case kFloat: {
         DoProcess(type, builder, &reader, 0.f);
+        break;
+      }
+      case kDouble: {
+        DoProcess(type, builder, &reader, 0.0);
+        break;
+      }
+      case kHashValue: {
+        DoProcess<HashValue>(type, builder, &reader, 0);
         break;
       }
       case kSymbol: {
@@ -110,15 +176,27 @@ void ScriptCompiler::Build(ParserCallbacks* builder) {
         DoProcess(type, builder, &reader, string_view());
         break;
       }
-      case kNil: {
-        builder->Process(type, nullptr, "");
-        break;
-      }
       case kPush: {
         builder->Process(type, nullptr, "");
         break;
       }
       case kPop: {
+        builder->Process(type, nullptr, "");
+        break;
+      }
+      case kPushArray: {
+        builder->Process(type, nullptr, "");
+        break;
+      }
+      case kPopArray: {
+        builder->Process(type, nullptr, "");
+        break;
+      }
+      case kPushMap: {
+        builder->Process(type, nullptr, "");
+        break;
+      }
+      case kPopMap: {
         builder->Process(type, nullptr, "");
         break;
       }

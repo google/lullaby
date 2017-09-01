@@ -25,6 +25,7 @@ cc_library(
         "//lullaby/util:optional",
         "//lullaby/util:selector",
         "//lullaby/util:span",
+        "//lullaby/util:typed_pointer",
         "//lullaby/util:typeid",
         "//lullaby/util:variant",
         "@mathfu//:mathfu",

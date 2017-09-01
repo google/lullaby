@@ -93,6 +93,33 @@ TEST(VertexPTT, ComponentCtor) {
   EXPECT_EQ(GetUv1(v2), uv1);
 }
 
+TEST(VertexPTTN, VectorCtor) {
+  const mathfu::vec3 pos(1, 2, 3);
+  const mathfu::vec2 uv0(4, 5);
+  const mathfu::vec2 uv1(6, 7);
+  const mathfu::vec3 normal(0, 1, 0);
+
+  VertexPTTN v1(pos, uv0, uv1, normal);
+  EXPECT_EQ(GetPosition(v1), pos);
+  EXPECT_EQ(GetUv0(v1), uv0);
+  EXPECT_EQ(GetUv1(v1), uv1);
+  EXPECT_EQ(GetNormal(v1), normal);
+}
+
+TEST(VertexPTTN, ComponentCtor) {
+  const mathfu::vec3 pos(1, 2, 3);
+  const mathfu::vec2 uv0(4, 5);
+  const mathfu::vec2 uv1(6, 7);
+  const mathfu::vec3 normal(0, 1, 0);
+
+  VertexPTTN v2(pos.x, pos.y, pos.z, uv0.x, uv0.y, uv1.x, uv1.y, normal.x,
+                normal.y, normal.x);
+  EXPECT_EQ(GetPosition(v2), pos);
+  EXPECT_EQ(GetUv0(v2), uv0);
+  EXPECT_EQ(GetUv1(v2), uv1);
+  EXPECT_EQ(GetNormal(v2), normal);
+}
+
 TEST(VertexPTC, ctor) {
   const mathfu::vec3 pos(1, 2, 3);
   const mathfu::vec2 uv(4, 5);

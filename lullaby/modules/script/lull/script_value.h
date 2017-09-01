@@ -46,6 +46,7 @@ class ScriptValue {
   // Creates a ScriptValue with the specified internal value.
   template <typename T>
   static ScriptValue Create(T&& t);
+  static ScriptValue CreateFromVariant(Variant var);
 
   // Clones the provided ScriptValue.
   static ScriptValue Clone(ScriptValue rhs);
@@ -84,10 +85,16 @@ class ScriptValue {
   template <typename T>
   const T* Get() const;
 
-  // Same as Get(), but returns a default value if T is not the same as the
-  // stored type.
+  // Utility type to enable/disable the NumericCast function below.
   template <typename T>
-  typename std::decay<T>::type GetAs() const;
+  using EnableIfNumeric =
+      typename std::enable_if<std::is_arithmetic<T>::value, T>;
+
+  // Similar to Get(), but attempts to perform a static_cast on the underlying
+  // type.  Both T and the stored type must be a numeric value (ie. int, float,
+  // etc.).  If neither type is numeric, returns an empty value.
+  template <typename T>
+  auto NumericCast() const -> Optional<typename EnableIfNumeric<T>::type>;
 
   // Returns a pointer to the underlying variant (if available).
   const Variant* GetVariant() const;
@@ -119,6 +126,12 @@ ScriptValue ScriptValue::Create(T&& t) {
   return ScriptValue(new Impl(std::forward<T>(t)));
 }
 
+inline ScriptValue ScriptValue::CreateFromVariant(Variant var) {
+  ScriptValue value = Create(0);
+  value.SetFromVariant(std::move(var));
+  return value;
+}
+
 inline ScriptValue ScriptValue::Clone(ScriptValue rhs) {
   return ScriptValue(new Impl(rhs.impl_->var));
 }
@@ -145,15 +158,20 @@ const T* ScriptValue::Get() const {
   return impl_ ? impl_->var.Get<T>() : nullptr;
 }
 
-// Same as Get(), but returns a default value if T is not the same as the
-// stored type.
 template <typename T>
-typename std::decay<T>::type ScriptValue::GetAs() const {
-  using BaseType = typename std::decay<T>::type;
-  if (auto ptr = Get<BaseType>()) {
-    return *ptr;
-  }
-  return BaseType();
+auto ScriptValue::NumericCast() const
+    -> Optional<typename EnableIfNumeric<T>::type> {
+  if (auto ptr = Get<int32_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<float>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint32_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int64_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint64_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<double>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int16_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
+  return NullOpt;
 }
 
 inline bool ScriptValue::IsNil() const {

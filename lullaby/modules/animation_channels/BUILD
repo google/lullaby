@@ -6,6 +6,21 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 cc_library(
+    name = "audio_channels",
+    srcs = [
+        "audio_channels.cc",
+    ],
+    hdrs = [
+        "audio_channels.h",
+    ],
+    deps = [
+        "//lullaby/systems/animation",
+        "//lullaby/systems/audio",
+        "//lullaby/util:registry",
+    ],
+)
+
+cc_library(
     name = "render_channels",
     srcs = [
         "render_channels.cc",

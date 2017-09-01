@@ -51,6 +51,10 @@ bool ScriptId::IsValid() const { return lang_ != Language_Unknown; }
 
 ScriptEngine::ScriptEngine(Registry* registry) : registry_(registry) {}
 
+void ScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {
+  lull_engine_.SetFunctionCallHandler(std::move(handler));
+}
+
 ScriptId ScriptEngine::LoadScript(const std::string& filename) {
   return LoadScript(filename, filename);
 }

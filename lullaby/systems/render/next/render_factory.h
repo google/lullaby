@@ -72,6 +72,10 @@ class RenderFactory {
   // Loads the texture with the given |filename| and optionally creates mips.
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
 
+  // Retrieves a cached texture by its name hash. If the texture isn't cached
+  // this returns nullptr.
+  TexturePtr GetCachedTexture(HashValue texture_hash);
+
   // Loads the texture atlas with the given |filename| and optionally creates
   // mips.
   void LoadTextureAtlas(const std::string& filename, bool create_mips);

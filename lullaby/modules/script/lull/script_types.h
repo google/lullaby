@@ -86,27 +86,6 @@ struct NativeFunction {
   Fn fn = nullptr;
 };
 
-// A wrapper around a native C++ object that can be stored as a ScriptValue.
-// This is useful for "passing" native objects through the scripting language.
-// The object must have a lull::TypeId so that safe access to the pointer can be
-// performed.  This object is assumed to be owned by the native C++ code and
-// the lifetime of the object should be longer than the scope in which it is
-// being used in script.
-struct NativePointer {
-  template <typename T>
-  T* Get() {
-    return type == GetTypeId<T>() ? reinterpret_cast<T*>(ptr) : nullptr;
-  }
-
-  template <typename T>
-  const T* Get() const {
-    return type == GetTypeId<T>() ? reinterpret_cast<const T*>(ptr) : nullptr;
-  }
-
-  void* ptr;
-  TypeId type;
-};
-
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::DefReturn);
@@ -114,7 +93,6 @@ LULLABY_SETUP_TYPEID(lull::AstNode);
 LULLABY_SETUP_TYPEID(lull::Lambda);
 LULLABY_SETUP_TYPEID(lull::Macro);
 LULLABY_SETUP_TYPEID(lull::Symbol);
-LULLABY_SETUP_TYPEID(lull::NativePointer);
 LULLABY_SETUP_TYPEID(lull::NativeFunction);
 
 #endif  // LULLABY_MODULES_SCRIPT_LULL_SCRIPT_TYPES_H_

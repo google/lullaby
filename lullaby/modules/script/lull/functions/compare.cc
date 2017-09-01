@@ -14,9 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "lullaby/modules/script/lull/functions/functions.h"
 #include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/modules/script/lull/script_frame.h"
 #include "lullaby/modules/script/lull/script_types.h"
+
+// This file implements the following script functions:
+//
+// (== [lhs] [rhs])
+//   Returns true if two arguments have the same value.  Only valid for integer
+//   or floating-point types.
+//
+// (!= [lhs] [rhs])
+//   Returns true if two arguments have different values.  Only valid for
+//   integer or floating-point types.
+//
+// (< [lhs] [rhs])
+//   Returns true if first argument's value is less than the second argument's
+//   value.  Only valid for integer or floating-point types.
+//
+// (> [lhs] [rhs])
+//   Returns true if first argument's value is greater than the second
+//   argument's value.  Only valid for integer or floating-point types.
+//
+// (<= [lhs] [rhs])
+//   Returns true if first argument's value is less than or equal to the second
+//   argument's value.  Only valid for integer or floating-point types.
+//
+// (>= [lhs] [rhs])
+//   Returns true if first argument's value is greater than or equal to the
+//   second argument's value.  Only valid for integer or floating-point types.
 
 namespace lull {
 namespace {
@@ -85,8 +112,6 @@ bool LeFn(T lhs, T rhs) {
   return lhs <= rhs;
 }
 
-}  // namespace
-
 void Equal(ScriptFrame* frame) {
   ComparisonArgs args(frame);
   if (args.Is<int>()) {
@@ -153,4 +178,12 @@ void GreaterThanOrEqual(ScriptFrame* frame) {
   }
 }
 
+LULLABY_SCRIPT_FUNCTION(Equal, "==");
+LULLABY_SCRIPT_FUNCTION(GreaterThan, ">");
+LULLABY_SCRIPT_FUNCTION(GreaterThanOrEqual, ">=");
+LULLABY_SCRIPT_FUNCTION(LessThan, "<");
+LULLABY_SCRIPT_FUNCTION(LessThanOrEqual, "<=");
+LULLABY_SCRIPT_FUNCTION(NotEqual, "!=");
+
+}  // namespace
 }  // namespace lull

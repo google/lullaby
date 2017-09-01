@@ -55,13 +55,21 @@ AnimationSystem::AnimationSystem(Registry* registry)
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
-    binder->RegisterFunction(
-        "lull.Animation.SetTarget",
-        [this](Entity e, HashValue channel,
-               const std::vector<float>& data, int time_ms) {
-          const auto duration_ms = std::chrono::milliseconds(time_ms);
-          SetTarget(e, channel, data.data(), data.size(), duration_ms);
-        });
+    auto set_target_fn = [this](Entity e, HashValue channel,
+                                const std::vector<float>& data, int time_ms) {
+      const auto duration_ms = std::chrono::milliseconds(time_ms);
+      return SetTarget(e, channel, data.data(), data.size(), duration_ms);
+    };
+    auto play_anim_fn = [this](Entity e, HashValue channel,
+                               const std::string& filename,
+                               const PlaybackParameters& params) {
+      auto asset = LoadAnimation(filename);
+      return PlayAnimation(e, channel, asset, params);
+    };
+
+    binder->RegisterFunction("lull.Animation.SetTarget",
+                             std::move(set_target_fn));
+    binder->RegisterFunction("lull.Animation.Play", std::move(play_anim_fn));
   }
 
   auto* dispatcher = registry_->Get<Dispatcher>();
@@ -169,14 +177,15 @@ bool AnimationSystem::IsAnimationPlaying(AnimationId id) const {
 
 AnimationId AnimationSystem::SetTarget(Entity e, HashValue channel,
                                        const float* data, size_t len,
-                                       Clock::duration time) {
+                                       Clock::duration time,
+                                       Clock::duration delay) {
   AnimationChannel* channel_ptr = FindChannel(channel);
   if (channel_ptr == nullptr) {
     LOG(DFATAL) << "Could not find channel: " << channel;
     return kNullAnimation;
   }
 
-  AnimationId id = SetTargetInternal(e, channel_ptr, data, len, time);
+  AnimationId id = SetTargetInternal(e, channel_ptr, data, len, time, delay);
   if (id == kNullAnimation) {
     return kNullAnimation;
   }
@@ -219,7 +228,8 @@ AnimationId AnimationSystem::PlayAnimation(Entity e,
   const float* values = target->values()->data();
   const size_t len = target->values()->size();
   const std::chrono::milliseconds time(target->time_ms());
-  return SetTargetInternal(e, channel_ptr, values, len, time);
+  const std::chrono::milliseconds delay(target->start_delay_ms());
+  return SetTargetInternal(e, channel_ptr, values, len, time, delay);
 }
 
 AnimationId AnimationSystem::PlayAnimation(Entity e,
@@ -328,8 +338,10 @@ AnimationId AnimationSystem::PlaySplineAnimation(Entity e,
 
   const AnimationId id = GenerateAnimationId();
   const PlaybackParameters params = GetPlaybackParameters(anim);
-  const AnimationId prev_id = channel->Play(e, &engine_, id, splines, constants,
-                                            channel->GetDimensions(), params);
+  const SplineModifiers modifiers = GetSplineModifiers(anim);
+  const AnimationId prev_id =
+      channel->Play(e, &engine_, id, splines, constants,
+                    channel->GetDimensions(), params, modifiers);
   UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
   return id;
 }
@@ -362,7 +374,8 @@ AnimationId AnimationSystem::PlayRigAnimationInternal(
 AnimationId AnimationSystem::SetTargetInternal(Entity e,
                                                AnimationChannel* channel,
                                                const float* data, size_t len,
-                                               Clock::duration time) {
+                                               Clock::duration time,
+                                               Clock::duration delay) {
   if (channel->GetDimensions() != len) {
     LOG(DFATAL) << "Target data size does not match channel dimensions.  "
                    "Skipping playback.";
@@ -370,7 +383,8 @@ AnimationId AnimationSystem::SetTargetInternal(Entity e,
   }
 
   const AnimationId id = GenerateAnimationId();
-  const AnimationId prev_id = channel->Play(e, &engine_, id, data, len, time);
+  const AnimationId prev_id =
+      channel->Play(e, &engine_, id, data, len, time, delay);
   UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
   return id;
 }
@@ -449,11 +463,8 @@ void AnimationSystem::UntrackAnimation(AnimationId internal_id,
     const AnimationDef* data = entry.data;
     external_id_to_entry_.erase(external_id);
 
-    auto* dispatcher_system = registry_->Get<DispatcherSystem>();
-    if (dispatcher_system) {
-      const AnimationCompleteEvent event(entity, external_id, reason);
-      dispatcher_system->Send(entity, event);
-    }
+    const AnimationCompleteEvent event(entity, external_id, reason);
+    SendEvent(registry_, entity, event);
 
     if (data) {
       SendEventDefs(registry_, entity, data->on_complete_events());
@@ -475,6 +486,20 @@ AnimationChannel* AnimationSystem::FindChannel(HashValue channel_id) {
   return iter != channels_.end() ? iter->second.get() : nullptr;
 }
 
+SplineModifiers AnimationSystem::GetSplineModifiers(
+    const AnimInstanceDef* anim) {
+  SplineModifiers modifiers;
+  if (anim->offset()) {
+    modifiers.offsets = anim->offset()->data();
+    modifiers.num_offsets = anim->offset()->size();
+  }
+  if (anim->multiplier()) {
+    modifiers.multipliers = anim->multiplier()->data();
+    modifiers.num_multipliers = anim->multiplier()->size();
+  }
+  return modifiers;
+}
+
 PlaybackParameters AnimationSystem::GetPlaybackParameters(
     const AnimInstanceDef* anim) {
   PlaybackParameters params;
@@ -482,14 +507,6 @@ PlaybackParameters AnimationSystem::GetPlaybackParameters(
   params.speed = anim->speed();
   params.start_delay_s = anim->start_delay();
   params.blend_time_s = anim->blend_time();
-  if (anim->offset()) {
-    params.offsets = anim->offset()->data();
-    params.num_offsets = anim->offset()->size();
-  }
-  if (anim->multiplier()) {
-    params.multipliers = anim->multiplier()->data();
-    params.num_multipliers = anim->multiplier()->size();
-  }
   return params;
 }
 

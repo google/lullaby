@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "lullaby/systems/render/next/render_system_next.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 
@@ -187,6 +188,8 @@ RenderSystemNext::RenderSystemNext(Registry* registry)
       TexturePtr texture = GetTexture(entity, 0);
       return texture ? static_cast<int>(texture->GetResourceId().handle) : 0;
     });
+    binder->RegisterMethod("lull.Render.SetColor",
+                           &lull::RenderSystem::SetColor);
   }
 }
 
@@ -196,13 +199,12 @@ RenderSystemNext::~RenderSystemNext() {
     binder->UnregisterFunction("lull.Render.Show");
     binder->UnregisterFunction("lull.Render.Hide");
     binder->UnregisterFunction("lull.Render.GetTextureId");
+    binder->UnregisterFunction("lull.Render.SetColor");
   }
   registry_->Get<Dispatcher>()->DisconnectAll(this);
 }
 
-void RenderSystemNext::Initialize() {
-  InitDefaultRenderPasses();
-}
+void RenderSystemNext::Initialize() { InitDefaultRenderPasses(); }
 
 void RenderSystemNext::SetStereoMultiviewEnabled(bool enabled) {
   multiview_enabled_ = enabled;
@@ -226,7 +228,7 @@ const TexturePtr& RenderSystemNext::GetInvalidTexture() const {
 }
 
 TexturePtr RenderSystemNext::LoadTexture(const std::string& filename,
-                                        bool create_mips) {
+                                         bool create_mips) {
   return factory_->LoadTexture(filename, create_mips);
 }
 
@@ -310,9 +312,8 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
 
   if (data.textures()) {
     for (unsigned int i = 0; i < data.textures()->size(); ++i) {
-      TexturePtr texture =
-          factory_->LoadTexture(data.textures()->Get(i)->c_str(),
-                                data.create_mips());
+      TexturePtr texture = factory_->LoadTexture(
+          data.textures()->Get(i)->c_str(), data.create_mips());
       SetTexture(e, data.id(), i, texture);
     }
   } else if (data.texture() && data.texture()->size() > 0) {
@@ -480,7 +481,7 @@ const mathfu::vec4& RenderSystemNext::GetDefaultColor(Entity entity) const {
 }
 
 void RenderSystemNext::SetDefaultColor(Entity entity,
-                                      const mathfu::vec4& color) {
+                                       const mathfu::vec4& color) {
   RenderComponent* component = components_.Get(entity);
   if (component) {
     component->default_color = color;
@@ -536,7 +537,7 @@ void RenderSystemNext::SetUniform(Entity e, HashValue component_id,
 }
 
 bool RenderSystemNext::GetUniform(Entity e, const char* name, size_t length,
-                                 float* data_out) const {
+                                  float* data_out) const {
   return GetUniform(e, kDefaultRenderId, name, length, data_out);
 }
 
@@ -651,26 +652,39 @@ void RenderSystemNext::SetBoneTransforms(
     return;
   }
 
-  const int num_shader_bones = component->mesh->GetNumShaderBones();
-  shader_transforms_.resize(num_shader_bones);
-
-  if (num_transforms != component->mesh->GetNumBones()) {
-    LOG(DFATAL) << "Mesh must have " << num_transforms << " bones.";
-    return;
-  }
-  component->mesh->GatherShaderTransforms(transforms,
-                                          shader_transforms_.data());
-
   // GLES2 only supports square matrices, so send the affine transforms as an
   // array of 3 * num_transforms vec4s.
-  const float* data = &(shader_transforms_[0][0]);
-  const int dimension = 4;
-  const int count = kNumVec4sInAffineTransform * num_shader_bones;
+  constexpr int dimension = 4;
+  const float* data = nullptr;
+  int count = 0;
+
+  if (component->mesh->IsLoaded()) {
+    const int num_shader_bones = component->mesh->GetNumShaderBones();
+    shader_transforms_.resize(num_shader_bones);
+
+    if (num_transforms != component->mesh->GetNumBones()) {
+      LOG(DFATAL) << "Mesh must have " << num_transforms << " bones.";
+      return;
+    }
+    component->mesh->GatherShaderTransforms(transforms,
+                                            shader_transforms_.data());
+
+    data = &(shader_transforms_[0][0]);
+    count = kNumVec4sInAffineTransform * num_shader_bones;
+    component->need_to_gather_bone_transforms = false;
+  } else {
+    // We can't calculate the actual uniform values until the mesh is loaded, so
+    // cache the desired values and we'll correct them when the load is done.
+    data = &(transforms[0][0]);
+    count = kNumVec4sInAffineTransform * num_transforms;
+    component->need_to_gather_bone_transforms = true;
+  }
+
   SetUniform(entity, kBoneTransformsUniform, data, dimension, count);
 }
 
 void RenderSystemNext::OnTextureLoaded(const RenderComponent& component,
-                                      int unit, const TexturePtr& texture) {
+                                       int unit, const TexturePtr& texture) {
   const Entity entity = component.GetEntity();
   const mathfu::vec4 clamp_bounds = texture->CalculateClampBounds();
   SetUniform(entity, kClampBoundsUniform, &clamp_bounds[0], 4, 1);
@@ -689,7 +703,7 @@ void RenderSystemNext::OnTextureLoaded(const RenderComponent& component,
 }
 
 void RenderSystemNext::SetTexture(Entity e, int unit,
-                                 const TexturePtr& texture) {
+                                  const TexturePtr& texture) {
   SetTexture(e, kDefaultRenderId, unit, texture);
 }
 
@@ -738,7 +752,7 @@ TexturePtr RenderSystemNext::CreateProcessedTexture(
 }
 
 void RenderSystemNext::SetTextureId(Entity e, int unit, uint32_t texture_target,
-                                   uint32_t texture_id) {
+                                    uint32_t texture_id) {
   SetTextureId(e, kDefaultRenderId, unit, texture_target, texture_id);
 }
 
@@ -763,7 +777,7 @@ TexturePtr RenderSystemNext::GetTexture(Entity entity, int unit) const {
 }
 
 void RenderSystemNext::SetPano(Entity entity, const std::string& filename,
-                              float heading_offset_deg) {
+                               float heading_offset_deg) {
   LOG(FATAL) << "Deprecated.";
 }
 
@@ -919,6 +933,9 @@ bool RenderSystemNext::IsReadyToRender(Entity entity) const {
 
 bool RenderSystemNext::IsReadyToRenderImpl(
     const RenderComponent& component) const {
+  if (component.mesh && !component.mesh->IsLoaded()) {
+    return false;
+  }
   const auto& textures = component.material.GetTextures();
   for (const auto& pair : textures) {
     const TexturePtr& texture = pair.second;
@@ -968,6 +985,58 @@ void RenderSystemNext::SetShader(Entity e, HashValue component_id,
   UpdateUniformLocations(render_component);
 }
 
+void RenderSystemNext::OnMeshLoaded(RenderComponent* render_component) {
+  const Entity entity = render_component->GetEntity();
+  auto& transform_system = *registry_->Get<TransformSystem>();
+  transform_system.SetAabb(entity, render_component->mesh->GetAabb());
+
+  const int num_shader_bones = render_component->mesh->GetNumShaderBones();
+  if (num_shader_bones > 0) {
+    // By default, clear the bone transforms to identity.
+    constexpr int dimension = 4;
+    const int count = kNumVec4sInAffineTransform * num_shader_bones;
+    const mathfu::AffineTransform identity =
+        mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
+    shader_transforms_.clear();
+    shader_transforms_.resize(num_shader_bones, identity);
+
+    // Check if we have existing bone transforms, which can be ungathered.
+    const Uniform* uniform =
+        render_component->material.GetUniformByName(kBoneTransformsUniform);
+    if (uniform && uniform->GetDescription().type == Uniform::Type::kFloats) {
+      const float* data = uniform->GetData<float>();
+      const mathfu::AffineTransform* transforms =
+          reinterpret_cast<const mathfu::AffineTransform*>(data);
+      if (render_component->need_to_gather_bone_transforms) {
+        const int ungathered_count =
+            kNumVec4sInAffineTransform * render_component->mesh->GetNumBones();
+        if (uniform->GetDescription().count == ungathered_count) {
+          render_component->mesh->GatherShaderTransforms(
+              transforms, shader_transforms_.data());
+          render_component->need_to_gather_bone_transforms = false;
+        } else {
+          LOG(WARNING) << "Ungathered bone transforms had wrong count";
+        }
+      } else if (uniform->GetDescription().count == count) {
+        for (int i = 0; i < num_shader_bones; ++i) {
+          shader_transforms_[i] = transforms[i];
+        }
+      }
+    }
+
+    const float* data = &(shader_transforms_[0][0]);
+    SetUniform(entity, render_component->id, kBoneTransformsUniform, data,
+               dimension, count);
+  }
+
+  if (IsReadyToRenderImpl(*render_component)) {
+    auto* dispatcher_system = registry_->Get<DispatcherSystem>();
+    if (dispatcher_system) {
+      dispatcher_system->Send(entity, ReadyToRenderEvent(entity));
+    }
+  }
+}
+
 void RenderSystemNext::SetMesh(Entity e, MeshPtr mesh) {
   SetMesh(e, kDefaultRenderId, mesh);
 }
@@ -984,24 +1053,19 @@ void RenderSystemNext::SetMesh(Entity e, HashValue component_id,
   }
 
   render_component->mesh = std::move(mesh);
+
   if (render_component->mesh) {
-    auto& transform_system = *registry_->Get<TransformSystem>();
-    transform_system.SetAabb(e, render_component->mesh->GetAabb());
-
-    const int num_shader_bones = render_component->mesh->GetNumShaderBones();
-    if (num_shader_bones > 0) {
-      const mathfu::AffineTransform identity =
-          mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
-      shader_transforms_.clear();
-      shader_transforms_.resize(num_shader_bones, identity);
-
-      const float* data = &(shader_transforms_[0][0]);
-      const int dimension = 4;
-      const int count = kNumVec4sInAffineTransform * num_shader_bones;
-      SetUniform(e, component_id, kBoneTransformsUniform, data, dimension,
-                 count);
-    }
+    MeshPtr callback_mesh = mesh;
+    auto callback = [this, e, component_id, callback_mesh]() {
+      RenderComponent* render_component =
+          components_.Get(EntityIdPair(e, component_id));
+      if (render_component && render_component->mesh == callback_mesh) {
+        OnMeshLoaded(render_component);
+      }
+    };
+    render_component->mesh->AddOrInvokeOnLoadCallback(callback);
   }
+  SendEvent(registry_, e, MeshChangedEvent(e, component_id));
 }
 
 MeshPtr RenderSystemNext::GetMesh(Entity e, HashValue component_id) {
@@ -1073,7 +1137,7 @@ void RenderSystemNext::SetStencilMode(Entity e, HashValue component_id,
 }
 
 void RenderSystemNext::SetDeformationFunction(Entity e,
-                                             const Deformation& deform) {
+                                              const Deformation& deform) {
   if (deform) {
     deformations_.emplace(e, deform);
   } else {
@@ -1278,9 +1342,7 @@ void RenderSystemNext::SetBlendMode(fplbase::BlendMode blend_mode) {
   blend_mode_ = blend_mode;
 }
 
-mathfu::vec4 RenderSystemNext::GetClearColor() const {
-  return clear_color_;
-}
+mathfu::vec4 RenderSystemNext::GetClearColor() const { return clear_color_; }
 
 void RenderSystemNext::SetClearColor(float r, float g, float b, float a) {
   clear_color_ = mathfu::vec4(r, g, b, a);
@@ -1591,7 +1653,6 @@ void RenderSystemNext::Render(const View* views, size_t num_views,
   }
 }
 
-
 void RenderSystemNext::RenderObjects(const std::vector<RenderObject>& objects,
                                      const View* views, size_t num_views) {
   if (objects.empty()) {
@@ -1645,7 +1706,7 @@ void RenderSystemNext::BindTexture(int unit, const TexturePtr& texture) {
 }
 
 void RenderSystemNext::BindUniform(const char* name, const float* data,
-                                  int dimension) {
+                                   int dimension) {
   if (!IsSupportedUniformDimension(dimension)) {
     LOG(DFATAL) << "Unsupported uniform dimension " << dimension;
     return;
@@ -1661,9 +1722,9 @@ void RenderSystemNext::BindUniform(const char* name, const float* data,
 }
 
 void RenderSystemNext::DrawPrimitives(PrimitiveType type,
-                                     const VertexFormat& format,
-                                     const void* vertex_data,
-                                     size_t num_vertices) {
+                                      const VertexFormat& format,
+                                      const void* vertex_data,
+                                      size_t num_vertices) {
   const fplbase::Mesh::Primitive fpl_type = Mesh::GetFplPrimitiveType(type);
   fplbase::Attribute attributes[Mesh::kMaxFplAttributeArraySize];
   Mesh::GetFplAttributes(format, attributes);
@@ -1706,6 +1767,7 @@ void RenderSystemNext::UpdateDynamicMesh(
   } else {
     component->mesh.reset();
   }
+  SendEvent(registry_, entity, MeshChangedEvent(entity, kDefaultRenderId));
 }
 
 void RenderSystemNext::RenderDebugStats(const View* views, size_t num_views) {
@@ -1933,8 +1995,7 @@ void RenderSystemNext::SortObjectsUsingView(RenderObjectList* objects,
       break;
 
     default:
-      LOG(DFATAL)
-          << "SortObjectsUsingView called with unsupported sort mode!";
+      LOG(DFATAL) << "SortObjectsUsingView called with unsupported sort mode!";
       break;
   }
 }

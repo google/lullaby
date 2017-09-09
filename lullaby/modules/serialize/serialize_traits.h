@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_SERIALIZE_DETAIL_SERIALIZE_TRAITS_H_
-#define LULLABY_MODULES_SERIALIZE_DETAIL_SERIALIZE_TRAITS_H_
+#ifndef LULLABY_MODULES_SERIALIZE_SERIALIZE_TRAITS_H_
+#define LULLABY_MODULES_SERIALIZE_SERIALIZE_TRAITS_H_
 
 #include <type_traits>
 
-#include "mathfu/glsl_mappings.h"
+#include "lullaby/util/clock.h"
 #include "lullaby/util/hash.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 namespace detail {
@@ -35,7 +36,9 @@ struct IsSerializeFundamental {
       std::is_same<U, uint16_t>::value || std::is_same<U, int32_t>::value ||
       std::is_same<U, uint32_t>::value || std::is_same<U, int64_t>::value ||
       std::is_same<U, uint64_t>::value || std::is_same<U, float>::value ||
-      std::is_same<U, double>::value || std::is_same<U, mathfu::vec2>::value ||
+      std::is_same<U, double>::value ||
+      std::is_same<U, Clock::duration>::value ||
+      std::is_same<U, mathfu::vec2>::value ||
       std::is_same<U, mathfu::vec2i>::value ||
       std::is_same<U, mathfu::vec3>::value ||
       std::is_same<U, mathfu::vec3i>::value ||
@@ -102,4 +105,4 @@ class IsScopedSerializer {
 }  // namespace detail
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_SERIALIZE_DETAIL_SERIALIZE_TRAITS_H_
+#endif  // LULLABY_MODULES_SERIALIZE_SERIALIZE_TRAITS_H_

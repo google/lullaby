@@ -14,6 +14,7 @@ cc_library(
         "variant_serializer.h",
     ],
     deps = [
+        "//lullaby/util:clock",
         "//lullaby/util:common_types",
         "//lullaby/util:hash",
         "//lullaby/util:logging",

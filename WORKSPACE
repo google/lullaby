@@ -1,11 +1,18 @@
 new_git_repository(
+  name = "GL",
+  remote = "https://github.com/mesa3d/mesa.git",
+  build_file = "third_party/BUILD.GL",
+  commit = "57c8ead",
+)
+
+new_git_repository(
   name = "bullet",
   remote = "https://github.com/bulletphysics/bullet3",
   build_file = "third_party/BUILD.bullet",
   commit = "63ef78a",
 )
 
-new_http_archive(
+http_archive(
    name = "gtest",
    urls = ["https://github.com/google/googletest/archive/master.zip"],
    strip_prefix = "googletest-master",

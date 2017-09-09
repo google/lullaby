@@ -21,9 +21,12 @@ limitations under the License.
 #include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/util/make_unique.h"
+#include "lullaby/util/random_number_generator.h"
 
 namespace lull {
 namespace {
+
+constexpr HashValue kWeightKey = lull::ConstHash("weight");
 
 // TrackSelector that assumes a single track and returns its index.
 class FirstAnimationSelector : public StategraphState::TrackSelector {
@@ -32,6 +35,38 @@ class FirstAnimationSelector : public StategraphState::TrackSelector {
     DCHECK_EQ(choices.size(), size_t(1));
     return choices.empty() ? Optional<size_t>() : size_t(0);
   }
+};
+
+// TrackSelector that randomly chooses among tracks.  If the track
+// has selection data with a float 'weight' key, the value will be used
+// to weight the random selection.
+class RandomAnimationSelector : public StategraphState::TrackSelector {
+ public:
+  explicit RandomAnimationSelector(RandomNumberGenerator* rng) : rng_(rng) {
+    DCHECK(rng_);
+  }
+
+  Optional<size_t> Select(const VariantMap& params,
+                          Span<Type> choices) override {
+    Optional<size_t> ret;
+    float total_weight = 0.0f;
+    for (size_t choice = 0; choice < choices.size(); ++choice) {
+      float weight = 1.0f;
+      const auto& choice_params = choices[choice]->GetSelectionParams();
+      const auto it = choice_params.find(kWeightKey);
+      if (it != choice_params.end()) {
+        weight = it->second.ValueOr(1.0f);
+      }
+      total_weight += weight;
+      if (rng_->GenerateUniform(0.0f, total_weight) <= weight) {
+        ret = choice;
+      }
+    }
+    return ret;
+  }
+
+ private:
+  RandomNumberGenerator* rng_;
 };
 
 // A Stategraph track that also has a pointer to an animation to play and
@@ -45,10 +80,10 @@ class AnimationTrack : public StategraphTrack {
   void AddSignal(std::unique_ptr<StategraphSignal> signal) {
     signals_.emplace_back(std::move(signal));
   }
-  AnimationAssetPtr asset = nullptr;
-  HashValue channel = ConstHash("render-rig");
-  Clock::duration total_time = Clock::duration(0);
-  float playback_speed = 0.f;
+  AnimationAssetPtr asset_ = nullptr;
+  HashValue channel_ = ConstHash("render-rig");
+  Clock::duration total_time_ = Clock::duration(0);
+  float playback_speed_ = 0.f;
 };
 
 // A Stategraph state.
@@ -64,6 +99,7 @@ class AnimationState : public StategraphState {
   void AddTransition(StategraphTransition transition) {
     StategraphState::AddTransition(std::move(transition));
   }
+  size_t default_transition_index_ = 0;
 };
 
 // A Stategraph signal that uses the ScriptEngine for triggering Enter/Exit
@@ -120,7 +156,7 @@ StategraphTransition StategraphAsset::CreateTransition(
   if (def != nullptr) {
     transition.from_state = from_state;
     transition.to_state = def->to_state();
-    if (def->active_time_from_end_s() < 0) {
+    if (def->active_for_entire_time() || def->active_time_from_end_s() < 0) {
       transition.active_time_from_end = Clock::duration::max();
     } else {
       transition.active_time_from_end =
@@ -174,12 +210,12 @@ std::unique_ptr<StategraphTrack> StategraphAsset::CreateTrack(
     LOG(DFATAL) << "Animation asset should contain a single rig animation.";
   }
   AnimationTrack* track = new AnimationTrack();
-  track->asset = asset;
-  track->total_time = AnimationSystem::GetDurationFromMotiveTime(
+  track->asset_ = asset;
+  track->total_time_ = AnimationSystem::GetDurationFromMotiveTime(
       asset->GetRigAnim(0)->end_time());
-  track->playback_speed = def->playback_speed();
+  track->playback_speed_ = def->playback_speed();
   if (def->animation_channel() != 0) {
-    track->channel = def->animation_channel();
+    track->channel_ = def->animation_channel();
   }
 
   VariantMap selection_params;
@@ -215,6 +251,8 @@ std::unique_ptr<StategraphState> StategraphAsset::CreateState(
       state->AddTransition(CreateTransition(id, transition_def));
     }
   }
+  state->default_transition_index_ = def->default_transition_index();
+
   return std::unique_ptr<StategraphState>(state);
 }
 
@@ -224,6 +262,10 @@ std::unique_ptr<StategraphAsset::TrackSelector> StategraphAsset::CreateSelector(
   switch (type) {
     case AnimationSelectorDef_FirstAnimationSelectorDef:
       ptr = new FirstAnimationSelector();
+      break;
+    case AnimationSelectorDef_RandomAnimationSelectorDef:
+      ptr =
+          new RandomAnimationSelector(registry_->Get<RandomNumberGenerator>());
       break;
     default:
       LOG(ERROR) << "Unknown selector type: " << type;
@@ -243,10 +285,12 @@ const StategraphTransition* StategraphAsset::GetDefaultTransition(
   }
   const std::vector<StategraphTransition>& transitions =
       state_ptr->GetTransitions();
-  if (transitions.empty()) {
+  const size_t default_index =
+      static_cast<const AnimationState*>(state_ptr)->default_transition_index_;
+  if (default_index >= transitions.size()) {
     return nullptr;
   }
-  return &transitions.front();
+  return &transitions[default_index];
 }
 
 Stategraph::Path StategraphAsset::FindPath(HashValue from_state,
@@ -274,7 +318,7 @@ Clock::duration StategraphAsset::AdjustTime(
     return time;
   }
   const Clock::rep adjusted_count =
-      static_cast<Clock::rep>(time.count() * anim_track->playback_speed);
+      static_cast<Clock::rep>(time.count() * anim_track->playback_speed_);
   return Clock::duration(adjusted_count);
 }
 
@@ -293,11 +337,11 @@ AnimationId StategraphAsset::PlayTrack(Entity entity,
   }
 
   PlaybackParameters params;
-  params.speed = anim_track->playback_speed;
+  params.speed = anim_track->playback_speed_;
   params.blend_time_s = SecondsFromDuration(blend_time);
   params.start_delay_s = -1.f * SecondsFromDuration(timestamp);
-  return animation_system->PlayAnimation(entity, anim_track->channel,
-                                         anim_track->asset, params);
+  return animation_system->PlayAnimation(entity, anim_track->channel_,
+                                         anim_track->asset_, params);
 }
 
 Optional<HashValue> StategraphAsset::IsTransitionValid(
@@ -308,7 +352,7 @@ Optional<HashValue> StategraphAsset::IsTransitionValid(
     return kNullAnimation;
   }
 
-  const Clock::duration total_time = anim_track->total_time;
+  const Clock::duration total_time = anim_track->total_time_;
   if (total_time - timestamp <= transition.active_time_from_end) {
     return transition.to_signal;
   }

@@ -8,13 +8,18 @@ package(
 cc_library(
     name = "lull",
     srcs = [
+        "functions/array.cc",
         "functions/compare.cc",
         "functions/cond.cc",
         "functions/do.cc",
+        "functions/event.cc",
         "functions/map.cc",
         "functions/math.cc",
         "functions/mathfu.cc",
         "functions/stringify.cc",
+        "functions/time.cc",
+        "functions/typeof.cc",
+        "functions/types.cc",
         "lull_script_engine.cc",
         "script_arg_list.cc",
         "script_ast_builder.cc",
@@ -39,6 +44,7 @@ cc_library(
         "script_value.h",
     ],
     deps = [
+        "//lullaby/modules/dispatcher",
         "//lullaby/modules/function",
         "//lullaby/modules/serialize",
         "//lullaby/util:common_types",
@@ -46,10 +52,12 @@ cc_library(
         "//lullaby/util:optional",
         "//lullaby/util:span",
         "//lullaby/util:string_view",
+        "//lullaby/util:time",
         "//lullaby/util:typed_pointer",
         "//lullaby/util:typeid",
         "//lullaby/util:variant",
         "@mathfu//:mathfu",
     ],
+    alwayslink = 1,
 )
 

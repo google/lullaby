@@ -34,7 +34,7 @@ Mesh::MeshImplPtr CreateMesh(const TriangleMesh<Vertex>& src,
   fplbase::Material* mat = nullptr;
   mesh->AddIndices(src.GetIndices().data(),
                    static_cast<int>(src.GetIndices().size()), mat);
-
+  mesh->Finalize();
   return mesh;
 }
 
@@ -50,20 +50,26 @@ Mesh::MeshImplPtr CreateMesh(const MeshData& src,
   const bool is_32_bit = false;
   mesh->AddIndices(src.GetIndexData(), static_cast<int>(src.GetNumIndices()),
                    mat, is_32_bit);
+  mesh->Finalize();
   return mesh;
 }
 
 }  // namespace
 
-Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)) {
-  num_triangles_ =
-      impl_ ? static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3) : 0;
+Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)), num_triangles_(0) {
+  AddOrInvokeOnLoadCallback([this]() {
+    if (impl_) {
+      num_triangles_ =
+          static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3);
+    }
+  });
 }
 
 // TODO(b/31523782): Remove once pipeline for MeshData is in-place.
 Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
   static const fplbase::Attribute kAttributes[] = {
-      fplbase::kPosition3f, fplbase::kEND,
+      fplbase::kPosition3f,
+      fplbase::kEND,
   };
   impl_ = CreateMesh(mesh, kAttributes);
   num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
@@ -72,7 +78,9 @@ Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
 // TODO(b/31523782): Remove once pipeline for MeshData is in-place.
 Mesh::Mesh(const TriangleMesh<VertexPT>& mesh) {
   static const fplbase::Attribute kAttributes[] = {
-      fplbase::kPosition3f, fplbase::kTexCoord2f, fplbase::kEND,
+      fplbase::kPosition3f,
+      fplbase::kTexCoord2f,
+      fplbase::kEND,
   };
   impl_ = CreateMesh(mesh, kAttributes);
   num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
@@ -84,6 +92,15 @@ Mesh::Mesh(const MeshData& mesh) {
   impl_ = CreateMesh(mesh, attributes);
   // TODO(b/62088621): Fix this calculation for different primitive types.
   num_triangles_ = static_cast<int>(mesh.GetNumIndices() / 3);
+}
+
+bool Mesh::IsLoaded() const { return !impl_ || impl_->IsFinalized(); }
+
+void Mesh::AddOrInvokeOnLoadCallback(
+    const fplbase::AsyncAsset::AssetFinalizedCallback& callback) {
+  if (!impl_ || !impl_->AddFinalizeCallback(callback)) {
+    callback();
+  }
 }
 
 int Mesh::GetNumVertices() const {
@@ -180,8 +197,7 @@ void Mesh::GetFplAttributes(
         } else if (src.type == VertexAttribute::kFloat32 && src.count == 2) {
           attributes[i] = fplbase::kPosition2f;
         } else {
-          LOG(DFATAL)
-              << "kPosition must be a kFloat32 with 2 or 3 elements.";
+          LOG(DFATAL) << "kPosition must be a kFloat32 with 2 or 3 elements.";
           attributes[i] = fplbase::kEND;
         }
         break;
@@ -233,7 +249,7 @@ void Mesh::GetFplAttributes(
     }
     // This function also requires that the attributes be terminated, so we need
     // to ensure that kEND is appended before this DCHECK.
-    attributes[i+1] = fplbase::kEND;
+    attributes[i + 1] = fplbase::kEND;
     DCHECK_EQ(static_cast<size_t>(src.offset),
               fplbase::Mesh::AttributeOffset(attributes, attributes[i]));
   }

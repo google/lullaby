@@ -1,0 +1,21 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "GL",
+    hdrs = [
+        "include/GL/gl.h",
+        "include/GL/gl_mangle.h",
+        "include/GL/glcorearb.h",
+        "include/GL/glext.h",
+        "include/GL/glx.h",
+        "include/GL/glx_mangle.h",
+        "include/GL/glxext.h",
+        "include/GL/wglext.h",
+    ],
+    includes = [
+        "glu/include",
+        "glut-3.7/include",
+    ],
+)

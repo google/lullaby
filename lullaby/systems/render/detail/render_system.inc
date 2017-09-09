@@ -105,6 +105,10 @@ const TexturePtr& RenderSystem::GetInvalidTexture() const {
   return impl_->GetInvalidTexture();
 }
 
+TexturePtr RenderSystem::GetTexture(HashValue texture_hash) const {
+  return impl_->GetTexture(texture_hash);
+}
+
 TexturePtr RenderSystem::LoadTexture(const std::string& filename) {
   const bool create_mips = false;
   return impl_->LoadTexture(filename, create_mips);

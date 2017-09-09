@@ -35,6 +35,7 @@ class MeshData {
   using Index = uint16_t;
 
   static const Index kInvalidIndex;
+  static const Index kMaxValidIndex;
 
   MeshData() {}
 

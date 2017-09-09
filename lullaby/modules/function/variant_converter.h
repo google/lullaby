@@ -51,10 +51,20 @@ class VariantConverter {
   static bool FromVariant(const Variant& var, T* out) {
     return out ? ReadImpl(var, out) : false;
   }
+  // Specialization for converting to a Variant.
+  static bool FromVariant(const Variant& var, Variant* out) {
+    *out = var;
+    return true;
+  }
 
   template <typename T>
   static bool ToVariant(const T& value, Variant* var) {
     return var ? WriteImpl(value, var) : false;
+  }
+  // Specialization for when T is a Variant.
+  static bool ToVariant(const Variant& value, Variant* var) {
+    *var = value;
+    return true;
   }
 
  private:

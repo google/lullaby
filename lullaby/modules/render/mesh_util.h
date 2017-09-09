@@ -335,6 +335,15 @@ MeshData CreateQuadMesh(float size_x, float size_y, int num_verts_x,
   return mesh;
 }
 
+// Creates a VertexPT sphere mesh using latitude-longitude tessellation. The
+// sphere will be external-facing unless |radius| is negative. If the requested
+// mesh exceeds MeshData's vertex limit, this will log a DFATAL and return an
+// empty mesh. The 'u' texture coordinate tracks longitude; the 'v' coordinate
+// tracks latitude, with 0 and 1 at the north and south poles, respectively.
+// |num_parallels| is the number of latitude divisions not incl. poles. [1,inf)
+// |num_meridians| is the number of longitude divisions. [3,inf).
+MeshData CreateLatLonSphere(float radius, int num_parallels, int num_meridians);
+
 }  // namespace lull
 
 #endif  // LULLABY_MODULES_RENDER_MESH_UTIL_H_

@@ -47,7 +47,6 @@ cc_library(
 cc_library(
     name = "webp_utils_dec_impl",
     srcs = [
-        "src/utils/ans.c",
         "src/utils/bit_reader_utils.c",
         "src/utils/color_cache_utils.c",
         "src/utils/filters_utils.c",

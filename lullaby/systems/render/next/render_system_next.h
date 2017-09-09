@@ -357,6 +357,7 @@ class RenderSystemNext : public System {
   void OnParentChanged(const ParentChangedEvent& event);
   void OnTextureLoaded(const RenderComponent& component, int unit,
                        const TexturePtr& texture);
+  void OnMeshLoaded(RenderComponent* render_component);
   bool IsReadyToRenderImpl(const RenderComponent& component) const;
   void SetShaderUniforms(const UniformVector& uniforms);
   void DrawMeshFromComponent(const RenderObject* component);

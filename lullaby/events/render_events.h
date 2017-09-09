@@ -103,6 +103,22 @@ struct ShowEvent {
   Entity entity = kNullEntity;
 };
 
+// Dispatched when an entity's mesh had been changed.
+struct MeshChangedEvent {
+  MeshChangedEvent() {}
+  MeshChangedEvent(Entity entity, HashValue component_id)
+      : entity(entity), component_id(component_id) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("target"));
+    archive(&component_id, Hash("component_id"));
+  }
+
+  Entity entity = kNullEntity;
+  HashValue component_id = 0;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::ReadyToRenderEvent);
@@ -111,5 +127,6 @@ LULLABY_SETUP_TYPEID(lull::HiddenEvent);
 LULLABY_SETUP_TYPEID(lull::UnhiddenEvent);
 LULLABY_SETUP_TYPEID(lull::HideEvent);
 LULLABY_SETUP_TYPEID(lull::ShowEvent);
+LULLABY_SETUP_TYPEID(lull::MeshChangedEvent);
 
 #endif  // LULLABY_EVENTS_RENDER_EVENTS_H_

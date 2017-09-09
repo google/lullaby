@@ -405,6 +405,17 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
     }
 
     reticle_->pressed_entity = kNullEntity;
+  } else if (CheckBit(button, InputManager::kJustLongPressed)) {
+    auto* dispatcher_system = registry_->Get<DispatcherSystem>();
+
+    const Entity current_entity =
+        is_interactive ? reticle_->target_entity : kNullEntity;
+    if (current_entity != kNullEntity &&
+        reticle_->pressed_entity == current_entity) {
+      // TODO(b/63343249) This entire section will be refactored soon, and
+      // when that happens this event name will probably change.
+      dispatcher_system->Send(current_entity, PrimaryButtonLongPress());
+    }
   }
 }
 
@@ -463,8 +474,8 @@ Entity ReticleSystem::HandleReticleBehavior(Entity targeted_entity) {
 }
 
 void ReticleSystem::SetReticleTransform(Entity reticle_entity,
-                                       const mathfu::vec3& reticle_world_pos,
-                                       const mathfu::vec3& camera_world_pos) {
+                                        const mathfu::vec3& reticle_world_pos,
+                                        const mathfu::vec3& camera_world_pos) {
   auto* transform_system = registry_->Get<TransformSystem>();
 
   Sqt sqt;
@@ -495,8 +506,8 @@ mathfu::vec3 ReticleSystem::CalculateReticleNoHitPosition(
     sqt = reticle_->movement_fn(device);
   } else {
     // Getting the rotation from the input device, check for collisions in the
-    // direction of the rotation, then adjust the position of the reticle using
-    // the rotation and the hit distance.
+    // direction of the rotation, then adjust the position of the reticle
+    // using the rotation and the hit distance.
     auto* input = registry_->Get<InputManager>();
     auto* transform_system = registry_->Get<TransformSystem>();
 
@@ -515,8 +526,8 @@ mathfu::vec3 ReticleSystem::CalculateReticleNoHitPosition(
             transform_system->GetParent(reticle_entity));
     if (world_from_parent) {
       // Apply any world transform to account for the actual forward direction
-      // of the preferred device and the raycast origin. This allows to add the
-      // reticle entity as a child to a parent entity and have the reticle
+      // of the preferred device and the raycast origin. This allows to add
+      // the reticle entity as a child to a parent entity and have the reticle
       // behave correctly when the parent entity is moved and rotated in world
       // space.
       Sqt world_xform = CalculateSqtFromMatrix(*world_from_parent);
@@ -614,8 +625,8 @@ void ReticleSystem::LockOn(Entity entity, const mathfu::vec3& offset) {
   }
 }
 
-void ReticleSystem::SetReticleCollisionBehaviour(Entity entity,
-    ReticleCollisionBehaviour collision_behaviour) {
+void ReticleSystem::SetReticleCollisionBehaviour(
+    Entity entity, ReticleCollisionBehaviour collision_behaviour) {
   auto* behaviour = reticle_behaviours_.Get(entity);
   if (!behaviour) {
     behaviour = reticle_behaviours_.Emplace(entity);

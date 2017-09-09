@@ -51,6 +51,7 @@ struct RenderComponent : Component {
   StencilMode stencil_mode = StencilMode::kDisabled;
   int stencil_value = 0;
   bool hidden = false;
+  bool need_to_gather_bone_transforms = false;
   RenderSystem::Quad quad = RenderSystem::Quad();
 };
 

@@ -21,6 +21,7 @@ namespace lull {
 using Index = MeshData::Index;
 
 const Index MeshData::kInvalidIndex = static_cast<Index>(~0);
+const Index MeshData::kMaxValidIndex = kInvalidIndex - 1;
 
 Index MeshData::AddVertices(const uint8_t* data, size_t count,
                             size_t vertex_size) {

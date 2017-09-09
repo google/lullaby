@@ -19,9 +19,9 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/util.h"
-#include "lullaby/generated/scripts/flatc_generated.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/typeid.h"
+#include "lullaby/generated/tools/flatc_generated.h"
 
 namespace lull {
 namespace {

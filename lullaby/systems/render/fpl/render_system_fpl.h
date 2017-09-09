@@ -69,6 +69,7 @@ class RenderSystemFpl : public System {
   FontPtr LoadFonts(const std::vector<std::string>& names);
   const TexturePtr& GetWhiteTexture() const;
   const TexturePtr& GetInvalidTexture() const;
+  TexturePtr GetTexture(HashValue texture_hash) const;
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
   void LoadTextureAtlas(const std::string& filename);
   MeshPtr LoadMesh(const std::string& filename);

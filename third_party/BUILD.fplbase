@@ -64,7 +64,6 @@ cc_library(
         "include/fplbase/texture_atlas.h",
         "include/fplbase/utilities.h",
         "include/fplbase/version.h",
-        # "external/include/GL/glext.h"
     ],
     defines = [
         "FPLBASE_DISABLE_NEW_DELETE_OPERATORS",
@@ -73,7 +72,6 @@ cc_library(
         "GL_GLEXT_PROTOTYPES",
     ],
     includes = [
-        "external/include",
         "include",
     ],
     deps = [
@@ -83,5 +81,6 @@ cc_library(
         "@libwebp//:webp_decode",
         "@mathfu//:mathfu",
         "@stb//:stb",
+        "@GL//:GL"
     ],
 )

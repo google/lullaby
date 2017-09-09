@@ -25,6 +25,9 @@ private_headers = [
 
 fpl_headers = [
     "fpl/mesh.h",
+    "fpl/pano.h",
+    "fpl/pano_model.h",
+    "fpl/pano_viewer.h",
     "fpl/render_component.h",
     "fpl/render_factory.h",
     "fpl/render_system_fpl.h",
@@ -34,23 +37,19 @@ fpl_headers = [
 
 common_deps = [
     "@fplbase//:fplbase",
-    "//lullaby/events",
     "//lullaby/modules/config",
     "//lullaby/modules/ecs",
     "//lullaby/modules/ecs:entity",
-    "//lullaby/modules/file",
-    "//lullaby/modules/script",
     "//lullaby/modules/render",
     "//lullaby/systems/text",
     "//lullaby/systems/transform",
     "//lullaby/util:hash",
     "//lullaby/util:logging",
+    "//lullaby/util:make_unique",
     "//lullaby/util:math",
     "//lullaby/util:registry",
-    "//lullaby/util:resource_manager",
     "//lullaby/util:string_preprocessor",
     "//lullaby/util:trace",
-    "//lullaby/util:typeid",
     "//lullaby/generated",
     "@mathfu//:mathfu",
 ]
@@ -61,7 +60,11 @@ common_deps = [
 # such as 'fpl'.
 cc_library(
     name = "render",
-    srcs = ["simple_font.cc"],
+    srcs = [
+        "material.cc",
+        "simple_font.cc",
+        "uniform.cc",
+    ],
     hdrs = common_headers,
     deps = common_deps,
 )
@@ -86,11 +89,15 @@ cc_library(
     ],
     deps = common_deps + [
         ":profiler",
+        "//lullaby/events",
         "//lullaby/modules/dispatcher",
+        "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
+        "//lullaby/modules/script",
         "//lullaby/systems/dispatcher",
         "//lullaby/util:async_processor",
-        "//lullaby/util:time",
+        "//lullaby/util:resource_manager",
+        "//lullaby/util:typeid",
     ],
 )
 
@@ -109,8 +116,11 @@ cc_library(
     deps = common_deps + [
         ":binding_impl",
         ":fpl_render_system",
-        ":render",
+        "//lullaby/events",
+        "//lullaby/modules/file",
         "//lullaby/util:async_processor",
+        "//lullaby/util:resource_manager",
+        "//lullaby/util:typeid",
     ],
     alwayslink = 1,
 )
@@ -145,13 +155,18 @@ cc_library(
         ":binding_impl",
         ":profiler",
         ":render",
+        "//lullaby/events",
         "//lullaby/modules/dispatcher",
+        "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
+        "//lullaby/modules/script",
         "//lullaby/systems/dispatcher",
         "//lullaby/util:async_processor",
         "//lullaby/util:buffered_data",
-        "//lullaby/util:make_unique",
+        "//lullaby/util:resource_manager",
         "//lullaby/util:string_view",
+        "//lullaby/util:time",
+        "//lullaby/util:typeid",
         "//lullaby/util:unordered_vector_map",
     ],
     alwayslink = 1,
@@ -175,6 +190,7 @@ cc_library(
         ":binding_impl",
         ":profiler",
         ":render",
+        "//lullaby/util:time",
     ],
     alwayslink = 1,
 )
@@ -210,7 +226,7 @@ cc_library(
         "//lullaby/util:time",
         "//lullaby/util:typeid",
     ] + select({
-        "//tools/cc_target_os:android": ["//third_party/GLES_khronos_headers:GLES2"],
+        "//tools/cc_target_os:android": ["@GL//:GLES_khronos_headers:GLES2"],
         "//conditions:default": [],
     }),
 )

@@ -17,7 +17,7 @@ limitations under the License.
 #include "lullaby/systems/text/text_system.h"
 
 #include "gtest/gtest.h"
-#include "lullaby/modules/dispathcer/dispatcher.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"

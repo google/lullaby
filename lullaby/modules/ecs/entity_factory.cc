@@ -322,8 +322,16 @@ EntityFactory::FlatbufferConverter* EntityFactory::GetFlatbufferConverter(
 }
 
 System* EntityFactory::GetSystem(const System::DefType def_type) {
-  const TypeId type_id = type_map_[def_type];
-  return systems_[type_id];
+  // Don't pollute the type and systems maps with null values.
+  const auto type_id = type_map_.find(def_type);
+  if (type_id == type_map_.end()) {
+    return nullptr;
+  }
+  const auto system = systems_.find(type_id->second);
+  if (system == systems_.end()) {
+    return nullptr;
+  }
+  return system->second;
 }
 
 const EntityFactory::BlueprintMap& EntityFactory::GetEntityToBlueprintMap()

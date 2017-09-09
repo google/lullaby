@@ -6,9 +6,16 @@ namespace lull;
 /// Animation selector that picks the first track in a state.
 table FirstAnimationSelectorDef {}
 
+/// Animation selector that picks a random track in a state.  If the
+/// track's selection parameters include a float key named 'weight',
+/// the selection will be influenced by the relative weights of the
+/// tracks.  If not supplied, the default weight is 1.0.
+table RandomAnimationSelectorDef {}
+
 /// Union of all animation selectors.
 union AnimationSelectorDef {
   FirstAnimationSelectorDef,
+  RandomAnimationSelectorDef,
 }
 
 /// An animation window within a single track of animation.
@@ -55,10 +62,14 @@ table AnimationTransitionDef {
 
   /// The time before the end of the animation at which this transition is
   /// valid.
-  active_time_from_end_s: float;
+  active_time_from_end_s: float = 0.0;
+
+  /// Whether or not the transition is valid for the entire duration of the
+  /// animation.
+  active_for_entire_time: bool = false;
 
   /// The time to blend between the source animation and the target animation.
-  blend_time_s: float;
+  blend_time_s: float = 0.0;
 }
 
 /// A single animation state within a stategraph.
@@ -74,6 +85,10 @@ table AnimationStateDef {
 
   /// The transitions exiting this state to enter the next state.
   transitions: [AnimationTransitionDef];
+
+  /// Index of the default transition, which occurs automatically when
+  /// the current animation ends.
+  default_transition_index: uint = 0;
 }
 
 /// An animation stategraph which is a collection of animation states.

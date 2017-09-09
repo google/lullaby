@@ -28,9 +28,9 @@ cc_library(
         "//lullaby/systems/animation",
         "//lullaby/util:clock",
         "//lullaby/util:make_unique",
+        "//lullaby/util:random_number_generator",
         "//lullaby/util:registry",
         "//lullaby/util:resource_manager",
         "//lullaby/util:selector",
-        "//lullaby/util:typeid",
     ],
 )

@@ -15,6 +15,11 @@ cc_library(
         "bullet_utils.h",
         "physics_system.h",
     ],
+    # Required due to bad conversions in Bullet.
+    copts = [
+        "-Wno-error=conversion",
+        "-Wno-error=float-conversion",
+    ],
     deps = [
         "@bullet//:BulletCollision",
         "@bullet//:BulletDynamics",

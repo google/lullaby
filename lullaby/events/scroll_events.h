@@ -124,6 +124,25 @@ struct ScrollSnapByDelta {
   float time_ms = -1;
 };
 
+// Invokes ScrollSystem::SetViewOffset(entity, offset, time_ms)
+struct ScrollSetViewOffsetEvent {
+  ScrollSetViewOffsetEvent() {}
+  ScrollSetViewOffsetEvent(Entity entity, const mathfu::vec2& offset,
+                           float time_ms)
+      : entity(entity), offset(offset), time_ms(time_ms) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+    archive(&offset, Hash("offset"));
+    archive(&time_ms, Hash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec2 offset = mathfu::kZeros2f;
+  float time_ms = 0;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::ScrollViewTargeted);
@@ -133,5 +152,6 @@ LULLABY_SETUP_TYPEID(lull::ScrollSnappedToEntity);
 LULLABY_SETUP_TYPEID(lull::ScrollActivateEvent);
 LULLABY_SETUP_TYPEID(lull::ScrollDeactivateEvent);
 LULLABY_SETUP_TYPEID(lull::ScrollSnapByDelta);
+LULLABY_SETUP_TYPEID(lull::ScrollSetViewOffsetEvent);
 
 #endif  // LULLABY_EVENTS_SCROLL_EVENTS_H_

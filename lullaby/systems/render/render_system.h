@@ -180,6 +180,10 @@ class RenderSystem : public System {
   // maintains a reference to all atlases.
   void LoadTextureAtlas(const std::string& filename);
 
+  // Returns a texture that had been loaded by its hash. If the texture doesn't
+  // exist this will return |nullptr|.
+  TexturePtr GetTexture(HashValue texture_hash) const;
+
   // Loads a mesh with the given filename. When using the next backend the
   // render system holds a weak reference to the Mesh, otherwise it is a strong
   // reference.

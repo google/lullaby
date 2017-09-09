@@ -48,6 +48,9 @@ class Mesh {
   // Creates a mesh from the provided MeshData.
   explicit Mesh(const MeshData& mesh);
 
+  // Returns if this mesh has been loaded into OpenGL.
+  bool IsLoaded() const;
+
   // Returns the number of vertices contained in the mesh.
   int GetNumVertices() const;
 
@@ -83,6 +86,12 @@ class Mesh {
 
   // Draws the mesh.
   void Render(fplbase::Renderer* renderer);
+
+  // If the mesh is still loading, this adds a function that will be called when
+  // it finishes loading. If the mesh is already loaded, |callback| is
+  // immediately invoked.
+  void AddOrInvokeOnLoadCallback(
+      const fplbase::AsyncAsset::AssetFinalizedCallback& callback);
 
   // The FPL vertex attributes are terminated with kEND, so increase the array
   // size accordingly.

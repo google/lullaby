@@ -444,5 +444,99 @@ TEST(ApplyDeformationDeathTest, MeshDataWithInsufficientAccess) {
                           "");
 }
 
+TEST(CreateLatLonSphereDeathTest, CatchesBadArguments) {
+  const float radius = 1.0f;
+  EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 0,
+                                  /* num_meridians = */ 3),
+               "");
+  EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1,
+                                  /* num_meridians = */ 2),
+               "");
+  PORT_EXPECT_DEBUG_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1000,
+                                             /* num_meridians = */ 1000),
+                          "Exceeded vertex limit");
+}
+
+TEST(CreateLatLonSphereTest, GeneratesCorrectNumbersOfVerticesAndIndices) {
+  const float radius = 1.0f;
+  MeshData mesh = CreateLatLonSphere(radius, /* num_parallels = */ 1,
+                                     /* num_meridians = */ 3);
+  EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
+  EXPECT_EQ(mesh.GetNumVertices(), 5U);
+  EXPECT_EQ(mesh.GetNumIndices(), 3U * 6U);
+
+  mesh = CreateLatLonSphere(radius, /* num_parallels = */ 1,
+                            /* num_meridians = */ 7);
+  EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
+  EXPECT_EQ(mesh.GetNumVertices(), 9U);
+  EXPECT_EQ(mesh.GetNumIndices(), 3U * 14U);
+
+  mesh = CreateLatLonSphere(radius, /* num_parallels = */ 5,
+                            /* num_meridians = */ 3);
+  EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
+  EXPECT_EQ(mesh.GetNumVertices(), 17U);
+  EXPECT_EQ(mesh.GetNumIndices(), 3U * (6U + 24U));
+}
+
+TEST(CreateLatLonSphereTest, GeneratesPositionsThatHaveRadiusLength) {
+  float radius = 2.5f;
+  MeshData mesh = CreateLatLonSphere(radius, /* num_parallels = */ 3,
+                                     /* num_meridians = */ 5);
+  for (int i = 0; i < mesh.GetNumVertices(); ++i) {
+    const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
+    EXPECT_NEAR(GetPosition(v).Length(), radius, kDefaultEpsilon);
+  }
+
+  radius = 8.3f;
+  mesh = CreateLatLonSphere(radius, /* num_parallels = */ 4,
+                            /* num_meridians = */ 4);
+  for (int i = 0; i < mesh.GetNumVertices(); ++i) {
+    const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
+    EXPECT_NEAR(GetPosition(v).Length(), radius, kDefaultEpsilon);
+  }
+}
+
+TEST(CreateLatLonSphereTest,
+     GeneratesExternallyFacingTrianglesWhenGivenAPositiveRadius) {
+  MeshData mesh =
+      CreateLatLonSphere(/* radius = */ 1.0f, /* num_parallels = */ 1,
+                         /* num_meridians = */ 3);
+  EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
+  for (size_t i = 0; i < mesh.GetNumIndices(); i += 3) {
+    const VertexPT* vertices = mesh.GetVertexData<VertexPT>();
+    const mathfu::vec3 p0 = GetPosition(vertices[mesh.GetIndexData()[i + 0]]);
+    const mathfu::vec3 p1 = GetPosition(vertices[mesh.GetIndexData()[i + 1]]);
+    const mathfu::vec3 p2 = GetPosition(vertices[mesh.GetIndexData()[i + 2]]);
+    const mathfu::vec3 d1 = p1 - p0;
+    const mathfu::vec3 d2 = p2 - p0;
+    EXPECT_THAT(d1, Not(NearMathfu(d2, kEpsilon)));
+    const mathfu::vec3 normal = mathfu::vec3::CrossProduct(d1, d2).Normalized();
+    EXPECT_GT(mathfu::vec3::DotProduct(p0, normal), 0.0f);
+    EXPECT_GT(mathfu::vec3::DotProduct(p1, normal), 0.0f);
+    EXPECT_GT(mathfu::vec3::DotProduct(p2, normal), 0.0f);
+  }
+}
+
+TEST(CreateLatLonSphereTest,
+     GeneratesInternallyFacingTrianglesWhenGivenANegativeRadius) {
+  MeshData mesh =
+      CreateLatLonSphere(/* radius = */ -1.0f, /* num_parallels = */ 1,
+                         /* num_meridians = */ 3);
+  EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
+  for (size_t i = 0; i < mesh.GetNumIndices(); i += 3) {
+    const VertexPT* vertices = mesh.GetVertexData<VertexPT>();
+    const mathfu::vec3 p0 = GetPosition(vertices[mesh.GetIndexData()[i + 0]]);
+    const mathfu::vec3 p1 = GetPosition(vertices[mesh.GetIndexData()[i + 1]]);
+    const mathfu::vec3 p2 = GetPosition(vertices[mesh.GetIndexData()[i + 2]]);
+    const mathfu::vec3 d1 = p1 - p0;
+    const mathfu::vec3 d2 = p2 - p0;
+    EXPECT_THAT(d1, Not(NearMathfu(d2, kEpsilon)));
+    const mathfu::vec3 normal = mathfu::vec3::CrossProduct(d1, d2).Normalized();
+    EXPECT_LT(mathfu::vec3::DotProduct(p0, normal), 0.0f);
+    EXPECT_LT(mathfu::vec3::DotProduct(p1, normal), 0.0f);
+    EXPECT_LT(mathfu::vec3::DotProduct(p2, normal), 0.0f);
+  }
+}
+
 }  // namespace
 }  // namespace lull

@@ -932,14 +932,8 @@ InputManager::ButtonState InputManager::GetButtonState(
     if (repeat) {
       state |= kRepeat;
     }
-  } else {
-    state |= kReleased;
-    if (prev) {
-      state |= kJustReleased;
-    }
-  }
 
-  if (curr || prev) {
+    // Check for long press:
     const Clock::duration curr_press_duration =
         curr_time_stamp - curr_press_time;
     const bool curr_long_press = curr_press_duration >= long_press_time;
@@ -952,7 +946,22 @@ InputManager::ButtonState InputManager::GetButtonState(
         state |= kJustLongPressed;
       }
     }
+  } else {
+    state |= kReleased;
+    if (prev) {
+      state |= kJustReleased;
+      // Check if the released press was held for more than long_press_time.
+      // If released on the first frame that would be a long_press, assume it
+      // was released before the time limit passed and don't set kLongPressed.
+      const Clock::duration prev_press_duration =
+          prev_time_stamp - prev_press_time;
+      const bool prev_long_press = prev_press_duration >= long_press_time;
+      if (prev_long_press) {
+        state |= kLongPressed;
+      }
+    }
   }
+
   return state;
 }
 

@@ -84,6 +84,7 @@ AnimationSystem::~AnimationSystem() {
   FunctionBinder* binder = registry_->Get<FunctionBinder>();
   if (binder) {
     binder->UnregisterFunction("lull.Animation.SetTarget");
+    binder->UnregisterFunction("lull.Animation.Play");
   }
   auto* dispatcher = registry_->Get<Dispatcher>();
   if (dispatcher) {

@@ -291,7 +291,8 @@ void RenderFactory::WaitForAssetsToLoad() {
 }
 
 Mesh::MeshImplPtr RenderFactory::LoadFplMesh(const std::string& name) {
-  auto mesh = fpl_asset_manager_->LoadMesh(name.c_str());
+  constexpr bool async = true;
+  fplbase::Mesh* mesh = fpl_asset_manager_->LoadMesh(name.c_str(), async);
   if (!mesh) {
     LOG(ERROR) << "Could not load mesh: " << name;
     return nullptr;

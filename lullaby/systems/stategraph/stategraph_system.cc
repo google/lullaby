@@ -35,6 +35,12 @@ StategraphSystem::StategraphSystem(Registry* registry)
                            &lull::StategraphSystem::SetSelectionArgs);
     binder->RegisterMethod("lull.Stategraph.SetDesiredState",
                            &lull::StategraphSystem::SetDesiredState);
+    binder->RegisterMethod("lull.Stategraph.SnapToState",
+                           &lull::StategraphSystem::SnapToState);
+    binder->RegisterMethod("lull.Stategraph.SnapToStateAtSignal",
+                           &lull::StategraphSystem::SnapToStateAtSignal);
+    binder->RegisterMethod("lull.Stategraph.SnapToStateAtTime",
+                           &lull::StategraphSystem::SnapToStateAtTime);
   }
 }
 
@@ -43,6 +49,9 @@ StategraphSystem::~StategraphSystem() {
   if (binder) {
     binder->UnregisterFunction("lull.Stategraph.SetSelectionArgs");
     binder->UnregisterFunction("lull.Stategraph.SetDesiredState");
+    binder->UnregisterFunction("lull.Stategraph.SnapToState");
+    binder->UnregisterFunction("lull.Stategraph.SnapToStateAtSignal");
+    binder->UnregisterFunction("lull.Stategraph.SnapToStateAtTime");
   }
 }
 
@@ -70,6 +79,7 @@ void StategraphSystem::Create(Entity entity, HashValue type, const Def* def) {
   if (binder) {
     component->env->SetFunctionCallHandler(
         [binder](FunctionCall* call) { binder->Call(call); });
+    component->env->SetValue(Hash("entity"), ScriptValue::Create(entity));
   }
 }
 

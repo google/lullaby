@@ -30,6 +30,10 @@ inline Clock::duration DurationFromSeconds(float sec) {
   return std::chrono::duration_cast<Clock::duration>(Secondsf(sec));
 }
 
+inline Clock::duration DurationFromMilliseconds(float ms) {
+  return std::chrono::duration_cast<Clock::duration>(Millisecondsf(ms));
+}
+
 inline float MicrosecondsFromDuration(Clock::duration d) {
   return std::chrono::duration_cast<Microsecondsf>(d).count();
 }

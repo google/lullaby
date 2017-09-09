@@ -100,10 +100,9 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
   const int quads_y = num_verts_y - 1;
   // Addition of radiused corners remove the 4 outer quads for a total of 24
   // indices saved but add corner_verts + 1 triangles at each of the 4 corners.
-  const size_t num_indices =
-      corner_verts > 0
-          ? (quads_x * quads_y * 6) - 24 + (12 * (corner_verts + 1))
-          : quads_x * quads_y * 6;
+  const size_t num_indices = corner_verts > 0 ? (quads_x * quads_y * 6) - 24 +
+                                                    (12 * (corner_verts + 1))
+                                              : quads_x * quads_y * 6;
   std::vector<uint16_t> indices(num_indices);
   size_t index = 0;
   uint16_t anchor_vert_index = 0;
@@ -237,6 +236,104 @@ void ApplyDeformationToMesh(MeshData* mesh,
   const size_t stride_in_floats = format.GetVertexSize() / sizeof(float);
   const size_t length_in_floats = mesh->GetNumVertices() * stride_in_floats;
   deform(vertex_data, length_in_floats, stride_in_floats);
+}
+
+MeshData CreateLatLonSphere(float radius, int num_parallels,
+                            int num_meridians) {
+  CHECK_GE(num_parallels, 1);
+  CHECK_GE(num_meridians, 3);
+
+  const float kPhiStep = kPi / static_cast<float>(num_parallels + 1);
+  const float kThetaStep = 2.0f * kPi / static_cast<float>(num_meridians);
+  const size_t num_vertices = num_parallels * num_meridians + 2;
+  const size_t num_triangles =
+      2 * num_meridians + 2 * num_meridians * (num_parallels - 1);
+  const size_t num_indices = 3 * num_triangles;
+
+  if (num_vertices > MeshData::kMaxValidIndex) {
+    LOG(DFATAL) << "Exceeded vertex limit";
+    return MeshData();
+  }
+
+  DataContainer vertex_data =
+      DataContainer::CreateHeapDataContainer(num_vertices * sizeof(VertexPT));
+  DataContainer index_data = DataContainer::CreateHeapDataContainer(
+      num_indices * sizeof(MeshData::Index));
+  MeshData mesh = MeshData(MeshData::kTriangles, VertexPT::kFormat,
+                           std::move(vertex_data), std::move(index_data));
+
+  // Pole vertices
+  const MeshData::Index north_pole =
+      mesh.AddVertex<VertexPT>(0.0f, radius, 0.0f, .5f, 0.0f);
+  const MeshData::Index south_pole =
+      mesh.AddVertex<VertexPT>(0.0f, -radius, 0.0f, .5f, 1.0f);
+
+  // Vertices by latitude.
+  std::vector<MeshData::Index> row_indices(num_parallels);
+  float phi = kPhiStep;
+  for (int lat = 0; lat < num_parallels; ++lat, phi += kPhiStep) {
+    const float cos_phi = std::cos(phi);
+    const float rad_sin_phi = radius * std::sin(phi);
+    const float y = radius * cos_phi;
+    const float v = phi / kPi;
+
+    row_indices[lat] = mesh.GetNumVertices();
+
+    float theta = 0.0f;
+    for (int lon = 0; lon < num_meridians; ++lon, theta += kThetaStep) {
+      const float cos_theta = std::cos(theta);
+      const float sin_theta = std::sin(theta);
+      const float u = theta / (2.0f * kPi);
+      const float x = rad_sin_phi * cos_theta;
+      const float z = rad_sin_phi * sin_theta;
+      mesh.AddVertex<VertexPT>(x, y, z, u, v);
+    }
+  }
+
+  // North polar cap.
+  for (int lon = 0; lon < num_meridians; ++lon) {
+    const MeshData::Index row_start = row_indices[0];
+    const MeshData::Index v1 = static_cast<MeshData::Index>(row_start + lon);
+    const MeshData::Index v2 =
+        static_cast<MeshData::Index>(row_start + ((lon + 1) % num_meridians));
+    mesh.AddIndices({north_pole, v2, v1});
+  }
+
+  // Latitudinal triangle strips.
+  for (int lat = 0; lat < num_parallels - 1; lat++) {
+    const MeshData::Index north_start = row_indices[lat];
+    const MeshData::Index south_start = row_indices[lat + 1];
+
+    for (int lon = 0; lon < num_meridians; ++lon) {
+      const MeshData::Index next_lon =
+          static_cast<MeshData::Index>((lon + 1) % num_meridians);
+      const MeshData::Index north_v0 =
+          static_cast<MeshData::Index>(north_start + lon);
+      const MeshData::Index north_v1 =
+          static_cast<MeshData::Index>(north_start + next_lon);
+      const MeshData::Index south_v0 =
+          static_cast<MeshData::Index>(south_start + lon);
+      const MeshData::Index south_v1 =
+          static_cast<MeshData::Index>(south_start + next_lon);
+
+      mesh.AddIndices(
+          {north_v0, north_v1, south_v0, north_v1, south_v1, south_v0});
+    }
+  }
+
+  // South polar cap.
+  for (int lon = 0; lon < num_meridians; ++lon) {
+    const MeshData::Index row_start = row_indices[row_indices.size() - 1];
+    const MeshData::Index v1 = static_cast<MeshData::Index>(row_start + lon);
+    const MeshData::Index v2 =
+        static_cast<MeshData::Index>(row_start + ((lon + 1) % num_meridians));
+    mesh.AddIndices({south_pole, v1, v2});
+  }
+
+  DCHECK_EQ(mesh.GetNumVertices(), num_vertices);
+  DCHECK_EQ(mesh.GetNumIndices(), num_indices);
+
+  return mesh;
 }
 
 }  // namespace lull

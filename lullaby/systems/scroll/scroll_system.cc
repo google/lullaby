@@ -113,6 +113,9 @@ ScrollSystem::ScrollSystem(Registry* registry)
   dispatcher->Connect(this, [this](const ScrollSnapByDelta& ev) {
     SnapByDelta(ev.entity, ev.delta, ev.time_ms);
   });
+  dispatcher->Connect(this, [this](const ScrollSetViewOffsetEvent& ev) {
+    SetViewOffset(ev.entity, ev.offset, DurationFromMilliseconds(ev.time_ms));
+  });
 }
 
 ScrollSystem::~ScrollSystem() {

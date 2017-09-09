@@ -128,6 +128,8 @@ RenderSystemFpl::RenderSystemFpl(Registry* registry)
       TexturePtr texture = GetTexture(entity, 0);
       return texture ? static_cast<int>(texture->GetResourceId().handle) : 0;
     });
+    binder->RegisterMethod("lull.Render.SetColor",
+                           &lull::RenderSystem::SetColor);
   }
 }
 
@@ -137,6 +139,7 @@ RenderSystemFpl::~RenderSystemFpl() {
     binder->UnregisterFunction("lull.Render.Show");
     binder->UnregisterFunction("lull.Render.Hide");
     binder->UnregisterFunction("lull.Render.GetTextureId");
+    binder->UnregisterFunction("lull.Render.SetColor");
   }
   registry_->Get<Dispatcher>()->DisconnectAll(this);
 }
@@ -170,6 +173,11 @@ const TexturePtr& RenderSystemFpl::GetWhiteTexture() const {
 
 const TexturePtr& RenderSystemFpl::GetInvalidTexture() const {
   return factory_->GetInvalidTexture();
+}
+
+TexturePtr RenderSystemFpl::GetTexture(HashValue texture_hash) const {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  return nullptr;
 }
 
 TexturePtr RenderSystemFpl::LoadTexture(const std::string& filename,
@@ -834,6 +842,7 @@ void RenderSystemFpl::SetMesh(Entity e, MeshPtr mesh) {
       SetUniform(e, kBoneTransformsUniform, data, dimension, count);
     }
   }
+  SendEvent(registry_, e, MeshChangedEvent(e, 0));
 }
 
 void RenderSystemFpl::SetFont(Entity entity, const FontPtr& font) {
@@ -1534,6 +1543,7 @@ void RenderSystemFpl::UpdateDynamicMesh(
   } else {
     component->mesh.reset();
   }
+  SendEvent(registry_, entity, MeshChangedEvent(entity, 0));
 }
 
 void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {

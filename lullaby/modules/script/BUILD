@@ -1,5 +1,4 @@
 
-
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -38,19 +37,15 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
-        "//lullaby/generated",
         "//lullaby/modules/file",
         "//lullaby/modules/function",
-        "//lullaby/modules/script/lull",
         "//lullaby/util:built_in_functions",
-        "//lullaby/util:common_types",
         "//lullaby/util:hash",
-        "//lullaby/util:logging",
         "//lullaby/util:registry",
-        "//lullaby/util:string_view",
-        "//lullaby/util:typeid",
-        "//lullaby/util:type_util",
-        "//lullaby/util:variant",
+        "//lullaby/generated",
+        "//lullaby/modules/script/lull",
+        "//lullaby/util:logging",
+        # END-GOOGLE-INTERNAL
     ] + select({
         ":lullaby_script_lua": [
             "//lullaby/modules/script/lua",

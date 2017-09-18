@@ -23,6 +23,29 @@ namespace {
 
 using ::testing::Eq;
 
+TEST(ScriptFunctionsTypeOfTest, IsNil) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec("(nil? 1)");
+  EXPECT_THAT(res.Is<bool>(), Eq(true));
+  EXPECT_THAT(*res.Get<bool>(), Eq(false));
+
+  res = env.Exec("(nil? 2.0f)");
+  EXPECT_THAT(res.Is<bool>(), Eq(true));
+  EXPECT_THAT(*res.Get<bool>(), Eq(false));
+
+  res = env.Exec("(nil? 'hello')");
+  EXPECT_THAT(res.Is<bool>(), Eq(true));
+  EXPECT_THAT(*res.Get<bool>(), Eq(false));
+
+  Variant nil;
+  env.SetValue(ConstHash("nil"), ScriptValue::Create(nil));
+  res = env.Exec("(nil? nil)");
+  EXPECT_THAT(res.Is<bool>(), Eq(true));
+  EXPECT_THAT(*res.Get<bool>(), Eq(true));
+}
+
 TEST(ScriptFunctionsTypeOfTest, TypeOf) {
   ScriptEnv env;
   ScriptValue res;

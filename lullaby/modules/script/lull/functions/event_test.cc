@@ -29,7 +29,7 @@ TEST(ScriptFunctionsEventTest, Event) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(event :foo {(1 'a') (2 123) (4 'd')})");
+  res = env.Exec("(make-event :foo {(1u 'a') (2u 123) (4u 'd')})");
   EXPECT_THAT(res.Is<EventWrapper>(), Eq(true));
   EXPECT_THAT(res.Get<EventWrapper>()->GetTypeId(), Eq(ConstHash("foo")));
   const auto* values = res.Get<EventWrapper>()->GetValues();
@@ -57,15 +57,15 @@ TEST(ScriptFunctionsEventTest, EventType) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(event-type (event :foo))");
+  res = env.Exec("(event-type (make-event :foo))");
   EXPECT_THAT(res.Is<TypeId>(), Eq(true));
   EXPECT_THAT(*res.Get<TypeId>(), Eq(ConstHash("foo")));
 
-  res = env.Exec("(event-type (event :bar {(1 'a')}))");
+  res = env.Exec("(event-type (make-event :bar {(1u 'a')}))");
   EXPECT_THAT(res.Is<TypeId>(), Eq(true));
   EXPECT_THAT(*res.Get<TypeId>(), Eq(ConstHash("bar")));
 
-  res = env.Exec("(event-type (event :baz {(1 'a') (2 123) (4 'd')}))");
+  res = env.Exec("(event-type (make-event :baz {(1u 'a') (2u 123) (4u 'd')}))");
   EXPECT_THAT(res.Is<TypeId>(), Eq(true));
   EXPECT_THAT(*res.Get<TypeId>(), Eq(ConstHash("baz")));
 }
@@ -74,15 +74,15 @@ TEST(ScriptFunctionsEventTest, EventSize) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(event-size (event :foo))");
+  res = env.Exec("(event-size (make-event :foo))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(0));
 
-  res = env.Exec("(event-size (event :bar {(1 'a')}))");
+  res = env.Exec("(event-size (make-event :bar {(1u 'a')}))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(1));
 
-  res = env.Exec("(event-size (event :baz {(1 'a') (2 123) (4 'd')}))");
+  res = env.Exec("(event-size (make-event :baz {(1u 'a') (2u 123) (4u 'd')}))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 }
@@ -91,11 +91,12 @@ TEST(ScriptFunctionsEventTest, EventEmpty) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(event-empty (event :foo))");
+  res = env.Exec("(event-empty (make-event :foo))");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(true));
 
-  res = env.Exec("(event-empty (event :bar {(1 'a') (2 123) (4 'd')}))");
+  res =
+      env.Exec("(event-empty (make-event :bar {(1u 'a') (2u 123) (4 u'd')}))");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(false));
 }
@@ -104,7 +105,8 @@ TEST(ScriptFunctionsEventTest, EventGet) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(event-get (event :foo {(1 'a') (2 123) (4 'd')}) 2)");
+  res =
+      env.Exec("(event-get (make-event :foo {(1u 'a') (2u 123) (4u 'd')}) 2u)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(123));
 }

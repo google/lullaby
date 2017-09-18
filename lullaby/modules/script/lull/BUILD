@@ -31,6 +31,7 @@ cc_library(
         "script_value.cc",
     ],
     hdrs = [
+        "functions/converter.h",
         "functions/functions.h",
         "lull_script_engine.h",
         "script_arg_list.h",

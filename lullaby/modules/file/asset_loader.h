@@ -77,6 +77,9 @@ class AssetLoader {
   // different places using custom load functions.
   void SetLoadFunction(LoadFileFn load_fn);
 
+  // Returns the load function set in |SetLoadFunction|.
+  const LoadFileFn GetLoadFunction();
+
   // Starts loading assets asynchronously. This is done automatically on
   // construction and it only needs to be called explicitly after Stop.
   void StartAsyncLoads();

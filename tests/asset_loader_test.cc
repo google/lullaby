@@ -30,12 +30,12 @@ struct TestAsset : public Asset {
     callbacks.push_back(kSetFilename);
   }
 
-  void OnLoad(std::string* data) override {
+  void OnLoad(const std::string& filename, std::string* data) override {
     on_load_data = *data;
     callbacks.push_back(kOnLoad);
   }
 
-  void OnFinalize(std::string* data) override {
+  void OnFinalize(const std::string& filename, std::string* data) override {
     on_final_data = *data;
     callbacks.push_back(kOnFinalize);
   }

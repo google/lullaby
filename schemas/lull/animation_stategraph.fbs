@@ -98,3 +98,4 @@ table AnimationStategraphDef {
 }
 
 root_type AnimationStategraphDef;
+file_extension "stategraph";

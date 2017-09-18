@@ -21,7 +21,7 @@ limitations under the License.
 
 // This file implements the following script functions:
 //
-// (array [value] [value] ... )
+// (make-array [value] [value] ... )
 //   Creates an array with the optional list of values. The values can be of
 //   any supported type.
 //
@@ -53,17 +53,6 @@ limitations under the License.
 namespace lull {
 namespace {
 
-Optional<int> GetIndex(ScriptArgList* args) {
-  Optional<int> result;
-  ScriptValue key_value = args->EvalNext();
-  if (key_value.Is<HashValue>()) {
-    result = static_cast<int>(*key_value.Get<HashValue>());
-  } else if (key_value.Is<int>()) {
-    result = *key_value.Get<int>();
-  }
-  return result;
-}
-
 Variant GetValue(ScriptArgList* args) {
   const ScriptValue value = args->EvalNext();
   return value.IsNil() ? Variant() : *value.GetVariant();
@@ -77,114 +66,56 @@ void ArrayCreate(ScriptFrame* frame) {
   frame->Return(array);
 }
 
-void ArraySize(ScriptFrame* frame) {
-  const ScriptValue array_value = frame->EvalNext();
-  const VariantArray* array = array_value.Get<VariantArray>();
-  if (array) {
-    frame->Return(static_cast<int>(array->size()));
-  } else {
-    frame->Error("array-size: expected array as first argument");
-  }
+int ArraySize(const VariantArray* array) {
+  return static_cast<int>(array->size());
 }
 
-void ArrayEmpty(ScriptFrame* frame) {
-  const ScriptValue array_value = frame->EvalNext();
-  const VariantArray* array = array_value.Get<VariantArray>();
-  if (array) {
-    frame->Return(array->empty());
-  } else {
-    frame->Error("array-empty: expected array as first argument");
-  }
+bool ArrayEmpty(const VariantArray* array) { return array->empty(); }
+
+void ArrayPush(VariantArray* array, const Variant* value) {
+  array->emplace_back(*value);
 }
 
-void ArrayPush(ScriptFrame* frame) {
-  ScriptValue array_value = frame->EvalNext();
-  VariantArray* array = array_value.Get<VariantArray>();
-  if (!array) {
-    frame->Error("array-push: expected array as first argument");
-    return;
-  }
-  array->emplace_back(GetValue(frame));
-}
-
-void ArrayPop(ScriptFrame* frame) {
-  ScriptValue array_value = frame->EvalNext();
-  VariantArray* array = array_value.Get<VariantArray>();
-  if (!array) {
-    frame->Error("array-pop: expected array as first argument");
-    return;
-  }
+Variant ArrayPop(VariantArray* array) {
+  Variant value;
   if (!array->empty()) {
-    frame->Return(array->back());
+    value = array->back();
     array->pop_back();
   }
+  return value;
 }
 
-void ArrayInsert(ScriptFrame* frame) {
-  ScriptValue array_value = frame->EvalNext();
-  VariantArray* array = array_value.Get<VariantArray>();
-  if (!array) {
-    frame->Error("array-insert: expected array as first argument");
-    return;
+bool ArrayInsert(VariantArray* array, int index, const Variant* value) {
+  if (index >= 0 && index <= static_cast<int>(array->size())) {
+    array->insert(array->begin() + index, *value);
+    return true;
   }
-  Optional<int> index = GetIndex(frame);
-  if (!index) {
-    frame->Error("array-insert: expected index as second argument");
-    return;
-  }
-  if (*index >= 0 && *index <= static_cast<int>(array->size())) {
-    array->insert(array->begin() + *index, GetValue(frame));
-  } else {
-    frame->Error("array-insert: index out-of-bounds");
-  }
+  return false;
 }
 
-void ArrayErase(ScriptFrame* frame) {
-  ScriptValue array_value = frame->EvalNext();
-  VariantArray* array = array_value.Get<VariantArray>();
-  if (!array) {
-    frame->Error("array-erase: expected array as first argument");
-    return;
+bool ArrayErase(VariantArray* array, int index) {
+  if (index >= 0 && index < static_cast<int>(array->size())) {
+    array->erase(array->begin() + index);
+    return true;
   }
-  Optional<int> index = GetIndex(frame);
-  if (!index) {
-    frame->Error("array-erase: expected index as second argument");
-    return;
-  }
-  if (*index >= 0 && *index < static_cast<int>(array->size())) {
-    array->erase(array->begin() + *index);
-  } else {
-    frame->Error("array-erase: index out-of-bounds");
-  }
+  return false;
 }
 
-void ArrayAt(ScriptFrame* frame) {
-  const ScriptValue array_value = frame->EvalNext();
-  const VariantArray* array = array_value.Get<VariantArray>();
-  if (!array) {
-    frame->Error("array-at: expected array as first argument");
-    return;
+Variant ArrayAt(const VariantArray* array, int index) {
+  if (index >= 0 && index < static_cast<int>(array->size())) {
+    return array->at(index);
   }
-  Optional<int> index = GetIndex(frame);
-  if (!index) {
-    frame->Error("array-at: expected index as second argument");
-    return;
-  }
-  if (*index >= 0 && *index < static_cast<int>(array->size())) {
-    frame->Return(array->at(*index));
-  } else {
-    frame->Error("array-at: index out-of-bounds");
-  }
+  return Variant();
 }
 
-LULLABY_SCRIPT_FUNCTION(ArrayCreate, "array");
-LULLABY_SCRIPT_FUNCTION(ArraySize, "array-size");
-LULLABY_SCRIPT_FUNCTION(ArrayEmpty, "array-empty");
-LULLABY_SCRIPT_FUNCTION(ArrayPush, "array-push");
-LULLABY_SCRIPT_FUNCTION(ArrayPop, "array-pop");
-LULLABY_SCRIPT_FUNCTION(ArrayInsert, "array-insert");
-LULLABY_SCRIPT_FUNCTION(ArrayErase, "array-erase");
-LULLABY_SCRIPT_FUNCTION(ArrayAt, "array-at");
+LULLABY_SCRIPT_FUNCTION(ArrayCreate, "make-array");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArraySize, "array-size");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArrayEmpty, "array-empty");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArrayPush, "array-push");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArrayPop, "array-pop");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArrayInsert, "array-insert");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArrayErase, "array-erase");
+LULLABY_SCRIPT_FUNCTION_WRAP(ArrayAt, "array-at");
 
 }  // namespace
 }  // namespace lull

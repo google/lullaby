@@ -19,10 +19,10 @@ limitations under the License.
 
 #include "fplbase/mesh.h"
 #include "fplbase/renderer.h"
-#include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/triangle_mesh.h"
 #include "lullaby/systems/render/mesh.h"
+#include "lullaby/systems/rig/rig_system.h"
 #include "lullaby/util/math.h"
 #include "lullaby/generated/render_def_generated.h"
 
@@ -83,6 +83,9 @@ class Mesh {
   // fills the |shader_transforms| (length: GetNumShaderBones()).
   void GatherShaderTransforms(const mathfu::AffineTransform* bone_transforms,
                               mathfu::AffineTransform* shader_transforms) const;
+
+  // Updates the RigSystem with the skeleton information in mesh.
+  void UpdateRig(RigSystem* rig_system, Entity entity);
 
   // Draws the mesh.
   void Render(fplbase::Renderer* renderer);

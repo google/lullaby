@@ -13,7 +13,10 @@ cc_library(
     ],
     deps = [
         "//lullaby/generated",
+        "//lullaby/events",
         "//lullaby/modules/ecs",
+        "//lullaby/modules/render",
+        "//lullaby/systems/dispatcher",
         "//lullaby/systems/render",
         "//lullaby/systems/transform",
         "//lullaby/util:math",

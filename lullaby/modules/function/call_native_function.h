@@ -142,14 +142,28 @@ struct NativeFunctionWrapper<Context, Return (Fn::*)(Args...) const> {
   }
 };
 
+// NativeFunctionWrapper expects Fn to be a class with a (...) operator.
+// WrapperType allows raw function pointers to be passed as well by converting
+// them to a std::function.
+template <typename Fn>
+struct WrapperType {
+  using Type = Fn;
+};
+
+template <typename Return, typename... Args>
+struct WrapperType<Return (*)(Args...)> {
+  using Type = std::function<Return(Args...)>;
+};
+
 }  // namespace detail
 
 template <typename Context, typename Fn>
 inline bool CallNativeFunction(Context* context, const char* name,
                                const Fn& fn) {
-  using FunctionType = decltype(&Fn::operator());
-  using Helper = detail::NativeFunctionWrapper<Context, FunctionType>;
-  return Helper::Call(context, name, fn);
+  using WrapperType = typename detail::WrapperType<Fn>::Type;
+  using CallType = decltype(&WrapperType::operator());
+  using Helper = detail::NativeFunctionWrapper<Context, CallType>;
+  return Helper::Call(context, name, WrapperType(fn));
 }
 
 }  // namespace lull

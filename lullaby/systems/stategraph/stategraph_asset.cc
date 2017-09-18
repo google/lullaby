@@ -131,7 +131,8 @@ void AnimationSignal::Exit(TypedPointer userdata) {
 
 }  // namespace
 
-void StategraphAsset::OnFinalize(std::string* data) {
+void StategraphAsset::OnFinalize(const std::string& filename,
+                                 std::string* data) {
   if (!data || data->empty()) {
     LOG(DFATAL) << "Could not load stategraph.";
     return;

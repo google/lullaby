@@ -105,6 +105,8 @@ The following uniforms are set automatically by the render system:
 * bone_transforms: array of 3 vec4s (representing mat3x4[])
 * camera_pos: vec3
   * Camera position in world space.
+* camera_dir: vec3
+  * Camera forward direction in world space.
 
 ## Textures
 

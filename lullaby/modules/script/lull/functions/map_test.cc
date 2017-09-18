@@ -27,13 +27,13 @@ TEST(ScriptFunctionsMapTest, Map) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(map (1 'a') (2 123) (4 'd'))");
+  res = env.Exec("(make-map (1u 'a') (2u 123) (4u 'd'))");
   EXPECT_THAT(res.Is<VariantMap>(), Eq(true));
-  EXPECT_THAT(res.Get<VariantMap>()->size(), Eq(3));
-  EXPECT_THAT(res.Get<VariantMap>()->count(1), Eq(1));
-  EXPECT_THAT(res.Get<VariantMap>()->count(2), Eq(1));
-  EXPECT_THAT(res.Get<VariantMap>()->count(3), Eq(0));
-  EXPECT_THAT(res.Get<VariantMap>()->count(4), Eq(1));
+  EXPECT_THAT(res.Get<VariantMap>()->size(), Eq(size_t(3)));
+  EXPECT_THAT(res.Get<VariantMap>()->count(1), Eq(size_t(1)));
+  EXPECT_THAT(res.Get<VariantMap>()->count(2), Eq(size_t(1)));
+  EXPECT_THAT(res.Get<VariantMap>()->count(3), Eq(size_t(0)));
+  EXPECT_THAT(res.Get<VariantMap>()->count(4), Eq(size_t(1)));
 
   auto iter = res.Get<VariantMap>()->find(1);
   EXPECT_THAT(iter->second.GetTypeId(), Eq(GetTypeId<std::string>()));
@@ -52,15 +52,19 @@ TEST(ScriptFunctionsMapTest, MapSize) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(map-size (map))");
+  res = env.Exec("(map-size (make-map))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(0));
 
-  res = env.Exec("(map-size (map (1 'a')))");
+  res = env.Exec("(map-size {})");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(0));
+
+  res = env.Exec("(map-size (make-map (1u 'a')))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(1));
 
-  res = env.Exec("(map-size (map (1 'a') (2 123) (4 'd')))");
+  res = env.Exec("(map-size (make-map (1u 'a') (2u 123) (4u 'd')))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 }
@@ -69,11 +73,11 @@ TEST(ScriptFunctionsMapTest, MapEmpty) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(map-empty (map))");
+  res = env.Exec("(map-empty (make-map))");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(true));
 
-  res = env.Exec("(map-empty (map (1 'a') (2 123) (4 'd')))");
+  res = env.Exec("(map-empty (make-map (1u 'a') (2u 123) (4u 'd')))");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(false));
 }
@@ -82,7 +86,7 @@ TEST(ScriptFunctionsMapTest, MapGet) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(map-get (map (1 'a') (2 123) (4 'd')) 2)");
+  res = env.Exec("(map-get (make-map (1u 'a') (2u 123) (4u 'd')) 2u)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(123));
 }
@@ -91,17 +95,17 @@ TEST(ScriptFunctionsMapTest, MapInsert) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(= m (map (1 'a') (2 123) (4 'd')))");
+  res = env.Exec("(= m (make-map (1u 'a') (2u 123) (4u 'd')))");
   res = env.Exec("(map-size m)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 
-  res = env.Exec("(map-insert m 3 456)");
+  res = env.Exec("(map-insert m 3u 456)");
   res = env.Exec("(map-size m)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(4));
 
-  res = env.Exec("(map-get m 3)");
+  res = env.Exec("(map-get m 3u)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(456));
 }
@@ -110,17 +114,17 @@ TEST(ScriptFunctionsMapTest, MapErase) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(= m (map (1 'a') (2 123) (4 'd')))");
+  res = env.Exec("(= m (make-map (1u 'a') (2u 123) (4u 'd')))");
   res = env.Exec("(map-size m)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 
-  res = env.Exec("(map-erase m 2)");
+  res = env.Exec("(map-erase m 2u)");
   res = env.Exec("(map-size m)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(2));
 
-  res = env.Exec("(map-get m 2)");
+  res = env.Exec("(map-get m 2u)");
   EXPECT_THAT(res.IsNil(), Eq(true));
 }
 

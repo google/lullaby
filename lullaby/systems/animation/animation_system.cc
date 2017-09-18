@@ -176,6 +176,24 @@ bool AnimationSystem::IsAnimationPlaying(AnimationId id) const {
   return external_id_to_entry_.count(id) != 0;
 }
 
+motive::MotiveTime AnimationSystem::TimeRemaining(Entity entity,
+                                                  HashValue channel) {
+  auto iter = channels_.find(channel);
+  if (iter == channels_.end()) {
+    return 0;
+  }
+  return iter->second->TimeRemaining(entity);
+}
+
+const motive::RigAnim* AnimationSystem::CurrentRigAnim(Entity entity,
+                                                       HashValue channel) {
+  auto iter = channels_.find(channel);
+  if (iter == channels_.end()) {
+    return nullptr;
+  }
+  return iter->second->CurrentRigAnim(entity);
+}
+
 AnimationId AnimationSystem::SetTarget(Entity e, HashValue channel,
                                        const float* data, size_t len,
                                        Clock::duration time,

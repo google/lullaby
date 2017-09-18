@@ -21,6 +21,9 @@ limitations under the License.
 
 // This file implements the following script functions:
 //
+// (nil? [value])
+//   Returns true if the variant is empty.
+//
 // (typeof [value])
 //   Returns the TypeId of the value.
 //
@@ -31,9 +34,12 @@ limitations under the License.
 namespace lull {
 namespace {
 
-void TypeOf(ScriptFrame* frame) {
-  frame->Return(frame->EvalNext().GetTypeId());
+void IsNil(ScriptFrame* frame) {
+  const auto value = frame->EvalNext();
+  frame->Return(value.IsNil());
 }
+
+TypeId TypeOf(const Variant* value) { return value->GetTypeId(); }
 
 void Is(ScriptFrame* frame) {
   bool match = false;
@@ -48,8 +54,9 @@ void Is(ScriptFrame* frame) {
   frame->Return(match);
 }
 
+LULLABY_SCRIPT_FUNCTION(IsNil, "nil?");
 LULLABY_SCRIPT_FUNCTION(Is, "is");
-LULLABY_SCRIPT_FUNCTION(TypeOf, "typeof");
+LULLABY_SCRIPT_FUNCTION_WRAP(TypeOf, "typeof");
 
 }  // namespace
 }  // namespace lull

@@ -16,10 +16,11 @@ limitations under the License.
 
 #include "lullaby/systems/animation/animation_asset.h"
 
-#include "motive/anim_list_generated.h"
-#include "motive/io/flatbuffers.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/make_unique.h"
+#include "motive/anim_list_generated.h"
+#include "motive/io/flatbuffers.h"
 
 namespace lull {
 namespace {
@@ -32,22 +33,16 @@ const int kAnimListIndex = 0;
 AnimationAsset::AnimationAsset()
     : Asset(), rig_anim_(nullptr), anim_table_(nullptr), num_splines_(0) {}
 
-void AnimationAsset::SetFilename(const std::string& filename) {
-  filename_ = filename;
+void AnimationAsset::OnFinalize(const std::string& filename,
+                                std::string* data) {
   if (filename.find(".motiveanim") != std::string::npos) {
-    rig_anim_.reset(new motive::RigAnim());
-  } else if (filename.find(".motivelist") != std::string::npos) {
-    anim_table_.reset(new motive::AnimTable);
-  }
-}
-
-void AnimationAsset::OnFinalize(std::string* data) {
-  if (rig_anim_) {
+    rig_anim_ = MakeUnique<motive::RigAnim>();
     const motive::RigAnimFb* src = motive::GetRigAnimFb(data->data());
     if (src) {
       motive::RigAnimFromFlatBuffers(*src, rig_anim_.get());
     }
-  } else if (anim_table_) {
+  } else if (filename.find(".motivelist") != std::string::npos) {
+    anim_table_ = MakeUnique<motive::AnimTable>();
     const motive::AnimListFb* src = motive::GetAnimListFb(data->data());
     if (src) {
       if (!anim_table_->InitFromFlatBuffers(*src, nullptr /* load_fn */)) {
@@ -58,20 +53,22 @@ void AnimationAsset::OnFinalize(std::string* data) {
     const motive::CompactSplineAnimFloatFb* src =
         motive::GetCompactSplineAnimFloatFb(data->data());
     if (src) {
-      GetSplinesFromFlatBuffers(src);
+      if (!GetSplinesFromFlatBuffers(src)) {
+        LOG(DFATAL) << "Error processing file" << filename;
+      }
     }
   }
 }
 
-void AnimationAsset::GetSplinesFromFlatBuffers(
+bool AnimationAsset::GetSplinesFromFlatBuffers(
     const motive::CompactSplineAnimFloatFb* src) {
   if (src->splines() == nullptr) {
-    LOG(DFATAL) << "No splines in file " << filename_;
-    return;
+    LOG(ERROR) << "No splines in file.";
+    return false;
   }
   num_splines_ = src->splines()->size();
   if (num_splines_ == 0) {
-    return;
+    return false;
   }
 
   // Get the number of splines in the animation and the size of the buffer
@@ -83,7 +80,7 @@ void AnimationAsset::GetSplinesFromFlatBuffers(
     buffer_size += static_cast<int>(motive::CompactSpline::Size(num_nodes));
   }
   if (buffer_size == 0) {
-    return;
+    return false;
   }
 
   buffer_size *= 2;  // Double the buffer size to allow for spline smoothing.
@@ -100,9 +97,10 @@ void AnimationAsset::GetSplinesFromFlatBuffers(
     }
   }
   if (buffer_size < 0) {
-    LOG(DFATAL) << "Failed spline smoothing";
-    return;
+    LOG(ERROR) << "Failed spline smoothing";
+    return false;
   }
+  return true;
 }
 
 motive::CompactSpline* AnimationAsset::CreateCompactSpline(

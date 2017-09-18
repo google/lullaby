@@ -28,6 +28,12 @@ limitations under the License.
 namespace lull {
 namespace {
 
+enum SerializeEnum {
+  kEnumFoo,
+  kEnumBar,
+  kEnumBaz,
+};
+
 struct SerializeBase {
   template <typename Archive>
   void Serialize(Archive archive) {
@@ -52,6 +58,7 @@ struct SerializeCompound {
   void Serialize(Archive archive) {
     archive(&int_value, Hash("int_value"));
     archive(&float_value, Hash("float_value"));
+    archive(&enum_value, Hash("enum_value"));
     archive(&string_value, Hash("string_value"));
     archive(&string_vec, Hash("string_vec"));
     archive(&dictionary, Hash("dictionary"));
@@ -63,6 +70,7 @@ struct SerializeCompound {
 
   int int_value = 0;
   float float_value = 0.f;
+  SerializeEnum enum_value = kEnumFoo;
   std::string string_value;
   std::vector<std::string> string_vec;
   std::unordered_map<int, std::string> dictionary;
@@ -76,6 +84,7 @@ TEST(Serialize, SaveLoad) {
   SerializeCompound obj1;
   obj1.int_value = 1;
   obj1.float_value = 2.f;
+  obj1.enum_value = kEnumBaz;
   obj1.string_value = "hello";
   obj1.string_vec.emplace_back("how");
   obj1.string_vec.emplace_back("are");
@@ -99,6 +108,7 @@ TEST(Serialize, SaveLoad) {
 
   EXPECT_EQ(obj1.int_value, obj2.int_value);
   EXPECT_EQ(obj1.float_value, obj2.float_value);
+  EXPECT_EQ(obj1.enum_value, obj2.enum_value);
   EXPECT_EQ(obj1.string_value, obj2.string_value);
   EXPECT_EQ(obj1.string_vec, obj2.string_vec);
   EXPECT_EQ(obj1.dictionary, obj2.dictionary);

@@ -2,6 +2,34 @@ include "lull/common.fbs";
 
 namespace lull;
 
+table ShadowMapDef {
+  /// The resolution (in pixels) used for the shadow map texture. Higher
+  /// resolution means better detail, but also increased performance cost.
+  shadow_resolution : int = 512;
+
+  /// The minimum distance from the light for shadows to be captured. Lower
+  /// value captures objects nearer the light point. Note that high
+  /// |shadow_max_distance-shadow_min_distance| value increases chances for
+  /// artifacts.
+  shadow_min_distance : float = 1.0;
+
+  /// The maximum distance from the light for shadows to be captured. Higher
+  /// value captures objects further away from the light point. Note that high
+  /// |shadow_max_distance-shadow_min_distance| value increases chances for
+  /// artifacts.
+  shadow_max_distance : float = 10.0;
+
+  /// The volume of the shadow map, excluding the distance (used for the x and y
+  /// components of the orthographic projection). Higher number captures more
+  /// area, but reduces the detail captured per pixel.
+  shadow_volume : float = 10.0;
+}
+
+/// Union defining types of shadow implementations that may be used.
+union ShadowDef {
+  ShadowMapDef
+}
+
 /// Defines an ambient light source.
 table AmbientLightDef {
   /// The group of lights to which this light belongs.
@@ -21,6 +49,9 @@ table DirectionalLightDef {
 
   /// The intensity of the directional light specular width.
   exponent: float;
+
+  /// Shadow implementation detail. Default is null (no shadow).
+  shadow_def: ShadowDef;
 
   // DO NOT SET. FOR INTERNAL USE ONLY.
   rotation: Quat;
@@ -44,6 +75,13 @@ table PointLightDef {
   position: Vec3;
 }
 
+/// Enum reflecting the interaction an object has with shadows. This may be
+/// extended in the future.
+enum ShadowInteraction : int {
+  None = 0,
+  CastAndReceive,
+}
+
 /// Defines an Entity that can be "lit" by the lights in the associated group.
 table LightableDef {
   /// The group of lights that will be applied to this Entity.
@@ -57,4 +95,11 @@ table LightableDef {
 
   /// The maximum number of point lights to apply to this Entity.
   max_point_lights: int = 0;
+
+  /// Is this lightable object a shadowcaster?
+  shadow_interaction: ShadowInteraction = None;
+
+  /// The texture sampler for the shadow map texture. This should correspond to
+  /// the value set for the sampler inside the shader.
+  shadow_sampler: int = 5;
 }

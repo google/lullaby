@@ -161,6 +161,7 @@ cc_library(
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/script",
         "//lullaby/systems/dispatcher",
+        "//lullaby/systems/rig",
         "//lullaby/util:async_processor",
         "//lullaby/util:buffered_data",
         "//lullaby/util:resource_manager",

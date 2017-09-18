@@ -49,7 +49,13 @@ ScriptId::ScriptId(Language lang, uint64_t id) : lang_(lang), id_(id) {}
 
 bool ScriptId::IsValid() const { return lang_ != Language_Unknown; }
 
-ScriptEngine::ScriptEngine(Registry* registry) : registry_(registry) {}
+ScriptEngine::ScriptEngine(Registry* registry) : registry_(registry) {
+#ifdef LULLABY_SCRIPT_LUA
+  AssetLoader* assetLoader = registry->Get<AssetLoader>();
+  CHECK(assetLoader) << "No asset loader";
+  lua_engine_.SetLoadFileFunction(assetLoader->GetLoadFunction());
+#endif
+}
 
 void ScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {
   lull_engine_.SetFunctionCallHandler(std::move(handler));

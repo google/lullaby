@@ -97,7 +97,7 @@ void AssetLoader::DoLoad(LoadRequest* req, LoadMode mode) const {
   Timer on_load_timer;
 #endif
   // Notify the Asset of the loaded data.
-  req->asset->OnLoad(&req->data);
+  req->asset->OnLoad(req->filename, &req->data);
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   {
     const auto dt = MillisecondsFromDuration(on_load_timer.GetElapsedTime());
@@ -111,7 +111,7 @@ void AssetLoader::DoFinalize(LoadRequest* req, LoadMode mode) const {
   Timer timer;
 #endif
   // Notify the Asset to finalize the data on the finalizer thread.
-  req->asset->OnFinalize(&req->data);
+  req->asset->OnFinalize(req->filename, &req->data);
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   const auto dt = MillisecondsFromDuration(timer.GetElapsedTime());
   LOG(INFO) << "[" << dt << "] " << req->filename << " OnFinalize: " << mode;
@@ -120,6 +120,10 @@ void AssetLoader::DoFinalize(LoadRequest* req, LoadMode mode) const {
 
 void AssetLoader::SetLoadFunction(LoadFileFn load_fn) {
   load_fn_ = load_fn;
+}
+
+const AssetLoader::LoadFileFn AssetLoader::GetLoadFunction() {
+  return load_fn_;
 }
 
 void AssetLoader::StartAsyncLoads() { processor_.Start(); }

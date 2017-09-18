@@ -199,17 +199,7 @@ void StategraphSystem::AdvanceFrame(StategraphComponent* component,
     // This usually occurs the first time we add a stategraph to this Entity
     // (and until the stategraph data is loaded).
     SnapToState(component->GetEntity(), component->current_state);
-    return;
   }
-
-  // Advance the track playback by the given time, adjusting for any track
-  // specific attributes.
-  const Clock::duration adjusted_delta_time =
-      component->stategraph->AdjustTime(delta_time, component->track);
-  const Clock::duration next_time = component->time + adjusted_delta_time;
-  component->track->ProcessSignals(component->time, next_time,
-                                   TypedPointer(component->env.get()));
-  component->time = next_time;
 
   const StategraphTransition* transition = GetNextTransition(component);
   if (transition == nullptr) {
@@ -229,6 +219,15 @@ void StategraphSystem::AdvanceFrame(StategraphComponent* component,
     EnterState(component, transition->to_state, *valid_transition,
                Clock::duration(0), transition->transition_time);
   }
+
+  // Advance the track playback by the given time, adjusting for any track
+  // specific attributes.
+  const Clock::duration adjusted_delta_time =
+      component->stategraph->AdjustTime(delta_time, component->track);
+  const Clock::duration next_time = component->time + adjusted_delta_time;
+  component->track->ProcessSignals(component->time, next_time,
+                                   TypedPointer(component->env.get()));
+  component->time = next_time;
 }
 
 const StategraphTransition* StategraphSystem::GetNextTransition(

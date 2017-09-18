@@ -287,6 +287,31 @@ bool AnimationChannel::IsComplete(const Animation& anim) const {
   }
 }
 
+motive::MotiveTime AnimationChannel::TimeRemaining(Entity entity) const {
+  const auto* anim = anims_.Get(entity);
+  if (anim == nullptr) {
+    return 0;
+  }
+  if (anim->total_time == motive::kMotiveTimeEndless) {
+    return motive::kMotiveTimeEndless;
+  }
+  if (IsRigChannel()) {
+    return anim->rig_motivator.TimeRemaining();
+  }
+  return anim->total_time - anim->motivator.SplineTime();
+}
+
+const motive::RigAnim* AnimationChannel::CurrentRigAnim(Entity entity) const {
+  if (!IsRigChannel()) {
+    return nullptr;
+  }
+  const auto* anim = anims_.Get(entity);
+  if (anim == nullptr) {
+    return nullptr;
+  }
+  return anim->rig_motivator.CurrentAnim();
+}
+
 void AnimationChannel::SetRig(Entity entity,
                               const mathfu::AffineTransform* values,
                               size_t len) {

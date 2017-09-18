@@ -27,6 +27,19 @@ TEST(ScriptFunctionsCondTest, Cond) {
   ScriptEnv env;
   ScriptValue res;
 
+  res = env.Exec("(cond (true 1) (false 2))");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(1));
+
+  res = env.Exec("(cond (false 1) (true 2))");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(2));
+}
+
+TEST(ScriptFunctionsCondTest, If) {
+  ScriptEnv env;
+  ScriptValue res;
+
   res = env.Exec("(if true 1 2)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(1));

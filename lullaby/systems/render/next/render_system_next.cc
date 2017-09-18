@@ -37,6 +37,7 @@ limitations under the License.
 #include "lullaby/systems/render/next/render_state.h"
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/render/simple_font.h"
+#include "lullaby/systems/rig/rig_system.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/make_unique.h"
 #include "lullaby/util/math.h"
@@ -987,46 +988,55 @@ void RenderSystemNext::SetShader(Entity e, HashValue component_id,
 
 void RenderSystemNext::OnMeshLoaded(RenderComponent* render_component) {
   const Entity entity = render_component->GetEntity();
-  auto& transform_system = *registry_->Get<TransformSystem>();
-  transform_system.SetAabb(entity, render_component->mesh->GetAabb());
 
-  const int num_shader_bones = render_component->mesh->GetNumShaderBones();
-  if (num_shader_bones > 0) {
-    // By default, clear the bone transforms to identity.
-    constexpr int dimension = 4;
-    const int count = kNumVec4sInAffineTransform * num_shader_bones;
-    const mathfu::AffineTransform identity =
-        mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
-    shader_transforms_.clear();
-    shader_transforms_.resize(num_shader_bones, identity);
+  auto* transform_system = registry_->Get<TransformSystem>();
+  transform_system->SetAabb(entity, render_component->mesh->GetAabb());
 
-    // Check if we have existing bone transforms, which can be ungathered.
-    const Uniform* uniform =
-        render_component->material.GetUniformByName(kBoneTransformsUniform);
-    if (uniform && uniform->GetDescription().type == Uniform::Type::kFloats) {
-      const float* data = uniform->GetData<float>();
-      const mathfu::AffineTransform* transforms =
-          reinterpret_cast<const mathfu::AffineTransform*>(data);
-      if (render_component->need_to_gather_bone_transforms) {
-        const int ungathered_count =
-            kNumVec4sInAffineTransform * render_component->mesh->GetNumBones();
-        if (uniform->GetDescription().count == ungathered_count) {
-          render_component->mesh->GatherShaderTransforms(
-              transforms, shader_transforms_.data());
-          render_component->need_to_gather_bone_transforms = false;
-        } else {
-          LOG(WARNING) << "Ungathered bone transforms had wrong count";
-        }
-      } else if (uniform->GetDescription().count == count) {
-        for (int i = 0; i < num_shader_bones; ++i) {
-          shader_transforms_[i] = transforms[i];
+  MeshPtr& mesh = render_component->mesh;
+  const size_t num_bones = mesh->GetNumBones();
+  const size_t num_shader_bones = mesh->GetNumShaderBones();
+  if (num_bones > 0 && num_shader_bones > 0) {
+    auto* rig_system = registry_->Get<RigSystem>();
+    if (rig_system) {
+      mesh->UpdateRig(rig_system, entity);
+    } else {
+      // By default, clear the bone transforms to identity.
+      constexpr int dimension = 4;
+      const int count =
+          kNumVec4sInAffineTransform * static_cast<int>(num_shader_bones);
+      const mathfu::AffineTransform identity =
+          mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
+      shader_transforms_.clear();
+      shader_transforms_.resize(num_shader_bones, identity);
+
+      // Check if we have existing bone transforms, which can be ungathered.
+      const Uniform* uniform =
+          render_component->material.GetUniformByName(kBoneTransformsUniform);
+      if (uniform && uniform->GetDescription().type == Uniform::Type::kFloats) {
+        const float* data = uniform->GetData<float>();
+        const mathfu::AffineTransform* transforms =
+            reinterpret_cast<const mathfu::AffineTransform*>(data);
+        if (render_component->need_to_gather_bone_transforms) {
+          const int ungathered_count = kNumVec4sInAffineTransform *
+                                       render_component->mesh->GetNumBones();
+          if (uniform->GetDescription().count == ungathered_count) {
+            render_component->mesh->GatherShaderTransforms(
+                transforms, shader_transforms_.data());
+            render_component->need_to_gather_bone_transforms = false;
+          } else {
+            LOG(WARNING) << "Ungathered bone transforms had wrong count";
+          }
+        } else if (uniform->GetDescription().count == count) {
+          for (size_t i = 0; i < num_shader_bones; ++i) {
+            shader_transforms_[i] = transforms[i];
+          }
         }
       }
-    }
 
-    const float* data = &(shader_transforms_[0][0]);
-    SetUniform(entity, render_component->id, kBoneTransformsUniform, data,
-               dimension, count);
+      const float* data = &(shader_transforms_[0][0]);
+      SetUniform(entity, render_component->id, kBoneTransformsUniform, data,
+                 dimension, count);
+    }
   }
 
   if (IsReadyToRenderImpl(*render_component)) {

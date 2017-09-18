@@ -35,7 +35,7 @@ class StategraphAsset : public Asset {
   explicit StategraphAsset(Registry* registry) : registry_(registry) {}
 
   /// Creates the stategraph from the specified AnimationStategraphDef data.
-  void OnFinalize(std::string* data) override;
+  void OnFinalize(const std::string& filename, std::string* data) override;
 
   /// Returns the path in the stategraph between the two states.
   Stategraph::Path FindPath(HashValue from_state, HashValue to_state) const;

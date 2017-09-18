@@ -311,6 +311,17 @@ cc_library(
 )
 
 cc_library(
+    name = "scoped_java_local_ref",
+    hdrs = [
+        "scoped_java_local_ref.h",
+    ],
+    deps = [
+        ":logging",
+        ":typeid",
+    ],
+)
+
+cc_library(
     name = "selector",
     srcs = [
     ],

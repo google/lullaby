@@ -31,12 +31,12 @@ template <typename T>
 struct IsSerializeFundamental {
   using U = typename std::remove_cv<T>::type;
   static const bool kValue =
-      std::is_same<U, bool>::value || std::is_same<U, int8_t>::value ||
-      std::is_same<U, uint8_t>::value || std::is_same<U, int16_t>::value ||
-      std::is_same<U, uint16_t>::value || std::is_same<U, int32_t>::value ||
-      std::is_same<U, uint32_t>::value || std::is_same<U, int64_t>::value ||
-      std::is_same<U, uint64_t>::value || std::is_same<U, float>::value ||
-      std::is_same<U, double>::value ||
+      std::is_enum<U>::value || std::is_same<U, bool>::value ||
+      std::is_same<U, int8_t>::value || std::is_same<U, uint8_t>::value ||
+      std::is_same<U, int16_t>::value || std::is_same<U, uint16_t>::value ||
+      std::is_same<U, int32_t>::value || std::is_same<U, uint32_t>::value ||
+      std::is_same<U, int64_t>::value || std::is_same<U, uint64_t>::value ||
+      std::is_same<U, float>::value || std::is_same<U, double>::value ||
       std::is_same<U, Clock::duration>::value ||
       std::is_same<U, mathfu::vec2>::value ||
       std::is_same<U, mathfu::vec2i>::value ||

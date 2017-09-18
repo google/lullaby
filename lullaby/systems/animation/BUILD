@@ -30,6 +30,7 @@ cc_library(
         "//lullaby/util:clock",
         "//lullaby/util:hash",
         "//lullaby/util:logging",
+        "//lullaby/util:make_unique",
         "//lullaby/util:registry",
         "//lullaby/util:resource_manager",
         "//lullaby/util:time",

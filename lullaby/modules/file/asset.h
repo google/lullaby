@@ -56,7 +56,7 @@ class Asset {
   //
   // For asynchronous loads, this function is called by the AssetLoaders worker
   // thread.  Otherwise, it is called by the thread that initiated the load.
-  virtual void OnLoad(std::string* data) {}
+  virtual void OnLoad(const std::string& filename, std::string* data) {}
 
   // This function is called when the asset is ready to be finalized with the
   // specified |data|.  The contents of |data| will be freed after this call
@@ -66,7 +66,7 @@ class Asset {
   // For asynchronous loads, this function is called on the thread on which
   // calls AssetLoader::Finalize.  Otherwise, it is called by the thread that
   // initiated the load.
-  virtual void OnFinalize(std::string* data) {}
+  virtual void OnFinalize(const std::string& filename, std::string* data) {}
 
  private:
   Asset(const Asset& rhs) = delete;
@@ -77,7 +77,9 @@ class Asset {
 // processing.
 class SimpleAsset : public Asset {
  public:
-  void OnFinalize(std::string* data) override { data_ = std::move(*data); }
+  void OnFinalize(const std::string& filename, std::string* data) override {
+    data_ = std::move(*data);
+  }
 
   size_t GetSize() const { return data_.length(); }
   const void* GetData() const { return data_.data(); }

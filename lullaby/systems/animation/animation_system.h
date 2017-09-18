@@ -112,6 +112,17 @@ class AnimationSystem : public System {
 
   bool IsAnimationPlaying(AnimationId id) const;
 
+  // Returns the remaining time for the current animation on the
+  // specified channel.  Returns 0 if there is no animation playing or
+  // if the animation is complete.  Returns motive::kMotiveTimeEndless
+  // if the animation is looping.
+  motive::MotiveTime TimeRemaining(Entity entity, HashValue channel);
+
+  // Returns the currently playing RigAnim of the specified channel of
+  // the entity, or nullptr if not a rig channel or if not animation
+  // is playing.
+  const motive::RigAnim* CurrentRigAnim(Entity entity, HashValue channel);
+
   // Sets the rate on an active animation on |entity|'s |channel|.
   // |rate| multiplies the animation's natural timestep.
   void SetPlaybackRate(Entity entity, HashValue channel, float speed);

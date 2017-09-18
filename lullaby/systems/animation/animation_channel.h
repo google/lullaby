@@ -105,6 +105,15 @@ class AnimationChannel {
     return nullptr;
   }
 
+  // Returns the remaining time for the current animation.  Returns 0 if there
+  // is no animation playing or if the animation is complete.  Returns
+  // motive::kMotiveTimeEndless if the animation is looping.
+  motive::MotiveTime TimeRemaining(lull::Entity entity) const;
+
+  // Returns the currently playing RigAnim of the entity, or nullptr
+  // if not a rig channel or if not animation is playing.
+  const motive::RigAnim* CurrentRigAnim(lull::Entity entity) const;
+
  protected:
   // Associates a motivator with an Entity.
   struct Animation : Component {

@@ -244,18 +244,21 @@ class RenderSystem : public System {
   void SetColor(Entity entity, const mathfu::vec4& color);
 
   // Sets a shader uniform value for the specified Entity.  The |dimension| must
-  // be either 1, 2, 4, or 16.  The size of the |data| array is assumed to be
+  // be 1, 2, 3, 4, or 16. Arrays of vector with dimension 2 or 3 should contain
+  // vec2_packed or vec3_packed. The size of the |data| array is assumed to be
   // the same as |dimension|.
   void SetUniform(Entity e, const char* name, const float* data, int dimension);
 
   // Sets an array of shader uniform values for the specified Entity.  The
-  // |dimension| must be either 1, 2, 4, or 16.  The size of the |data| array is
-  // assumed to be the same as |dimension| * |count|.
+  // |dimension| must be 1, 2, 3, 4, or 16. Arrays of vector with dimension 2 or
+  // 3 should contain vec2_packed or vec3_packed.  The size of the |data| array
+  // is assumed to be the same as |dimension| * |count|.
   void SetUniform(Entity e, const char* name, const float* data, int dimension,
                   int count);
 
   // Sets an array of shader uniform values for the specified Entity identified
-  // via |comp_id|.  The |dimension| must be either 1, 2, 4, or 16.  The size
+  // via |comp_id|.  The |dimension| must be 1, 2, 3, 4, or 16. Arrays of vector
+  // with dimension 2 or 3 should contain vec2_packed or vec3_packed.  The size
   // of the |data| array is assumed to be the same as |dimension| * |count|.
   void SetUniform(Entity e, HashValue comp_id, const char* name,
                   const float* data, int dimension, int count);

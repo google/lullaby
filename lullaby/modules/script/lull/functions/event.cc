@@ -22,7 +22,7 @@ limitations under the License.
 
 // This file implements the following script functions:
 //
-// (event [type] [(map ...)] )
+// (make-event [type] [(map ...)] )
 //   Creates an event wrapper with the optional map of values.  The type
 //   must have integer or hashvalue type.
 //
@@ -83,76 +83,35 @@ void EventCreate(ScriptFrame* frame) {
   frame->Return(*event);
 }
 
-void EventType(ScriptFrame* frame) {
-  const ScriptValue event_value = frame->EvalNext();
-  const auto* event = event_value.Get<EventWrapper>();
-  if (event) {
-    frame->Return(event->GetTypeId());
-  } else {
-    frame->Error("event-type: expected event as first argument");
-  }
+TypeId EventType(const EventWrapper* event) { return event->GetTypeId(); }
+
+int EventSize(const EventWrapper* event) {
+  const auto* values = event->GetValues();
+  return values ? static_cast<int>(values->size()) : 0;
 }
 
-void EventSize(ScriptFrame* frame) {
-  const ScriptValue event_value = frame->EvalNext();
-  const auto* event = event_value.Get<EventWrapper>();
-  if (event) {
-    const auto* values = event->GetValues();
-    if (values) {
-      frame->Return(static_cast<int>(values->size()));
-    } else {
-      frame->Return(0);
-    }
-  } else {
-    frame->Error("event-size: expected event as first argument");
-  }
+bool EventEmpty(const EventWrapper* event) {
+  const auto* values = event->GetValues();
+  return values ? values->empty() : true;
 }
 
-void EventEmpty(ScriptFrame* frame) {
-  const ScriptValue event_value = frame->EvalNext();
-  const auto* event = event_value.Get<EventWrapper>();
-  if (event) {
-    const auto* values = event->GetValues();
-    if (values) {
-      frame->Return(values->empty());
-    } else {
-      frame->Return(true);
-    }
-  } else {
-    frame->Error("event-empty: expected event as first argument");
-  }
-}
-
-void EventGet(ScriptFrame* frame) {
-  const ScriptValue event_value = frame->EvalNext();
-  const auto* event = event_value.Get<EventWrapper>();
-  if (!event) {
-    frame->Error("event-get: expected event as first argument");
-    return;
-  }
-  Optional<HashValue> key = GetKey(frame);
-  if (!key) {
-    frame->Error("event-get: expected key as second argument");
-    return;
-  }
+Variant EventGet(const EventWrapper* event, HashValue key) {
   const auto* values = event->GetValues();
   if (!values) {
-    frame->Error("event-get: no data in event");
-    return;
+    return Variant();
   }
-  auto iter = values->find(*key);
+  auto iter = values->find(key);
   if (iter != values->end()) {
-    frame->Return(iter->second);
-  } else {
-    frame->Error("event-get: no element at given key");
+    return iter->second;
   }
+  return Variant();
 }
 
-LULLABY_SCRIPT_FUNCTION(EventCreate, "event");
-LULLABY_SCRIPT_FUNCTION(EventType, "event-type");
-LULLABY_SCRIPT_FUNCTION(EventSize, "event-size");
-LULLABY_SCRIPT_FUNCTION(EventEmpty, "event-empty");
-LULLABY_SCRIPT_FUNCTION(EventGet, "event-get");
+LULLABY_SCRIPT_FUNCTION(EventCreate, "make-event");
+LULLABY_SCRIPT_FUNCTION_WRAP(EventType, "event-type");
+LULLABY_SCRIPT_FUNCTION_WRAP(EventSize, "event-size");
+LULLABY_SCRIPT_FUNCTION_WRAP(EventEmpty, "event-empty");
+LULLABY_SCRIPT_FUNCTION_WRAP(EventGet, "event-get");
 
 }  // namespace
 }  // namespace lull

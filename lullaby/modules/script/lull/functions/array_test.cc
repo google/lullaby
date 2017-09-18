@@ -26,24 +26,28 @@ using ::testing::Eq;
 TEST(ScriptFunctionsArrayTest, Array) {
   ScriptEnv env;
   ScriptValue res;
-  res = env.Exec("(array 1 2 3 4)");
+  res = env.Exec("(make-array 1 2 3 4)");
   EXPECT_THAT(res.Is<VariantArray>(), Eq(true));
-  EXPECT_THAT(res.Get<VariantArray>()->size(), Eq(4));
+  EXPECT_THAT(res.Get<VariantArray>()->size(), Eq(size_t(4)));
+
+  res = env.Exec("[1 2 3 4]");
+  EXPECT_THAT(res.Is<VariantArray>(), Eq(true));
+  EXPECT_THAT(res.Get<VariantArray>()->size(), Eq(size_t(4)));
 }
 
 TEST(ScriptFunctionsArrayTest, ArraySize) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(array-size (array))");
+  res = env.Exec("(array-size (make-array))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(0));
 
-  res = env.Exec("(array-size (array 1))");
+  res = env.Exec("(array-size (make-array 1))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(1));
 
-  res = env.Exec("(array-size (array 1 2 3))");
+  res = env.Exec("(array-size (make-array 1 2 3))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 }
@@ -52,11 +56,11 @@ TEST(ScriptFunctionsArrayTest, ArrayEmpty) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(array-empty (array))");
+  res = env.Exec("(array-empty (make-array))");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(true));
 
-  res = env.Exec("(array-empty (array 1 2 3))");
+  res = env.Exec("(array-empty (make-array 1 2 3))");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(false));
 }
@@ -65,7 +69,7 @@ TEST(ScriptFunctionsArrayTest, ArrayPush) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(= a (array))");
+  res = env.Exec("(= a (make-array))");
   res = env.Exec("(array-size a)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(0));
@@ -85,7 +89,7 @@ TEST(ScriptFunctionsArrayTest, ArrayPop) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(= a (array 1 2))");
+  res = env.Exec("(= a (make-array 1 2))");
   res = env.Exec("(array-size a)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(2));
@@ -105,7 +109,7 @@ TEST(ScriptFunctionsArrayTest, ArrayInsert) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(= a (array 1 2))");
+  res = env.Exec("(= a (make-array 1 2))");
   res = env.Exec("(array-insert a 1 3)");
   res = env.Exec("(array-size a)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
@@ -128,7 +132,7 @@ TEST(ScriptFunctionsArrayTest, ArrayErase) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(= a (array 1 2 3))");
+  res = env.Exec("(= a (make-array 1 2 3))");
   res = env.Exec("(array-erase a 1)");
   res = env.Exec("(array-size a)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
@@ -147,7 +151,7 @@ TEST(ScriptFunctionsArrayTest, ArrayAt) {
   ScriptEnv env;
   ScriptValue res;
 
-  res = env.Exec("(array-at (array 1 2 3 4) 2)");
+  res = env.Exec("(array-at (make-array 1 2 3 4) 2)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 }

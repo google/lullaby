@@ -28,17 +28,7 @@ limitations under the License.
 namespace lull {
 namespace {
 
-void Seconds(ScriptFrame* frame) {
-  const ScriptValue value = frame->EvalNext();
-  const auto sec = value.Get<float>();
-  if (sec) {
-    frame->Return(DurationFromSeconds(*sec));
-  } else {
-    frame->Error("Expected numeric value as first argument.");
-  }
-}
-
-LULLABY_SCRIPT_FUNCTION(Seconds, "seconds");
+LULLABY_SCRIPT_FUNCTION_WRAP(DurationFromSeconds, "seconds");
 
 }  // namespace
 }  // namespace lull

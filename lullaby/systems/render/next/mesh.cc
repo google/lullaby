@@ -168,6 +168,28 @@ void Mesh::GatherShaderTransforms(
   impl_->GatherShaderTransforms(bone_transforms, shader_transforms);
 }
 
+void Mesh::UpdateRig(RigSystem* rig_system, Entity entity) {
+  const size_t num_bones = impl_->num_bones();
+  const size_t num_shader_bones = impl_->num_shader_bones();
+
+  RigSystem::Pose inverse_bind_pose(num_bones);
+  RigSystem::BoneIndices parent_indices(num_bones);
+  RigSystem::BoneIndices shader_indices(num_shader_bones);
+  std::vector<std::string> bone_names(num_bones);
+
+  for (size_t i = 0; i < num_bones; ++i) {
+    inverse_bind_pose[i] = impl_->default_bone_transform_inverses()[i];
+    parent_indices[i] = impl_->bone_parents()[i];
+    bone_names[i] = impl_->bone_names()[i];
+  }
+  for (size_t i = 0; i < num_shader_bones; ++i) {
+    shader_indices[i] = impl_->shader_bone_indices()[i];
+  }
+  rig_system->SetRig(entity, std::move(parent_indices),
+                     std::move(inverse_bind_pose), std::move(shader_indices),
+                     std::move(bone_names));
+}
+
 void Mesh::Render(fplbase::Renderer* renderer) {
   if (!impl_->IsValid()) {
     return;

@@ -23,6 +23,8 @@ limitations under the License.
 #include "lullaby/generated/light_def_generated.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
+#include "lullaby/modules/render/render_view.h"
+#include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
@@ -47,6 +49,9 @@ class LightSystem : public System {
  public:
   explicit LightSystem(Registry* registry);
 
+  /// Sets the depth shader to be used for shadow mapping.
+  void SetDepthShader(const ShaderPtr& depth_shader);
+
   /// Creates a light or lightable component from a def.
   void PostCreateComponent(Entity entity, const Blueprint& blueprint) override;
 
@@ -55,6 +60,11 @@ class LightSystem : public System {
 
   /// Tick LightSystem's logic.
   void AdvanceFrame();
+
+  /// Invoke rendering of light system's shadow map passes. This must be called
+  /// after RenderSystem::BeginRendering() and before
+  /// RenderSystem::EndRendering().
+  void RenderShadowMaps();
 
   /// Attaches an ambient light.
   /// @param entity The entity to which to attach the ambient light.
@@ -107,14 +117,13 @@ class LightSystem : public System {
   class LightGroup {
    public:
     /// Add an ambient light to the group.
-    void AddLight(Entity entity, const AmbientLightDefT& light,
-                  const TransformSystem* transform_system);
+    void AddLight(Entity entity, const AmbientLightDefT& light);
     /// Add a directional light to the group.
-    void AddLight(Entity entity, const DirectionalLightDefT& light,
-                  const TransformSystem* transform_system);
+    void AddLight(TransformSystem* transform_system, Entity entity,
+                  const DirectionalLightDefT& light);
     /// Add a point light to the group.
-    void AddLight(Entity entity, const PointLightDefT& light,
-                  const TransformSystem* transform_system);
+    void AddLight(TransformSystem* transform_system, Entity entity,
+                  const PointLightDefT& light);
 
     /// Add a lightable to the group.
     void AddLightable(Entity entity, const LightableDefT& lightable);
@@ -126,15 +135,25 @@ class LightSystem : public System {
     void Update(RenderSystem* render_system);
 
     /// Remove an entity from the group.
-    void Remove(Entity entity);
+    void Remove(Registry* registry, Entity entity);
 
     /// Is this group empty?
     bool Empty() const;
+
+    /// Return the shadow passes within this group.
+    const std::vector<HashValue>& GetShadowPasses() const;
+
+    /// Return the lightables within this group.
+    const std::unordered_map<Entity, LightableDefT>& GetLightables() const;
+
+    /// Create a shadow pass.
+    void CreateShadowPass(HashValue pass);
 
    private:
     void UpdateLightable(RenderSystem* render_system, Entity entity);
     void UpdateLightable(RenderSystem* render_system, Entity entity,
                          const LightableDefT& data);
+    void DestroyShadowPass(RenderSystem* render_system, HashValue pass);
     mutable bool dirty_ = false;
 
     std::unordered_map<Entity, AmbientLightDefT> ambients_;
@@ -142,6 +161,7 @@ class LightSystem : public System {
     std::unordered_map<Entity, PointLightDefT> points_;
     std::unordered_map<Entity, LightableDefT> lightables_;
     std::set<Entity> dirty_lightables_;
+    std::vector<HashValue> shadow_passes_;
   };
 
   // Update the transforms of light objects associated with a set of entities.
@@ -150,13 +170,29 @@ class LightSystem : public System {
   template <typename T>
   static void UpdateUniforms(UniformData* uniforms,
                              const std::unordered_map<Entity, T>& lights,
-                             int max_allowed);
+                             int max_allowed, int max_shadows);
+  template <typename T>
+  static void UpdateUniforms(UniformData* uniforms, const T& light,
+                             int max_allowed, int* current_index);
+  void AddLightableToShadowPass(RenderSystem* render_system,
+                                DispatcherSystem* dispatcher_system,
+                                Entity entity, HashValue pass,
+                                const LightableDefT& lightable);
+  void CreateShadowRenderPass(Entity entity, const DirectionalLightDefT& data);
 
   std::unordered_map<HashValue, LightGroup> groups_;
   std::unordered_map<Entity, HashValue> entity_to_group_map_;
   std::unordered_set<Entity> ambients_;
   std::unordered_set<Entity> directionals_;
   std::unordered_set<Entity> points_;
+
+  ShaderPtr depth_shader_ = nullptr;
+
+  struct ShadowPassData {
+    HashValue pass;
+    RenderView view;
+  };
+  std::vector<ShadowPassData> shadow_passes_;
 };
 
 }  // namespace lull

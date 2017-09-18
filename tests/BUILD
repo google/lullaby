@@ -5,7 +5,9 @@ package(
 
 licenses(["notice"])  # Apache 2.0
 
-GUNIT_PORTABLE_DEPS = [    
+GUNIT_PORTABLE_DEPS = [
+    
+    
     "@gtest//:gtest_main",
 ]
 
@@ -138,6 +140,7 @@ cc_test(
     name = "dispatcher_tests",
     srcs = ["dispatcher_test.cc"],
     deps = [
+        
         "//lullaby/modules/dispatcher",
         "//lullaby/util:common_types",
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,

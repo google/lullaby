@@ -199,6 +199,32 @@ struct OnInteractionEnabledEvent {
   Entity entity = kNullEntity;
 };
 
+// Invokes FollowCameraSystem::Enable(entity)
+struct EnableFollowCameraEvent {
+  EnableFollowCameraEvent() {}
+  explicit EnableFollowCameraEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+// Invokes FollowCameraSystem::Disable(entity)
+struct DisableFollowCameraEvent {
+  DisableFollowCameraEvent() {}
+  explicit DisableFollowCameraEvent(Entity entity) : entity(entity) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, Hash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::AabbChangedEvent);
@@ -207,7 +233,9 @@ LULLABY_SETUP_TYPEID(lull::AddChildPreserveWorldToEntityTransformEvent);
 LULLABY_SETUP_TYPEID(lull::ChildAddedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildRemovedEvent);
 LULLABY_SETUP_TYPEID(lull::DisableEvent);
+LULLABY_SETUP_TYPEID(lull::DisableFollowCameraEvent);
 LULLABY_SETUP_TYPEID(lull::EnableEvent);
+LULLABY_SETUP_TYPEID(lull::EnableFollowCameraEvent);
 LULLABY_SETUP_TYPEID(lull::OnDisabledEvent);
 LULLABY_SETUP_TYPEID(lull::OnEnabledEvent);
 LULLABY_SETUP_TYPEID(lull::OnInteractionDisabledEvent);

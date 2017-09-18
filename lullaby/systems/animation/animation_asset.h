@@ -34,14 +34,9 @@ class AnimationAsset : public Asset {
  public:
   explicit AnimationAsset();
 
-  // Uses the filename to determine if the asset is a RigAnim, AnimTable, or
-  // CompactSplines.  Specifically, .motiveanim and .motivelist files are
-  // assumed to be RigAnims and AnimTables, respectively.
-  void SetFilename(const std::string& filename) override;
-
   // Converts and stores |data| as either a RigAnim or a vector of
   // CompactSplines.
-  void OnFinalize(std::string* data) override;
+  void OnFinalize(const std::string& filename, std::string* data) override;
 
   // Returns the number of CompactSplines in the data.
   int GetNumCompactSplines() const;
@@ -73,7 +68,7 @@ class AnimationAsset : public Asset {
 
  private:
   // Extracts spline data from a flatbuffer into spline_buffer_.
-  void GetSplinesFromFlatBuffers(const motive::CompactSplineAnimFloatFb* src);
+  bool GetSplinesFromFlatBuffers(const motive::CompactSplineAnimFloatFb* src);
 
   // Emplaces a motive::CompactSpline into |buffer| using the data in |src|.
   motive::CompactSpline* CreateCompactSpline(
@@ -83,7 +78,6 @@ class AnimationAsset : public Asset {
   std::unique_ptr<motive::AnimTable> anim_table_;  // Anim table data.
   std::vector<uint8_t> spline_buffer_;         // Buffer containing spline data.
   int num_splines_;  // Number of compact splines in the buffer.
-  std::string filename_;
 };
 
 typedef std::shared_ptr<AnimationAsset> AnimationAssetPtr;

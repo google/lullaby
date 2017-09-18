@@ -24,7 +24,7 @@ limitations under the License.
 namespace lull {
 
 static ScriptFunctionEntry* g_fn = nullptr;
-ScriptFunctionEntry::ScriptFunctionEntry(Fn fn, string_view name)
+ScriptFunctionEntry::ScriptFunctionEntry(ScriptFunction fn, string_view name)
     : fn(fn), name(name) {
   next = g_fn;
   g_fn = this;

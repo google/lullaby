@@ -18,10 +18,11 @@ limitations under the License.
 #include "lullaby/modules/script/lull/script_env.h"
 #include "lullaby/modules/script/lull/script_frame.h"
 #include "lullaby/modules/script/lull/script_types.h"
+#include "lullaby/util/variant.h"
 
 // This file implements the following script functions:
 //
-// (map [(key value)] [(key value)] ... )
+// (make-map [(key value)] [(key value)] ... )
 //   Creates a map/dictionary with the optional list of key/value pairs.  Each
 //   pair must be specified as a tuple (ie. within parentheses).  The keys
 //   must be integer or hashvalue types.
@@ -52,8 +53,6 @@ Optional<HashValue> GetKey(ScriptArgList* args) {
   ScriptValue key_value = args->EvalNext();
   if (key_value.Is<HashValue>()) {
     result = *key_value.Get<HashValue>();
-  } else if (key_value.Is<int>()) {
-    result = static_cast<HashValue>(*key_value.Get<int>());
   }
   return result;
 }
@@ -83,88 +82,36 @@ void MapCreate(ScriptFrame* frame) {
   frame->Return(map);
 }
 
-void MapSize(ScriptFrame* frame) {
-  const ScriptValue map_value = frame->EvalNext();
-  const VariantMap* map = map_value.Get<VariantMap>();
-  if (map) {
-    frame->Return(static_cast<int>(map->size()));
-  } else {
-    frame->Error("map-size: expected map as first argument");
-  }
+int MapSize(const VariantMap* map) { return static_cast<int>(map->size()); }
+bool MapEmpty(const VariantMap* map) { return map->empty(); }
+
+void MapInsert(VariantMap* map, HashValue key, const Variant* value) {
+  map->emplace(key, *value);
 }
 
-void MapEmpty(ScriptFrame* frame) {
-  const ScriptValue map_value = frame->EvalNext();
-  const VariantMap* map = map_value.Get<VariantMap>();
-  if (map) {
-    frame->Return(map->empty());
-  } else {
-    frame->Error("map-empty: expected map as first argument");
-  }
-}
-
-void MapInsert(ScriptFrame* frame) {
-  ScriptValue map_value = frame->EvalNext();
-  VariantMap* map = map_value.Get<VariantMap>();
-  if (!map) {
-    frame->Error("map-insert: expected map as first argument");
-    return;
-  }
-  Optional<HashValue> key = GetKey(frame);
-  if (!key) {
-    frame->Error("map-insert: expected key as second argument");
-    return;
-  }
-  const ScriptValue value = frame->EvalNext();
-  map->emplace(*key, value.IsNil() ? Variant() : *value.GetVariant());
-}
-
-void MapErase(ScriptFrame* frame) {
-  ScriptValue map_value = frame->EvalNext();
-  VariantMap* map = map_value.Get<VariantMap>();
-  if (!map) {
-    frame->Error("map-erase: expected map as first argument");
-    return;
-  }
-  Optional<HashValue> key = GetKey(frame);
-  if (!key) {
-    frame->Error("map-erase: expected key as second argument");
-    return;
-  }
-  auto iter = map->find(*key);
+bool MapErase(VariantMap* map, HashValue key) {
+  auto iter = map->find(key);
   if (iter != map->end()) {
     map->erase(iter);
-  } else {
-    frame->Error("map-get: no element at given key");
+    return true;
   }
+  return false;
 }
 
-void MapGet(ScriptFrame* frame) {
-  const ScriptValue map_value = frame->EvalNext();
-  const VariantMap* map = map_value.Get<VariantMap>();
-  if (!map) {
-    frame->Error("map-get: expected map as first argument");
-    return;
-  }
-  Optional<HashValue> key = GetKey(frame);
-  if (!key) {
-    frame->Error("map-get: expected key as second argument");
-    return;
-  }
-  auto iter = map->find(*key);
+Variant MapGet(const VariantMap* map, HashValue key) {
+  auto iter = map->find(key);
   if (iter != map->end()) {
-    frame->Return(iter->second);
-  } else {
-    frame->Error("map-get: no element at given key");
+    return iter->second;
   }
+  return Variant();
 }
 
-LULLABY_SCRIPT_FUNCTION(MapCreate, "map");
-LULLABY_SCRIPT_FUNCTION(MapSize, "map-size");
-LULLABY_SCRIPT_FUNCTION(MapEmpty, "map-empty");
-LULLABY_SCRIPT_FUNCTION(MapInsert, "map-insert");
-LULLABY_SCRIPT_FUNCTION(MapErase, "map-erase");
-LULLABY_SCRIPT_FUNCTION(MapGet, "map-get");
+LULLABY_SCRIPT_FUNCTION(MapCreate, "make-map");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapSize, "map-size");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapEmpty, "map-empty");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapInsert, "map-insert");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapErase, "map-erase");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapGet, "map-get");
 
 }  // namespace
 }  // namespace lull

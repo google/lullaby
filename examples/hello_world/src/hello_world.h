@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_EXAMPLES_HELLO_WORLD_SRC_HELLO_WORLD_H_
 #define LULLABY_EXAMPLES_HELLO_WORLD_SRC_HELLO_WORLD_H_
 
-#include "lullaby/examples/example_app/example_app.h"
+#include "examples/example_app/example_app.h"
 
 // A simple example of Lullaby VR app.
 class HelloWorld : public lull::ExampleApp {

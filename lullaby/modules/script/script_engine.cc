@@ -55,6 +55,11 @@ ScriptEngine::ScriptEngine(Registry* registry) : registry_(registry) {
   CHECK(assetLoader) << "No asset loader";
   lua_engine_.SetLoadFileFunction(assetLoader->GetLoadFunction());
 #endif
+#ifdef LULLABY_SCRIPT_JS
+  AssetLoader* assetLoader = registry->Get<AssetLoader>();
+  CHECK(assetLoader) << "No asset loader";
+  js_engine_.SetLoadFileFunction(assetLoader->GetLoadFunction());
+#endif
 }
 
 void ScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {

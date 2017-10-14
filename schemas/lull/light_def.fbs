@@ -102,4 +102,8 @@ table LightableDef {
   /// The texture sampler for the shadow map texture. This should correspond to
   /// the value set for the sampler inside the shader.
   shadow_sampler: int = 5;
+
+  /// Custom depth shader to use for rendering the shadow. If unset, default
+  /// shader will be used.
+  depth_shader : string;
 }

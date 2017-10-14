@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 #include "lullaby/modules/script/lull/script_env.h"
-#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
@@ -68,22 +67,22 @@ TEST(ScriptEnvText, SetGetValue) {
   ScriptEnv env;
   ScriptValue res;
 
-  env.SetValue(Hash("foo"), env.Create(123));
-  res = env.GetValue(Hash("foo"));
+  env.SetValue(Symbol("foo"), env.Create(123));
+  res = env.GetValue(Symbol("foo"));
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(123));
 
   env.Exec("(= foo 456)");
-  res = env.GetValue(Hash("foo"));
+  res = env.GetValue(Symbol("foo"));
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(456));
 
   env.Exec("(= bar 789)");
-  res = env.GetValue(Hash("bar"));
+  res = env.GetValue(Symbol("bar"));
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(789));
 
-  env.SetValue(Hash("foo"), env.Create(Hash("bar")));
+  env.SetValue(Symbol("foo"), env.Create(Hash("bar")));
   res = env.Exec("(do foo)");
   EXPECT_THAT(res.Is<HashValue>(), Eq(true));
   EXPECT_THAT(*res.Get<HashValue>(), Eq(Hash("bar")));
@@ -91,23 +90,32 @@ TEST(ScriptEnvText, SetGetValue) {
 
 TEST(ScriptEnvTest, Def) {
   ScriptEnv env;
-  ScriptValue res = env.Exec("(do (def foo (x y) ((+ x (+ y y)))) (foo 1 2))");
+  ScriptValue res = env.Exec("(do (def foo (x y) (+ x (+ y y))) (foo 1 2))");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(5));
 }
 
 TEST(ScriptEnvTest, Call) {
   ScriptEnv env;
-  env.Exec("(def foo (x y) ((+ x (+ y y))))");
+  env.Exec("(def foo (x y) (+ x (+ y y)))");
 
   ScriptValue res = env.Call("foo", 1, 2);
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(5));
 }
 
+TEST(ScriptEnvTest, CallScope) {
+  ScriptEnv env;
+  env.Exec("(= x 0)");
+  env.Exec("(def foo (x y) (+ x y))");
+  ScriptValue res = env.Exec("(foo (+ x 1) x)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(1));
+}
+
 TEST(ScriptEnvTest, CallWithArray) {
   ScriptEnv env;
-  env.Exec("(def foo (x y) ((+ x (+ y y))))");
+  env.Exec("(def foo (x y) (+ x (+ y y)))");
 
   ScriptValue args[] = {
       env.Create(1),
@@ -120,7 +128,7 @@ TEST(ScriptEnvTest, CallWithArray) {
 
 TEST(ScriptEnvTest, CallWithMap) {
   ScriptEnv env;
-  env.Exec("(def foo (x y) ((+ x (+ y y))))");
+  env.Exec("(def foo (x y) (+ x (+ y y)))");
 
   VariantMap args;
   args[Hash("x")] = 1;
@@ -170,10 +178,10 @@ TEST(ScriptEnvTest, Recurse) {
   const char* src =
       "(do"
       "  (def fact (n)"
-      "    ((if (<= n 1)"
+      "    (if (<= n 1)"
       "      1"
       "      (* n (fact (- n 1)))"
-      "    ))"
+      "    )"
       "  )"
       "  (fact 4)"
       ")";
@@ -191,8 +199,8 @@ TEST(ScriptEnvTest, Macro) {
       "(do"
       "  (= a 1)"
       "  (= b 1)"
-      "  (def f (x) ((+ x x)))"
-      "  (macro m (x) ((+ x x)))"
+      "  (def f (x) (+ x x))"
+      "  (macro m (x) (+ x x))"
       ")";
   env.Exec(src);
 
@@ -203,6 +211,24 @@ TEST(ScriptEnvTest, Macro) {
   ScriptValue res2 = env.Exec("(m (= b (+ b 1)))");
   EXPECT_THAT(res2.Is<int>(), Eq(true));
   EXPECT_THAT(*res2.Get<int>(), Eq(5));
+}
+
+TEST(ScriptEnvTest, Do) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec("(do 1 2 3)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(3));
+}
+
+TEST(ScriptEnvTest, DoReturn) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec("(do 1 (return 2) 3)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(2));
 }
 
 }  // namespace

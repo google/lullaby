@@ -20,8 +20,8 @@ struct DatastoreDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_KEY_VALUE_PAIRS = 4
   };
-  const flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *key_value_pairs() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *>(VT_KEY_VALUE_PAIRS);
+  const flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>> *key_value_pairs() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>> *>(VT_KEY_VALUE_PAIRS);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -35,16 +35,16 @@ struct DatastoreDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct DatastoreDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_key_value_pairs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>>> key_value_pairs) {
+  void add_key_value_pairs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> key_value_pairs) {
     fbb_.AddOffset(DatastoreDef::VT_KEY_VALUE_PAIRS, key_value_pairs);
   }
-  DatastoreDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DatastoreDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DatastoreDefBuilder &operator=(const DatastoreDefBuilder &);
   flatbuffers::Offset<DatastoreDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DatastoreDef>(end);
     return o;
   }
@@ -52,7 +52,7 @@ struct DatastoreDefBuilder {
 
 inline flatbuffers::Offset<DatastoreDef> CreateDatastoreDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>>> key_value_pairs = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> key_value_pairs = 0) {
   DatastoreDefBuilder builder_(_fbb);
   builder_.add_key_value_pairs(key_value_pairs);
   return builder_.Finish();
@@ -60,10 +60,10 @@ inline flatbuffers::Offset<DatastoreDef> CreateDatastoreDef(
 
 inline flatbuffers::Offset<DatastoreDef> CreateDatastoreDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const std::vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *key_value_pairs = nullptr) {
+    const std::vector<flatbuffers::Offset<KeyVariantPairDef>> *key_value_pairs = nullptr) {
   return lull::CreateDatastoreDef(
       _fbb,
-      key_value_pairs ? _fbb.CreateVector<flatbuffers::Offset<lull::KeyVariantPairDef>>(*key_value_pairs) : 0);
+      key_value_pairs ? _fbb.CreateVector<flatbuffers::Offset<KeyVariantPairDef>>(*key_value_pairs) : 0);
 }
 
 inline const lull::DatastoreDef *GetDatastoreDef(const void *buf) {

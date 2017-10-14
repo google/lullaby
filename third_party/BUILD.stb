@@ -4,12 +4,10 @@ package(
 
 cc_library(
     name = "stb",
-    hdrs = [
-        "stb_dxt.h",
-        "stb_image.h",
-        "stb_image_resize.h",
-        "stb_image_write.h",
-        "stb_truetype.h",
-    ],
-    copts = ["$(STACK_FRAME_UNLIMITED)"],
+    srcs = glob([
+        "*.c",
+        "deprecated/*.c"
+    ]),
+    hdrs = glob(["*.h"]),
+    copts = ["-Wno-unused-value"],
 )

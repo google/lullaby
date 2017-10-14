@@ -1,0 +1,24 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+/// Configures the cursor trail.
+/// In case of changing any of these values, please update reticle_template.fbs.
+table CursorTrailDef {
+
+  /// The number of cursors to draw in the trail by default
+  average_trail_length: int = 14;
+  /// The size of the cursor quad
+  quad_size: float = 0.05;
+  /// The number of samples from which to create the interpolating curve
+  curve_samples: int = 4;
+  /// Speed of the cursor at which the number of cursors drawn = trail_length
+  average_speed: float = 0.2;
+  /// Default cursor color
+  default_color: Color;
+  /// Max number of cursors to draw. If this limit is reached the cursor trail
+  /// will become sparser.
+  max_trail_length: int = 32;
+}
+
+root_type CursorTrailDef;

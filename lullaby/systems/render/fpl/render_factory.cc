@@ -396,12 +396,36 @@ MeshPtr RenderFactory::CreateMesh(const MeshData& mesh) {
   return MeshPtr(new Mesh(mesh));
 }
 
+MeshPtr RenderFactory::CreateMesh(HashValue key, const MeshData& mesh) {
+  DCHECK(key != 0) << "Invalid key for render factory mesh.";
+  if (mesh.GetNumVertices() == 0) {
+    return MeshPtr();
+  }
+  return meshes_.Create(key, [&]() { return MeshPtr(new Mesh(mesh)); });
+}
+
 void RenderFactory::StartLoadingAssets() {
   fpl_asset_manager_->StartLoadingTextures();
 }
 
 void RenderFactory::StopLoadingAssets() {
   fpl_asset_manager_->StopLoadingTextures();
+}
+
+void RenderFactory::ReleaseMeshFromCache(HashValue key) {
+  meshes_.Release(key);
+}
+
+void RenderFactory::CacheTexture(HashValue key, const TexturePtr& texture) {
+  textures_.Create(key, [&]() { return texture; });
+}
+
+TexturePtr RenderFactory::GetCachedTexture(HashValue key) const {
+  return textures_.Find(key);
+}
+
+void RenderFactory::ReleaseTextureFromCache(HashValue key) {
+  textures_.Release(key);
 }
 
 }  // namespace lull

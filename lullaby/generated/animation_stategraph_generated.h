@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/animation_stategraph_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -15,9 +15,12 @@
 
 namespace lull {
 class FirstAnimationSelectorDefT;
+class RandomAnimationSelectorDefT;
+class ScriptedAnimationSelectorDefT;
 class AnimationSelectorDefT;
 class AnimationSignalDefT;
 class AnimationTrackDefT;
+class SignalPairT;
 class AnimationTransitionDefT;
 class AnimationStateDefT;
 class AnimationStategraphDefT;
@@ -27,6 +30,29 @@ class FirstAnimationSelectorDefT {
 
   FirstAnimationSelectorDefT() {}
 
+
+  template <typename Archive>
+  void SerializeFlatbuffer(Archive archive);
+};
+
+class RandomAnimationSelectorDefT {
+ public:
+  using FlatBufferType = RandomAnimationSelectorDef;
+
+  RandomAnimationSelectorDefT() {}
+
+
+  template <typename Archive>
+  void SerializeFlatbuffer(Archive archive);
+};
+
+class ScriptedAnimationSelectorDefT {
+ public:
+  using FlatBufferType = ScriptedAnimationSelectorDef;
+
+  ScriptedAnimationSelectorDefT() {}
+
+  std::string code;
 
   template <typename Archive>
   void SerializeFlatbuffer(Archive archive);
@@ -87,6 +113,8 @@ class AnimationSelectorDefT {
   using Store = std::aligned_storage<sizeof(T), alignof(T)>;
   union Buffer {
     Store<lull::FirstAnimationSelectorDefT>::type FirstAnimationSelectorDef_;
+    Store<lull::RandomAnimationSelectorDefT>::type RandomAnimationSelectorDef_;
+    Store<lull::ScriptedAnimationSelectorDefT>::type ScriptedAnimationSelectorDef_;
   };
   Buffer data_;
   FlatBufferType type_ = AnimationSelectorDef_NONE;
@@ -124,6 +152,19 @@ class AnimationTrackDefT {
   void SerializeFlatbuffer(Archive archive);
 };
 
+class SignalPairT {
+ public:
+  using FlatBufferType = SignalPair;
+
+  SignalPairT() {}
+
+  lull::HashValue from_signal = 0;
+  lull::HashValue to_signal = 0;
+
+  template <typename Archive>
+  void SerializeFlatbuffer(Archive archive);
+};
+
 class AnimationTransitionDefT {
  public:
   using FlatBufferType = AnimationTransitionDef;
@@ -132,7 +173,9 @@ class AnimationTransitionDefT {
 
   lull::HashValue to_state = 0;
   float active_time_from_end_s = 0.0f;
+  bool active_for_entire_time = 0;
   float blend_time_s = 0.0f;
+  std::vector<lull::SignalPairT> signals;
 
   template <typename Archive>
   void SerializeFlatbuffer(Archive archive);
@@ -148,6 +191,7 @@ class AnimationStateDefT {
   lull::AnimationSelectorDefT selector;
   std::vector<lull::AnimationTrackDefT> tracks;
   std::vector<lull::AnimationTransitionDefT> transitions;
+  uint32_t default_transition_index = 0;
 
   template <typename Archive>
   void SerializeFlatbuffer(Archive archive);
@@ -169,10 +213,27 @@ template <typename Archive>
 void FirstAnimationSelectorDefT::SerializeFlatbuffer(Archive archive) {
 }
 
+template <typename Archive>
+void RandomAnimationSelectorDefT::SerializeFlatbuffer(Archive archive) {
+}
+
+template <typename Archive>
+void ScriptedAnimationSelectorDefT::SerializeFlatbuffer(Archive archive) {
+  archive.String(&code, 4);
+}
+
 inline void AnimationSelectorDefT::reset() {
   switch (type_) {
     case AnimationSelectorDef_FirstAnimationSelectorDef: {
       destroy<lull::FirstAnimationSelectorDefT>();
+      break;
+    }
+    case AnimationSelectorDef_RandomAnimationSelectorDef: {
+      destroy<lull::RandomAnimationSelectorDefT>();
+      break;
+    }
+    case AnimationSelectorDef_ScriptedAnimationSelectorDef: {
+      destroy<lull::ScriptedAnimationSelectorDefT>();
       break;
     }
     default:
@@ -186,6 +247,14 @@ inline void AnimationSelectorDefT::assign(const AnimationSelectorDefT& rhs) {
   switch (rhs.type_) {
     case AnimationSelectorDef_FirstAnimationSelectorDef: {
       *set<lull::FirstAnimationSelectorDefT>() = *rhs.get<lull::FirstAnimationSelectorDefT>();
+      break;
+    }
+    case AnimationSelectorDef_RandomAnimationSelectorDef: {
+      *set<lull::RandomAnimationSelectorDefT>() = *rhs.get<lull::RandomAnimationSelectorDefT>();
+      break;
+    }
+    case AnimationSelectorDef_ScriptedAnimationSelectorDef: {
+      *set<lull::ScriptedAnimationSelectorDefT>() = *rhs.get<lull::ScriptedAnimationSelectorDefT>();
       break;
     }
     default:
@@ -208,6 +277,16 @@ inline AnimationSelectorDef AnimationSelectorDefT::get_type<lull::FirstAnimation
   return AnimationSelectorDef_FirstAnimationSelectorDef;
 }
 
+template <>
+inline AnimationSelectorDef AnimationSelectorDefT::get_type<lull::RandomAnimationSelectorDefT>() {
+  return AnimationSelectorDef_RandomAnimationSelectorDef;
+}
+
+template <>
+inline AnimationSelectorDef AnimationSelectorDefT::get_type<lull::ScriptedAnimationSelectorDefT>() {
+  return AnimationSelectorDef_ScriptedAnimationSelectorDef;
+}
+
 
 template <typename Archive>
 void AnimationSelectorDefT::SerializeFlatbuffer(FlatBufferType type, Archive archive) {
@@ -217,6 +296,22 @@ void AnimationSelectorDefT::SerializeFlatbuffer(FlatBufferType type, Archive arc
         set<lull::FirstAnimationSelectorDefT>()->SerializeFlatbuffer(archive);
       } else {
         get<lull::FirstAnimationSelectorDefT>()->SerializeFlatbuffer(archive);
+      }
+      break;
+    }
+    case AnimationSelectorDef_RandomAnimationSelectorDef: {
+      if (archive.IsDestructive()) {
+        set<lull::RandomAnimationSelectorDefT>()->SerializeFlatbuffer(archive);
+      } else {
+        get<lull::RandomAnimationSelectorDefT>()->SerializeFlatbuffer(archive);
+      }
+      break;
+    }
+    case AnimationSelectorDef_ScriptedAnimationSelectorDef: {
+      if (archive.IsDestructive()) {
+        set<lull::ScriptedAnimationSelectorDefT>()->SerializeFlatbuffer(archive);
+      } else {
+        get<lull::ScriptedAnimationSelectorDefT>()->SerializeFlatbuffer(archive);
       }
       break;
     }
@@ -247,10 +342,18 @@ void AnimationTrackDefT::SerializeFlatbuffer(Archive archive) {
 }
 
 template <typename Archive>
+void SignalPairT::SerializeFlatbuffer(Archive archive) {
+  archive.Scalar(&from_signal, 0, 0);
+  archive.Scalar(&to_signal, 4, 0);
+}
+
+template <typename Archive>
 void AnimationTransitionDefT::SerializeFlatbuffer(Archive archive) {
+  archive.VectorOfStructs(&signals, 12);
   archive.Scalar(&to_state, 4, 0);
   archive.Scalar(&active_time_from_end_s, 6, 0.0f);
-  archive.Scalar(&blend_time_s, 8, 0.0f);
+  archive.Scalar(&active_for_entire_time, 8, 0);
+  archive.Scalar(&blend_time_s, 10, 0.0f);
 }
 
 template <typename Archive>
@@ -259,6 +362,7 @@ void AnimationStateDefT::SerializeFlatbuffer(Archive archive) {
   archive.VectorOfTables(&tracks, 10);
   archive.VectorOfTables(&transitions, 12);
   archive.Scalar(&id, 4, 0);
+  archive.Scalar(&default_transition_index, 14, 0);
 }
 
 template <typename Archive>
@@ -269,9 +373,12 @@ void AnimationStategraphDefT::SerializeFlatbuffer(Archive archive) {
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::FirstAnimationSelectorDefT);
+LULLABY_SETUP_TYPEID(lull::RandomAnimationSelectorDefT);
+LULLABY_SETUP_TYPEID(lull::ScriptedAnimationSelectorDefT);
 LULLABY_SETUP_TYPEID(lull::AnimationSelectorDefT);
 LULLABY_SETUP_TYPEID(lull::AnimationSignalDefT);
 LULLABY_SETUP_TYPEID(lull::AnimationTrackDefT);
+LULLABY_SETUP_TYPEID(lull::SignalPairT);
 LULLABY_SETUP_TYPEID(lull::AnimationTransitionDefT);
 LULLABY_SETUP_TYPEID(lull::AnimationStateDefT);
 LULLABY_SETUP_TYPEID(lull::AnimationStategraphDefT);

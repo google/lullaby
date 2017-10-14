@@ -27,7 +27,15 @@ namespace lull {
 // A VertexAttribute describes the location and format of a single vertex
 // element within the vertex struct.
 struct VertexAttribute {
-  enum Usage { kPosition, kTexCoord, kColor, kIndex, kNormal };
+  enum Usage {
+    kPosition,
+    kTexCoord,
+    kColor,
+    kNormal,
+    kTangent,
+    kIndex,
+    kWeight,
+  };
   enum Type {
     kUnsignedInt8,
     kUnsignedInt16,

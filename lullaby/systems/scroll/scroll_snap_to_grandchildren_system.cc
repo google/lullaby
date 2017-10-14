@@ -124,6 +124,7 @@ void ScrollSnapToGrandchildrenSystem::PostCreateInit(Entity entity,
       entity, [this, entity](int delta) -> Optional<mathfu::vec2> {
         return SnapByDelta(entity, delta);
       });
+  fling_multiplier_map_[entity] = fling_multiplier;
 }
 
 mathfu::vec2 ScrollSnapToGrandchildrenSystem::SnapOffset(
@@ -184,6 +185,7 @@ Optional<mathfu::vec2> ScrollSnapToGrandchildrenSystem::SnapByDelta(
 }
 
 void ScrollSnapToGrandchildrenSystem::Destroy(Entity entity) {
+  fling_multiplier_map_.erase(entity);
   last_snapped_.Destroy(entity);
 }
 
@@ -191,6 +193,13 @@ Entity ScrollSnapToGrandchildrenSystem::GetLastSnappedGrandchild(
     Entity scroll) const {
   const LastSnapped* last_snapped = last_snapped_.Get(scroll);
   return last_snapped != nullptr ? last_snapped->grandchild : kNullEntity;
+}
+
+float ScrollSnapToGrandchildrenSystem::GetFlingMultiplier(Entity scroll) const {
+  const auto fling_multiplier = fling_multiplier_map_.find(scroll);
+  return fling_multiplier != fling_multiplier_map_.end()
+             ? fling_multiplier->second
+             : .0f;
 }
 
 }  // namespace lull

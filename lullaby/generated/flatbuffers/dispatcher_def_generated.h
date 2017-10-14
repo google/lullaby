@@ -43,8 +43,8 @@ struct EventDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// Key-value pairs of data for the event.
   /// A value of type "DataHashValue" with the string "$self" will get replaced
   /// with the entity value (stored as uint)
-  const flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *values() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *>(VT_VALUES);
+  const flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>> *values() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>> *>(VT_VALUES);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -71,16 +71,16 @@ struct EventDefBuilder {
   void add_global(bool global) {
     fbb_.AddElement<uint8_t>(EventDef::VT_GLOBAL, static_cast<uint8_t>(global), 0);
   }
-  void add_values(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>>> values) {
+  void add_values(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> values) {
     fbb_.AddOffset(EventDef::VT_VALUES, values);
   }
-  EventDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit EventDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   EventDefBuilder &operator=(const EventDefBuilder &);
   flatbuffers::Offset<EventDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<EventDef>(end);
     return o;
   }
@@ -91,7 +91,7 @@ inline flatbuffers::Offset<EventDef> CreateEventDef(
     flatbuffers::Offset<flatbuffers::String> event = 0,
     bool local = false,
     bool global = false,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>>> values = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> values = 0) {
   EventDefBuilder builder_(_fbb);
   builder_.add_values(values);
   builder_.add_event(event);
@@ -105,13 +105,13 @@ inline flatbuffers::Offset<EventDef> CreateEventDefDirect(
     const char *event = nullptr,
     bool local = false,
     bool global = false,
-    const std::vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *values = nullptr) {
+    const std::vector<flatbuffers::Offset<KeyVariantPairDef>> *values = nullptr) {
   return lull::CreateEventDef(
       _fbb,
       event ? _fbb.CreateString(event) : 0,
       local,
       global,
-      values ? _fbb.CreateVector<flatbuffers::Offset<lull::KeyVariantPairDef>>(*values) : 0);
+      values ? _fbb.CreateVector<flatbuffers::Offset<KeyVariantPairDef>>(*values) : 0);
 }
 
 /// A response that fires off an event based on an input event.  The response
@@ -154,13 +154,13 @@ struct EventResponseDefBuilder {
   void add_outputs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> outputs) {
     fbb_.AddOffset(EventResponseDef::VT_OUTPUTS, outputs);
   }
-  EventResponseDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit EventResponseDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   EventResponseDefBuilder &operator=(const EventResponseDefBuilder &);
   flatbuffers::Offset<EventResponseDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<EventResponseDef>(end);
     return o;
   }

@@ -109,6 +109,13 @@ TEST(ScriptFunctionsEventTest, EventGet) {
       env.Exec("(event-get (make-event :foo {(1u 'a') (2u 123) (4u 'd')}) 2u)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(123));
+
+  res = env.Exec("(event-get (make-event :bar {}) 2u)");
+  EXPECT_THAT(res.IsNil(), Eq(true));
+
+  res = env.Exec("(event-get-or (make-event :baz {}) 2u 345)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(345));
 }
 
 TEST(ScriptFunctionsEventTest, EventWrapper) {
@@ -119,7 +126,7 @@ TEST(ScriptFunctionsEventTest, EventWrapper) {
   event.SetValue(ConstHash("field1"), true);
   event.SetValue(ConstHash("field2"), 123);
 
-  env.SetValue(ConstHash("event"), ScriptValue::Create(event));
+  env.SetValue(Symbol("event"), ScriptValue::Create(event));
 
   res = env.Exec("(event-type event)");
   EXPECT_THAT(res.Is<TypeId>(), Eq(true));

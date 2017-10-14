@@ -71,7 +71,6 @@ class CodeGenerator : public flatbuffers::BaseGenerator {
   void GenerateStructDecl(const flatbuffers::StructDef& def);
   void GenerateEnumFunctions(const flatbuffers::EnumDef& def);
   void GenerateStructFunctions(const flatbuffers::StructDef& def);
-  void GenerateRegisterTypeId(const flatbuffers::Definition& def);
   void GenerateMemberSerialize(const flatbuffers::FieldDef& field);
 
   flatbuffers::CodeWriter code_;
@@ -675,12 +674,6 @@ void CodeGenerator::GenerateMemberSerialize(
   }
 }
 
-// Generates the LULLABY_SETUP_TYPEID call for the given type.
-void CodeGenerator::GenerateRegisterTypeId(const flatbuffers::Definition& def) {
-  code_.SetValue("TYPE_NAME", NativeFullName(def));
-  code_ += "LULLABY_SETUP_TYPEID({{TYPE_NAME}});";
-}
-
 // Checks whether or not code should be generated for the given type.
 bool ValidateType(const flatbuffers::Type& type) {
   if (type.struct_def) {
@@ -695,9 +688,6 @@ bool ValidateType(const flatbuffers::Type& type) {
     return true;
   } else if (type.enum_def) {
     const auto& def = *type.enum_def;
-    if (!def.is_union) {
-      return false;
-    }
     if (def.generated) {
       return false;
     }
@@ -763,8 +753,10 @@ bool CodeGenerator::generate() {
       GenerateFwdDecl(def);
     } else if (type_def->enum_def) {
       const flatbuffers::EnumDef& def = *type_def->enum_def;
-      SetNameSpace(def.defined_namespace);
-      GenerateFwdDecl(def);
+      if (def.is_union) {
+        SetNameSpace(def.defined_namespace);
+        GenerateFwdDecl(def);
+      }
     }
   }
 
@@ -775,8 +767,10 @@ bool CodeGenerator::generate() {
       GenerateStructDecl(def);
     } else if (type_def->enum_def) {
       const flatbuffers::EnumDef& def = *type_def->enum_def;
-      SetNameSpace(def.defined_namespace);
-      GenerateEnumDecl(def);
+      if (def.is_union) {
+        SetNameSpace(def.defined_namespace);
+        GenerateEnumDecl(def);
+      }
     }
   }
 
@@ -787,8 +781,10 @@ bool CodeGenerator::generate() {
       GenerateStructFunctions(def);
     } else if (type_def->enum_def) {
       const flatbuffers::EnumDef& def = *type_def->enum_def;
-      SetNameSpace(def.defined_namespace);
-      GenerateEnumFunctions(def);
+      if (def.is_union) {
+        SetNameSpace(def.defined_namespace);
+        GenerateEnumFunctions(def);
+      }
     }
   }
 
@@ -797,9 +793,16 @@ bool CodeGenerator::generate() {
 
   for (auto type_def : types) {
     if (type_def->struct_def) {
-      GenerateRegisterTypeId(*type_def->struct_def);
+      code_.SetValue("TYPE_NAME", NativeFullName(*type_def->struct_def));
+      code_ += "LULLABY_SETUP_TYPEID({{TYPE_NAME}});";
     } else if (type_def->enum_def) {
-      GenerateRegisterTypeId(*type_def->enum_def);
+      if (type_def->enum_def->is_union) {
+        code_.SetValue("TYPE_NAME", NativeFullName(*type_def->enum_def));
+        code_ += "LULLABY_SETUP_TYPEID({{TYPE_NAME}});";
+      } else {
+        code_.SetValue("TYPE_NAME", WrapInNameSpace(*type_def->enum_def));
+        code_ += "LULLABY_SETUP_TYPEID({{TYPE_NAME}});";
+      }
     }
   }
 

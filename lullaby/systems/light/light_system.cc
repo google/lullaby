@@ -57,7 +57,6 @@ LightSystem::LightSystem(Registry* registry) : System(registry) {
   RegisterDef(this, ConstHash("DirectionalLightDef"));
   RegisterDef(this, ConstHash("PointLightDef"));
   RegisterDef(this, ConstHash("LightableDef"));
-  RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
 }
@@ -371,8 +370,8 @@ void LightSystem::LightGroup::CreateShadowPass(HashValue pass) {
 
 void LightSystem::LightGroup::DestroyShadowPass(RenderSystem* render_system,
                                                 HashValue pass) {
-  auto iter = std::find(shadow_passes_.cbegin(), shadow_passes_.cend(), pass);
-  if (iter == shadow_passes_.cend()) {
+  auto iter = std::find(shadow_passes_.begin(), shadow_passes_.end(), pass);
+  if (iter == shadow_passes_.end()) {
     return;
   }
 
@@ -482,13 +481,22 @@ void LightSystem::AddLightableToShadowPass(RenderSystem* render_system,
     LOG(FATAL) << "Must have a depth shader to use shadows.";
     return;
   }
+  if (!dispatcher_system) {
+    LOG(FATAL) << "Must create the DispatcherSystem to use shadows.";
+    return;
+  }
 
   render_system->Create(entity, pass, static_cast<RenderPass>(pass));
   // Retrieve the mesh of the default entity.
   // TODO(b/65262474): Currently there is no GetMesh function to return the mesh
   // of the default entity so we cheat by supplying component id of 0.
   render_system->SetMesh(entity, pass, render_system->GetMesh(entity, 0));
-  render_system->SetShader(entity, pass, depth_shader_);
+  if (!lightable.depth_shader.empty()) {
+    render_system->SetShader(entity, pass,
+                             render_system->LoadShader(lightable.depth_shader));
+  } else {
+    render_system->SetShader(entity, pass, depth_shader_);
+  }
   render_system->SetTexture(entity, 0, lightable.shadow_sampler,
                             render_system->GetTexture(pass));
 
@@ -526,11 +534,30 @@ void LightSystem::CreateShadowRenderPass(Entity entity,
                                             shadow_def->shadow_resolution);
   auto* render_system = registry_->Get<RenderSystem>();
   render_system->CreateRenderTarget(pass, shadow_map_resolution,
-                                    TextureFormat_R8,
-                                    DepthStencilFormat_Depth16);
+                                    TextureFormat_Depth16,
+                                    DepthStencilFormat_None);
 
   // Set the render target for the pass.
   render_system->SetRenderTarget(pass, pass);
+
+  // Set the render state for the pass.
+  fplbase::RenderState render_state;
+  render_state.depth_state.test_enabled = true;
+  render_state.depth_state.write_enabled = true;
+  render_state.depth_state.function = fplbase::kRenderLess;
+  render_state.cull_state.enabled = true;
+  render_state.cull_state.face = fplbase::CullState::kBack;
+  render_system->SetRenderState(pass, render_state);
+
+  // Set the clear params for the pass.
+  ClearParams clear_params;
+  clear_params.clear_options = ClearParams::kDepth;
+  render_system->SetClearParams(pass, clear_params);
+
+  // Set the sort mode for the pass.
+  render_system->SetSortMode(
+      static_cast<RenderPass>(pass),
+      RenderSystem::SortMode::kAverageSpaceOriginFrontToBack);
 
   // Create the viewport for rendering the shadow pass.
   ShadowPassData shadow_pass_data;

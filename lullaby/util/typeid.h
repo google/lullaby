@@ -61,7 +61,7 @@ namespace lull {
 
 using TypeId = unsigned int;
 
-template<typename T>
+template <typename T>
 const char* GetTypeName() {
   assert(false);
   // If you get a compiler error that complains about TYPEID_NOT_SETUP, then
@@ -70,25 +70,23 @@ const char* GetTypeName() {
   return T::TYPEID_NOT_SETUP;
 }
 
-template<typename T>
+template <typename T>
 TypeId GetTypeId() {
-  assert(false);
   return T::TYPEID_NOT_SETUP;
 }
 
 }  // namespace lull
 
-#define LULLABY_SETUP_TYPEID(Type)                       \
-  namespace lull {                                       \
-  template <>                                            \
-  inline const char* GetTypeName<Type>() {               \
-    return #Type;                                        \
-  }                                                      \
-  template <>                                            \
-  inline TypeId GetTypeId<Type>() {                      \
-    static constexpr TypeId id = lull::ConstHash(#Type); \
-    return id;                                           \
-  }                                                      \
+#define LULLABY_SETUP_TYPEID(Type)         \
+  namespace lull {                         \
+  template <>                              \
+  inline const char* GetTypeName<Type>() { \
+    return #Type;                          \
+  }                                        \
+  template <>                              \
+  inline TypeId GetTypeId<Type>() {        \
+    return lull::ConstHash(#Type);         \
+  }                                        \
   }  // namespace lull
 
 #endif  // LULLABY_UTIL_TYPEID_H_

@@ -26,6 +26,7 @@ namespace lull {
 
 const HashValue PositionChannel::kChannelName = Hash("transform-position");
 const HashValue PositionXChannel::kChannelName = Hash("transform-position-x");
+const HashValue PositionYChannel::kChannelName = Hash("transform-position-y");
 const HashValue PositionZChannel::kChannelName = Hash("transform-position-z");
 const HashValue RotationChannel::kChannelName = Hash("transform-rotation");
 const HashValue ScaleChannel::kChannelName = Hash("transform-scale");
@@ -38,6 +39,7 @@ namespace {
 const motive::MatrixOperationType kTranslateOps[] = {
     motive::kTranslateX, motive::kTranslateY, motive::kTranslateZ};
 const motive::MatrixOperationType kTranslateXOps[] = {motive::kTranslateX};
+const motive::MatrixOperationType kTranslateYOps[] = {motive::kTranslateY};
 const motive::MatrixOperationType kTranslateZOps[] = {motive::kTranslateZ};
 const motive::MatrixOperationType kRotateOps[] = {
     motive::kRotateAboutX, motive::kRotateAboutY, motive::kRotateAboutZ};
@@ -102,11 +104,11 @@ void PositionXChannel::Setup(Registry* registry, size_t pool_size) {
 }
 
 const motive::MatrixOperationType* PositionXChannel::GetOperations() const {
-  return kTranslateZOps;
+  return kTranslateXOps;
 }
 
-bool PositionXChannel::Get(Entity entity, float* values, size_t len) const {
-  const Sqt* sqt = transform_system_->GetSqt(entity);
+bool PositionXChannel::Get(Entity e, float* values, size_t len) const {
+  const Sqt* sqt = transform_system_->GetSqt(e);
   if (sqt == nullptr) {
     return false;
   }
@@ -114,14 +116,51 @@ bool PositionXChannel::Get(Entity entity, float* values, size_t len) const {
   return true;
 }
 
-void PositionXChannel::Set(Entity entity, const float* values, size_t len) {
-  const Sqt* sqt = transform_system_->GetSqt(entity);
+void PositionXChannel::Set(Entity e, const float* values, size_t len) {
+  const Sqt* sqt = transform_system_->GetSqt(e);
   if (sqt == nullptr) {
     return;
   }
   Sqt updated_sqt = *sqt;
   updated_sqt.translation.x = values[0];
-  transform_system_->SetSqt(entity, updated_sqt);
+  transform_system_->SetSqt(e, updated_sqt);
+}
+
+PositionYChannel::PositionYChannel(Registry* registry, size_t pool_size)
+    : AnimationChannel(registry, 1 /* num_dimensions */, pool_size),
+      transform_system_(registry->Get<TransformSystem>()) {}
+
+void PositionYChannel::Setup(Registry* registry, size_t pool_size) {
+  auto* animation_system = registry->Get<AnimationSystem>();
+  auto* transform_system = registry->Get<TransformSystem>();
+  if (animation_system == nullptr || transform_system == nullptr) {
+    LOG(DFATAL) << "Failed to setup PositionYChannel.";
+  }
+  AnimationChannelPtr ptr(new PositionYChannel(registry, pool_size));
+  animation_system->AddChannel(kChannelName, std::move(ptr));
+}
+
+const motive::MatrixOperationType* PositionYChannel::GetOperations() const {
+  return kTranslateYOps;
+}
+
+bool PositionYChannel::Get(Entity e, float* values, size_t len) const {
+  const Sqt* sqt = transform_system_->GetSqt(e);
+  if (sqt == nullptr) {
+    return false;
+  }
+  values[0] = sqt->translation.y;
+  return true;
+}
+
+void PositionYChannel::Set(Entity e, const float* values, size_t len) {
+  const Sqt* sqt = transform_system_->GetSqt(e);
+  if (sqt == nullptr) {
+    return;
+  }
+  Sqt updated_sqt = *sqt;
+  updated_sqt.translation.y = values[0];
+  transform_system_->SetSqt(e, updated_sqt);
 }
 
 PositionZChannel::PositionZChannel(Registry* registry, size_t pool_size)
@@ -142,8 +181,8 @@ const motive::MatrixOperationType* PositionZChannel::GetOperations() const {
   return kTranslateZOps;
 }
 
-bool PositionZChannel::Get(Entity entity, float* values, size_t len) const {
-  const Sqt* sqt = transform_system_->GetSqt(entity);
+bool PositionZChannel::Get(Entity e, float* values, size_t len) const {
+  const Sqt* sqt = transform_system_->GetSqt(e);
   if (sqt == nullptr) {
     return false;
   }
@@ -151,14 +190,14 @@ bool PositionZChannel::Get(Entity entity, float* values, size_t len) const {
   return true;
 }
 
-void PositionZChannel::Set(Entity entity, const float* values, size_t len) {
-  const Sqt* sqt = transform_system_->GetSqt(entity);
+void PositionZChannel::Set(Entity e, const float* values, size_t len) {
+  const Sqt* sqt = transform_system_->GetSqt(e);
   if (sqt == nullptr) {
     return;
   }
   Sqt updated_sqt = *sqt;
   updated_sqt.translation.z = values[0];
-  transform_system_->SetSqt(entity, updated_sqt);
+  transform_system_->SetSqt(e, updated_sqt);
 }
 
 RotationChannel::RotationChannel(Registry* registry, size_t pool_size)

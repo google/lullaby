@@ -40,6 +40,9 @@ class ScrollSnapToGrandchildrenSystem : public System {
   // scroll component. Returns kNullEntity if one has not been snapped to.
   Entity GetLastSnappedGrandchild(Entity scroll) const;
 
+  // Returns the configured flingmultiplier for the input |scroll| entity.
+  float GetFlingMultiplier(Entity scroll) const;
+
  private:
   struct LastSnapped : Component {
     explicit LastSnapped(Entity scroll) : Component(scroll) {}
@@ -58,6 +61,7 @@ class ScrollSnapToGrandchildrenSystem : public System {
   Optional<mathfu::vec2> SnapByDelta(Entity entity, int delta) const;
 
   ComponentPool<LastSnapped> last_snapped_;
+  std::unordered_map<Entity, float> fling_multiplier_map_;
 };
 
 }  // namespace lull

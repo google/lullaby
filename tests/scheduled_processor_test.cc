@@ -17,7 +17,7 @@ limitations under the License.
 #include "lullaby/util/scheduled_processor.h"
 
 #include "gtest/gtest.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

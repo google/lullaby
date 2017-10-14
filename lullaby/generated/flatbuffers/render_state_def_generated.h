@@ -261,13 +261,13 @@ struct AlphaTestStateBuilder {
   void add_ref(float ref) {
     fbb_.AddElement<float>(AlphaTestState::VT_REF, ref, 0.0f);
   }
-  AlphaTestStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit AlphaTestStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AlphaTestStateBuilder &operator=(const AlphaTestStateBuilder &);
   flatbuffers::Offset<AlphaTestState> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<AlphaTestState>(end);
     return o;
   }
@@ -340,13 +340,13 @@ struct BlendStateBuilder {
   void add_dst_color(BlendFactor dst_color) {
     fbb_.AddElement<uint16_t>(BlendState::VT_DST_COLOR, static_cast<uint16_t>(dst_color), 0);
   }
-  BlendStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit BlendStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   BlendStateBuilder &operator=(const BlendStateBuilder &);
   flatbuffers::Offset<BlendState> Finish() {
-    const auto end = fbb_.EndTable(start_, 5);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<BlendState>(end);
     return o;
   }
@@ -399,13 +399,13 @@ struct CullStateBuilder {
   void add_enabled(bool enabled) {
     fbb_.AddElement<uint8_t>(CullState::VT_ENABLED, static_cast<uint8_t>(enabled), 0);
   }
-  CullStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit CullStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   CullStateBuilder &operator=(const CullStateBuilder &);
   flatbuffers::Offset<CullState> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<CullState>(end);
     return o;
   }
@@ -460,13 +460,13 @@ struct DepthStateBuilder {
   void add_write_enabled(bool write_enabled) {
     fbb_.AddElement<uint8_t>(DepthState::VT_WRITE_ENABLED, static_cast<uint8_t>(write_enabled), 1);
   }
-  DepthStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DepthStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DepthStateBuilder &operator=(const DepthStateBuilder &);
   flatbuffers::Offset<DepthState> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DepthState>(end);
     return o;
   }
@@ -523,13 +523,13 @@ struct StencilFunctionBuilder {
   void add_mask(uint32_t mask) {
     fbb_.AddElement<uint32_t>(StencilFunction::VT_MASK, mask, 1);
   }
-  StencilFunctionBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit StencilFunctionBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   StencilFunctionBuilder &operator=(const StencilFunctionBuilder &);
   flatbuffers::Offset<StencilFunction> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StencilFunction>(end);
     return o;
   }
@@ -586,13 +586,13 @@ struct StencilOperationBuilder {
   void add_pass(StencilAction pass) {
     fbb_.AddElement<uint16_t>(StencilOperation::VT_PASS, static_cast<uint16_t>(pass), 0);
   }
-  StencilOperationBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit StencilOperationBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   StencilOperationBuilder &operator=(const StencilOperationBuilder &);
   flatbuffers::Offset<StencilOperation> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StencilOperation>(end);
     return o;
   }
@@ -669,13 +669,13 @@ struct StencilStateBuilder {
   void add_front_op(flatbuffers::Offset<StencilOperation> front_op) {
     fbb_.AddOffset(StencilState::VT_FRONT_OP, front_op);
   }
-  StencilStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit StencilStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   StencilStateBuilder &operator=(const StencilStateBuilder &);
   flatbuffers::Offset<StencilState> Finish() {
-    const auto end = fbb_.EndTable(start_, 5);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StencilState>(end);
     return o;
   }
@@ -720,13 +720,13 @@ struct ScissorStateBuilder {
   void add_enabled(bool enabled) {
     fbb_.AddElement<uint8_t>(ScissorState::VT_ENABLED, static_cast<uint8_t>(enabled), 0);
   }
-  ScissorStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScissorStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScissorStateBuilder &operator=(const ScissorStateBuilder &);
   flatbuffers::Offset<ScissorState> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScissorState>(end);
     return o;
   }
@@ -771,8 +771,8 @@ struct RenderState FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const StencilState *stencil_state() const {
     return GetPointer<const StencilState *>(VT_STENCIL_STATE);
   }
-  const lull::Rect *viewport() const {
-    return GetStruct<const lull::Rect *>(VT_VIEWPORT);
+  const Rect *viewport() const {
+    return GetStruct<const Rect *>(VT_VIEWPORT);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -788,7 +788,7 @@ struct RenderState FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.VerifyTable(scissor_state()) &&
            VerifyOffset(verifier, VT_STENCIL_STATE) &&
            verifier.VerifyTable(stencil_state()) &&
-           VerifyField<lull::Rect>(verifier, VT_VIEWPORT) &&
+           VerifyField<Rect>(verifier, VT_VIEWPORT) &&
            verifier.EndTable();
   }
 };
@@ -814,16 +814,16 @@ struct RenderStateBuilder {
   void add_stencil_state(flatbuffers::Offset<StencilState> stencil_state) {
     fbb_.AddOffset(RenderState::VT_STENCIL_STATE, stencil_state);
   }
-  void add_viewport(const lull::Rect *viewport) {
+  void add_viewport(const Rect *viewport) {
     fbb_.AddStruct(RenderState::VT_VIEWPORT, viewport);
   }
-  RenderStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit RenderStateBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   RenderStateBuilder &operator=(const RenderStateBuilder &);
   flatbuffers::Offset<RenderState> Finish() {
-    const auto end = fbb_.EndTable(start_, 7);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<RenderState>(end);
     return o;
   }
@@ -837,7 +837,7 @@ inline flatbuffers::Offset<RenderState> CreateRenderState(
     flatbuffers::Offset<DepthState> depth_state = 0,
     flatbuffers::Offset<ScissorState> scissor_state = 0,
     flatbuffers::Offset<StencilState> stencil_state = 0,
-    const lull::Rect *viewport = 0) {
+    const Rect *viewport = 0) {
   RenderStateBuilder builder_(_fbb);
   builder_.add_viewport(viewport);
   builder_.add_stencil_state(stencil_state);

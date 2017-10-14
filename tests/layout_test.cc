@@ -38,6 +38,7 @@ class LayoutTest : public testing::Test {
     entity_factory_ = registry_->Create<EntityFactory>(registry_.get());
     transform_system_ = entity_factory_->CreateSystem<TransformSystem>();
     layout_box_system_ = entity_factory_->CreateSystem<LayoutBoxSystem>();
+    set_pos_fn_ = GetDefaultSetLayoutPositionFn(registry_.get());
 
     root_ = entity_factory_->Create();
     transform_system_->Create(root_, Sqt());
@@ -155,8 +156,23 @@ class LayoutTest : public testing::Test {
   EntityFactory* entity_factory_;
   TransformSystem* transform_system_;
   LayoutBoxSystem* layout_box_system_;
+  SetLayoutPositionFn set_pos_fn_;
   Entity root_;
 };
+
+TEST_F(LayoutTest, SetLayoutPositionFn) {
+  std::vector<Entity> children = CreateChildren(3);
+  std::vector<LayoutElement> elements;
+  CreateElementParams(&elements, children);
+  const auto set_pos_fn = [&](Entity entity, const mathfu::vec2& position) {
+    EXPECT_EQ(false, children.empty());
+    EXPECT_EQ(children.front(), entity);
+    children.erase(children.begin());
+  };
+
+  ApplyLayout(registry_.get(), LayoutParams(), elements, set_pos_fn);
+  EXPECT_EQ(true, children.empty());
+}
 
 TEST_F(LayoutTest, Spacing_RightDown) {
   const mathfu::vec2 expectations[] = {
@@ -656,7 +672,7 @@ TEST_F(LayoutTest, WeightedElements) {
   elements[0].horizontal_weight = 3.0;
   elements[1].horizontal_weight = 1.0;
 
-  ApplyLayout(registry_.get(), params, elements, kParent);
+  ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
   AssertDesiredSizesAndEnabled(children, desired_sizes);
@@ -699,7 +715,7 @@ TEST_F(LayoutTest, WeightedElements_Vertical) {
   elements[4].vertical_weight = 10.0;
   elements[5].vertical_weight = 10.0;
 
-  ApplyLayout(registry_.get(), params, elements, kParent);
+  ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
   AssertDesiredSizesAndEnabled(children, desired_sizes);
@@ -738,7 +754,7 @@ TEST_F(LayoutTest, WeightedElements_Disabled) {
   elements[0].horizontal_weight = 3.0;
   elements[1].horizontal_weight = 1.0;
 
-  ApplyLayout(registry_.get(), params, elements, kParent);
+  ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   const Sqt* sqt = transform_system_->GetSqt(elements[2].entity);
   EXPECT_NEAR(0.f, sqt->translation.x, kEpsilon);
@@ -792,7 +808,7 @@ TEST_F(LayoutTest, WeightedElements_OuterWeight) {
   elements[6].vertical_weight = 1.0;
   elements[7].vertical_weight = 3.0;
 
-  ApplyLayout(registry_.get(), params, elements, kParent);
+  ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
   AssertDesiredSizesAndEnabled(children, desired_sizes);
@@ -835,7 +851,7 @@ TEST_F(LayoutTest, WeightedElements_OuterHidden) {
   elements[1].vertical_weight = 2.0;
   elements[3].vertical_weight = 3.0;
 
-  ApplyLayout(registry_.get(), params, elements, kParent);
+  ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
   AssertDesiredSizesAndEnabled(children, desired_sizes, enabled_expectations);
@@ -864,7 +880,8 @@ TEST_F(LayoutTest, InsertIndex) {
   // just return 0.
   EXPECT_EQ(0u,
       CalculateInsertIndexForPosition(cached_positions, mathfu::kZeros3f));
-  ApplyLayout(registry_.get(), params, {}, kParent, &cached_positions);
+  ApplyLayout(registry_.get(), params, {}, set_pos_fn_, kParent,
+              &cached_positions);
   EXPECT_EQ(0u,
       CalculateInsertIndexForPosition(cached_positions, mathfu::kZeros3f));
 
@@ -872,7 +889,8 @@ TEST_F(LayoutTest, InsertIndex) {
   const std::vector<Entity> children = CreateChildren(4);
   std::vector<LayoutElement> elements;
   CreateElementParams(&elements, children);
-  ApplyLayout(registry_.get(), params, elements, kParent, &cached_positions);
+  ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent,
+              &cached_positions);
   AssertTranslations(children, expectations);
 
   // Horizontal first fill orders.
@@ -890,7 +908,7 @@ TEST_F(LayoutTest, InsertIndex) {
     };
     for (const auto& fill_order : fill_orders) {
       params.fill_order = fill_order.first;
-      ApplyLayout(registry_.get(), params, elements, kParent,
+      ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent,
                   &cached_positions);
       for (size_t i = 0; i < 6; ++i) {
         EXPECT_EQ(fill_order.second[i],
@@ -913,7 +931,7 @@ TEST_F(LayoutTest, InsertIndex) {
     };
     for (const auto& fill_order : fill_orders) {
       params.fill_order = fill_order.first;
-      ApplyLayout(registry_.get(), params, elements, kParent,
+      ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent,
                   &cached_positions);
       for (size_t i = 0; i < 6; ++i) {
         EXPECT_EQ(fill_order.second[i],

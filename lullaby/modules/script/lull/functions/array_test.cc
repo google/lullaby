@@ -156,5 +156,47 @@ TEST(ScriptFunctionsArrayTest, ArrayAt) {
   EXPECT_THAT(*res.Get<int>(), Eq(3));
 }
 
+TEST(ScriptFunctionsArrayTest, ArraySet) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec(
+      "(do"
+      "  (= arr (make-array 1 2 3 4))"
+      "  (array-set arr 2 5)"
+      "  (array-at arr 2))");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(5));
+}
+
+TEST(ScriptFunctionsArrayTest, ArrayForeach) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec(
+      "(do (= sum 0)"
+      "  (array-foreach [1 2 3 4] (i v) (= sum (+ sum v))) sum)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(10));
+
+  res = env.Exec(
+      "(do (= sum 0)"
+      "  (array-foreach [1 2 3 4] (i v) (= x i) (= sum (+ sum x))) sum)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(6));
+
+  res = env.Exec(
+      "(do (= arr [])"
+      "  (array-foreach [1 2 3 4] (i v) (array-insert arr 0 v))"
+      "  arr)");
+  EXPECT_THAT(res.Is<VariantArray>(), Eq(true));
+  auto* array = res.Get<VariantArray>();
+  EXPECT_THAT(array->size(), Eq(4));
+  EXPECT_THAT(array->at(0).ValueOr<int>(0), Eq(4));
+  EXPECT_THAT(array->at(1).ValueOr<int>(0), Eq(3));
+  EXPECT_THAT(array->at(2).ValueOr<int>(0), Eq(2));
+  EXPECT_THAT(array->at(3).ValueOr<int>(0), Eq(1));
+}
+
 }  // namespace
 }  // namespace lull

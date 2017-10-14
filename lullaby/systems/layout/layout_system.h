@@ -25,6 +25,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/layout/layout.h"
+#include "lullaby/util/clock.h"
 
 namespace lull {
 
@@ -72,6 +73,10 @@ class LayoutSystem : public System {
   // automatically be updated on the next AdvanceFrame.
   void Layout(Entity e);
 
+  /// Duration to animate LayoutElement |element| to its new position.
+  // A non-zero duration requires the AnimationSystem and the PositionChannel.
+  void SetDuration(Entity element, Clock::duration duration);
+
  private:
   struct LayoutComponent : Component {
     explicit LayoutComponent(Entity e);
@@ -80,6 +85,7 @@ class LayoutSystem : public System {
     size_t max_elements = 0;
     std::string empty_blueprint = "";
     std::queue<Entity> empty_placeholders;
+    SetLayoutPositionFn set_pos_fn;
     CachedPositions cached_positions;
   };
 
@@ -144,8 +150,9 @@ class LayoutSystem : public System {
     Entity actual_source_ = kNullEntity;
   };
 
+  void SetLayoutPosition(Entity entity, const mathfu::vec2& position);
   void LayoutImpl(const DirtyLayout& dirty_layout);
-  LayoutElement GetLayoutElement(Entity e);
+  LayoutElement& GetLayoutElement(Entity e);
   void ProcessDirty();
   void SetDirty(Entity e, LayoutPass pass, Entity source = kNullEntity);
   void SetParentDirty(Entity e, LayoutPass pass, Entity source = kNullEntity);

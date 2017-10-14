@@ -118,13 +118,13 @@ struct ScriptDefBuilder {
   void add_language(Language language) {
     fbb_.AddElement<int32_t>(ScriptDef::VT_LANGUAGE, static_cast<int32_t>(language), 0);
   }
-  ScriptDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScriptDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScriptDefBuilder &operator=(const ScriptDefBuilder &);
   flatbuffers::Offset<ScriptDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScriptDef>(end);
     return o;
   }
@@ -168,8 +168,8 @@ struct ScriptOnEventDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_SCRIPT = 6
   };
   /// One or more events that trigger the script.
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *inputs() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_INPUTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *inputs() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_INPUTS);
   }
   /// The script to run.
   const ScriptDef *script() const {
@@ -189,19 +189,19 @@ struct ScriptOnEventDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ScriptOnEventDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_inputs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> inputs) {
+  void add_inputs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> inputs) {
     fbb_.AddOffset(ScriptOnEventDef::VT_INPUTS, inputs);
   }
   void add_script(flatbuffers::Offset<ScriptDef> script) {
     fbb_.AddOffset(ScriptOnEventDef::VT_SCRIPT, script);
   }
-  ScriptOnEventDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScriptOnEventDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScriptOnEventDefBuilder &operator=(const ScriptOnEventDefBuilder &);
   flatbuffers::Offset<ScriptOnEventDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScriptOnEventDef>(end);
     return o;
   }
@@ -209,7 +209,7 @@ struct ScriptOnEventDefBuilder {
 
 inline flatbuffers::Offset<ScriptOnEventDef> CreateScriptOnEventDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> inputs = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> inputs = 0,
     flatbuffers::Offset<ScriptDef> script = 0) {
   ScriptOnEventDefBuilder builder_(_fbb);
   builder_.add_script(script);
@@ -219,11 +219,11 @@ inline flatbuffers::Offset<ScriptOnEventDef> CreateScriptOnEventDef(
 
 inline flatbuffers::Offset<ScriptOnEventDef> CreateScriptOnEventDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *inputs = nullptr,
+    const std::vector<flatbuffers::Offset<EventDef>> *inputs = nullptr,
     flatbuffers::Offset<ScriptDef> script = 0) {
   return lull::CreateScriptOnEventDef(
       _fbb,
-      inputs ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*inputs) : 0,
+      inputs ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*inputs) : 0,
       script);
 }
 
@@ -253,13 +253,13 @@ struct ScriptEveryFrameDefBuilder {
   void add_script(flatbuffers::Offset<ScriptDef> script) {
     fbb_.AddOffset(ScriptEveryFrameDef::VT_SCRIPT, script);
   }
-  ScriptEveryFrameDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScriptEveryFrameDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScriptEveryFrameDefBuilder &operator=(const ScriptEveryFrameDefBuilder &);
   flatbuffers::Offset<ScriptEveryFrameDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScriptEveryFrameDef>(end);
     return o;
   }
@@ -299,13 +299,13 @@ struct ScriptOnCreateDefBuilder {
   void add_script(flatbuffers::Offset<ScriptDef> script) {
     fbb_.AddOffset(ScriptOnCreateDef::VT_SCRIPT, script);
   }
-  ScriptOnCreateDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScriptOnCreateDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScriptOnCreateDefBuilder &operator=(const ScriptOnCreateDefBuilder &);
   flatbuffers::Offset<ScriptOnCreateDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScriptOnCreateDef>(end);
     return o;
   }
@@ -345,13 +345,13 @@ struct ScriptOnPostCreateInitDefBuilder {
   void add_script(flatbuffers::Offset<ScriptDef> script) {
     fbb_.AddOffset(ScriptOnPostCreateInitDef::VT_SCRIPT, script);
   }
-  ScriptOnPostCreateInitDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScriptOnPostCreateInitDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScriptOnPostCreateInitDefBuilder &operator=(const ScriptOnPostCreateInitDefBuilder &);
   flatbuffers::Offset<ScriptOnPostCreateInitDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScriptOnPostCreateInitDef>(end);
     return o;
   }
@@ -391,13 +391,13 @@ struct ScriptOnDestroyDefBuilder {
   void add_script(flatbuffers::Offset<ScriptDef> script) {
     fbb_.AddOffset(ScriptOnDestroyDef::VT_SCRIPT, script);
   }
-  ScriptOnDestroyDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScriptOnDestroyDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScriptOnDestroyDefBuilder &operator=(const ScriptOnDestroyDefBuilder &);
   flatbuffers::Offset<ScriptOnDestroyDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScriptOnDestroyDef>(end);
     return o;
   }

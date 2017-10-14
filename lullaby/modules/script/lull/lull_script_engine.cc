@@ -46,4 +46,6 @@ void LullScriptEngine::RunScript(uint64_t id) {
   }
 }
 
+void LullScriptEngine::UnloadScript(uint64_t id) { scripts_.erase(id); }
+
 }  // namespace lull

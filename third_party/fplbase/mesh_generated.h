@@ -23,6 +23,7 @@ limitations under the License.
 #include "flatbuffers/flatbuffers.h"
 
 #include "common_generated.h"
+#include "materials_generated.h"
 
 namespace meshdef {
 
@@ -71,11 +72,12 @@ enum Attribute {
   Attribute_BoneWeights4ub = 8,
   Attribute_Position2f = 9,
   Attribute_TexCoord2us = 10,
+  Attribute_Orientation4f = 11,
   Attribute_MIN = Attribute_END,
-  Attribute_MAX = Attribute_TexCoord2us
+  Attribute_MAX = Attribute_Orientation4f
 };
 
-inline Attribute (&EnumValuesAttribute())[11] {
+inline Attribute (&EnumValuesAttribute())[12] {
   static Attribute values[] = {
     Attribute_END,
     Attribute_Position3f,
@@ -87,7 +89,8 @@ inline Attribute (&EnumValuesAttribute())[11] {
     Attribute_BoneIndices4ub,
     Attribute_BoneWeights4ub,
     Attribute_Position2f,
-    Attribute_TexCoord2us
+    Attribute_TexCoord2us,
+    Attribute_Orientation4f
   };
   return values;
 }
@@ -105,6 +108,7 @@ inline const char **EnumNamesAttribute() {
     "BoneWeights4ub",
     "Position2f",
     "TexCoord2us",
+    "Orientation4f",
     nullptr
   };
   return names;
@@ -119,7 +123,8 @@ struct Surface FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_INDICES = 4,
     VT_MATERIAL = 6,
-    VT_INDICES32 = 8
+    VT_INDICES32 = 8,
+    VT_MATERIAL_INFO = 10
   };
   const flatbuffers::Vector<uint16_t> *indices() const {
     return GetPointer<const flatbuffers::Vector<uint16_t> *>(VT_INDICES);
@@ -130,6 +135,9 @@ struct Surface FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<uint32_t> *indices32() const {
     return GetPointer<const flatbuffers::Vector<uint32_t> *>(VT_INDICES32);
   }
+  const matdef::Material *material_info() const {
+    return GetPointer<const matdef::Material *>(VT_MATERIAL_INFO);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_INDICES) &&
@@ -138,6 +146,8 @@ struct Surface FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.Verify(material()) &&
            VerifyOffset(verifier, VT_INDICES32) &&
            verifier.Verify(indices32()) &&
+           VerifyOffset(verifier, VT_MATERIAL_INFO) &&
+           verifier.VerifyTable(material_info()) &&
            verifier.EndTable();
   }
 };
@@ -154,13 +164,16 @@ struct SurfaceBuilder {
   void add_indices32(flatbuffers::Offset<flatbuffers::Vector<uint32_t>> indices32) {
     fbb_.AddOffset(Surface::VT_INDICES32, indices32);
   }
-  SurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  void add_material_info(flatbuffers::Offset<matdef::Material> material_info) {
+    fbb_.AddOffset(Surface::VT_MATERIAL_INFO, material_info);
+  }
+  explicit SurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   SurfaceBuilder &operator=(const SurfaceBuilder &);
   flatbuffers::Offset<Surface> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Surface>(end);
     fbb_.Required(o, Surface::VT_MATERIAL);
     return o;
@@ -171,8 +184,10 @@ inline flatbuffers::Offset<Surface> CreateSurface(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::Vector<uint16_t>> indices = 0,
     flatbuffers::Offset<flatbuffers::String> material = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint32_t>> indices32 = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<uint32_t>> indices32 = 0,
+    flatbuffers::Offset<matdef::Material> material_info = 0) {
   SurfaceBuilder builder_(_fbb);
+  builder_.add_material_info(material_info);
   builder_.add_indices32(indices32);
   builder_.add_material(material);
   builder_.add_indices(indices);
@@ -183,12 +198,14 @@ inline flatbuffers::Offset<Surface> CreateSurfaceDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const std::vector<uint16_t> *indices = nullptr,
     const char *material = nullptr,
-    const std::vector<uint32_t> *indices32 = nullptr) {
+    const std::vector<uint32_t> *indices32 = nullptr,
+    flatbuffers::Offset<matdef::Material> material_info = 0) {
   return meshdef::CreateSurface(
       _fbb,
       indices ? _fbb.CreateVector<uint16_t>(*indices) : 0,
       material ? _fbb.CreateString(material) : 0,
-      indices32 ? _fbb.CreateVector<uint32_t>(*indices32) : 0);
+      indices32 ? _fbb.CreateVector<uint32_t>(*indices32) : 0,
+      material_info);
 }
 
 struct Mesh FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
@@ -210,7 +227,8 @@ struct Mesh FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_TEXCOORDS_ALT = 32,
     VT_VERSION = 34,
     VT_ATTRIBUTES = 36,
-    VT_VERTICES = 38
+    VT_VERTICES = 38,
+    VT_ORIENTATIONS = 40
   };
   const flatbuffers::Vector<flatbuffers::Offset<Surface>> *surfaces() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Surface>> *>(VT_SURFACES);
@@ -266,6 +284,9 @@ struct Mesh FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<uint8_t> *vertices() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_VERTICES);
   }
+  const flatbuffers::Vector<const fplbase::Vec4 *> *orientations() const {
+    return GetPointer<const flatbuffers::Vector<const fplbase::Vec4 *> *>(VT_ORIENTATIONS);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyOffsetRequired(verifier, VT_SURFACES) &&
@@ -303,6 +324,8 @@ struct Mesh FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.Verify(attributes()) &&
            VerifyOffset(verifier, VT_VERTICES) &&
            verifier.Verify(vertices()) &&
+           VerifyOffset(verifier, VT_ORIENTATIONS) &&
+           verifier.Verify(orientations()) &&
            verifier.EndTable();
   }
 };
@@ -364,13 +387,16 @@ struct MeshBuilder {
   void add_vertices(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> vertices) {
     fbb_.AddOffset(Mesh::VT_VERTICES, vertices);
   }
-  MeshBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  void add_orientations(flatbuffers::Offset<flatbuffers::Vector<const fplbase::Vec4 *>> orientations) {
+    fbb_.AddOffset(Mesh::VT_ORIENTATIONS, orientations);
+  }
+  explicit MeshBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   MeshBuilder &operator=(const MeshBuilder &);
   flatbuffers::Offset<Mesh> Finish() {
-    const auto end = fbb_.EndTable(start_, 18);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Mesh>(end);
     fbb_.Required(o, Mesh::VT_SURFACES);
     return o;
@@ -396,8 +422,10 @@ inline flatbuffers::Offset<Mesh> CreateMesh(
     flatbuffers::Offset<flatbuffers::Vector<const fplbase::Vec2 *>> texcoords_alt = 0,
     MeshVersion version = MeshVersion_Unspecified,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> attributes = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> vertices = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> vertices = 0,
+    flatbuffers::Offset<flatbuffers::Vector<const fplbase::Vec4 *>> orientations = 0) {
   MeshBuilder builder_(_fbb);
+  builder_.add_orientations(orientations);
   builder_.add_vertices(vertices);
   builder_.add_attributes(attributes);
   builder_.add_texcoords_alt(texcoords_alt);
@@ -438,7 +466,8 @@ inline flatbuffers::Offset<Mesh> CreateMeshDirect(
     const std::vector<const fplbase::Vec2 *> *texcoords_alt = nullptr,
     MeshVersion version = MeshVersion_Unspecified,
     const std::vector<uint8_t> *attributes = nullptr,
-    const std::vector<uint8_t> *vertices = nullptr) {
+    const std::vector<uint8_t> *vertices = nullptr,
+    const std::vector<const fplbase::Vec4 *> *orientations = nullptr) {
   return meshdef::CreateMesh(
       _fbb,
       surfaces ? _fbb.CreateVector<flatbuffers::Offset<Surface>>(*surfaces) : 0,
@@ -458,7 +487,8 @@ inline flatbuffers::Offset<Mesh> CreateMeshDirect(
       texcoords_alt ? _fbb.CreateVector<const fplbase::Vec2 *>(*texcoords_alt) : 0,
       version,
       attributes ? _fbb.CreateVector<uint8_t>(*attributes) : 0,
-      vertices ? _fbb.CreateVector<uint8_t>(*vertices) : 0);
+      vertices ? _fbb.CreateVector<uint8_t>(*vertices) : 0,
+      orientations ? _fbb.CreateVector<const fplbase::Vec4 *>(*orientations) : 0);
 }
 
 inline const meshdef::Mesh *GetMesh(const void *buf) {

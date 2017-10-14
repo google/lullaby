@@ -34,7 +34,7 @@ void ScriptAstBuilder::Process(TokenType type, const void* ptr,
     }
     case kPushArray: {
       Push();
-      const auto value = env_->Create(Symbol(ConstHash("make-array")));
+      const auto value = env_->Create(Symbol("make-array"));
       Append(value, "make-array");
       break;
     }
@@ -44,7 +44,7 @@ void ScriptAstBuilder::Process(TokenType type, const void* ptr,
     }
     case kPushMap: {
       Push();
-      const auto value = env_->Create(Symbol(ConstHash("make-map")));
+      const auto value = env_->Create(Symbol("make-map"));
       Append(value, "make-map");
       break;
     }

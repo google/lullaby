@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/common_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -41,6 +41,10 @@ void ArcDefT::SerializeFlatbuffer(Archive archive) {
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::ArcDefT);
+LULLABY_SETUP_TYPEID(lull::LayoutFillOrder);
+LULLABY_SETUP_TYPEID(lull::LayoutHorizontalAlignment);
+LULLABY_SETUP_TYPEID(lull::LayoutVerticalAlignment);
+LULLABY_SETUP_TYPEID(lull::DeviceType);
 
 #endif  // _LULLABY_LULLABY_GENERATED_COMMON_GENERATED_H_
 

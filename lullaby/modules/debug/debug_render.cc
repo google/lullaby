@@ -57,7 +57,7 @@ class DebugRender {
   void Submit();
 
  private:
-  static constexpr const int kMaxTextLength = 32;
+  static constexpr const int kMaxTextLength = 256;
 
   // TODO(b/63639224) Sort Debug elements based on their position + type.
   // Currently the order is based solely on type.

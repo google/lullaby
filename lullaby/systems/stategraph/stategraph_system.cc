@@ -79,7 +79,7 @@ void StategraphSystem::Create(Entity entity, HashValue type, const Def* def) {
   if (binder) {
     component->env->SetFunctionCallHandler(
         [binder](FunctionCall* call) { binder->Call(call); });
-    component->env->SetValue(Hash("entity"), ScriptValue::Create(entity));
+    component->env->SetValue(Symbol("entity"), ScriptValue::Create(entity));
   }
 }
 
@@ -145,6 +145,12 @@ void StategraphSystem::EnterState(StategraphComponent* component,
   }
 
   // Select a new track.
+  if (component->env) {
+    component->selection_args[kLullscriptEnvHash] =
+        reinterpret_cast<uint64_t>(component->env.get());
+  } else {
+    component->selection_args.erase(kLullscriptEnvHash);
+  }
   component->track =
       component->stategraph->SelectTrack(state, component->selection_args);
   if (component->track == nullptr) {
@@ -194,6 +200,9 @@ void StategraphSystem::UpdatePathToTargetState(StategraphComponent* component,
 void StategraphSystem::AdvanceFrame(StategraphComponent* component,
                                     Clock::duration delta_time) {
   CHECK_NOTNULL(component);
+  if (!component->stategraph->IsReady()) {
+    return;
+  }
   if (component->track == nullptr) {
     // If there is no current animation playing, snap to the current state.
     // This usually occurs the first time we add a stategraph to this Entity

@@ -16,15 +16,15 @@ limitations under the License.
 
 #include "lullaby/modules/input/input_manager.h"
 
-#include "ion/base/logchecker.h"
 #include "gtest/gtest.h"
 #include "lullaby/util/bits.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "lullaby/util/clock.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
-const gvr::Clock::duration kDeltaTime = std::chrono::milliseconds(17);
-const gvr::Clock::duration kLongPressTime = std::chrono::milliseconds(500);
+const Clock::duration kDeltaTime = std::chrono::milliseconds(17);
+const Clock::duration kLongPressTime = std::chrono::milliseconds(500);
 
 TEST(InputManagerDeathTest, NoConnections) {
   InputManager input;
@@ -587,19 +587,6 @@ TEST(InputManagerDeathTest, Joystick) {
   EXPECT_EQ(input.GetJoystickValue(device, joystick)[0], -1);
   EXPECT_EQ(input.GetJoystickDelta(device, joystick)[0], -2);
 
-  ion::base::LogChecker log_checker;
-  input.UpdateJoystick(device, joystick, mathfu::vec2(-1.001f, 0));
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [-1, 1]"));
-  input.UpdateJoystick(device, joystick, mathfu::vec2(1.001f, 0));
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [-1, 1]"));
-  input.UpdateJoystick(device, joystick, mathfu::vec2(0, -1.001f));
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [-1, 1]"));
-  input.UpdateJoystick(device, joystick, mathfu::vec2(0, 1.001f));
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [-1, 1]"));
 
   input.DisconnectDevice(device);
   EXPECT_TRUE(!input.IsConnected(device));
@@ -695,19 +682,6 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
   EXPECT_NE(input.GetTouchState(device) & InputManager::kReleased, 0);
 
-  ion::base::LogChecker log_checker;
-  input.UpdateTouch(device, mathfu::vec2(-0.001f, 0), true);
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [0, 1]"));
-  input.UpdateTouch(device, mathfu::vec2(1.001f, 0), true);
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [0, 1]"));
-  input.UpdateTouch(device, mathfu::vec2(0, -0.001f), true);
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [0, 1]"));
-  input.UpdateTouch(device, mathfu::vec2(0, 1.001f), true);
-  EXPECT_TRUE(
-      log_checker.HasMessage("ERROR", "Input outside valid range [0, 1]"));
 
   input.DisconnectDevice(device);
   EXPECT_TRUE(!input.IsConnected(device));

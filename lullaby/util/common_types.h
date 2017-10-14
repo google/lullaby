@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_UTIL_COMMON_TYPES_H_
-#define LULLABY_UTIL_COMMON_TYPES_H_
+#ifndef LULLABY_BASE_COMMON_TYPES_H_
+#define LULLABY_BASE_COMMON_TYPES_H_
 
 #include <string>
 
@@ -47,4 +47,8 @@ LULLABY_SETUP_TYPEID(mathfu::mat4);
 LULLABY_SETUP_TYPEID(lull::Aabb);
 LULLABY_SETUP_TYPEID(lull::Color4ub);
 
-#endif  // LULLABY_UTIL_COMMON_TYPES_H_
+#ifdef __APPLE__
+LULLABY_SETUP_TYPEID(size_t);
+#endif
+
+#endif  // LULLABY_BASE_COMMON_TYPES_H_

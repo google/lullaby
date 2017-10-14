@@ -151,6 +151,7 @@ class RenderSystemFpl : public System {
                         const TriangleMesh<VertexPT>& mesh);
 
   void SetMesh(Entity e, const MeshData& mesh);
+  void SetAndDeformMesh(Entity entity, const MeshData& mesh);
 
   void SetMesh(Entity e, const std::string& file);
   void SetMesh(Entity e, HashValue component_id, const MeshPtr& mesh);
@@ -188,8 +189,12 @@ class RenderSystemFpl : public System {
 
   void SetRenderPass(Entity e, RenderPass pass);
 
+  void SetRenderState(HashValue pass, const fplbase::RenderState& render_state);
+
   SortMode GetSortMode(RenderPass pass) const;
   void SetSortMode(RenderPass pass, SortMode mode);
+
+  void SetClearParams(HashValue pass, const ClearParams& clear_params);
 
   void SetCullMode(RenderPass pass, CullMode mode);
 
@@ -203,6 +208,8 @@ class RenderSystemFpl : public System {
   // Sets the model_view_projection uniform.  Doesn't take effect until the next
   // call to BindShader.
   void SetClipFromModelMatrix(const mathfu::mat4& mvp);
+  void SetClipFromModelMatrixFunction(
+      const CalculateClipFromModelMatrixFunc& func);
 
   mathfu::vec4 GetClearColor() const;
   void SetClearColor(float r, float g, float b, float a);
@@ -243,7 +250,7 @@ class RenderSystemFpl : public System {
   const std::vector<mathfu::vec3>* GetCaretPositions(Entity e) const;
 
   /// Returns the render state cached by the FPL renderer.
-  const fplbase::RenderState& GetRenderState() const;
+  const fplbase::RenderState& GetCachedRenderState() const;
 
   /// Updates the render state cached in the renderer. This should be used if
   /// your app is sharing a GL context with another framework which affects the
@@ -264,12 +271,11 @@ class RenderSystemFpl : public System {
   using RenderPoolMap = detail::RenderPoolMap<RenderComponent>;
   using UniformVector = std::vector<Uniform>;
 
+  // Stores a mesh to be deformed at a later time.
   struct DeferredMesh {
-    enum Type { kQuad, kMesh };
     Entity e = kNullEntity;
-    Type type;
-    RenderSystem::Quad quad;
-    TriangleMesh<VertexPT> mesh;
+    HashValue mesh_id = 0;
+    MeshData mesh;
   };
 
   void CreateRenderComponentFromDef(Entity e, const RenderDef& data);
@@ -285,18 +291,12 @@ class RenderSystemFpl : public System {
                                   const DisplayList& display_list);
   void SetViewUniforms(const View& view);
 
+  void SetMesh(Entity entity, const MeshData& mesh, HashValue mesh_id);
   void SetMesh(Entity e, MeshPtr mesh);
-  template <typename Vertex>
-  MeshPtr CreateQuad(Entity e, const Quad& quad);
-  template <typename Vertex>
-  void DeformMesh(Entity entity, TriangleMesh<Vertex>* mesh);
+  void DeformMesh(Entity entity, MeshData* mesh);
   void BindStencilMode(StencilMode mode, int ref);
   void BindVertexArray(uint32_t ref);
   void ClearSamplers();
-
-  // Triggers the generation of a quad mesh for the given entity and deforms
-  // that mesh if a deformation exists on that entity.
-  void SetQuadImpl(Entity e, const Quad& quad);
 
   void CreateDeferredMeshes();
 
@@ -320,6 +320,9 @@ class RenderSystemFpl : public System {
   int max_texture_unit_ = 0;
 
   std::unordered_map<Entity, Deformation> deformations_;
+  // Since deformations require transforms and meshes can be set before the
+  // transform system has initialized, we need to delay deformations until we
+  // can be sure that the transforms are valid.
   std::queue<DeferredMesh> deferred_meshes_;
 
   std::vector<mathfu::AffineTransform> shader_transforms_;
@@ -341,6 +344,10 @@ class RenderSystemFpl : public System {
   bool multiview_enabled_ = false;
 
   ShaderPtr shader_ = nullptr;
+
+  // The function used to calculate the clip_from_model_matrix just before
+  // setting the associated uniform.
+  CalculateClipFromModelMatrixFunc clip_from_model_matrix_func_;
 
   RenderSystemFpl(const RenderSystemFpl&) = delete;
   RenderSystemFpl& operator=(const RenderSystemFpl&) = delete;

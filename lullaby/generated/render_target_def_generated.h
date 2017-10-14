@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/render_target_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -43,6 +43,8 @@ void RenderTargetDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::TextureFormat);
+LULLABY_SETUP_TYPEID(lull::DepthStencilFormat);
 LULLABY_SETUP_TYPEID(lull::RenderTargetDefT);
 
 #endif  // _LULLABY_LULLABY_GENERATED_RENDER_TARGET_DEF_GENERATED_H_

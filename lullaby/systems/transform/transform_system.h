@@ -45,8 +45,16 @@ class TransformSystem : public System {
     kPreserveWorldToEntityTransform,
   };
 
+  /// A function which takes as input the local sqt and the parent's
+  /// world_from_entity_matrix, and returns a world_from_entity_matrix.  Used
+  /// to override the normal local to world transform logic by systems like
+  /// DeformSystem.
   typedef std::function<mathfu::mat4(const Sqt&, const mathfu::mat4*)>
       CalculateWorldFromEntityMatrixFunc;
+  /// The inverse of the above.  Takes the new world_from_entity_matrix and the
+  /// parent's world_from_entity_matrix, and calculates a local sqt.
+  typedef std::function<Sqt(const mathfu::mat4&, const mathfu::mat4*)>
+      CalculateLocalSqtFunc;
 
   explicit TransformSystem(Registry* registry);
 
@@ -149,9 +157,11 @@ class TransformSystem : public System {
   /// have a transform).
   const mathfu::mat4* GetWorldFromEntityMatrix(Entity e) const;
 
-  /// Overrides the default function that calculates the Entity's world matrix.
+  /// Overrides the default math for calculating local->world and world->local
+  /// transforms.
   void SetWorldFromEntityMatrixFunction(
-      Entity e, CalculateWorldFromEntityMatrixFunc func);
+      Entity e, const CalculateWorldFromEntityMatrixFunc& func,
+      const CalculateLocalSqtFunc* inverse_func = nullptr);
 
   /// Returns the parent Entity, if it exists.
   Entity GetParent(Entity child) const;
@@ -174,7 +184,7 @@ class TransformSystem : public System {
                                const std::string& name);
 
   /// Inserts a child at the specific index in the parent's list of children.
-  /// Negative indecies will insert from the back of the list. For example, a
+  /// Negative indices will insert from the back of the list. For example, a
   /// |child| inserted at an |index| of '-1' would become the last element in
   /// the list, at '-2' it would be the second to last, etc. Out-of-range
   /// |index| values are clamped so as not to exceed the number of children in
@@ -272,6 +282,7 @@ class TransformSystem : public System {
     Sqt local_sqt;
     Aabb aabb_padding;
     CalculateWorldFromEntityMatrixFunc world_from_entity_matrix_function;
+    CalculateLocalSqtFunc local_sqt_function;
     std::vector<Entity> children;
     Entity parent;
     bool enable_self;
@@ -288,6 +299,8 @@ class TransformSystem : public System {
 
   static mathfu::mat4 CalculateWorldFromEntityMatrix(
       const Sqt& local_sqt, const mathfu::mat4* world_from_parent_mat);
+  static Sqt CalculateLocalSqt(const mathfu::mat4& world_from_entity_mat,
+                               const mathfu::mat4* world_from_parent_mat);
   void UpdateTransforms(Entity child);
   void SetEnabled(Entity e, bool enabled);
   void UpdateEnabled(Entity e, bool parent_enabled);

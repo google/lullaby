@@ -14,7 +14,7 @@ GUNIT_PORTABLE_DEPS = [
 # For testing we use the software renderer. Satisfying this dependency is
 # required through lullaby's use of fplbase_stdlib.
 TEST_ONLY_GL_DEPS = [
-    "@GL//:GL",
+    "@//third_party/gl",
 ]
 
 
@@ -51,7 +51,6 @@ cc_test(
         "//lullaby/util:async_processor",
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
 )
-
 
 cc_test(
     name = "bits_tests",
@@ -125,6 +124,23 @@ cc_test(
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
 )
 
+
+cc_test(
+    name = "deform_system_tests",
+    srcs = ["deform_system_test.cc"],
+    deps = [
+        ":mathfu_matchers",
+        "//lullaby/generated",
+        "//lullaby/modules/dispatcher",
+        "//lullaby/modules/ecs",
+        "//lullaby/modules/flatbuffers",
+        "//lullaby/systems/deform",
+        "//lullaby/systems/render",
+        "//lullaby/systems/render:render_system_mock",
+        "//lullaby/systems/transform",
+        "//lullaby/util:registry",
+    ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
+)
 
 cc_test(
     name = "dependency_checker_tests",
@@ -249,9 +265,9 @@ cc_test(
     srcs = ["input_manager_test.cc"],
     deps = [
         ":portable_test_macros",
-        "//ion/base:ionbase",
         "//lullaby/modules/input",
         "//lullaby/util:bits",
+        "//lullaby/util:clock",
         "//lullaby/util:logging",
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
 )
@@ -444,6 +460,21 @@ cc_test(
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
 )
 
+cc_test(
+    name = "physics_system_tests",
+    srcs = ["physics_system_test.cc"],
+    deps = [
+        ":mathfu_matchers",
+        ":portable_test_macros",
+        "//lullaby/generated",
+        "//lullaby/events",
+        "//lullaby/modules/ecs",
+        "//lullaby/systems/dispatcher",
+        "//lullaby/systems/physics",
+        "//lullaby/systems/transform",
+        "//lullaby/util:make_unique",
+    ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
+)
 
 cc_library(
     name = "portable_test_macros",
@@ -498,6 +529,7 @@ cc_test(
         "//lullaby/systems/render:render_system_mock",
         "//lullaby/systems/reticle",
         "//lullaby/systems/transform",
+        "//lullaby/util:clock",
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
 )
 
@@ -562,6 +594,19 @@ cc_test(
 )
 
 
+cc_library(
+    name = "test_data_container",
+    testonly = 1,
+    hdrs = [
+        "test_data_container.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lullaby/util:data_container",
+    ],
+)
+
+
 cc_test(
     name = "text_input_system_tests",
     srcs = ["text_input_system_test.cc"],
@@ -576,7 +621,6 @@ cc_test(
         "//lullaby/systems/transform",
         "//lullaby/util:math",
         "@mathfu//:mathfu",
-        "//vr/gvr/api:clock",
     ] + GUNIT_PORTABLE_DEPS + TEST_ONLY_GL_DEPS,
 )
 

@@ -285,6 +285,10 @@ void EntityFactory::DestroyQueuedEntities() {
   }
 }
 
+size_t EntityFactory::GetFlatbufferConverterCount() {
+  return converters_.size();
+}
+
 EntityFactory::FlatbufferConverter* EntityFactory::CreateFlatbufferConverter(
     string_view identifier) {
   // This needs to live in the cc file, since including make_unique in the

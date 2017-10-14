@@ -25,6 +25,10 @@ HashValue Hash(const char* str) {
 }
 
 HashValue Hash(const char* str, size_t len) {
+  return Hash(kHashOffsetBasis, str, len);
+}
+
+HashValue Hash(HashValue basis, const char* str, size_t len) {
   if (str == nullptr || *str == 0 || len == 0) {
     return 0;
   }
@@ -32,12 +36,17 @@ HashValue Hash(const char* str, size_t len) {
   // A quick good hash, from:
   // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
   size_t count = 0;
-  HashValue value = kHashOffsetBasis;
+  HashValue value = basis;
   while (*str && count < len) {
     value = (value ^ static_cast<unsigned char>(*str++)) * kHashPrimeMultiplier;
     ++count;
   }
   return value;
+}
+
+HashValue Hash(HashValue prefix, string_view suffix) {
+  HashValue safe_prefix = prefix != 0 ? prefix : kHashOffsetBasis;
+  return Hash(safe_prefix, suffix.data(), suffix.length());
 }
 
 HashValue Hash(string_view str) { return Hash(str.data(), str.length()); }

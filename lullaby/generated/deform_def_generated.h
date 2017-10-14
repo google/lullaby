@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/deform_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -107,6 +107,7 @@ void WaypointT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::DeformMode);
 LULLABY_SETUP_TYPEID(lull::DeformedDefT);
 LULLABY_SETUP_TYPEID(lull::DeformerDefT);
 LULLABY_SETUP_TYPEID(lull::WaypointPathT);

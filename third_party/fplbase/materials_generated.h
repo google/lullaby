@@ -230,13 +230,13 @@ struct MaterialBuilder {
   void add_wrapmode(TextureWrap wrapmode) {
     fbb_.AddElement<uint8_t>(Material::VT_WRAPMODE, static_cast<uint8_t>(wrapmode), 0);
   }
-  MaterialBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit MaterialBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   MaterialBuilder &operator=(const MaterialBuilder &);
   flatbuffers::Offset<Material> Finish() {
-    const auto end = fbb_.EndTable(start_, 7);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Material>(end);
     return o;
   }

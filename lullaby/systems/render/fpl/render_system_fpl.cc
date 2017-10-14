@@ -34,6 +34,7 @@ limitations under the License.
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/render/detail/profiler.h"
+#include "lullaby/systems/render/render_helpers.h"
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/render/simple_font.h"
 #include "lullaby/systems/text/text_system.h"
@@ -52,6 +53,7 @@ constexpr const char* kClampBoundsUniform = "clamp_bounds";
 constexpr const char* kBoneTransformsUniform = "bone_transforms";
 // We break the naming convention here for compatibility with early VR apps.
 constexpr const char* kIsRightEyeUniform = "uIsRightEye";
+constexpr HashValue kRenderResetStateHash = ConstHash("lull.Render.ResetState");
 
 bool IsSupportedUniformDimension(int dimension) {
   return (dimension == 1 || dimension == 2 || dimension == 3 ||
@@ -106,7 +108,8 @@ void UpdateUniformBinding(Uniform::Description* desc, const ShaderPtr& shader) {
 RenderSystemFpl::RenderSystemFpl(Registry* registry)
     : System(registry),
       render_component_pools_(registry),
-      sort_order_manager_(registry_) {
+      sort_order_manager_(registry_),
+      clip_from_model_matrix_func_(CalculateClipFromModelMatrix) {
   renderer_.Initialize(mathfu::kZeros2i, "lull::RenderSystem");
 
   factory_ = registry->Create<RenderFactory>(registry, &renderer_);
@@ -203,8 +206,7 @@ void RenderSystemFpl::Create(Entity e, HashValue type, const Def* def) {
   if (type == kRenderDefHash) {
     CreateRenderComponentFromDef(e, *ConvertDef<RenderDef>(def));
   } else {
-    LOG(DFATAL)
-        << "Invalid type passed to Create.";
+    LOG(DFATAL) << "Invalid type passed to Create.";
   }
 }
 
@@ -224,15 +226,17 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
   RenderComponent* component;
   if (data.hidden()) {
     component = &render_component_pools_.GetPool(RenderPass_Invisible)
-        .EmplaceComponent(e);
+                     .EmplaceComponent(e);
   } else {
-    component = &render_component_pools_.GetPool(data.pass())
-        .EmplaceComponent(e);
+    component =
+        &render_component_pools_.GetPool(data.pass()).EmplaceComponent(e);
   }
   component->pass = data.pass();
   component->hidden = data.hidden();
 
-  if (data.shader()) {
+  // If the def has been generated from a RenderDefT, its members will always
+  // be non-null, so check for non-empty, not just not-null.
+  if (data.shader() && data.shader()->Length() > 0) {
     SetShader(e, LoadShader(data.shader()->str()));
   }
 
@@ -243,11 +247,10 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
     text_system->CreateFromRenderDef(e, data);
   }
 
-  if (data.textures()) {
+  if (data.textures() && data.textures()->Length() > 0) {
     for (unsigned int i = 0; i < data.textures()->size(); ++i) {
-      TexturePtr texture =
-          factory_->LoadTexture(data.textures()->Get(i)->c_str(),
-                                data.create_mips());
+      TexturePtr texture = factory_->LoadTexture(
+          data.textures()->Get(i)->c_str(), data.create_mips());
       SetTexture(e, i, texture);
     }
   } else if (data.texture() && data.texture()->size() > 0) {
@@ -273,7 +276,7 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
 #endif  // GL_TEXTURE_EXTERNAL_OES
   }
 
-  if (data.mesh()) {
+  if (data.mesh() && data.mesh()->Length() > 0) {
     SetMesh(e, factory_->LoadMesh(data.mesh()->c_str()));
   }
 
@@ -321,11 +324,13 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
 void RenderSystemFpl::PostCreateInit(Entity e, HashValue type, const Def* def) {
   if (type == kRenderDefHash) {
     auto& data = *ConvertDef<RenderDef>(def);
-    if (data.text()) {
+    // If the def has been generated from a RenderDefT, its members will always
+    // be non-null, so check for non-empty, not just not-null.
+    if (data.text() && data.text()->Length() > 0) {
       SetText(e, data.text()->c_str());
-    } else if (data.quad()) {
+    } else if (data.quad() && data.quad()->verts_x() > 0 &&
+               data.quad()->verts_y() > 0) {
       const QuadDef& quad_def = *data.quad();
-
       Quad quad;
       quad.size = mathfu::vec2(quad_def.size_x(), quad_def.size_y());
       quad.verts = mathfu::vec2i(quad_def.verts_x(), quad_def.verts_y());
@@ -353,26 +358,11 @@ RenderPass RenderSystemFpl::GetRenderPass(Entity entity) const {
   return component ? component->pass : RenderPass_Invalid;
 }
 
-void RenderSystemFpl::SetQuadImpl(Entity e, const Quad& quad) {
-  if (quad.has_uv) {
-    SetMesh(e, CreateQuad<VertexPT>(e, quad));
-  } else {
-    SetMesh(e, CreateQuad<VertexP>(e, quad));
-  }
-}
-
 void RenderSystemFpl::CreateDeferredMeshes() {
   while (!deferred_meshes_.empty()) {
     DeferredMesh& defer = deferred_meshes_.front();
-    switch (defer.type) {
-      case DeferredMesh::kQuad:
-        SetQuadImpl(defer.e, defer.quad);
-        break;
-      case DeferredMesh::kMesh:
-        DeformMesh(defer.e, &defer.mesh);
-        SetMesh(defer.e, defer.mesh);
-        break;
-    }
+    DeformMesh(defer.e, &defer.mesh);
+    SetMesh(defer.e, defer.mesh, defer.mesh_id);
     deferred_meshes_.pop();
   }
 }
@@ -683,15 +673,26 @@ void RenderSystemFpl::SetQuad(Entity e, const Quad& quad) {
   }
   render_component->quad = quad;
 
+  MeshData mesh;
+  if (quad.has_uv) {
+    mesh = CreateQuadMesh<VertexPT>(quad.size.x, quad.size.y, quad.verts.x,
+                                    quad.verts.y, quad.corner_radius,
+                                    quad.corner_verts, quad.corner_mask);
+  } else {
+    mesh = CreateQuadMesh<VertexP>(quad.size.x, quad.size.y, quad.verts.x,
+                                   quad.verts.y, quad.corner_radius,
+                                   quad.corner_verts, quad.corner_mask);
+  }
+
   auto iter = deformations_.find(e);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
     defer.e = e;
-    defer.type = DeferredMesh::kQuad;
-    defer.quad = quad;
+    defer.mesh_id = quad.id;
+    defer.mesh = std::move(mesh);
     deferred_meshes_.push(std::move(defer));
   } else {
-    SetQuadImpl(e, quad);
+    SetMesh(e, mesh, quad.id);
   }
 }
 
@@ -705,26 +706,46 @@ bool RenderSystemFpl::GetQuad(Entity e, Quad* quad) const {
 }
 
 void RenderSystemFpl::SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh) {
-  SetMesh(e, factory_->CreateMesh(mesh));
+  SetMesh(e, mesh.CreateMeshData());
 }
 
 void RenderSystemFpl::SetAndDeformMesh(Entity entity,
                                        const TriangleMesh<VertexPT>& mesh) {
+  SetAndDeformMesh(entity, mesh.CreateMeshData());
+}
+
+void RenderSystemFpl::SetMesh(Entity entity, const MeshData& mesh,
+                              HashValue mesh_id) {
+  MeshPtr gpu_mesh;
+  if (mesh_id != 0) {
+    gpu_mesh = factory_->CreateMesh(mesh_id, mesh);
+  } else {
+    gpu_mesh = factory_->CreateMesh(mesh);
+  }
+  SetMesh(entity, gpu_mesh);
+}
+
+void RenderSystemFpl::SetMesh(Entity e, const MeshData& mesh) {
+  const HashValue mesh_id = 0;
+  SetMesh(e, mesh, mesh_id);
+}
+
+void RenderSystemFpl::SetAndDeformMesh(Entity entity, const MeshData& mesh) {
+  if (mesh.GetVertexBytes() == nullptr) {
+    LOG(WARNING) << "Can't deform mesh without read access.";
+    SetMesh(entity, mesh);
+    return;
+  }
+
   auto iter = deformations_.find(entity);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
     defer.e = entity;
-    defer.type = DeferredMesh::kMesh;
-    defer.mesh.GetVertices() = mesh.GetVertices();
-    defer.mesh.GetIndices() = mesh.GetIndices();
-    deferred_meshes_.emplace(std::move(defer));
+    defer.mesh = mesh.CreateHeapCopy();
+    deferred_meshes_.push(std::move(defer));
   } else {
     SetMesh(entity, mesh);
   }
-}
-
-void RenderSystemFpl::SetMesh(Entity e, const MeshData& mesh) {
-  SetMesh(e, factory_->CreateMesh(mesh));
 }
 
 void RenderSystemFpl::SetMesh(Entity e, const std::string& file) {
@@ -861,40 +882,12 @@ void RenderSystemFpl::SetTextSize(Entity entity, int size) {
                              static_cast<float>(size) * kMetersFromMillimeters);
 }
 
-template <typename Vertex>
-void RenderSystemFpl::DeformMesh(Entity entity, TriangleMesh<Vertex>* mesh) {
+void RenderSystemFpl::DeformMesh(Entity entity, MeshData* mesh) {
   auto iter = deformations_.find(entity);
   const Deformation deform =
       iter != deformations_.end() ? iter->second : nullptr;
   if (deform) {
-    // TODO(b/28313614) Use TriangleMesh::ApplyDeformation.
-    if (sizeof(Vertex) % sizeof(float) == 0) {
-      const int stride = static_cast<int>(sizeof(Vertex) / sizeof(float));
-      std::vector<Vertex>& vertices = mesh->GetVertices();
-      deform(reinterpret_cast<float*>(vertices.data()),
-             vertices.size() * stride, stride);
-    } else {
-      LOG(ERROR) << "Tried to deform an unsupported vertex format.";
-    }
-  }
-}
-
-template <typename Vertex>
-MeshPtr RenderSystemFpl::CreateQuad(Entity e, const Quad& quad) {
-  if (quad.size.x == 0 || quad.size.y == 0) {
-    return nullptr;
-  }
-
-  TriangleMesh<Vertex> mesh;
-  mesh.SetQuad(quad.size.x, quad.size.y, quad.verts.x, quad.verts.y,
-               quad.corner_radius, quad.corner_verts, quad.corner_mask);
-
-  DeformMesh<Vertex>(e, &mesh);
-
-  if (quad.id != 0) {
-    return factory_->CreateMesh(quad.id, mesh);
-  } else {
-    return factory_->CreateMesh(mesh);
+    ApplyDeformationToMesh(mesh, deform);
   }
 }
 
@@ -974,7 +967,7 @@ void RenderSystemFpl::SetCullMode(RenderPass pass, CullMode mode) {
 
 void RenderSystemFpl::SetDepthTest(const bool enabled) {
   if (enabled) {
-#if !ION_PRODUCTION
+#if !ION_PRODUCTION && !defined(__ANDROID__)
     // GL_DEPTH_BITS was deprecated in desktop GL 3.3, so make sure this get
     // succeeds before checking depth_bits.
     GLint depth_bits = 0;
@@ -984,7 +977,7 @@ void RenderSystemFpl::SetDepthTest(const bool enabled) {
       LOG_ONCE(WARNING) << "Enabling depth test without a depth buffer; this "
                            "has known issues on some platforms.";
     }
-#endif  // !ION_PRODUCTION
+#endif  // !ION_PRODUCTION && !defined(__ANDROID__)
 
     renderer_.SetDepthFunction(fplbase::kDepthFunctionLess);
     return;
@@ -1004,6 +997,16 @@ void RenderSystemFpl::SetViewport(const View& view) {
 
 void RenderSystemFpl::SetClipFromModelMatrix(const mathfu::mat4& mvp) {
   renderer_.set_model_view_projection(mvp);
+}
+
+void RenderSystemFpl::SetClipFromModelMatrixFunction(
+    const CalculateClipFromModelMatrixFunc& func) {
+  if (!func) {
+    clip_from_model_matrix_func_ = CalculateClipFromModelMatrix;
+    return;
+  }
+
+  clip_from_model_matrix_func_ = func;
 }
 
 void RenderSystemFpl::BindStencilMode(StencilMode mode, int ref) {
@@ -1105,9 +1108,7 @@ void RenderSystemFpl::SetBlendMode(fplbase::BlendMode blend_mode) {
   blend_mode_ = blend_mode;
 }
 
-mathfu::vec4 RenderSystemFpl::GetClearColor() const {
-  return clear_color_;
-}
+mathfu::vec4 RenderSystemFpl::GetClearColor() const { return clear_color_; }
 
 void RenderSystemFpl::SetClearColor(float r, float g, float b, float a) {
   clear_color_ = mathfu::vec4(r, g, b, a);
@@ -1121,7 +1122,18 @@ void RenderSystemFpl::BeginFrame() {
                   GL_STENCIL_BUFFER_BIT));
 }
 
-void RenderSystemFpl::EndFrame() {}
+void RenderSystemFpl::EndFrame() {
+  // Something in later passes seems to expect depth write to be on. Setting
+  // this here until the culprit is identified (b/36200233).
+  const auto* config = registry_->Get<Config>();
+  bool reset_state = true;
+  if (config) {
+    reset_state = config->Get(kRenderResetStateHash, reset_state);
+  }
+  if (reset_state) {
+    SetDepthWrite(true);
+  }
+}
 
 void RenderSystemFpl::BeginRendering() {}
 
@@ -1145,8 +1157,8 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
     return;
   }
 
-  const mathfu::mat4 clip_from_entity_matrix =
-      view.clip_from_world_matrix * world_from_entity_matrix;
+  const mathfu::mat4 clip_from_entity_matrix = clip_from_model_matrix_func_(
+      world_from_entity_matrix, view.clip_from_world_matrix);
   renderer_.set_model_view_projection(clip_from_entity_matrix);
   renderer_.set_model(world_from_entity_matrix);
 
@@ -1286,13 +1298,12 @@ void RenderSystemFpl::RenderDisplayList(const View& view,
                                         const DisplayList& display_list) {
   LULLABY_CPU_TRACE_CALL();
   const std::vector<DisplayList::Entry>* list = display_list.GetContents();
-  std::for_each(list->begin(), list->end(),
-                [&](const DisplayList::Entry& info) {
-                  if (info.component) {
-                    RenderAt(info.component, info.world_from_entity_matrix,
-                             view);
-                  }
-                });
+  std::for_each(
+      list->begin(), list->end(), [&](const DisplayList::Entry& info) {
+        if (info.component) {
+          RenderAt(info.component, info.world_from_entity_matrix, view);
+        }
+      });
 }
 
 void RenderSystemFpl::RenderDisplayListMultiview(
@@ -1366,8 +1377,6 @@ void RenderSystemFpl::Render(const View* views, size_t num_views,
   bool reset_state = true;
   auto* config = registry_->Get<Config>();
   if (config) {
-    static const HashValue kRenderResetStateHash =
-        Hash("lull.Render.ResetState");
     reset_state = config->Get(kRenderResetStateHash, reset_state);
   }
 
@@ -1438,7 +1447,8 @@ void RenderSystemFpl::Render(const View* views, size_t num_views,
       }
 
       // Something in later passes seems to expect depth write to be on. Setting
-      // this here until the culprit is identified (b/36200233).
+      // this here until the culprit is identified (b/36200233). Since not all
+      // apps call EndFrame, we can't rely solely on the depth write call there.
       SetDepthWrite(true);
       break;
     }
@@ -1671,7 +1681,7 @@ void RenderSystemFpl::OnParentChanged(const ParentChangedEvent& event) {
       });
 }
 
-const fplbase::RenderState& RenderSystemFpl::GetRenderState() const {
+const fplbase::RenderState& RenderSystemFpl::GetCachedRenderState() const {
   return renderer_.GetRenderState();
 }
 
@@ -1818,6 +1828,16 @@ void RenderSystemFpl::SetAndDeformMesh(Entity /*entity*/,
 }
 void RenderSystemFpl::SetSortOrderOffset(Entity /*e*/, HashValue component_id,
                                          SortOrderOffset offset) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+
+void RenderSystemFpl::SetClearParams(HashValue pass,
+                                     const ClearParams& clear_params) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+
+void RenderSystemFpl::SetRenderState(HashValue pass,
+                                     const fplbase::RenderState& render_state) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 

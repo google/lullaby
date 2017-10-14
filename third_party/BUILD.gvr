@@ -1,0 +1,18 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "gvr",
+    hdrs = [
+        "libraries/headers/vr/gvr/capi/include/gvr.h",
+        "libraries/headers/vr/gvr/capi/include/gvr_audio.h",
+        "libraries/headers/vr/gvr/capi/include/gvr_audio_surround.h",
+        "libraries/headers/vr/gvr/capi/include/gvr_controller.h",
+        "libraries/headers/vr/gvr/capi/include/gvr_gesture.h",
+        "libraries/headers/vr/gvr/capi/include/gvr_types.h",
+    ],
+    includes = [
+        "libraries/headers/",
+    ],
+)

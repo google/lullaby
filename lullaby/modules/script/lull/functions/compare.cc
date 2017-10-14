@@ -21,169 +21,50 @@ limitations under the License.
 
 // This file implements the following script functions:
 //
-// (== [lhs] [rhs])
-//   Returns true if two arguments have the same value.  Only valid for integer
-//   or floating-point types.
+// (or [args...])
+//   Returns true if any of the arguments is true, false otherwise.
 //
-// (!= [lhs] [rhs])
-//   Returns true if two arguments have different values.  Only valid for
-//   integer or floating-point types.
+// (and [args...])
+//   Returns false if any of the arguments is false, true otherwise.
 //
-// (< [lhs] [rhs])
-//   Returns true if first argument's value is less than the second argument's
-//   value.  Only valid for integer or floating-point types.
+// (not [arg])
+//   Returns false if arg is true or true if arg is false.
 //
-// (> [lhs] [rhs])
-//   Returns true if first argument's value is greater than the second
-//   argument's value.  Only valid for integer or floating-point types.
-//
-// (<= [lhs] [rhs])
-//   Returns true if first argument's value is less than or equal to the second
-//   argument's value.  Only valid for integer or floating-point types.
-//
-// (>= [lhs] [rhs])
-//   Returns true if first argument's value is greater than or equal to the
-//   second argument's value.  Only valid for integer or floating-point types.
 
 namespace lull {
 namespace {
 
-struct ComparisonArgs {
-  explicit ComparisonArgs(ScriptFrame* frame) : frame(frame) {
-    lhs = frame->EvalNext();
-    rhs = frame->EvalNext();
-    type = lhs.GetTypeId();
-    if (frame->HasNext()) {
-      frame->Error("Comparison operator should only have two args.");
+void And(ScriptFrame* frame) {
+  bool result = true;
+  while (result && frame->HasNext()) {
+    ScriptValue arg = frame->EvalNext();
+    if (!arg.Is<bool>()) {
+      frame->Error("and: argument should have type bool.");
+      return;
     }
-    if (type != rhs.GetTypeId()) {
-      frame->Error("Both types for comparison should be the same.");
-      type = 0;
+    result &= *arg.Get<bool>();
+  }
+  frame->Return(result);
+}
+
+void Or(ScriptFrame* frame) {
+  bool result = false;
+  while (!result && frame->HasNext()) {
+    ScriptValue arg = frame->EvalNext();
+    if (!arg.Is<bool>()) {
+      frame->Error("or: argument should have type bool.");
+      return;
     }
+    result |= *arg.Get<bool>();
   }
-
-  template <typename T>
-  bool Is() const {
-    return type == GetTypeId<T>();
-  }
-
-  template <typename T, bool (*Fn)(T, T)>
-  void Check() {
-    auto ptr1 = lhs.Get<T>();
-    auto ptr2 = rhs.Get<T>();
-    if (ptr1 && ptr2) {
-      frame->Return(Fn(*ptr1, *ptr2));
-    }
-  }
-
-  TypeId type;
-  ScriptFrame* frame;
-  ScriptValue lhs;
-  ScriptValue rhs;
-};
-
-template <typename T>
-bool EqFn(T lhs, T rhs) {
-  return lhs == rhs;
+  frame->Return(result);
 }
 
-template <typename T>
-bool NeFn(T lhs, T rhs) {
-  return lhs != rhs;
-}
+bool Not(bool arg) { return !arg; }
 
-template <typename T>
-bool GtFn(T lhs, T rhs) {
-  return lhs > rhs;
-}
-
-template <typename T>
-bool LtFn(T lhs, T rhs) {
-  return lhs < rhs;
-}
-
-template <typename T>
-bool GeFn(T lhs, T rhs) {
-  return lhs >= rhs;
-}
-
-template <typename T>
-bool LeFn(T lhs, T rhs) {
-  return lhs <= rhs;
-}
-
-void Equal(ScriptFrame* frame) {
-  ComparisonArgs args(frame);
-  if (args.Is<int>()) {
-    args.Check<int, EqFn>();
-  } else if (args.Is<float>()) {
-    args.Check<float, EqFn>();
-  } else {
-    frame->Error("Comparison not supported for this type.");
-  }
-}
-
-void NotEqual(ScriptFrame* frame) {
-  ComparisonArgs args(frame);
-  if (args.Is<int>()) {
-    args.Check<int, NeFn>();
-  } else if (args.Is<float>()) {
-    args.Check<float, NeFn>();
-  } else {
-    frame->Error("Comparison not supported for this type.");
-  }
-}
-
-void LessThan(ScriptFrame* frame) {
-  ComparisonArgs args(frame);
-  if (args.Is<int>()) {
-    args.Check<int, LtFn>();
-  } else if (args.Is<float>()) {
-    args.Check<float, LtFn>();
-  } else {
-    frame->Error("Comparison not supported for this type.");
-  }
-}
-
-void GreaterThan(ScriptFrame* frame) {
-  ComparisonArgs args(frame);
-  if (args.Is<int>()) {
-    args.Check<int, GtFn>();
-  } else if (args.Is<float>()) {
-    args.Check<float, GtFn>();
-  } else {
-    frame->Error("Comparison not supported for this type.");
-  }
-}
-
-void LessThanOrEqual(ScriptFrame* frame) {
-  ComparisonArgs args(frame);
-  if (args.Is<int>()) {
-    args.Check<int, LeFn>();
-  } else if (args.Is<float>()) {
-    args.Check<float, LeFn>();
-  } else {
-    frame->Error("Comparison not supported for this type.");
-  }
-}
-
-void GreaterThanOrEqual(ScriptFrame* frame) {
-  ComparisonArgs args(frame);
-  if (args.Is<int>()) {
-    args.Check<int, GeFn>();
-  } else if (args.Is<float>()) {
-    args.Check<float, GeFn>();
-  } else {
-    frame->Error("Comparison not supported for this type.");
-  }
-}
-
-LULLABY_SCRIPT_FUNCTION(Equal, "==");
-LULLABY_SCRIPT_FUNCTION(GreaterThan, ">");
-LULLABY_SCRIPT_FUNCTION(GreaterThanOrEqual, ">=");
-LULLABY_SCRIPT_FUNCTION(LessThan, "<");
-LULLABY_SCRIPT_FUNCTION(LessThanOrEqual, "<=");
-LULLABY_SCRIPT_FUNCTION(NotEqual, "!=");
+LULLABY_SCRIPT_FUNCTION(And, "and");
+LULLABY_SCRIPT_FUNCTION(Or, "or");
+LULLABY_SCRIPT_FUNCTION_WRAP(Not, "not");
 
 }  // namespace
 }  // namespace lull

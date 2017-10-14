@@ -1,16 +1,25 @@
 package(
     default_visibility = ["//visibility:public"],
 )
+
 licenses(["notice"])  # Apache 2.0
+
 cc_library(
     name = "generated",
     hdrs = [
         "animation_def_generated.h",
         "animation_response_def_generated.h",
         "animation_stategraph_generated.h",
+        "audio_environment_def_generated.h",
+        "audio_listener_def_generated.h",
+        "audio_playback_types_generated.h",
+        "audio_response_def_generated.h",
+        "audio_source_def_generated.h",
         "collision_def_generated.h",
         "common_generated.h",
         "config_def_generated.h",
+        "cursor_def_generated.h",
+        "cursor_trail_def_generated.h",
         "datastore_def_generated.h",
         "deform_def_generated.h",
         "dispatcher_def_generated.h",
@@ -38,9 +47,16 @@ cc_library(
         "flatbuffers/animation_def_generated.h",
         "flatbuffers/animation_response_def_generated.h",
         "flatbuffers/animation_stategraph_generated.h",
+        "flatbuffers/audio_environment_def_generated.h",
+        "flatbuffers/audio_listener_def_generated.h",
+        "flatbuffers/audio_playback_types_generated.h",
+        "flatbuffers/audio_response_def_generated.h",
+        "flatbuffers/audio_source_def_generated.h",
         "flatbuffers/collision_def_generated.h",
         "flatbuffers/common_generated.h",
         "flatbuffers/config_def_generated.h",
+        "flatbuffers/cursor_def_generated.h",
+        "flatbuffers/cursor_trail_def_generated.h",
         "flatbuffers/datastore_def_generated.h",
         "flatbuffers/deform_def_generated.h",
         "flatbuffers/dispatcher_def_generated.h",
@@ -75,3 +91,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "flatc_fbs",
+    hdrs = [
+        "flatc_generated.h",
+        "flatbuffers/flatc_generated.h"
+    ],
+    deps = [
+        "//lullaby/util:color",
+        "//lullaby/util:common_types",
+        "//lullaby/util:math",
+        "//lullaby/util:optional",
+        "//lullaby/util:typeid",
+    ],
+)

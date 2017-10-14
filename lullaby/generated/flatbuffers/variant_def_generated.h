@@ -157,13 +157,13 @@ struct DataBoolBuilder {
   void add_value(bool value) {
     fbb_.AddElement<uint8_t>(DataBool::VT_VALUE, static_cast<uint8_t>(value), 0);
   }
-  DataBoolBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataBoolBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataBoolBuilder &operator=(const DataBoolBuilder &);
   flatbuffers::Offset<DataBool> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataBool>(end);
     return o;
   }
@@ -201,13 +201,13 @@ struct DataIntBuilder {
   void add_value(int32_t value) {
     fbb_.AddElement<int32_t>(DataInt::VT_VALUE, value, 0);
   }
-  DataIntBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataIntBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataIntBuilder &operator=(const DataIntBuilder &);
   flatbuffers::Offset<DataInt> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataInt>(end);
     return o;
   }
@@ -245,13 +245,13 @@ struct DataFloatBuilder {
   void add_value(float value) {
     fbb_.AddElement<float>(DataFloat::VT_VALUE, value, 0.0f);
   }
-  DataFloatBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataFloatBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataFloatBuilder &operator=(const DataFloatBuilder &);
   flatbuffers::Offset<DataFloat> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataFloat>(end);
     return o;
   }
@@ -289,13 +289,13 @@ struct DataHashValueBuilder {
   void add_value(uint32_t value) {
     fbb_.AddElement<uint32_t>(DataHashValue::VT_VALUE, value, 0);
   }
-  DataHashValueBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataHashValueBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataHashValueBuilder &operator=(const DataHashValueBuilder &);
   flatbuffers::Offset<DataHashValue> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataHashValue>(end);
     return o;
   }
@@ -334,13 +334,13 @@ struct DataStringBuilder {
   void add_value(flatbuffers::Offset<flatbuffers::String> value) {
     fbb_.AddOffset(DataString::VT_VALUE, value);
   }
-  DataStringBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataStringBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataStringBuilder &operator=(const DataStringBuilder &);
   flatbuffers::Offset<DataString> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataString>(end);
     return o;
   }
@@ -370,12 +370,12 @@ struct DataVec2 FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_VALUE = 4
   };
-  const lull::Vec2 *value() const {
-    return GetStruct<const lull::Vec2 *>(VT_VALUE);
+  const Vec2 *value() const {
+    return GetStruct<const Vec2 *>(VT_VALUE);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec2>(verifier, VT_VALUE) &&
+           VerifyField<Vec2>(verifier, VT_VALUE) &&
            verifier.EndTable();
   }
 };
@@ -383,16 +383,16 @@ struct DataVec2 FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct DataVec2Builder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_value(const lull::Vec2 *value) {
+  void add_value(const Vec2 *value) {
     fbb_.AddStruct(DataVec2::VT_VALUE, value);
   }
-  DataVec2Builder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataVec2Builder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataVec2Builder &operator=(const DataVec2Builder &);
   flatbuffers::Offset<DataVec2> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataVec2>(end);
     return o;
   }
@@ -400,7 +400,7 @@ struct DataVec2Builder {
 
 inline flatbuffers::Offset<DataVec2> CreateDataVec2(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec2 *value = 0) {
+    const Vec2 *value = 0) {
   DataVec2Builder builder_(_fbb);
   builder_.add_value(value);
   return builder_.Finish();
@@ -414,12 +414,12 @@ struct DataVec3 FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_VALUE = 4
   };
-  const lull::Vec3 *value() const {
-    return GetStruct<const lull::Vec3 *>(VT_VALUE);
+  const Vec3 *value() const {
+    return GetStruct<const Vec3 *>(VT_VALUE);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec3>(verifier, VT_VALUE) &&
+           VerifyField<Vec3>(verifier, VT_VALUE) &&
            verifier.EndTable();
   }
 };
@@ -427,16 +427,16 @@ struct DataVec3 FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct DataVec3Builder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_value(const lull::Vec3 *value) {
+  void add_value(const Vec3 *value) {
     fbb_.AddStruct(DataVec3::VT_VALUE, value);
   }
-  DataVec3Builder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataVec3Builder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataVec3Builder &operator=(const DataVec3Builder &);
   flatbuffers::Offset<DataVec3> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataVec3>(end);
     return o;
   }
@@ -444,7 +444,7 @@ struct DataVec3Builder {
 
 inline flatbuffers::Offset<DataVec3> CreateDataVec3(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec3 *value = 0) {
+    const Vec3 *value = 0) {
   DataVec3Builder builder_(_fbb);
   builder_.add_value(value);
   return builder_.Finish();
@@ -458,12 +458,12 @@ struct DataVec4 FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_VALUE = 4
   };
-  const lull::Vec4 *value() const {
-    return GetStruct<const lull::Vec4 *>(VT_VALUE);
+  const Vec4 *value() const {
+    return GetStruct<const Vec4 *>(VT_VALUE);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec4>(verifier, VT_VALUE) &&
+           VerifyField<Vec4>(verifier, VT_VALUE) &&
            verifier.EndTable();
   }
 };
@@ -471,16 +471,16 @@ struct DataVec4 FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct DataVec4Builder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_value(const lull::Vec4 *value) {
+  void add_value(const Vec4 *value) {
     fbb_.AddStruct(DataVec4::VT_VALUE, value);
   }
-  DataVec4Builder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataVec4Builder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataVec4Builder &operator=(const DataVec4Builder &);
   flatbuffers::Offset<DataVec4> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataVec4>(end);
     return o;
   }
@@ -488,7 +488,7 @@ struct DataVec4Builder {
 
 inline flatbuffers::Offset<DataVec4> CreateDataVec4(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec4 *value = 0) {
+    const Vec4 *value = 0) {
   DataVec4Builder builder_(_fbb);
   builder_.add_value(value);
   return builder_.Finish();
@@ -502,12 +502,12 @@ struct DataQuat FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_VALUE = 4
   };
-  const lull::Quat *value() const {
-    return GetStruct<const lull::Quat *>(VT_VALUE);
+  const Quat *value() const {
+    return GetStruct<const Quat *>(VT_VALUE);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Quat>(verifier, VT_VALUE) &&
+           VerifyField<Quat>(verifier, VT_VALUE) &&
            verifier.EndTable();
   }
 };
@@ -515,16 +515,16 @@ struct DataQuat FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct DataQuatBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_value(const lull::Quat *value) {
+  void add_value(const Quat *value) {
     fbb_.AddStruct(DataQuat::VT_VALUE, value);
   }
-  DataQuatBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DataQuatBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DataQuatBuilder &operator=(const DataQuatBuilder &);
   flatbuffers::Offset<DataQuat> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DataQuat>(end);
     return o;
   }
@@ -532,7 +532,7 @@ struct DataQuatBuilder {
 
 inline flatbuffers::Offset<DataQuat> CreateDataQuat(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Quat *value = 0) {
+    const Quat *value = 0) {
   DataQuatBuilder builder_(_fbb);
   builder_.add_value(value);
   return builder_.Finish();
@@ -653,13 +653,13 @@ struct KeyVariantPairDefBuilder {
   void add_value(flatbuffers::Offset<void> value) {
     fbb_.AddOffset(KeyVariantPairDef::VT_VALUE, value);
   }
-  KeyVariantPairDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit KeyVariantPairDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   KeyVariantPairDefBuilder &operator=(const KeyVariantPairDefBuilder &);
   flatbuffers::Offset<KeyVariantPairDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<KeyVariantPairDef>(end);
     return o;
   }
@@ -791,13 +791,13 @@ struct VariantArrayDefImplBuilder {
   void add_value(flatbuffers::Offset<void> value) {
     fbb_.AddOffset(VariantArrayDefImpl::VT_VALUE, value);
   }
-  VariantArrayDefImplBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit VariantArrayDefImplBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   VariantArrayDefImplBuilder &operator=(const VariantArrayDefImplBuilder &);
   flatbuffers::Offset<VariantArrayDefImpl> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<VariantArrayDefImpl>(end);
     return o;
   }
@@ -839,13 +839,13 @@ struct VariantArrayDefBuilder {
   void add_values(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<VariantArrayDefImpl>>> values) {
     fbb_.AddOffset(VariantArrayDef::VT_VALUES, values);
   }
-  VariantArrayDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit VariantArrayDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   VariantArrayDefBuilder &operator=(const VariantArrayDefBuilder &);
   flatbuffers::Offset<VariantArrayDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<VariantArrayDef>(end);
     return o;
   }
@@ -893,13 +893,13 @@ struct VariantMapDefBuilder {
   void add_values(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> values) {
     fbb_.AddOffset(VariantMapDef::VT_VALUES, values);
   }
-  VariantMapDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit VariantMapDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   VariantMapDefBuilder &operator=(const VariantMapDefBuilder &);
   flatbuffers::Offset<VariantMapDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<VariantMapDef>(end);
     return o;
   }

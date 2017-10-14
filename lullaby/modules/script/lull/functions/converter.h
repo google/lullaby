@@ -66,8 +66,20 @@ struct ScriptConverter<const T*> {
 // Variant overload allows passing in any type as a function argument. For
 // example in the map and array manipulation functions.
 template <>
+struct ScriptConverter<Variant*> {
+  static bool Convert(ScriptValue src, Variant** dest) {
+    Variant* value_ptr = src.GetVariant();
+    if (!value_ptr) return false;
+    *dest = value_ptr;
+    return true;
+  }
+
+  static const char* TypeName() { return "any type"; }
+};
+
+template <>
 struct ScriptConverter<const Variant*> {
-  static bool Convert(const ScriptValue& src, const Variant** dest) {
+  static bool Convert(ScriptValue src, const Variant** dest) {
     const Variant* value_ptr = src.GetVariant();
     if (!value_ptr) return false;
     *dest = value_ptr;

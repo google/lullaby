@@ -33,6 +33,7 @@ limitations under the License.
 #include "lullaby/systems/render/uniform.h"
 #include "lullaby/systems/text/html_tags.h"
 #include "lullaby/systems/text/text_system.h"
+#include "lullaby/util/bits.h"
 #include "lullaby/generated/render_def_generated.h"
 #include "lullaby/generated/render_target_def_generated.h"
 #include "mathfu/glsl_mappings.h"
@@ -74,6 +75,26 @@ enum class StencilMode {
   kTest,
   kWrite,
 };
+
+/// Structure containing the parameters used for clearing the render target.
+struct ClearParams {
+  enum ClearOptions { kColor = 1 << 0, kDepth = 1 << 1, kStencil = 1 << 2 };
+
+  /// Bits representing the selected clear options. 0 = no clear operations.
+  Bits clear_options = 0;
+  /// Color value to clear the color buffer to (if selected).
+  mathfu::vec4 color_value = mathfu::kZeros4f;
+  /// Depth value the depth buffer will be set upon clear (if selected).
+  float depth_value = 1.0f;
+  /// Stencil index used to clear the stencil buffer (if selected).
+  int stencil_value = 0;
+};
+
+// A function which takes in model and projection_view matrices (in that
+// order) and returns the resulting clip_from_model_matrix (i.e. the
+// model-view-projection matrix).
+typedef std::function<mathfu::mat4(const mathfu::mat4&, const mathfu::mat4&)>
+    CalculateClipFromModelMatrixFunc;
 
 class RenderSystemImpl;
 
@@ -376,6 +397,11 @@ class RenderSystem : public System {
   // Attaches a mesh to the specified Entity. Does not apply deformation.
   void SetMesh(Entity e, const MeshData& mesh);
 
+  // Like SetMesh, but applies |entity|'s deformation, if any. If |mesh| doesn't
+  // have read access, this will generate a warning and not apply the
+  // deformation.
+  void SetAndDeformMesh(Entity entity, const MeshData& mesh);
+
   // Loads and attaches a mesh to the specified Entity.
   void SetMesh(Entity e, const std::string& file);
 
@@ -444,8 +470,16 @@ class RenderSystem : public System {
   // Sets |e|'s render pass to |pass|.
   void SetRenderPass(Entity e, RenderPass pass);
 
+  /// Sets a render state to be used when rendering a specific render pass. If
+  /// a pass is rendered without a state being set, a default render state will
+  /// be used.
+  void SetRenderState(HashValue pass, const fplbase::RenderState& render_state);
+
   // Returns |pass|'s sort mode.
   SortMode GetSortMode(RenderPass pass) const;
+
+  // Sets |pass|'s clear params.
+  void SetClearParams(HashValue pass, const ClearParams& clear_params);
 
   // Sets |pass|'s sort mode.
   void SetSortMode(RenderPass pass, SortMode mode);
@@ -472,6 +506,14 @@ class RenderSystem : public System {
 
   // Sets |mvp| to be a position at which to project models.
   void SetClipFromModelMatrix(const mathfu::mat4& mvp);
+
+  // Sets the function to use for calculating the clip_from_model_matrix value
+  // (i.e. the model-view-projection). This will override the default
+  // calculation which simply multiples the projection_view by the model matrix.
+  // Providing nullptr will reset the RenderSystem to using the default
+  // function. This is applied globally for all render passes and all entities.
+  void SetClipFromModelMatrixFunction(
+      const CalculateClipFromModelMatrixFunc& func);
 
   // Returns the cached value of the clear color.
   mathfu::vec4 GetClearColor() const;
@@ -502,6 +544,14 @@ class RenderSystem : public System {
   /// frame before submitting starting to draw another frame or calling
   /// BeginFrame a second time.
   void EndFrame();
+
+  /// Returns the render state cached by the renderer.
+  const fplbase::RenderState& GetCachedRenderState() const;
+
+  /// Updates the render state cached in the renderer. This should be used if
+  /// your app is sharing a GL context with another framework which affects the
+  /// GL state, or if you are making GL calls on your own outside of Lullaby.
+  void UpdateCachedRenderState(const fplbase::RenderState& render_state);
 
   // Creates a temporary interface that allows a mesh to be defined for
   // |entity|.  This mesh is used until UpdateDynamicMesh is called again.

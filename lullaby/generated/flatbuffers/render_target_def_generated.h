@@ -13,30 +13,39 @@ namespace lull {
 struct RenderTargetDef;
 
 enum TextureFormat {
-  TextureFormat_A8 = 0,
-  TextureFormat_R8 = 1,
-  TextureFormat_RGB8 = 2,
-  TextureFormat_RGBA8 = 3,
-  TextureFormat_MIN = TextureFormat_A8,
-  TextureFormat_MAX = TextureFormat_RGBA8
+  TextureFormat_None = 0,
+  TextureFormat_A8 = 1,
+  TextureFormat_R8 = 2,
+  TextureFormat_RGB8 = 3,
+  TextureFormat_RGBA8 = 4,
+  TextureFormat_Depth16 = 5,
+  TextureFormat_Depth32F = 6,
+  TextureFormat_MIN = TextureFormat_None,
+  TextureFormat_MAX = TextureFormat_Depth32F
 };
 
-inline TextureFormat (&EnumValuesTextureFormat())[4] {
+inline TextureFormat (&EnumValuesTextureFormat())[7] {
   static TextureFormat values[] = {
+    TextureFormat_None,
     TextureFormat_A8,
     TextureFormat_R8,
     TextureFormat_RGB8,
-    TextureFormat_RGBA8
+    TextureFormat_RGBA8,
+    TextureFormat_Depth16,
+    TextureFormat_Depth32F
   };
   return values;
 }
 
 inline const char **EnumNamesTextureFormat() {
   static const char *names[] = {
+    "None",
     "A8",
     "R8",
     "RGB8",
     "RGBA8",
+    "Depth16",
+    "Depth32F",
     nullptr
   };
   return names;
@@ -104,11 +113,11 @@ struct RenderTargetDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::String *name() const {
     return GetPointer<const flatbuffers::String *>(VT_NAME);
   }
-  const lull::Vec2i *size() const {
-    return GetStruct<const lull::Vec2i *>(VT_SIZE);
+  const Vec2i *size() const {
+    return GetStruct<const Vec2i *>(VT_SIZE);
   }
   TextureFormat texture_format() const {
-    return static_cast<TextureFormat>(GetField<uint16_t>(VT_TEXTURE_FORMAT, 3));
+    return static_cast<TextureFormat>(GetField<uint16_t>(VT_TEXTURE_FORMAT, 4));
   }
   DepthStencilFormat depth_stencil_format() const {
     return static_cast<DepthStencilFormat>(GetField<uint16_t>(VT_DEPTH_STENCIL_FORMAT, 0));
@@ -117,7 +126,7 @@ struct RenderTargetDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_NAME) &&
            verifier.Verify(name()) &&
-           VerifyField<lull::Vec2i>(verifier, VT_SIZE) &&
+           VerifyField<Vec2i>(verifier, VT_SIZE) &&
            VerifyField<uint16_t>(verifier, VT_TEXTURE_FORMAT) &&
            VerifyField<uint16_t>(verifier, VT_DEPTH_STENCIL_FORMAT) &&
            verifier.EndTable();
@@ -130,22 +139,22 @@ struct RenderTargetDefBuilder {
   void add_name(flatbuffers::Offset<flatbuffers::String> name) {
     fbb_.AddOffset(RenderTargetDef::VT_NAME, name);
   }
-  void add_size(const lull::Vec2i *size) {
+  void add_size(const Vec2i *size) {
     fbb_.AddStruct(RenderTargetDef::VT_SIZE, size);
   }
   void add_texture_format(TextureFormat texture_format) {
-    fbb_.AddElement<uint16_t>(RenderTargetDef::VT_TEXTURE_FORMAT, static_cast<uint16_t>(texture_format), 3);
+    fbb_.AddElement<uint16_t>(RenderTargetDef::VT_TEXTURE_FORMAT, static_cast<uint16_t>(texture_format), 4);
   }
   void add_depth_stencil_format(DepthStencilFormat depth_stencil_format) {
     fbb_.AddElement<uint16_t>(RenderTargetDef::VT_DEPTH_STENCIL_FORMAT, static_cast<uint16_t>(depth_stencil_format), 0);
   }
-  RenderTargetDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit RenderTargetDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   RenderTargetDefBuilder &operator=(const RenderTargetDefBuilder &);
   flatbuffers::Offset<RenderTargetDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<RenderTargetDef>(end);
     return o;
   }
@@ -154,7 +163,7 @@ struct RenderTargetDefBuilder {
 inline flatbuffers::Offset<RenderTargetDef> CreateRenderTargetDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::String> name = 0,
-    const lull::Vec2i *size = 0,
+    const Vec2i *size = 0,
     TextureFormat texture_format = TextureFormat_RGBA8,
     DepthStencilFormat depth_stencil_format = DepthStencilFormat_None) {
   RenderTargetDefBuilder builder_(_fbb);
@@ -168,7 +177,7 @@ inline flatbuffers::Offset<RenderTargetDef> CreateRenderTargetDef(
 inline flatbuffers::Offset<RenderTargetDef> CreateRenderTargetDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const char *name = nullptr,
-    const lull::Vec2i *size = 0,
+    const Vec2i *size = 0,
     TextureFormat texture_format = TextureFormat_RGBA8,
     DepthStencilFormat depth_stencil_format = DepthStencilFormat_None) {
   return lull::CreateRenderTargetDef(

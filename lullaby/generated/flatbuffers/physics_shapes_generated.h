@@ -72,12 +72,12 @@ struct PhysicsBoxShape FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_HALF_DIMENSIONS = 4
   };
   /// The positive XYZ dimensions of the shape will be mirrored in negative XYZ.
-  const lull::Vec3 *half_dimensions() const {
-    return GetStruct<const lull::Vec3 *>(VT_HALF_DIMENSIONS);
+  const Vec3 *half_dimensions() const {
+    return GetStruct<const Vec3 *>(VT_HALF_DIMENSIONS);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec3>(verifier, VT_HALF_DIMENSIONS) &&
+           VerifyField<Vec3>(verifier, VT_HALF_DIMENSIONS) &&
            verifier.EndTable();
   }
 };
@@ -85,16 +85,16 @@ struct PhysicsBoxShape FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct PhysicsBoxShapeBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_half_dimensions(const lull::Vec3 *half_dimensions) {
+  void add_half_dimensions(const Vec3 *half_dimensions) {
     fbb_.AddStruct(PhysicsBoxShape::VT_HALF_DIMENSIONS, half_dimensions);
   }
-  PhysicsBoxShapeBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit PhysicsBoxShapeBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   PhysicsBoxShapeBuilder &operator=(const PhysicsBoxShapeBuilder &);
   flatbuffers::Offset<PhysicsBoxShape> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<PhysicsBoxShape>(end);
     return o;
   }
@@ -102,7 +102,7 @@ struct PhysicsBoxShapeBuilder {
 
 inline flatbuffers::Offset<PhysicsBoxShape> CreatePhysicsBoxShape(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec3 *half_dimensions = 0) {
+    const Vec3 *half_dimensions = 0) {
   PhysicsBoxShapeBuilder builder_(_fbb);
   builder_.add_half_dimensions(half_dimensions);
   return builder_.Finish();
@@ -132,13 +132,13 @@ struct PhysicsSphereShapeBuilder {
   void add_radius(float radius) {
     fbb_.AddElement<float>(PhysicsSphereShape::VT_RADIUS, radius, 0.0f);
   }
-  PhysicsSphereShapeBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit PhysicsSphereShapeBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   PhysicsSphereShapeBuilder &operator=(const PhysicsSphereShapeBuilder &);
   flatbuffers::Offset<PhysicsSphereShape> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<PhysicsSphereShape>(end);
     return o;
   }
@@ -180,25 +180,25 @@ struct PhysicsShapePart FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return shape_type() == PhysicsShapePrimitive_PhysicsSphereShape ? static_cast<const PhysicsSphereShape *>(shape()) : nullptr;
   }
   /// The local translation for this shape's centroid.
-  const lull::Vec3 *translation() const {
-    return GetStruct<const lull::Vec3 *>(VT_TRANSLATION);
+  const Vec3 *translation() const {
+    return GetStruct<const Vec3 *>(VT_TRANSLATION);
   }
   /// The local rotation for this shape's centroid.
-  const lull::Vec3 *rotation() const {
-    return GetStruct<const lull::Vec3 *>(VT_ROTATION);
+  const Vec3 *rotation() const {
+    return GetStruct<const Vec3 *>(VT_ROTATION);
   }
   /// The local scale for this shape.
-  const lull::Vec3 *scale() const {
-    return GetStruct<const lull::Vec3 *>(VT_SCALE);
+  const Vec3 *scale() const {
+    return GetStruct<const Vec3 *>(VT_SCALE);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint8_t>(verifier, VT_SHAPE_TYPE) &&
            VerifyOffset(verifier, VT_SHAPE) &&
            VerifyPhysicsShapePrimitive(verifier, shape(), shape_type()) &&
-           VerifyField<lull::Vec3>(verifier, VT_TRANSLATION) &&
-           VerifyField<lull::Vec3>(verifier, VT_ROTATION) &&
-           VerifyField<lull::Vec3>(verifier, VT_SCALE) &&
+           VerifyField<Vec3>(verifier, VT_TRANSLATION) &&
+           VerifyField<Vec3>(verifier, VT_ROTATION) &&
+           VerifyField<Vec3>(verifier, VT_SCALE) &&
            verifier.EndTable();
   }
 };
@@ -220,22 +220,22 @@ struct PhysicsShapePartBuilder {
   void add_shape(flatbuffers::Offset<void> shape) {
     fbb_.AddOffset(PhysicsShapePart::VT_SHAPE, shape);
   }
-  void add_translation(const lull::Vec3 *translation) {
+  void add_translation(const Vec3 *translation) {
     fbb_.AddStruct(PhysicsShapePart::VT_TRANSLATION, translation);
   }
-  void add_rotation(const lull::Vec3 *rotation) {
+  void add_rotation(const Vec3 *rotation) {
     fbb_.AddStruct(PhysicsShapePart::VT_ROTATION, rotation);
   }
-  void add_scale(const lull::Vec3 *scale) {
+  void add_scale(const Vec3 *scale) {
     fbb_.AddStruct(PhysicsShapePart::VT_SCALE, scale);
   }
-  PhysicsShapePartBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit PhysicsShapePartBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   PhysicsShapePartBuilder &operator=(const PhysicsShapePartBuilder &);
   flatbuffers::Offset<PhysicsShapePart> Finish() {
-    const auto end = fbb_.EndTable(start_, 5);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<PhysicsShapePart>(end);
     return o;
   }
@@ -245,9 +245,9 @@ inline flatbuffers::Offset<PhysicsShapePart> CreatePhysicsShapePart(
     flatbuffers::FlatBufferBuilder &_fbb,
     PhysicsShapePrimitive shape_type = PhysicsShapePrimitive_NONE,
     flatbuffers::Offset<void> shape = 0,
-    const lull::Vec3 *translation = 0,
-    const lull::Vec3 *rotation = 0,
-    const lull::Vec3 *scale = 0) {
+    const Vec3 *translation = 0,
+    const Vec3 *rotation = 0,
+    const Vec3 *scale = 0) {
   PhysicsShapePartBuilder builder_(_fbb);
   builder_.add_scale(scale);
   builder_.add_rotation(rotation);

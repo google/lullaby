@@ -6,6 +6,25 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 cc_library(
+    name = "android_context",
+    srcs = [
+        "android_context.cc",
+    ],
+    hdrs = [
+        "android_context.h",
+        "scoped_java_local_ref.h",
+    ],
+    deps = [
+        ":clock",
+        ":dependency_checker",
+        ":logging",
+        ":registry",
+        ":time",
+        ":typeid",
+    ],
+)
+
+cc_library(
     name = "aligned_alloc",
     hdrs = [
         "aligned_alloc.h",
@@ -91,6 +110,9 @@ cc_library(
 
 cc_library(
     name = "data_container",
+    srcs = [
+        "data_container.cc",
+    ],
     hdrs = [
         "data_container.h",
     ],
@@ -486,6 +508,7 @@ cc_library(
         "variant.h",
     ],
     deps = [
+        ":common_types",
         ":logging",
         ":type_util",
         ":typeid",

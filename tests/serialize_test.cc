@@ -23,7 +23,7 @@ limitations under the License.
 #include "lullaby/modules/serialize/serialize.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/optional.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

@@ -1,0 +1,27 @@
+namespace lull;
+
+/// How the audio engine should treat an audio source.
+enum AudioSourceType : int {
+  /// A non-spatialized, standard audio source.
+  Standard,
+  /// A spatialized sound object.
+  Spatialized,
+  /// A rotational sound field.
+  Soundfield,
+}
+
+/// How a sound should be loaded and played.
+enum AudioPlaybackType : int {
+  /// Preload the sound. If something attempts to play the sound before it is
+  /// done loading, skip playing the sound.
+  PlayIfReady,
+  /// Preload the sound. If something attempts to play the sound before it is
+  /// done loading, queue the sound to be played as soon as it is ready.
+  PlayWhenReady,
+  /// Stream the sound.
+  Stream,
+  /// Do not manage the playback of the sound. Only manage its other properties,
+  /// such as volume and transform.
+  /// This type should NEVER be used outside of the AudioSystem.
+  External,
+}

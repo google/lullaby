@@ -19,6 +19,7 @@ cc_library(
         "//lullaby/modules/ecs:entity",
         "//lullaby/systems/layout:layout_box",
         "//lullaby/systems/transform",
+        "//lullaby/util:clock",
         "//lullaby/util:logging",
         "//lullaby/util:math",
         "//lullaby/util:registry",

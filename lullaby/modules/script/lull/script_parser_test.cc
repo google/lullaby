@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/modules/script/lull/script_parser.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "lullaby/modules/script/lull/script_types.h"
 #include "lullaby/util/common_types.h"
 #include "lullaby/util/variant.h"
 
@@ -24,6 +25,7 @@ namespace lull {
 namespace {
 
 using ::testing::Eq;
+using ::testing::Ge;
 
 struct Token {
   ParserCallbacks::TokenType type;
@@ -87,7 +89,7 @@ bool operator==(const Token& lhs, const Token& rhs) {
     case ParserCallbacks::kHashValue:
       return Compare<HashValue>(lhs.value, rhs.value);
     case ParserCallbacks::kSymbol:
-      return Compare<HashValue>(lhs.value, rhs.value);
+      return Compare<Symbol>(lhs.value, rhs.value);
     case ParserCallbacks::kString:
       return Compare<std::string>(lhs.value, rhs.value);
   }
@@ -152,7 +154,7 @@ struct TestParserCallbacks : ParserCallbacks {
         var = *reinterpret_cast<const HashValue*>(ptr);
         break;
       case kSymbol:
-        var = *reinterpret_cast<const HashValue*>(ptr);
+        var = *reinterpret_cast<const Symbol*>(ptr);
         break;
       case kString:
         var = reinterpret_cast<const string_view*>(ptr)->to_string();
@@ -317,8 +319,8 @@ TEST(ScriptParserTest, SymbolParsing) {
   TestParserCallbacks callbacks;
   ParseScript("(hello world)", &callbacks);
   callbacks.Expect(ParserCallbacks::kPush, "(");
-  callbacks.Expect(ParserCallbacks::kSymbol, "hello", Hash("hello"));
-  callbacks.Expect(ParserCallbacks::kSymbol, "world", Hash("world"));
+  callbacks.Expect(ParserCallbacks::kSymbol, "hello", Symbol("hello"));
+  callbacks.Expect(ParserCallbacks::kSymbol, "world", Symbol("world"));
   callbacks.Expect(ParserCallbacks::kPop, ")");
   callbacks.Expect(ParserCallbacks::kEof);
   EXPECT_THAT(callbacks.parsed, Eq(callbacks.expected));
@@ -327,7 +329,7 @@ TEST(ScriptParserTest, SymbolParsing) {
 TEST(ScriptParserTest, Comments) {
   TestParserCallbacks callbacks;
 
-  ParseScript("(123 # comment\n# line\n456 # another\n)", &callbacks);
+  ParseScript("(123 ; comment\n; line\n456 ; another\n)", &callbacks);
   callbacks.Expect(ParserCallbacks::kPush, "(");
   callbacks.Expect(ParserCallbacks::kInt32, "123", 123);
   callbacks.Expect(ParserCallbacks::kInt32, "456", 456);
@@ -335,6 +337,36 @@ TEST(ScriptParserTest, Comments) {
   callbacks.Expect(ParserCallbacks::kEof);
 
   EXPECT_THAT(callbacks.parsed, Eq(callbacks.expected));
+}
+
+TEST(ScriptParserTest, TrailingComments) {
+  TestParserCallbacks callbacks;
+
+  ParseScript("(123 ; comment\n; line\n456 ; another\n)\n; trailing",
+              &callbacks);
+  callbacks.Expect(ParserCallbacks::kPush, "(");
+  callbacks.Expect(ParserCallbacks::kInt32, "123", 123);
+  callbacks.Expect(ParserCallbacks::kInt32, "456", 456);
+  callbacks.Expect(ParserCallbacks::kPop, ")");
+  callbacks.Expect(ParserCallbacks::kEof);
+
+  EXPECT_THAT(callbacks.parsed, Eq(callbacks.expected));
+  EXPECT_THAT(callbacks.errors.size(), Eq(size_t(0)));
+}
+
+TEST(ScriptParserTest, ClosingDelimiterInTrailingComment) {
+  TestParserCallbacks callbacks;
+
+  ParseScript("(123 ; comment\n; line\n456 ; another\n)\n; trailing)",
+              &callbacks);
+  callbacks.Expect(ParserCallbacks::kPush, "(");
+  callbacks.Expect(ParserCallbacks::kInt32, "123", 123);
+  callbacks.Expect(ParserCallbacks::kInt32, "456", 456);
+  callbacks.Expect(ParserCallbacks::kPop, ")");
+  callbacks.Expect(ParserCallbacks::kEof);
+
+  EXPECT_THAT(callbacks.parsed, Eq(callbacks.expected));
+  EXPECT_THAT(callbacks.errors.size(), Eq(size_t(0)));
 }
 
 TEST(ScriptParserTest, Nesting) {
@@ -352,7 +384,7 @@ TEST(ScriptParserTest, Nesting) {
   callbacks.Expect(ParserCallbacks::kPopMap, "}");
   callbacks.Expect(ParserCallbacks::kString, "'hello'", std::string("hello"));
   callbacks.Expect(ParserCallbacks::kPop, ")");
-  callbacks.Expect(ParserCallbacks::kSymbol, "world", Hash("world"));
+  callbacks.Expect(ParserCallbacks::kSymbol, "world", Symbol("world"));
   callbacks.Expect(ParserCallbacks::kPopArray, "]");
   callbacks.Expect(ParserCallbacks::kPop, ")");
   callbacks.Expect(ParserCallbacks::kEof);
@@ -364,21 +396,21 @@ TEST(ScriptParserTest, MismatchNesting) {
   TestParserCallbacks callbacks;
 
   ParseScript("(1 [(2]))", &callbacks);
-  EXPECT_THAT(callbacks.errors.size(), Eq(size_t(1)));
+  EXPECT_THAT(callbacks.errors.size(), Ge(size_t(1)));
 }
 
 TEST(ScriptParserTest, MismatchQuoting) {
   TestParserCallbacks callbacks;
 
   ParseScript("('hello\")", &callbacks);
-  EXPECT_THAT(callbacks.errors.size(), Eq(size_t(1)));
+  EXPECT_THAT(callbacks.errors.size(), Ge(size_t(1)));
 }
 
 TEST(ScriptParserTest, UnendedQuoting) {
   TestParserCallbacks callbacks;
 
   ParseScript("('hello)", &callbacks);
-  EXPECT_THAT(callbacks.errors.size(), Eq(size_t(1)));
+  EXPECT_THAT(callbacks.errors.size(), Ge(size_t(1)));
 }
 
 TEST(ScriptParserTest, MixedQuotes) {

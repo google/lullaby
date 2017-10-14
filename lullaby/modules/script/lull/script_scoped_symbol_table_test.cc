@@ -26,7 +26,7 @@ using ::testing::NotNull;
 
 TEST(ScriptScopedSymbolTableTest, SetGet) {
   ScriptScopedSymbolTable table;
-  const HashValue key = 123;
+  const Symbol key("123");
 
   ScriptValue value = table.GetValue(key);
   EXPECT_TRUE(value.IsNil());
@@ -43,7 +43,7 @@ TEST(ScriptScopedSymbolTableTest, SetGet) {
 
 TEST(ScriptScopedSymbolTableTest, PushPop) {
   ScriptScopedSymbolTable table;
-  const HashValue key = 123;
+  const Symbol key("123");
 
   ScriptValue value = table.GetValue(key);
   EXPECT_TRUE(value.IsNil());

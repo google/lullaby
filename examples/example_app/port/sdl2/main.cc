@@ -14,14 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+
+extern "C"
+{
+    #include "SDL.h"
+}
+
 #include <functional>
 
-#include "ion/base/logging.h"
 #include "fplbase/utilities.h"
-#include ""
-#include "lullaby/examples/example_app/example_app.h"
-#include "lullaby/examples/example_app/port/sdl2/software_controller.h"
-#include "lullaby/examples/example_app/port/sdl2/software_hmd.h"
+#include "examples/example_app/example_app.h"
+#include "examples/example_app/port/sdl2/software_controller.h"
+#include "examples/example_app/port/sdl2/software_hmd.h"
 
 namespace lull {
 

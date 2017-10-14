@@ -125,8 +125,8 @@ struct RigidBodyDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// will not change the center of mass of the rigid body, meaning if the AABB
   /// of the shape is min = (1,1,1), max = (2,2,2), the center of mass will not
   /// be inside the shape.
-  const flatbuffers::Vector<flatbuffers::Offset<lull::PhysicsShapePart>> *shapes() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::PhysicsShapePart>> *>(VT_SHAPES);
+  const flatbuffers::Vector<flatbuffers::Offset<PhysicsShapePart>> *shapes() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<PhysicsShapePart>> *>(VT_SHAPES);
   }
   /// The mass of the physics object in kg. If the body is Static, this will
   /// automatically be assigned a value of 0. If the body is Dynamic, this must
@@ -158,13 +158,13 @@ struct RigidBodyDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// The initial linear velocity for this rigid body. Only applies to Dynamic
   /// rigid bodies.
-  const lull::Vec3 *linear_velocity() const {
-    return GetStruct<const lull::Vec3 *>(VT_LINEAR_VELOCITY);
+  const Vec3 *linear_velocity() const {
+    return GetStruct<const Vec3 *>(VT_LINEAR_VELOCITY);
   }
   /// The initial angular velocity for this rigid body (in Euler angles). Only
   /// applies to Dynamic rigid bodies.
-  const lull::Vec3 *angular_velocity() const {
-    return GetStruct<const lull::Vec3 *>(VT_ANGULAR_VELOCITY);
+  const Vec3 *angular_velocity() const {
+    return GetStruct<const Vec3 *>(VT_ANGULAR_VELOCITY);
   }
   /// A translation to be applied to this rigid body's center of mass before
   /// pushing its transform into the physics simulation. The translation will
@@ -173,8 +173,8 @@ struct RigidBodyDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// For example, if you made an Entity representing a character and wanted its
   /// position to be at its "feet", you could give it a 0.5 radius collision
   /// sphere and a center_of_mass_translation of (0, 0.5, 0).
-  const lull::Vec3 *center_of_mass_translation() const {
-    return GetStruct<const lull::Vec3 *>(VT_CENTER_OF_MASS_TRANSLATION);
+  const Vec3 *center_of_mass_translation() const {
+    return GetStruct<const Vec3 *>(VT_CENTER_OF_MASS_TRANSLATION);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -187,9 +187,9 @@ struct RigidBodyDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<float>(verifier, VT_FRICTION) &&
            VerifyField<float>(verifier, VT_RESTITUTION) &&
            VerifyField<uint8_t>(verifier, VT_ENABLE_ON_CREATE) &&
-           VerifyField<lull::Vec3>(verifier, VT_LINEAR_VELOCITY) &&
-           VerifyField<lull::Vec3>(verifier, VT_ANGULAR_VELOCITY) &&
-           VerifyField<lull::Vec3>(verifier, VT_CENTER_OF_MASS_TRANSLATION) &&
+           VerifyField<Vec3>(verifier, VT_LINEAR_VELOCITY) &&
+           VerifyField<Vec3>(verifier, VT_ANGULAR_VELOCITY) &&
+           VerifyField<Vec3>(verifier, VT_CENTER_OF_MASS_TRANSLATION) &&
            verifier.EndTable();
   }
 };
@@ -203,7 +203,7 @@ struct RigidBodyDefBuilder {
   void add_collider_type(ColliderType collider_type) {
     fbb_.AddElement<int32_t>(RigidBodyDef::VT_COLLIDER_TYPE, static_cast<int32_t>(collider_type), 0);
   }
-  void add_shapes(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::PhysicsShapePart>>> shapes) {
+  void add_shapes(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<PhysicsShapePart>>> shapes) {
     fbb_.AddOffset(RigidBodyDef::VT_SHAPES, shapes);
   }
   void add_mass(float mass) {
@@ -218,22 +218,22 @@ struct RigidBodyDefBuilder {
   void add_enable_on_create(bool enable_on_create) {
     fbb_.AddElement<uint8_t>(RigidBodyDef::VT_ENABLE_ON_CREATE, static_cast<uint8_t>(enable_on_create), 1);
   }
-  void add_linear_velocity(const lull::Vec3 *linear_velocity) {
+  void add_linear_velocity(const Vec3 *linear_velocity) {
     fbb_.AddStruct(RigidBodyDef::VT_LINEAR_VELOCITY, linear_velocity);
   }
-  void add_angular_velocity(const lull::Vec3 *angular_velocity) {
+  void add_angular_velocity(const Vec3 *angular_velocity) {
     fbb_.AddStruct(RigidBodyDef::VT_ANGULAR_VELOCITY, angular_velocity);
   }
-  void add_center_of_mass_translation(const lull::Vec3 *center_of_mass_translation) {
+  void add_center_of_mass_translation(const Vec3 *center_of_mass_translation) {
     fbb_.AddStruct(RigidBodyDef::VT_CENTER_OF_MASS_TRANSLATION, center_of_mass_translation);
   }
-  RigidBodyDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit RigidBodyDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   RigidBodyDefBuilder &operator=(const RigidBodyDefBuilder &);
   flatbuffers::Offset<RigidBodyDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 10);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<RigidBodyDef>(end);
     return o;
   }
@@ -243,14 +243,14 @@ inline flatbuffers::Offset<RigidBodyDef> CreateRigidBodyDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     RigidBodyType type = RigidBodyType_Dynamic,
     ColliderType collider_type = ColliderType_Standard,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::PhysicsShapePart>>> shapes = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<PhysicsShapePart>>> shapes = 0,
     float mass = 1.0f,
     float friction = 0.5f,
     float restitution = 0.0f,
     bool enable_on_create = true,
-    const lull::Vec3 *linear_velocity = 0,
-    const lull::Vec3 *angular_velocity = 0,
-    const lull::Vec3 *center_of_mass_translation = 0) {
+    const Vec3 *linear_velocity = 0,
+    const Vec3 *angular_velocity = 0,
+    const Vec3 *center_of_mass_translation = 0) {
   RigidBodyDefBuilder builder_(_fbb);
   builder_.add_center_of_mass_translation(center_of_mass_translation);
   builder_.add_angular_velocity(angular_velocity);
@@ -269,19 +269,19 @@ inline flatbuffers::Offset<RigidBodyDef> CreateRigidBodyDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     RigidBodyType type = RigidBodyType_Dynamic,
     ColliderType collider_type = ColliderType_Standard,
-    const std::vector<flatbuffers::Offset<lull::PhysicsShapePart>> *shapes = nullptr,
+    const std::vector<flatbuffers::Offset<PhysicsShapePart>> *shapes = nullptr,
     float mass = 1.0f,
     float friction = 0.5f,
     float restitution = 0.0f,
     bool enable_on_create = true,
-    const lull::Vec3 *linear_velocity = 0,
-    const lull::Vec3 *angular_velocity = 0,
-    const lull::Vec3 *center_of_mass_translation = 0) {
+    const Vec3 *linear_velocity = 0,
+    const Vec3 *angular_velocity = 0,
+    const Vec3 *center_of_mass_translation = 0) {
   return lull::CreateRigidBodyDef(
       _fbb,
       type,
       collider_type,
-      shapes ? _fbb.CreateVector<flatbuffers::Offset<lull::PhysicsShapePart>>(*shapes) : 0,
+      shapes ? _fbb.CreateVector<flatbuffers::Offset<PhysicsShapePart>>(*shapes) : 0,
       mass,
       friction,
       restitution,

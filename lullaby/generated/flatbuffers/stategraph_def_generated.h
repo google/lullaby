@@ -56,13 +56,13 @@ struct StategraphDefBuilder {
   void add_initial_state(uint32_t initial_state) {
     fbb_.AddElement<uint32_t>(StategraphDef::VT_INITIAL_STATE, initial_state, 0);
   }
-  StategraphDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit StategraphDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   StategraphDefBuilder &operator=(const StategraphDefBuilder &);
   flatbuffers::Offset<StategraphDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StategraphDef>(end);
     return o;
   }

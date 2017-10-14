@@ -36,8 +36,8 @@ struct LayoutDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_COLUMN_ALIGNMENT = 24
   };
   /// The virtual "canvas" on which the entities will be positioned.
-  const lull::Vec2 *canvas_size() const {
-    return GetStruct<const lull::Vec2 *>(VT_CANVAS_SIZE);
+  const Vec2 *canvas_size() const {
+    return GetStruct<const Vec2 *>(VT_CANVAS_SIZE);
   }
   /// If true, then the AABB of the layout will be set to the extent of the
   /// layout's children. If false, then it will be set to the size of the
@@ -46,28 +46,28 @@ struct LayoutDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return GetField<uint8_t>(VT_SHRINK_TO_FIT, 0) != 0;
   }
   /// The spacing between entities.
-  const lull::Vec2 *spacing() const {
-    return GetStruct<const lull::Vec2 *>(VT_SPACING);
+  const Vec2 *spacing() const {
+    return GetStruct<const Vec2 *>(VT_SPACING);
   }
   /// The order in which elements will be added to the canvas.
   /// A fill_order is a combination of a "primary" and a "secondary"
   /// direction.  E.g. RightDown is right primary, and down secondary.
-  lull::LayoutFillOrder fill_order() const {
-    return static_cast<lull::LayoutFillOrder>(GetField<int32_t>(VT_FILL_ORDER, 0));
+  LayoutFillOrder fill_order() const {
+    return static_cast<LayoutFillOrder>(GetField<int32_t>(VT_FILL_ORDER, 0));
   }
   /// The anchor at which the entities will be aligned relative to the canvas
   /// horizontally.
-  lull::LayoutHorizontalAlignment horizontal_alignment() const {
-    return static_cast<lull::LayoutHorizontalAlignment>(GetField<int32_t>(VT_HORIZONTAL_ALIGNMENT, 0));
+  LayoutHorizontalAlignment horizontal_alignment() const {
+    return static_cast<LayoutHorizontalAlignment>(GetField<int32_t>(VT_HORIZONTAL_ALIGNMENT, 0));
   }
   /// The anchor at which the completed layout aligns relative to the canvas.
-  lull::LayoutVerticalAlignment vertical_alignment() const {
-    return static_cast<lull::LayoutVerticalAlignment>(GetField<int32_t>(VT_VERTICAL_ALIGNMENT, 0));
+  LayoutVerticalAlignment vertical_alignment() const {
+    return static_cast<LayoutVerticalAlignment>(GetField<int32_t>(VT_VERTICAL_ALIGNMENT, 0));
   }
   /// The anchor at which the entities will be aligned within their row.
   /// Only for horizontal-first fill orders, e.g. RightDown, LeftDown
-  lull::LayoutVerticalAlignment row_alignment() const {
-    return static_cast<lull::LayoutVerticalAlignment>(GetField<int32_t>(VT_ROW_ALIGNMENT, 0));
+  LayoutVerticalAlignment row_alignment() const {
+    return static_cast<LayoutVerticalAlignment>(GetField<int32_t>(VT_ROW_ALIGNMENT, 0));
   }
   /// The number of elements in the orders primary direction before wrapping.
   /// Unlimited if left as 0.
@@ -86,14 +86,14 @@ struct LayoutDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// The anchor at which the entities will be aligned within their column.
   /// Only for vertical-first fill orders, e.g. DownRight
-  lull::LayoutHorizontalAlignment column_alignment() const {
-    return static_cast<lull::LayoutHorizontalAlignment>(GetField<int32_t>(VT_COLUMN_ALIGNMENT, 0));
+  LayoutHorizontalAlignment column_alignment() const {
+    return static_cast<LayoutHorizontalAlignment>(GetField<int32_t>(VT_COLUMN_ALIGNMENT, 0));
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec2>(verifier, VT_CANVAS_SIZE) &&
+           VerifyField<Vec2>(verifier, VT_CANVAS_SIZE) &&
            VerifyField<uint8_t>(verifier, VT_SHRINK_TO_FIT) &&
-           VerifyField<lull::Vec2>(verifier, VT_SPACING) &&
+           VerifyField<Vec2>(verifier, VT_SPACING) &&
            VerifyField<int32_t>(verifier, VT_FILL_ORDER) &&
            VerifyField<int32_t>(verifier, VT_HORIZONTAL_ALIGNMENT) &&
            VerifyField<int32_t>(verifier, VT_VERTICAL_ALIGNMENT) &&
@@ -110,25 +110,25 @@ struct LayoutDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct LayoutDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_canvas_size(const lull::Vec2 *canvas_size) {
+  void add_canvas_size(const Vec2 *canvas_size) {
     fbb_.AddStruct(LayoutDef::VT_CANVAS_SIZE, canvas_size);
   }
   void add_shrink_to_fit(bool shrink_to_fit) {
     fbb_.AddElement<uint8_t>(LayoutDef::VT_SHRINK_TO_FIT, static_cast<uint8_t>(shrink_to_fit), 0);
   }
-  void add_spacing(const lull::Vec2 *spacing) {
+  void add_spacing(const Vec2 *spacing) {
     fbb_.AddStruct(LayoutDef::VT_SPACING, spacing);
   }
-  void add_fill_order(lull::LayoutFillOrder fill_order) {
+  void add_fill_order(LayoutFillOrder fill_order) {
     fbb_.AddElement<int32_t>(LayoutDef::VT_FILL_ORDER, static_cast<int32_t>(fill_order), 0);
   }
-  void add_horizontal_alignment(lull::LayoutHorizontalAlignment horizontal_alignment) {
+  void add_horizontal_alignment(LayoutHorizontalAlignment horizontal_alignment) {
     fbb_.AddElement<int32_t>(LayoutDef::VT_HORIZONTAL_ALIGNMENT, static_cast<int32_t>(horizontal_alignment), 0);
   }
-  void add_vertical_alignment(lull::LayoutVerticalAlignment vertical_alignment) {
+  void add_vertical_alignment(LayoutVerticalAlignment vertical_alignment) {
     fbb_.AddElement<int32_t>(LayoutDef::VT_VERTICAL_ALIGNMENT, static_cast<int32_t>(vertical_alignment), 0);
   }
-  void add_row_alignment(lull::LayoutVerticalAlignment row_alignment) {
+  void add_row_alignment(LayoutVerticalAlignment row_alignment) {
     fbb_.AddElement<int32_t>(LayoutDef::VT_ROW_ALIGNMENT, static_cast<int32_t>(row_alignment), 0);
   }
   void add_elements_per_wrap(int32_t elements_per_wrap) {
@@ -140,16 +140,16 @@ struct LayoutDefBuilder {
   void add_empty_blueprint(flatbuffers::Offset<flatbuffers::String> empty_blueprint) {
     fbb_.AddOffset(LayoutDef::VT_EMPTY_BLUEPRINT, empty_blueprint);
   }
-  void add_column_alignment(lull::LayoutHorizontalAlignment column_alignment) {
+  void add_column_alignment(LayoutHorizontalAlignment column_alignment) {
     fbb_.AddElement<int32_t>(LayoutDef::VT_COLUMN_ALIGNMENT, static_cast<int32_t>(column_alignment), 0);
   }
-  LayoutDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit LayoutDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   LayoutDefBuilder &operator=(const LayoutDefBuilder &);
   flatbuffers::Offset<LayoutDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 11);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<LayoutDef>(end);
     return o;
   }
@@ -157,17 +157,17 @@ struct LayoutDefBuilder {
 
 inline flatbuffers::Offset<LayoutDef> CreateLayoutDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec2 *canvas_size = 0,
+    const Vec2 *canvas_size = 0,
     bool shrink_to_fit = false,
-    const lull::Vec2 *spacing = 0,
-    lull::LayoutFillOrder fill_order = lull::LayoutFillOrder_RightDown,
-    lull::LayoutHorizontalAlignment horizontal_alignment = lull::LayoutHorizontalAlignment_Left,
-    lull::LayoutVerticalAlignment vertical_alignment = lull::LayoutVerticalAlignment_Top,
-    lull::LayoutVerticalAlignment row_alignment = lull::LayoutVerticalAlignment_Top,
+    const Vec2 *spacing = 0,
+    LayoutFillOrder fill_order = LayoutFillOrder_RightDown,
+    LayoutHorizontalAlignment horizontal_alignment = LayoutHorizontalAlignment_Left,
+    LayoutVerticalAlignment vertical_alignment = LayoutVerticalAlignment_Top,
+    LayoutVerticalAlignment row_alignment = LayoutVerticalAlignment_Top,
     int32_t elements_per_wrap = 0,
     int32_t max_elements = 0,
     flatbuffers::Offset<flatbuffers::String> empty_blueprint = 0,
-    lull::LayoutHorizontalAlignment column_alignment = lull::LayoutHorizontalAlignment_Left) {
+    LayoutHorizontalAlignment column_alignment = LayoutHorizontalAlignment_Left) {
   LayoutDefBuilder builder_(_fbb);
   builder_.add_column_alignment(column_alignment);
   builder_.add_empty_blueprint(empty_blueprint);
@@ -185,17 +185,17 @@ inline flatbuffers::Offset<LayoutDef> CreateLayoutDef(
 
 inline flatbuffers::Offset<LayoutDef> CreateLayoutDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec2 *canvas_size = 0,
+    const Vec2 *canvas_size = 0,
     bool shrink_to_fit = false,
-    const lull::Vec2 *spacing = 0,
-    lull::LayoutFillOrder fill_order = lull::LayoutFillOrder_RightDown,
-    lull::LayoutHorizontalAlignment horizontal_alignment = lull::LayoutHorizontalAlignment_Left,
-    lull::LayoutVerticalAlignment vertical_alignment = lull::LayoutVerticalAlignment_Top,
-    lull::LayoutVerticalAlignment row_alignment = lull::LayoutVerticalAlignment_Top,
+    const Vec2 *spacing = 0,
+    LayoutFillOrder fill_order = LayoutFillOrder_RightDown,
+    LayoutHorizontalAlignment horizontal_alignment = LayoutHorizontalAlignment_Left,
+    LayoutVerticalAlignment vertical_alignment = LayoutVerticalAlignment_Top,
+    LayoutVerticalAlignment row_alignment = LayoutVerticalAlignment_Top,
     int32_t elements_per_wrap = 0,
     int32_t max_elements = 0,
     const char *empty_blueprint = nullptr,
-    lull::LayoutHorizontalAlignment column_alignment = lull::LayoutHorizontalAlignment_Left) {
+    LayoutHorizontalAlignment column_alignment = LayoutHorizontalAlignment_Left) {
   return lull::CreateLayoutDef(
       _fbb,
       canvas_size,
@@ -227,7 +227,8 @@ struct LayoutElementDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   enum {
     VT_HORIZONTAL_WEIGHT = 4,
-    VT_VERTICAL_WEIGHT = 6
+    VT_VERTICAL_WEIGHT = 6,
+    VT_DURATION_MS = 8
   };
   /// If horizontal_weight is non-zero, then this element will fill up available
   /// space proportional to the total weight of all other weighted elements
@@ -241,10 +242,16 @@ struct LayoutElementDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   float vertical_weight() const {
     return GetField<float>(VT_VERTICAL_WEIGHT, 0.0f);
   }
+  /// Duration to animate this element to its new position in milliseconds.
+  /// A non-zero duration requires the AnimationSystem and the PositionChannel.
+  float duration_ms() const {
+    return GetField<float>(VT_DURATION_MS, 0.0f);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_HORIZONTAL_WEIGHT) &&
            VerifyField<float>(verifier, VT_VERTICAL_WEIGHT) &&
+           VerifyField<float>(verifier, VT_DURATION_MS) &&
            verifier.EndTable();
   }
 };
@@ -258,13 +265,16 @@ struct LayoutElementDefBuilder {
   void add_vertical_weight(float vertical_weight) {
     fbb_.AddElement<float>(LayoutElementDef::VT_VERTICAL_WEIGHT, vertical_weight, 0.0f);
   }
-  LayoutElementDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  void add_duration_ms(float duration_ms) {
+    fbb_.AddElement<float>(LayoutElementDef::VT_DURATION_MS, duration_ms, 0.0f);
+  }
+  explicit LayoutElementDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   LayoutElementDefBuilder &operator=(const LayoutElementDefBuilder &);
   flatbuffers::Offset<LayoutElementDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<LayoutElementDef>(end);
     return o;
   }
@@ -273,8 +283,10 @@ struct LayoutElementDefBuilder {
 inline flatbuffers::Offset<LayoutElementDef> CreateLayoutElementDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     float horizontal_weight = 0.0f,
-    float vertical_weight = 0.0f) {
+    float vertical_weight = 0.0f,
+    float duration_ms = 0.0f) {
   LayoutElementDefBuilder builder_(_fbb);
+  builder_.add_duration_ms(duration_ms);
   builder_.add_vertical_weight(vertical_weight);
   builder_.add_horizontal_weight(horizontal_weight);
   return builder_.Finish();
@@ -298,14 +310,14 @@ struct RadialLayoutDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// The first axis of the circle.  The first element will be placed at
   /// major_axis.  Defaults to (1,0,0) if not set.
-  const lull::Vec3 *major_axis() const {
-    return GetStruct<const lull::Vec3 *>(VT_MAJOR_AXIS);
+  const Vec3 *major_axis() const {
+    return GetStruct<const Vec3 *>(VT_MAJOR_AXIS);
   }
   /// The second axis of the circle.  Should be perpendicular to |major_axis|.
   /// If an element is placed at 90 degrees, its pos will be minor_axis.
   /// Defaults to (0,1,0) if not set.
-  const lull::Vec3 *minor_axis() const {
-    return GetStruct<const lull::Vec3 *>(VT_MINOR_AXIS);
+  const Vec3 *minor_axis() const {
+    return GetStruct<const Vec3 *>(VT_MINOR_AXIS);
   }
   /// The maximum total number of elements the layout can hold.  Unlimited if
   /// left as 0.
@@ -320,8 +332,8 @@ struct RadialLayoutDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_DEGREES_PER_ELEMENT) &&
-           VerifyField<lull::Vec3>(verifier, VT_MAJOR_AXIS) &&
-           VerifyField<lull::Vec3>(verifier, VT_MINOR_AXIS) &&
+           VerifyField<Vec3>(verifier, VT_MAJOR_AXIS) &&
+           VerifyField<Vec3>(verifier, VT_MINOR_AXIS) &&
            VerifyField<int32_t>(verifier, VT_MAX_ELEMENTS) &&
            VerifyOffset(verifier, VT_EMPTY_BLUEPRINT) &&
            verifier.Verify(empty_blueprint()) &&
@@ -335,10 +347,10 @@ struct RadialLayoutDefBuilder {
   void add_degrees_per_element(float degrees_per_element) {
     fbb_.AddElement<float>(RadialLayoutDef::VT_DEGREES_PER_ELEMENT, degrees_per_element, 0.0f);
   }
-  void add_major_axis(const lull::Vec3 *major_axis) {
+  void add_major_axis(const Vec3 *major_axis) {
     fbb_.AddStruct(RadialLayoutDef::VT_MAJOR_AXIS, major_axis);
   }
-  void add_minor_axis(const lull::Vec3 *minor_axis) {
+  void add_minor_axis(const Vec3 *minor_axis) {
     fbb_.AddStruct(RadialLayoutDef::VT_MINOR_AXIS, minor_axis);
   }
   void add_max_elements(int32_t max_elements) {
@@ -347,13 +359,13 @@ struct RadialLayoutDefBuilder {
   void add_empty_blueprint(flatbuffers::Offset<flatbuffers::String> empty_blueprint) {
     fbb_.AddOffset(RadialLayoutDef::VT_EMPTY_BLUEPRINT, empty_blueprint);
   }
-  RadialLayoutDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit RadialLayoutDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   RadialLayoutDefBuilder &operator=(const RadialLayoutDefBuilder &);
   flatbuffers::Offset<RadialLayoutDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 5);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<RadialLayoutDef>(end);
     return o;
   }
@@ -362,8 +374,8 @@ struct RadialLayoutDefBuilder {
 inline flatbuffers::Offset<RadialLayoutDef> CreateRadialLayoutDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     float degrees_per_element = 0.0f,
-    const lull::Vec3 *major_axis = 0,
-    const lull::Vec3 *minor_axis = 0,
+    const Vec3 *major_axis = 0,
+    const Vec3 *minor_axis = 0,
     int32_t max_elements = 0,
     flatbuffers::Offset<flatbuffers::String> empty_blueprint = 0) {
   RadialLayoutDefBuilder builder_(_fbb);
@@ -378,8 +390,8 @@ inline flatbuffers::Offset<RadialLayoutDef> CreateRadialLayoutDef(
 inline flatbuffers::Offset<RadialLayoutDef> CreateRadialLayoutDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     float degrees_per_element = 0.0f,
-    const lull::Vec3 *major_axis = 0,
-    const lull::Vec3 *minor_axis = 0,
+    const Vec3 *major_axis = 0,
+    const Vec3 *minor_axis = 0,
     int32_t max_elements = 0,
     const char *empty_blueprint = nullptr) {
   return lull::CreateRadialLayoutDef(

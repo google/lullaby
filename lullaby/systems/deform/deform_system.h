@@ -176,6 +176,13 @@ class DeformSystem : public System {
       Entity e, const Sqt& local_sqt,
       const mathfu::mat4* world_from_parent_mat) const;
 
+  // Calculates the original sqt from a given world from entity transformation
+  // matrix. We expect this function to be called infrequently by the
+  // transformation system (when an app calls SetWorldFromEntityMatrix).
+  Sqt CalculateSqtCylinderBend(Entity e,
+                               const mathfu::mat4& world_from_entity_mat,
+                               const mathfu::mat4* world_from_parent_mat) const;
+
   // Calculates the deformed world from a series of input and output positions
   // and rotations.
   mathfu::mat4 CalculateWaypointTransformMatrix(

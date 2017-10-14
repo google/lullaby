@@ -18,17 +18,26 @@ limitations under the License.
 
 namespace lull {
 
-Shader::Shader(fplbase::Renderer* renderer, ShaderImplPtr shader)
-    : impl_(std::move(shader)), renderer_(renderer) {}
+void Shader::Init(fplbase::Renderer* renderer,
+                  std::unique_ptr<fplbase::Shader> shader_impl) {
+  renderer_ = renderer;
+  impl_ = std::move(shader_impl);
+}
 
 Shader::UniformHnd Shader::FindUniform(const char* name) const {
-  return impl_->FindUniform(name);
+  return impl_ ? impl_->FindUniform(name) : fplbase::InvalidUniformHandle();
 }
 
 void Shader::SetUniform(Shader::UniformHnd id, const float* value, size_t len) {
-  impl_->SetUniform(id, value, len);
+  if (impl_) {
+    impl_->SetUniform(id, value, len);
+  }
 }
 
-void Shader::Bind() { renderer_->SetShader(impl_.get()); }
+void Shader::Bind() {
+  if (impl_ && renderer_) {
+    renderer_->SetShader(impl_.get());
+  }
+}
 
 }  // namespace lull

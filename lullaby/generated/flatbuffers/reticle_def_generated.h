@@ -44,11 +44,11 @@ struct ReticleDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   float ring_half_thickness() const {
     return GetField<float>(VT_RING_HALF_THICKNESS, 0.11f);
   }
-  const lull::Color *hit_color() const {
-    return GetStruct<const lull::Color *>(VT_HIT_COLOR);
+  const Color *hit_color() const {
+    return GetStruct<const Color *>(VT_HIT_COLOR);
   }
-  const lull::Color *no_hit_color() const {
-    return GetStruct<const lull::Color *>(VT_NO_HIT_COLOR);
+  const Color *no_hit_color() const {
+    return GetStruct<const Color *>(VT_NO_HIT_COLOR);
   }
   float no_hit_distance() const {
     return GetField<float>(VT_NO_HIT_DISTANCE, 2.0f);
@@ -93,8 +93,8 @@ struct ReticleDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<float>(verifier, VT_RING_ACTIVE_DIAMETER) &&
            VerifyField<float>(verifier, VT_RING_INACTIVE_DIAMETER) &&
            VerifyField<float>(verifier, VT_RING_HALF_THICKNESS) &&
-           VerifyField<lull::Color>(verifier, VT_HIT_COLOR) &&
-           VerifyField<lull::Color>(verifier, VT_NO_HIT_COLOR) &&
+           VerifyField<Color>(verifier, VT_HIT_COLOR) &&
+           VerifyField<Color>(verifier, VT_NO_HIT_COLOR) &&
            VerifyField<float>(verifier, VT_NO_HIT_DISTANCE) &&
            VerifyField<float>(verifier, VT_INNER_HOLE) &&
            VerifyField<float>(verifier, VT_INNER_RING_END) &&
@@ -120,10 +120,10 @@ struct ReticleDefBuilder {
   void add_ring_half_thickness(float ring_half_thickness) {
     fbb_.AddElement<float>(ReticleDef::VT_RING_HALF_THICKNESS, ring_half_thickness, 0.11f);
   }
-  void add_hit_color(const lull::Color *hit_color) {
+  void add_hit_color(const Color *hit_color) {
     fbb_.AddStruct(ReticleDef::VT_HIT_COLOR, hit_color);
   }
-  void add_no_hit_color(const lull::Color *no_hit_color) {
+  void add_no_hit_color(const Color *no_hit_color) {
     fbb_.AddStruct(ReticleDef::VT_NO_HIT_COLOR, no_hit_color);
   }
   void add_no_hit_distance(float no_hit_distance) {
@@ -150,13 +150,13 @@ struct ReticleDefBuilder {
   void add_device_preference(flatbuffers::Offset<flatbuffers::Vector<int32_t>> device_preference) {
     fbb_.AddOffset(ReticleDef::VT_DEVICE_PREFERENCE, device_preference);
   }
-  ReticleDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ReticleDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ReticleDefBuilder &operator=(const ReticleDefBuilder &);
   flatbuffers::Offset<ReticleDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 13);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ReticleDef>(end);
     return o;
   }
@@ -167,8 +167,8 @@ inline flatbuffers::Offset<ReticleDef> CreateReticleDef(
     float ring_active_diameter = 1.0f,
     float ring_inactive_diameter = 1.0f,
     float ring_half_thickness = 0.11f,
-    const lull::Color *hit_color = 0,
-    const lull::Color *no_hit_color = 0,
+    const Color *hit_color = 0,
+    const Color *no_hit_color = 0,
     float no_hit_distance = 2.0f,
     float inner_hole = 0.0f,
     float inner_ring_end = 0.177f,
@@ -199,8 +199,8 @@ inline flatbuffers::Offset<ReticleDef> CreateReticleDefDirect(
     float ring_active_diameter = 1.0f,
     float ring_inactive_diameter = 1.0f,
     float ring_half_thickness = 0.11f,
-    const lull::Color *hit_color = 0,
-    const lull::Color *no_hit_color = 0,
+    const Color *hit_color = 0,
+    const Color *no_hit_color = 0,
     float no_hit_distance = 2.0f,
     float inner_hole = 0.0f,
     float inner_ring_end = 0.177f,

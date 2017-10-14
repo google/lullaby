@@ -38,6 +38,9 @@ class ScrollSnapToGridSystem : public System {
   // Returns the grid interval.
   mathfu::vec2 GetGridInterval(Entity entity) const;
 
+  // Flings that move the snap position.
+  static const float kFlingMultiplier;
+
  private:
   std::unordered_map<Entity, mathfu::vec2> grid_interval_map_;
 };

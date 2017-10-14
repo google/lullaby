@@ -44,6 +44,14 @@ limitations under the License.
 // (map-get [map] [key])
 //   Returns the value associated with the key in the map.  The key must be an
 //   integer or hashvalue type.
+//
+// (map-set [map] [key] [value])
+//    Sets the value associated with the key in the map.  The key must be an
+//    integer or hashvalue type.
+//
+// (map-foreach [map] ([key-name] [value-name]) [expressions...])
+//   Passes each element of the map to expressions with the key bound to
+//   [key-name] and the value bound to [value-name].
 
 namespace lull {
 namespace {
@@ -89,21 +97,79 @@ void MapInsert(VariantMap* map, HashValue key, const Variant* value) {
   map->emplace(key, *value);
 }
 
-bool MapErase(VariantMap* map, HashValue key) {
+void MapErase(ScriptFrame* frame, VariantMap* map, HashValue key) {
   auto iter = map->find(key);
   if (iter != map->end()) {
     map->erase(iter);
-    return true;
+  } else {
+    frame->Error("map-erase: no element at given key");
   }
-  return false;
 }
 
-Variant MapGet(const VariantMap* map, HashValue key) {
+Variant MapGetOr(const VariantMap* map, HashValue key,
+                 const Variant* default_value) {
   auto iter = map->find(key);
   if (iter != map->end()) {
     return iter->second;
   }
-  return Variant();
+  return *default_value;
+}
+
+Variant MapGet(ScriptFrame* frame, const VariantMap* map, HashValue key) {
+  Variant v;
+  v = MapGetOr(map, key, &v);
+  if (v.Empty()) {
+    frame->Error("map-get: no element at given key");
+  }
+  return v;
+}
+
+void MapSet(VariantMap* map, HashValue key, const Variant* value) {
+  (*map)[key] = *value;
+}
+
+void MapForeach(ScriptFrame* frame) {
+  if (!frame->HasNext()) {
+    frame->Error("map-foreach: expect [map] ([args]) [body].");
+    return;
+  }
+  ScriptValue map_arg = frame->EvalNext();
+  if (!map_arg.Is<VariantMap>()) {
+    frame->Error("map-foreach: first argument should be a map.");
+    return;
+  }
+  const VariantMap* map = map_arg.Get<VariantMap>();
+
+  const AstNode* node = frame->GetArgs().Get<AstNode>();
+  if (!node) {
+    frame->Error("map-foreach: expected parameters after map.");
+    return;
+  }
+
+  ScriptEnv* env = frame->GetEnv();
+  const AstNode* params = node->first.Get<AstNode>();
+  const Symbol* key = params ? params->first.Get<Symbol>() : nullptr;
+  params = params ? params->rest.Get<AstNode>() : nullptr;
+  const Symbol* value = params ? params->first.Get<Symbol>() : nullptr;
+
+  if (!key || !value) {
+    frame->Error("map-foreach: should be at least 2 symbol parameters");
+    return;
+  }
+
+  // Now iterate the map elements, evaluating body.
+  ScriptValue result;
+  for (const auto& kv : *map) {
+    env->SetValue(*key, env->Create(kv.first));
+    env->SetValue(*value, env->Create(kv.second));
+    ScriptValue iter = node->rest;
+    while (auto* node = iter.Get<AstNode>()) {
+      result = env->Eval(iter);
+      // Maybe implement continue/break here?
+      iter = node->rest;
+    }
+  }
+  frame->Return(result);
 }
 
 LULLABY_SCRIPT_FUNCTION(MapCreate, "make-map");
@@ -112,6 +178,9 @@ LULLABY_SCRIPT_FUNCTION_WRAP(MapEmpty, "map-empty");
 LULLABY_SCRIPT_FUNCTION_WRAP(MapInsert, "map-insert");
 LULLABY_SCRIPT_FUNCTION_WRAP(MapErase, "map-erase");
 LULLABY_SCRIPT_FUNCTION_WRAP(MapGet, "map-get");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapGetOr, "map-get-or");
+LULLABY_SCRIPT_FUNCTION_WRAP(MapSet, "map-set");
+LULLABY_SCRIPT_FUNCTION(MapForeach, "map-foreach");
 
 }  // namespace
 }  // namespace lull

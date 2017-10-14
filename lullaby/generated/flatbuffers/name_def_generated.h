@@ -38,13 +38,13 @@ struct NameDefBuilder {
   void add_name(flatbuffers::Offset<flatbuffers::String> name) {
     fbb_.AddOffset(NameDef::VT_NAME, name);
   }
-  NameDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit NameDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   NameDefBuilder &operator=(const NameDefBuilder &);
   flatbuffers::Offset<NameDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<NameDef>(end);
     return o;
   }

@@ -154,9 +154,7 @@ struct TextDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// Required.  A list of fonts to use. Each font should contain suffix as
   /// well, such as ".ttf".  For flatui, fonts are selected with a fallback
-  /// priority, and ".SystemFont" can be used to refer to system font.  For
-  /// Ion backend, the first font in the list will be always used and the
-  /// rest are simply ignored.
+  /// priority, and ".SystemFont" can be used to refer to system font.
   const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *fonts() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *>(VT_FONTS);
   }
@@ -177,13 +175,13 @@ struct TextDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// Optional.  How to align the text in the x direction (default = Center,
   /// can also be Left or Right).
-  lull::HorizontalAlignment horizontal_alignment() const {
-    return static_cast<lull::HorizontalAlignment>(GetField<int32_t>(VT_HORIZONTAL_ALIGNMENT, 1));
+  HorizontalAlignment horizontal_alignment() const {
+    return static_cast<HorizontalAlignment>(GetField<int32_t>(VT_HORIZONTAL_ALIGNMENT, 1));
   }
   /// Optional.  How to align the text in the y direction (default = Baseline,
   /// can also be Top, Center, or Bottom).
-  lull::VerticalAlignment vertical_alignment() const {
-    return static_cast<lull::VerticalAlignment>(GetField<int32_t>(VT_VERTICAL_ALIGNMENT, 2));
+  VerticalAlignment vertical_alignment() const {
+    return static_cast<VerticalAlignment>(GetField<int32_t>(VT_VERTICAL_ALIGNMENT, 2));
   }
   /// Optional. How text should be displayed (default = UseSystemSetting,
   /// can also be LeftToRight and RightToLeft).
@@ -195,12 +193,11 @@ struct TextDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// rendered in multiple lines if it doesn't fit into a single line.
   /// Since Ion doesn't support text layout, text will always be rendered in
   /// single line in Ion.  Values are measured in meters.
-  const lull::Vec2 *bounds() const {
-    return GetStruct<const lull::Vec2 *>(VT_BOUNDS);
+  const Vec2 *bounds() const {
+    return GetStruct<const Vec2 *>(VT_BOUNDS);
   }
   /// Optional.  If not None, sets the aabb bounds to the bounds of the text
   /// content.  Otherwise, sets it to bounds.x or bounds.y if non-zero.
-  /// Note: This applies to flatui rendering only.
   TextWrapMode wrap_mode() const {
     return static_cast<TextWrapMode>(GetField<int32_t>(VT_WRAP_MODE, 0));
   }
@@ -216,7 +213,7 @@ struct TextDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return GetField<float>(VT_EDGE_SOFTNESS, 0.3f);
   }
   /// Optional.  A float value specifying a scale applied to the kerning value
-  /// between glyphs.  This applies to flatui rendering only.
+  /// between glyphs.
   float kerning_scale() const {
     return GetField<float>(VT_KERNING_SCALE, 1.0f);
   }
@@ -247,7 +244,7 @@ struct TextDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<int32_t>(verifier, VT_HORIZONTAL_ALIGNMENT) &&
            VerifyField<int32_t>(verifier, VT_VERTICAL_ALIGNMENT) &&
            VerifyField<int32_t>(verifier, VT_DIRECTION) &&
-           VerifyField<lull::Vec2>(verifier, VT_BOUNDS) &&
+           VerifyField<Vec2>(verifier, VT_BOUNDS) &&
            VerifyField<int32_t>(verifier, VT_WRAP_MODE) &&
            VerifyOffset(verifier, VT_ELLIPSIS) &&
            verifier.Verify(ellipsis()) &&
@@ -280,16 +277,16 @@ struct TextDefBuilder {
   void add_line_height_scale(float line_height_scale) {
     fbb_.AddElement<float>(TextDef::VT_LINE_HEIGHT_SCALE, line_height_scale, 1.2f);
   }
-  void add_horizontal_alignment(lull::HorizontalAlignment horizontal_alignment) {
+  void add_horizontal_alignment(HorizontalAlignment horizontal_alignment) {
     fbb_.AddElement<int32_t>(TextDef::VT_HORIZONTAL_ALIGNMENT, static_cast<int32_t>(horizontal_alignment), 1);
   }
-  void add_vertical_alignment(lull::VerticalAlignment vertical_alignment) {
+  void add_vertical_alignment(VerticalAlignment vertical_alignment) {
     fbb_.AddElement<int32_t>(TextDef::VT_VERTICAL_ALIGNMENT, static_cast<int32_t>(vertical_alignment), 2);
   }
   void add_direction(TextDirection direction) {
     fbb_.AddElement<int32_t>(TextDef::VT_DIRECTION, static_cast<int32_t>(direction), 0);
   }
-  void add_bounds(const lull::Vec2 *bounds) {
+  void add_bounds(const Vec2 *bounds) {
     fbb_.AddStruct(TextDef::VT_BOUNDS, bounds);
   }
   void add_wrap_mode(TextWrapMode wrap_mode) {
@@ -313,13 +310,13 @@ struct TextDefBuilder {
   void add_link_underline_blueprint(flatbuffers::Offset<flatbuffers::String> link_underline_blueprint) {
     fbb_.AddOffset(TextDef::VT_LINK_UNDERLINE_BLUEPRINT, link_underline_blueprint);
   }
-  TextDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit TextDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   TextDefBuilder &operator=(const TextDefBuilder &);
   flatbuffers::Offset<TextDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 16);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<TextDef>(end);
     return o;
   }
@@ -332,10 +329,10 @@ inline flatbuffers::Offset<TextDef> CreateTextDef(
     float font_size = 0.0f,
     float line_height = 0.0f,
     float line_height_scale = 1.2f,
-    lull::HorizontalAlignment horizontal_alignment = lull::HorizontalAlignment_Center,
-    lull::VerticalAlignment vertical_alignment = lull::VerticalAlignment_Baseline,
+    HorizontalAlignment horizontal_alignment = HorizontalAlignment_Center,
+    VerticalAlignment vertical_alignment = VerticalAlignment_Baseline,
     TextDirection direction = TextDirection_UseSystemSetting,
-    const lull::Vec2 *bounds = 0,
+    const Vec2 *bounds = 0,
     TextWrapMode wrap_mode = TextWrapMode_None,
     flatbuffers::Offset<flatbuffers::String> ellipsis = 0,
     float edge_softness = 0.3f,
@@ -370,10 +367,10 @@ inline flatbuffers::Offset<TextDef> CreateTextDefDirect(
     float font_size = 0.0f,
     float line_height = 0.0f,
     float line_height_scale = 1.2f,
-    lull::HorizontalAlignment horizontal_alignment = lull::HorizontalAlignment_Center,
-    lull::VerticalAlignment vertical_alignment = lull::VerticalAlignment_Baseline,
+    HorizontalAlignment horizontal_alignment = HorizontalAlignment_Center,
+    VerticalAlignment vertical_alignment = VerticalAlignment_Baseline,
     TextDirection direction = TextDirection_UseSystemSetting,
-    const lull::Vec2 *bounds = 0,
+    const Vec2 *bounds = 0,
     TextWrapMode wrap_mode = TextWrapMode_None,
     const char *ellipsis = nullptr,
     float edge_softness = 0.3f,

@@ -29,20 +29,20 @@ struct TransformDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_ENABLED = 18
   };
   /// The position of the entity in its parent's space.
-  const lull::Vec3 *position() const {
-    return GetStruct<const lull::Vec3 *>(VT_POSITION);
+  const Vec3 *position() const {
+    return GetStruct<const Vec3 *>(VT_POSITION);
   }
   /// The rotation of the entity in its parent's space as Euler angles (provided
   /// in degrees).  Only used if the 'quaternion' field isn't set. (Yaw, Pitch,
   /// Roll).
-  const lull::Vec3 *rotation() const {
-    return GetStruct<const lull::Vec3 *>(VT_ROTATION);
+  const Vec3 *rotation() const {
+    return GetStruct<const Vec3 *>(VT_ROTATION);
   }
   /// The scale of the entity in its parent space.  Note that multiple stacked
   /// non-uniform scales and rotations may result in some odd behavior, so keep
   /// all three numbers the same when possible.
-  const lull::Vec3 *scale() const {
-    return GetStruct<const lull::Vec3 *>(VT_SCALE);
+  const Vec3 *scale() const {
+    return GetStruct<const Vec3 *>(VT_SCALE);
   }
   /// Blueprints to create as children of this entity.
   const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *children() const {
@@ -53,19 +53,19 @@ struct TransformDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// the mesh's bounds).  This is usually only useful for making non-rendering
   /// objects take up space, like an invisible click blocker or a spacer in a
   /// layout.
-  const lull::AabbDef *aabb() const {
-    return GetStruct<const lull::AabbDef *>(VT_AABB);
+  const AabbDef *aabb() const {
+    return GetStruct<const AabbDef *>(VT_AABB);
   }
   /// If any other system sets this entity's aabb, this padding will be added to
   /// the new aabb.  Use this for things like extending an entity's click region
   /// beyond the actual size of its mesh.
-  const lull::AabbDef *aabb_padding() const {
-    return GetStruct<const lull::AabbDef *>(VT_AABB_PADDING);
+  const AabbDef *aabb_padding() const {
+    return GetStruct<const AabbDef *>(VT_AABB_PADDING);
   }
   /// Rotation in the entity's parent space as a quaternion.  w is the scale.
   /// Will override |rotation| if set.
-  const lull::Vec4 *quaternion() const {
-    return GetStruct<const lull::Vec4 *>(VT_QUATERNION);
+  const Vec4 *quaternion() const {
+    return GetStruct<const Vec4 *>(VT_QUATERNION);
   }
   /// If false, the entity will start out disabled. Render, Audio, Animations,
   /// and anything depending on transform_system->ForAll will create but not
@@ -75,15 +75,15 @@ struct TransformDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec3>(verifier, VT_POSITION) &&
-           VerifyField<lull::Vec3>(verifier, VT_ROTATION) &&
-           VerifyField<lull::Vec3>(verifier, VT_SCALE) &&
+           VerifyField<Vec3>(verifier, VT_POSITION) &&
+           VerifyField<Vec3>(verifier, VT_ROTATION) &&
+           VerifyField<Vec3>(verifier, VT_SCALE) &&
            VerifyOffset(verifier, VT_CHILDREN) &&
            verifier.Verify(children()) &&
            verifier.VerifyVectorOfStrings(children()) &&
-           VerifyField<lull::AabbDef>(verifier, VT_AABB) &&
-           VerifyField<lull::AabbDef>(verifier, VT_AABB_PADDING) &&
-           VerifyField<lull::Vec4>(verifier, VT_QUATERNION) &&
+           VerifyField<AabbDef>(verifier, VT_AABB) &&
+           VerifyField<AabbDef>(verifier, VT_AABB_PADDING) &&
+           VerifyField<Vec4>(verifier, VT_QUATERNION) &&
            VerifyField<uint8_t>(verifier, VT_ENABLED) &&
            verifier.EndTable();
   }
@@ -92,37 +92,37 @@ struct TransformDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct TransformDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_position(const lull::Vec3 *position) {
+  void add_position(const Vec3 *position) {
     fbb_.AddStruct(TransformDef::VT_POSITION, position);
   }
-  void add_rotation(const lull::Vec3 *rotation) {
+  void add_rotation(const Vec3 *rotation) {
     fbb_.AddStruct(TransformDef::VT_ROTATION, rotation);
   }
-  void add_scale(const lull::Vec3 *scale) {
+  void add_scale(const Vec3 *scale) {
     fbb_.AddStruct(TransformDef::VT_SCALE, scale);
   }
   void add_children(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> children) {
     fbb_.AddOffset(TransformDef::VT_CHILDREN, children);
   }
-  void add_aabb(const lull::AabbDef *aabb) {
+  void add_aabb(const AabbDef *aabb) {
     fbb_.AddStruct(TransformDef::VT_AABB, aabb);
   }
-  void add_aabb_padding(const lull::AabbDef *aabb_padding) {
+  void add_aabb_padding(const AabbDef *aabb_padding) {
     fbb_.AddStruct(TransformDef::VT_AABB_PADDING, aabb_padding);
   }
-  void add_quaternion(const lull::Vec4 *quaternion) {
+  void add_quaternion(const Vec4 *quaternion) {
     fbb_.AddStruct(TransformDef::VT_QUATERNION, quaternion);
   }
   void add_enabled(bool enabled) {
     fbb_.AddElement<uint8_t>(TransformDef::VT_ENABLED, static_cast<uint8_t>(enabled), 1);
   }
-  TransformDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit TransformDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   TransformDefBuilder &operator=(const TransformDefBuilder &);
   flatbuffers::Offset<TransformDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 8);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<TransformDef>(end);
     return o;
   }
@@ -130,13 +130,13 @@ struct TransformDefBuilder {
 
 inline flatbuffers::Offset<TransformDef> CreateTransformDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec3 *position = 0,
-    const lull::Vec3 *rotation = 0,
-    const lull::Vec3 *scale = 0,
+    const Vec3 *position = 0,
+    const Vec3 *rotation = 0,
+    const Vec3 *scale = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> children = 0,
-    const lull::AabbDef *aabb = 0,
-    const lull::AabbDef *aabb_padding = 0,
-    const lull::Vec4 *quaternion = 0,
+    const AabbDef *aabb = 0,
+    const AabbDef *aabb_padding = 0,
+    const Vec4 *quaternion = 0,
     bool enabled = true) {
   TransformDefBuilder builder_(_fbb);
   builder_.add_quaternion(quaternion);
@@ -152,13 +152,13 @@ inline flatbuffers::Offset<TransformDef> CreateTransformDef(
 
 inline flatbuffers::Offset<TransformDef> CreateTransformDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec3 *position = 0,
-    const lull::Vec3 *rotation = 0,
-    const lull::Vec3 *scale = 0,
+    const Vec3 *position = 0,
+    const Vec3 *rotation = 0,
+    const Vec3 *scale = 0,
     const std::vector<flatbuffers::Offset<flatbuffers::String>> *children = nullptr,
-    const lull::AabbDef *aabb = 0,
-    const lull::AabbDef *aabb_padding = 0,
-    const lull::Vec4 *quaternion = 0,
+    const AabbDef *aabb = 0,
+    const AabbDef *aabb_padding = 0,
+    const Vec4 *quaternion = 0,
     bool enabled = true) {
   return lull::CreateTransformDef(
       _fbb,

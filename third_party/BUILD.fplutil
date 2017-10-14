@@ -22,4 +22,5 @@ cc_library(
     ],
     features = ["-parse_headers"],
     includes = ["libfplutil/include"],
+    linkopts = ["-lpthread"],
 )

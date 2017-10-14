@@ -22,6 +22,28 @@ limitations under the License.
 
 namespace lull {
 
+// Provides Mesh abstraction over arbitrary data containers.
+//
+// A mesh can contain three types of data:
+//
+// - Vertex data. An array of vertices, where each vertex contains data such as
+//   positions, normals, colors, etc. The structure of the vertices stored in
+//   the Vertex data is defined by the VertexFormat.
+//
+// - Index data. An array of indices into the vertex data. The usage of the
+//   indices is defined by the PrimitiveType. For example, a PrimitiveType of
+//   kPoints means each index points to a single Point vertex, whereas a
+//   PrimitiveType of kTriangles means that a set of three indices points to
+//   the three corner vertices of a Triangle.
+//
+// - Submesh data. A range within the Index data that represents a subsection
+//   of the mesh.
+//
+// A valid mesh can have just "vertex" data, "vertex + index" data, or "vertex +
+// index + submesh" data.
+//
+// The data itself is stored in DataContainer objects moved into the MeshData
+// in its constructor.
 class MeshData {
  public:
   enum PrimitiveType {
@@ -37,19 +59,45 @@ class MeshData {
   static const Index kInvalidIndex;
   static const Index kMaxValidIndex;
 
+  struct IndexRange {
+    IndexRange() {}
+    IndexRange(Index start, Index end) : start(start), end(end) {}
+
+    Index start = kInvalidIndex;
+    Index end = kInvalidIndex;
+  };
+
   MeshData() {}
 
+  // Represents a Mesh with the specified PrimitiveType and VertexFormat.  Takes
+  // ownership of the vertex, index, and submesh data containers (the latter two
+  // of which are optional).
+  //
+  // If non-empty, the data in |vertex_data| must match the |vertex_format|.
+  //
+  // If non-empty, the data in |index_data| must be an array of Index types
+  // where each Index is a within the range of the number of vertices in the
+  // |vertex_data|.  Furthermore, the number of elements in the |index_data|
+  // must be valid for the given |primitive_type|.
+  //
+  // If non-empty, the data in |index_range_data| must be an array of IndexRange
+  // types where each IndexRange has a valid start and end value within the
+  // |index_data| array.
   MeshData(const PrimitiveType primitive_type,
-           const VertexFormat& vertex_format, DataContainer&& vertex_data,
-           DataContainer&& index_data)
+           const VertexFormat& vertex_format, DataContainer vertex_data,
+           DataContainer index_data = DataContainer(),
+           DataContainer index_range_data = DataContainer())
       : primitive_type_(primitive_type),
         vertex_format_(vertex_format),
         vertex_data_(std::move(vertex_data)),
         index_data_(std::move(index_data)),
-        // Instantiate num_vertices_ based on the number of vertices that have
-        // already been appended into the container.
+        index_range_data_(std::move(index_range_data)),
+        // Instantiate num_vertices_ based on the number of vertices that are
+        // already in the vertex_data_.
         num_vertices_(static_cast<Index>(vertex_data_.GetSize() /
-                                         vertex_format_.GetVertexSize())) {}
+                                         vertex_format_.GetVertexSize())),
+        num_submeshes_(static_cast<Index>(index_range_data_.GetSize() /
+                                          (sizeof(IndexRange)))) {}
 
   PrimitiveType GetPrimitiveType() const { return primitive_type_; }
 
@@ -72,7 +120,6 @@ class MeshData {
       LOG(DFATAL) << "Requested vertex format does not match mesh format!";
       return nullptr;
     }
-
     return reinterpret_cast<const Vertex*>(GetVertexBytes());
   }
 
@@ -85,7 +132,6 @@ class MeshData {
       LOG(DFATAL) << "Requested vertex format does not match mesh format!";
       return nullptr;
     }
-
     return reinterpret_cast<Vertex*>(vertex_data_.GetData());
   }
 
@@ -113,7 +159,6 @@ class MeshData {
       LOG(DFATAL) << "Vertex does not match format!";
       return kInvalidIndex;
     }
-
     return AddVertices(reinterpret_cast<const uint8_t*>(list), count,
                        sizeof(Vertex));
   }
@@ -149,6 +194,12 @@ class MeshData {
     return AddIndices(indices.begin(), indices.size());
   }
 
+  Index GetNumSubMeshes() const;
+
+  // Returns the range of indices that represents the subsection of the mesh
+  // specified by |index|.
+  IndexRange GetSubMesh(Index index) const;
+
   // Calculates the axis-aligned bounding box from the current vertices by
   // iterating through all the vertex positions and tracking the min and max
   // value found for each vec3 component.  A zero sized Aabb is returned if the
@@ -169,10 +220,12 @@ class MeshData {
   VertexFormat vertex_format_;
   DataContainer vertex_data_;
   DataContainer index_data_;
+  DataContainer index_range_data_;
   // We keep track of the number of vertices that have been added to the mesh
   // in a field so the user can access this info without knowing the vertex
   // format.
   Index num_vertices_ = 0;
+  Index num_submeshes_ = 0;
   // The mesh aabb is cached when it is computed, so we keep track of a dirty
   // flag, setting it whenever vertices are changed and clearing it whenever
   // the aabb is computed.

@@ -30,13 +30,14 @@ limitations under the License.
 #include "lullaby/generated/reticle_behaviour_def_generated.h"
 #include "lullaby/generated/reticle_def_generated.h"
 #include "lullaby/generated/transform_def_generated.h"
+#include "lullaby/util/clock.h"
 
 namespace lull {
 namespace {
 
 const float kEpsilon = 0.001f;
-const gvr::Clock::duration kDeltaTime = std::chrono::milliseconds(17);
-const gvr::Clock::duration kLongPressTime = std::chrono::milliseconds(500);
+const Clock::duration kDeltaTime = std::chrono::milliseconds(17);
+const Clock::duration kLongPressTime = std::chrono::milliseconds(500);
 
 using ::testing::_;
 
@@ -208,7 +209,6 @@ TEST_F(ReticleSystemTest, BasicController) {
   input->UpdateRotation(InputManager::kController, mathfu::quat::identity);
   input->AdvanceFrame(kDeltaTime);
 
-  ExpectReticleUpdateUniforms();
   reticle_system->AdvanceFrame(kDeltaTime);
 
   {
@@ -372,7 +372,6 @@ TEST_F(ReticleSystemTest, InputEvents) {
   input->UpdateRotation(InputManager::kController, mathfu::quat::identity);
   input->AdvanceFrame(kDeltaTime);
 
-  ExpectReticleUpdateUniforms();
   reticle_system->AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(global_hovered, kNullEntity);
@@ -518,7 +517,6 @@ TEST_F(ReticleSystemTest, ReticleBehaviour) {
   input->UpdateRotation(InputManager::kController, mathfu::quat::identity);
   input->AdvanceFrame(kDeltaTime);
 
-  ExpectReticleUpdateUniforms();
   reticle_system->AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(global_hovered, kNullEntity);
@@ -529,7 +527,6 @@ TEST_F(ReticleSystemTest, ReticleBehaviour) {
   transform_system->SetSqt(child, Sqt(mathfu::vec3(1.5f, 0.f, -2.f),
                                       mathfu::quat::identity, mathfu::kOnes3f));
 
-  ExpectReticleUpdateUniforms();
   reticle_system->AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(global_hovered, kNullEntity);
@@ -704,7 +701,6 @@ TEST_F(ReticleSystemTest, Locking) {
   reticle_system->LockOn(kNullEntity, mathfu::kZeros3f);
   input->AdvanceFrame(kDeltaTime);
 
-  ExpectReticleUpdateUniforms();
   reticle_system->AdvanceFrame(kDeltaTime);
 
   {

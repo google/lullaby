@@ -1,0 +1,10 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+table AudioListenerDef {
+  /// The initial master volume level, in the range [0,1.0].
+  initial_volume: float = 1.0;
+}
+
+root_type AudioListenerDef;

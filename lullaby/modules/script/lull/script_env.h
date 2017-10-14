@@ -76,11 +76,11 @@ class ScriptEnv {
   // Associates the |value| with |symbol| in the internal
   // ScriptScopedSymbolTable.  When called outside the context of a running
   // script, this effectively creates a global variable in the ScriptEnv.
-  void SetValue(HashValue symbol, ScriptValue value);
+  void SetValue(const Symbol& symbol, ScriptValue value);
 
   // Gets the value associated with |symbol| from the internal
   // ScriptScopedSymbolTable.
-  ScriptValue GetValue(HashValue symbol) const;
+  ScriptValue GetValue(const Symbol& symbol) const;
 
   // Registers a NativeFunction.
   void Register(string_view id, NativeFunction fn);
@@ -88,18 +88,18 @@ class ScriptEnv {
   // Calls a function defined in a script (eg. def or macro) function with the
   // given args.
   template <typename... Args>
-  ScriptValue Call(HashValue id, Args&&... args);
+  ScriptValue Call(const Symbol& id, Args&&... args);
   template <typename... Args>
   ScriptValue Call(string_view id, Args&&... args);
 
   // Calls a function defined in a script (eg. def or macro) function with the
   // given args stored as an array.
-  ScriptValue CallWithArray(HashValue id, Span<ScriptValue> args);
+  ScriptValue CallWithArray(const Symbol& id, Span<ScriptValue> args);
   ScriptValue CallWithArray(string_view id, Span<ScriptValue> args);
 
   // Calls a function defined in a script (eg. def or macro) function with the
   // given args stored in a VariantMap.
-  ScriptValue CallWithMap(HashValue id, const VariantMap& kwargs);
+  ScriptValue CallWithMap(const Symbol& id, const VariantMap& kwargs);
   ScriptValue CallWithMap(string_view id, const VariantMap& kwargs);
 
   // Creates a new ScriptValue.
@@ -109,6 +109,12 @@ class ScriptEnv {
   // Prints an error associated with the ScriptValue.
   void Error(const char* err, const ScriptValue& context);
 
+  // Starts a new scope.
+  void PushScope();
+
+  // Pops the current scope.
+  void PopScope();
+
  private:
   enum ValueType {
     kPrimitive,
@@ -116,14 +122,15 @@ class ScriptEnv {
     kMacro,
   };
 
+  ScriptValue DoImpl(const ScriptValue& body);
+
   ScriptValue SetImpl(const ScriptValue& args, ValueType type);
 
   ScriptValue CallInternal(ScriptValue fn, const ScriptValue& args);
 
-  ScriptValue InvokeFunctionCall(HashValue id, const ScriptValue& args);
+  ScriptValue InvokeFunctionCall(const Symbol& id, const ScriptValue& args);
 
   bool AssignArgs(ScriptValue params, ScriptValue args, bool eval);
-  ScriptValue ExecuteBody(const ScriptValue& body);
 
   ScriptScopedSymbolTable table_;
   PrintFn print_fn_ = nullptr;
@@ -135,11 +142,11 @@ class ScriptEnv {
 
 template <typename... Args>
 ScriptValue ScriptEnv::Call(string_view id, Args&&... args) {
-  return Call(Hash(id), std::forward<Args>(args)...);
+  return Call(Symbol(id), std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-ScriptValue ScriptEnv::Call(HashValue id, Args&&... args) {
+ScriptValue ScriptEnv::Call(const Symbol& id, Args&&... args) {
   ScriptValue values[] = {
       Create(std::forward<Args>(args))...,
   };
@@ -150,6 +157,26 @@ template <typename T>
 ScriptValue ScriptEnv::Create(T&& value) {
   return ScriptValue::Create(std::forward<T>(value));
 }
+
+// Simple type to manange script environment scopes.
+class ScriptEnvScope {
+ public:
+  explicit ScriptEnvScope(ScriptEnv* env) : env_(env) {
+    if (env_) {
+      env_->PushScope();
+    }
+  }
+
+  ~ScriptEnvScope() {
+    if (env_) {
+      env_->PopScope();
+    }
+  }
+
+ private:
+  ScriptEnv* env_;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::ScriptEnv);

@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_SCRIPT_LULL_SCRIPT_SCOPED_SYMBOL_TABLE_H_
-#define LULLABY_MODULES_SCRIPT_LULL_SCRIPT_SCOPED_SYMBOL_TABLE_H_
+#ifndef LULLABY_SCRIPT_LULL_SCRIPT_SCOPED_SYMBOL_TABLE_H_
+#define LULLABY_SCRIPT_LULL_SCRIPT_SCOPED_SYMBOL_TABLE_H_
 
 #include <unordered_map>
 #include <vector>
+#include "lullaby/modules/script/lull/script_types.h"
 #include "lullaby/modules/script/lull/script_value.h"
 #include "lullaby/util/hash.h"
 
@@ -39,10 +40,10 @@ class ScriptScopedSymbolTable {
   ScriptScopedSymbolTable();
 
   // Sets a value associated with the symbol.
-  void SetValue(HashValue symbol, ScriptValue value);
+  void SetValue(const Symbol& symbol, ScriptValue value);
 
   // Gets a value associated with the symbol,
-  ScriptValue GetValue(HashValue symbol) const;
+  ScriptValue GetValue(const Symbol& symbol) const;
 
   // Indicates the start of a new scope.  Any values set at this scope will not
   // replace values in a prior scope, even if they have the same key.
@@ -70,7 +71,7 @@ class ScriptScopedSymbolTable {
     size_t count = 0;
   };
 
-  using LookupTable = std::unordered_map<HashValue, IndexArray>;
+  using LookupTable = std::unordered_map<Symbol, IndexArray, Symbol::Hasher>;
 
   // Stores the actual ScriptValue associated with a symbol at a specific scope,
   // as well the symbol's corresponding IndexArray in the lookup table.
@@ -95,4 +96,4 @@ class ScriptScopedSymbolTable {
 
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_SCRIPT_LULL_SCRIPT_SCOPED_SYMBOL_TABLE_H_
+#endif  // LULLABY_SCRIPT_LULL_SCRIPT_SCOPED_SYMBOL_TABLE_H_

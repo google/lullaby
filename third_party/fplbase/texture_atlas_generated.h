@@ -67,13 +67,13 @@ struct TextureAtlasEntryBuilder {
   void add_size(const fplbase::Vec2 *size) {
     fbb_.AddStruct(TextureAtlasEntry::VT_SIZE, size);
   }
-  TextureAtlasEntryBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit TextureAtlasEntryBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   TextureAtlasEntryBuilder &operator=(const TextureAtlasEntryBuilder &);
   flatbuffers::Offset<TextureAtlasEntry> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<TextureAtlasEntry>(end);
     return o;
   }
@@ -134,13 +134,13 @@ struct TextureAtlasBuilder {
   void add_entries(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<TextureAtlasEntry>>> entries) {
     fbb_.AddOffset(TextureAtlas::VT_ENTRIES, entries);
   }
-  TextureAtlasBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit TextureAtlasBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   TextureAtlasBuilder &operator=(const TextureAtlasBuilder &);
   flatbuffers::Offset<TextureAtlas> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<TextureAtlas>(end);
     return o;
   }

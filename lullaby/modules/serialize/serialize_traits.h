@@ -36,7 +36,8 @@ struct IsSerializeFundamental {
       std::is_same<U, int16_t>::value || std::is_same<U, uint16_t>::value ||
       std::is_same<U, int32_t>::value || std::is_same<U, uint32_t>::value ||
       std::is_same<U, int64_t>::value || std::is_same<U, uint64_t>::value ||
-      std::is_same<U, float>::value || std::is_same<U, double>::value ||
+      std::is_same<U, size_t>::value || std::is_same<U, float>::value ||
+      std::is_same<U, double>::value ||
       std::is_same<U, Clock::duration>::value ||
       std::is_same<U, mathfu::vec2>::value ||
       std::is_same<U, mathfu::vec2i>::value ||

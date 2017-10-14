@@ -25,8 +25,8 @@ struct NinePatchDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_ORIGINAL_SIZE = 14,
     VT_SUBDIVISIONS = 16
   };
-  const lull::Vec2 *size() const {
-    return GetStruct<const lull::Vec2 *>(VT_SIZE);
+  const Vec2 *size() const {
+    return GetStruct<const Vec2 *>(VT_SIZE);
   }
   float left_slice() const {
     return GetField<float>(VT_LEFT_SLICE, 0.0f);
@@ -40,21 +40,21 @@ struct NinePatchDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   float top_slice() const {
     return GetField<float>(VT_TOP_SLICE, 0.0f);
   }
-  const lull::Vec2 *original_size() const {
-    return GetStruct<const lull::Vec2 *>(VT_ORIGINAL_SIZE);
+  const Vec2 *original_size() const {
+    return GetStruct<const Vec2 *>(VT_ORIGINAL_SIZE);
   }
-  const lull::Vec2i *subdivisions() const {
-    return GetStruct<const lull::Vec2i *>(VT_SUBDIVISIONS);
+  const Vec2i *subdivisions() const {
+    return GetStruct<const Vec2i *>(VT_SUBDIVISIONS);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec2>(verifier, VT_SIZE) &&
+           VerifyField<Vec2>(verifier, VT_SIZE) &&
            VerifyField<float>(verifier, VT_LEFT_SLICE) &&
            VerifyField<float>(verifier, VT_RIGHT_SLICE) &&
            VerifyField<float>(verifier, VT_BOTTOM_SLICE) &&
            VerifyField<float>(verifier, VT_TOP_SLICE) &&
-           VerifyField<lull::Vec2>(verifier, VT_ORIGINAL_SIZE) &&
-           VerifyField<lull::Vec2i>(verifier, VT_SUBDIVISIONS) &&
+           VerifyField<Vec2>(verifier, VT_ORIGINAL_SIZE) &&
+           VerifyField<Vec2i>(verifier, VT_SUBDIVISIONS) &&
            verifier.EndTable();
   }
 };
@@ -62,7 +62,7 @@ struct NinePatchDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct NinePatchDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_size(const lull::Vec2 *size) {
+  void add_size(const Vec2 *size) {
     fbb_.AddStruct(NinePatchDef::VT_SIZE, size);
   }
   void add_left_slice(float left_slice) {
@@ -77,19 +77,19 @@ struct NinePatchDefBuilder {
   void add_top_slice(float top_slice) {
     fbb_.AddElement<float>(NinePatchDef::VT_TOP_SLICE, top_slice, 0.0f);
   }
-  void add_original_size(const lull::Vec2 *original_size) {
+  void add_original_size(const Vec2 *original_size) {
     fbb_.AddStruct(NinePatchDef::VT_ORIGINAL_SIZE, original_size);
   }
-  void add_subdivisions(const lull::Vec2i *subdivisions) {
+  void add_subdivisions(const Vec2i *subdivisions) {
     fbb_.AddStruct(NinePatchDef::VT_SUBDIVISIONS, subdivisions);
   }
-  NinePatchDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit NinePatchDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   NinePatchDefBuilder &operator=(const NinePatchDefBuilder &);
   flatbuffers::Offset<NinePatchDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 7);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<NinePatchDef>(end);
     return o;
   }
@@ -97,13 +97,13 @@ struct NinePatchDefBuilder {
 
 inline flatbuffers::Offset<NinePatchDef> CreateNinePatchDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec2 *size = 0,
+    const Vec2 *size = 0,
     float left_slice = 0.0f,
     float right_slice = 0.0f,
     float bottom_slice = 0.0f,
     float top_slice = 0.0f,
-    const lull::Vec2 *original_size = 0,
-    const lull::Vec2i *subdivisions = 0) {
+    const Vec2 *original_size = 0,
+    const Vec2i *subdivisions = 0) {
   NinePatchDefBuilder builder_(_fbb);
   builder_.add_subdivisions(subdivisions);
   builder_.add_original_size(original_size);

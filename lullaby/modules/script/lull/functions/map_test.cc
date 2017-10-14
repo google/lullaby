@@ -89,6 +89,10 @@ TEST(ScriptFunctionsMapTest, MapGet) {
   res = env.Exec("(map-get (make-map (1u 'a') (2u 123) (4u 'd')) 2u)");
   EXPECT_THAT(res.Is<int>(), Eq(true));
   EXPECT_THAT(*res.Get<int>(), Eq(123));
+
+  res = env.Exec("(map-get-or (make-map (1u 'a')) 2u 124)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(124));
 }
 
 TEST(ScriptFunctionsMapTest, MapInsert) {
@@ -110,6 +114,36 @@ TEST(ScriptFunctionsMapTest, MapInsert) {
   EXPECT_THAT(*res.Get<int>(), Eq(456));
 }
 
+TEST(ScriptFunctionsMapTest, MapSet) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec("(= m (make-map (1u 'a') (2u 123) (4u 'd')))");
+  res = env.Exec("(map-size m)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(3));
+
+  // map-insert doesn't modify existing elements.
+  res = env.Exec("(map-insert m 2u 456)");
+  res = env.Exec("(map-size m)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(3));
+
+  res = env.Exec("(map-get m 2u)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(123));
+
+  // map-set does modify existing elements.
+  res = env.Exec("(map-set m 2u 456)");
+  res = env.Exec("(map-size m)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(3));
+
+  res = env.Exec("(map-get m 2u)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(456));
+}
+
 TEST(ScriptFunctionsMapTest, MapErase) {
   ScriptEnv env;
   ScriptValue res;
@@ -126,6 +160,24 @@ TEST(ScriptFunctionsMapTest, MapErase) {
 
   res = env.Exec("(map-get m 2u)");
   EXPECT_THAT(res.IsNil(), Eq(true));
+}
+
+
+TEST(ScriptFunctionsMapTest, MapForeach) {
+  ScriptEnv env;
+  ScriptValue res;
+
+  res = env.Exec(
+      "(do (= sum 0)"
+      "  (map-foreach (make-map (1u 2) (3u 4)) (k v) (= sum (+ sum v))) sum)");
+  EXPECT_THAT(res.Is<int>(), Eq(true));
+  EXPECT_THAT(*res.Get<int>(), Eq(6));
+
+  res = env.Exec(
+      "(do (= sum 0u)"
+      "  (map-foreach (make-map (1u 2) (3u 4)) (k v) (= sum (+ sum k))) sum)");
+  EXPECT_THAT(res.Is<unsigned>(), Eq(true));
+  EXPECT_THAT(*res.Get<unsigned>(), Eq(4));
 }
 
 }  // namespace

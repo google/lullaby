@@ -18,12 +18,13 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "mathfu/io.h"
 #include "lullaby/util/math.h"
-#include "lullaby/tests/mathfu_matchers.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/mathfu_matchers.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
 
+using testing::NearMathfuVec3;
 using testing::NearMathfu;
 
 const float kEpsilon = kDefaultEpsilon;
@@ -543,8 +544,7 @@ TEST(ComputeRayPlaneCollision, RayOriginOnPlane) {
 
 TEST(ComputeRayPlaneCollision, Parallel) {
   Plane p(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, -1.0f, 0.0f));
-  Ray r(mathfu::vec3(0.0f, 4.0f, 0.0f),
-        mathfu::vec3(1.0f, 0.0f, 0.0f));
+  Ray r(mathfu::vec3(0.0f, 4.0f, 0.0f), mathfu::vec3(1.0f, 0.0f, 0.0f));
   mathfu::vec3 out;
   EXPECT_FALSE(ComputeRayPlaneCollision(r, p, &out));
 }
@@ -851,6 +851,57 @@ TEST(CalculateCylinderDeformedTransformMatrix, Translation_Scale_Rotate) {
   expected_mat(1, 3) = 0;
   expected_mat(2, 3) = kRadius - kRadius * std::cos(kAngle * kScale);
   TestMatrixEquality(expected_mat, deformed_mat);
+}
+
+TEST(CalculateCylinderUndeformedTransformMatrix, Translation_Scale_Rotate) {
+  // Check that a -1/4 wrap via translation, scale, and a z rotation will be
+  // handled.
+  const float kAngle = 0.5f * M_PI_float;
+  const float kScale = 1;
+  const float kZAngle = M_PI_float;
+  const float kRadius = 2.0f;
+
+  mathfu::quat z_rot = mathfu::quat::FromAngleAxis(kZAngle, mathfu::kAxisZ3f);
+  mathfu::mat4 undeformed_mat =
+      z_rot.ToMatrix4() *
+      mathfu::mat4::FromScaleVector(mathfu::vec3(kScale, 1, 1)) *
+      mathfu::mat4::FromTranslationVector(mathfu::vec3(kAngle * kRadius, 0, 0));
+
+  mathfu::mat4 deformed_mat =
+      CalculateCylinderDeformedTransformMatrix(undeformed_mat, kRadius);
+
+  mathfu::mat4 result_mat =
+      CalculateCylinderUndeformedTransformMatrix(deformed_mat, kRadius);
+
+  TestMatrixEquality(undeformed_mat, result_mat);
+}
+
+TEST(CalculateCylinderUndeformedTransformMatrix, Clamp_Angle) {
+  // Test that undeforming a matrix beyond the clamp_angle works properly.
+  const float kClampAngle = kPi / 6;
+  const float kRadius = 1.0f;
+
+  mathfu::mat4 undeformed_mat = mathfu::mat4::FromTranslationVector(
+      mathfu::vec3(kClampAngle + 0.5f, 0, 0));
+
+  // Test that a position past kClampAngle gets clamped when deforming:
+  mathfu::mat4 deformed_mat = CalculateCylinderDeformedTransformMatrix(
+      undeformed_mat, kRadius, kClampAngle);
+  EXPECT_THAT(
+      deformed_mat.TranslationVector3D(),
+      NearMathfuVec3({sinf(kClampAngle), 0, kRadius - cosf(kClampAngle)},
+                     kEpsilon));
+
+  // Test that a deformed point past kClampAngle gets clamped to the nearest
+  // point.  Move the expected pos directly away from the clamp plane.
+  deformed_mat(0, 3) += 0.5f * cosf(kClampAngle);
+  deformed_mat(2, 3) += 0.5f * sinf(kClampAngle);
+
+  mathfu::mat4 result_mat = CalculateCylinderUndeformedTransformMatrix(
+      deformed_mat, kRadius, kClampAngle);
+
+  EXPECT_THAT(result_mat.TranslationVector3D(),
+              NearMathfu(mathfu::kAxisX3f * kClampAngle, kEpsilon));
 }
 
 TEST(CalculateRotateAroundMatrix, Simple) {
@@ -1737,18 +1788,15 @@ TEST(FindPositionBetweenPoints, Single) {
   float match_percent;
 
   // Test that only having 1 point doesn't crash
-  FindPositionBetweenPoints(-1, points, &min_index, &max_index,
-                            &match_percent);
+  FindPositionBetweenPoints(-1, points, &min_index, &max_index, &match_percent);
   EXPECT_EQ((int)min_index, 0);
   EXPECT_EQ((int)max_index, 0);
   EXPECT_NEAR(match_percent, 1.f, kEpsilon);
-  FindPositionBetweenPoints(1, points, &min_index, &max_index,
-                            &match_percent);
+  FindPositionBetweenPoints(1, points, &min_index, &max_index, &match_percent);
   EXPECT_EQ((int)min_index, 0);
   EXPECT_EQ((int)max_index, 0);
   EXPECT_NEAR(match_percent, 1.f, kEpsilon);
-  FindPositionBetweenPoints(2, points, &min_index, &max_index,
-                            &match_percent);
+  FindPositionBetweenPoints(2, points, &min_index, &max_index, &match_percent);
   EXPECT_EQ((int)min_index, 0);
   EXPECT_EQ((int)max_index, 0);
   EXPECT_NEAR(match_percent, 1.f, kEpsilon);

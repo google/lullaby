@@ -51,5 +51,6 @@ TEST(ScriptFunctionsTypesTest, Casts) {
   LULLABY_TEST_SCRIPT_VALUE(env, "(double 10.f)", 10.0);
 }
 
+
 }  // namespace
 }  // namespace lull

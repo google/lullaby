@@ -20,7 +20,8 @@ namespace lull {
 
 ScriptScopedSymbolTable::ScriptScopedSymbolTable() { PushScope(); }
 
-void ScriptScopedSymbolTable::SetValue(HashValue symbol, ScriptValue value) {
+void ScriptScopedSymbolTable::SetValue(const Symbol& symbol,
+                                       ScriptValue value) {
   auto iter = lookup_.emplace(symbol, IndexArray()).first;
 
   IndexArray& array = iter->second;
@@ -40,7 +41,7 @@ void ScriptScopedSymbolTable::SetValue(HashValue symbol, ScriptValue value) {
   }
 }
 
-ScriptValue ScriptScopedSymbolTable::GetValue(HashValue symbol) const {
+ScriptValue ScriptScopedSymbolTable::GetValue(const Symbol& symbol) const {
   auto iter = lookup_.find(symbol);
   if (iter == lookup_.end()) {
     return ScriptValue();

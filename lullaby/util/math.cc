@@ -128,6 +128,45 @@ mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
   return mathfu::mat4::FromTranslationVector(pos) * rot.ToMatrix4() * result;
 }
 
+mathfu::mat4 CalculateCylinderUndeformedTransformMatrix(
+    const mathfu::mat4& deformed_mat, const float deform_radius,
+    const float clamp_angle) {
+  mathfu::vec3 deformed_pos = deformed_mat.TranslationVector3D();
+  mathfu::mat4 original_rotation =
+      mathfu::mat4::FromTranslationVector(-1.f * deformed_pos) * deformed_mat;
+
+  // Calc angle from axis to deformed_pos.
+  float angle = atan2f(deformed_pos.x, (deform_radius - deformed_pos.z));
+
+  mathfu::vec3 undeformed_pos;
+  if (clamp_angle > kDefaultEpsilon && std::abs(angle) > clamp_angle) {
+    // Deformed points should stop at the clamp angle.  For points beyond that
+    // angle, calculate the closest point on the vertical plane defined by the
+    // clamp angle.
+    float normal_angle = 0.0f;
+    if (angle > 0) {
+      normal_angle = clamp_angle + kPi / 2.0f;
+    } else {
+      normal_angle = -clamp_angle - kPi / 2.0f;
+    }
+    const mathfu::vec3 normal(sinf(normal_angle), 0, -cosf(normal_angle));
+    const Plane clamp_plane(1.0f * mathfu::kAxisZ3f * deform_radius, normal);
+
+    deformed_pos = ProjectPointOntoPlane(clamp_plane, deformed_pos);
+    angle = clamp_angle;
+  }
+  // UndeformPoint assumes 0,0,0 is on the axis of the cylinder, not the
+  // surface of it.
+  undeformed_pos =
+      UndeformPoint(deformed_pos - mathfu::kAxisZ3f * deform_radius,
+                    deform_radius) +
+      mathfu::kAxisZ3f * deform_radius;
+
+  mathfu::quat rot = mathfu::quat::FromAngleAxis(angle, mathfu::kAxisY3f);
+  return mathfu::mat4::FromTranslationVector(undeformed_pos) * rot.ToMatrix4() *
+         original_rotation;
+}
+
 mathfu::mat4 CalculateLookAtMatrixFromDir(const mathfu::vec3& eye,
                                           const mathfu::vec3& dir,
                                           const mathfu::vec3& up) {
@@ -246,6 +285,14 @@ mathfu::mat4 CalculateRotateAroundMatrix(const mathfu::vec3& point,
   const mathfu::quat rotation = mathfu::quat::FromAngleAxis(angle, axis);
   return mathfu::mat4::FromTranslationVector(point) * rotation.ToMatrix4() *
          mathfu::mat4::FromTranslationVector(-point);
+}
+
+mathfu::quat FromEulerAnglesYXZ(const mathfu::vec3& euler) {
+  const mathfu::quat X = mathfu::quat::FromAngleAxis(euler.x, mathfu::kAxisX3f);
+  const mathfu::quat Y = mathfu::quat::FromAngleAxis(euler.y, mathfu::kAxisY3f);
+  const mathfu::quat Z = mathfu::quat::FromAngleAxis(euler.z, mathfu::kAxisZ3f);
+
+  return Y * X * Z;
 }
 
 float GetPitchRadians(const mathfu::quat& rotation) {
@@ -518,7 +565,7 @@ bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
 }
 
 mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point) {
-  const Ray line_as_ray (line.origin, line.direction.Normalized());
+  const Ray line_as_ray(line.origin, line.direction.Normalized());
   const float distance = ProjectPointOntoRay(line_as_ray, point);
   return line_as_ray.origin + distance * line_as_ray.direction;
 }
@@ -666,6 +713,16 @@ bool IsNearlyZero(float n, float epsilon /* = kDefaultEpsilon */) {
 bool AreNearlyEqual(const mathfu::quat& one, const mathfu::quat& two,
                     float epsilon) {
   return std::abs(mathfu::quat::DotProduct(one, two)) > 1.f - epsilon;
+}
+
+bool AreNearlyEqual(const mathfu::vec4& one, const mathfu::vec4& two,
+                    float epsilon) {
+  for (int i = 0; i < 4; i++) {
+    if (!AreNearlyEqual(one[i], two[i], epsilon)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index) {

@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/text_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -74,6 +74,9 @@ void TextDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::TextHtmlMode);
+LULLABY_SETUP_TYPEID(lull::TextWrapMode);
+LULLABY_SETUP_TYPEID(lull::TextDirection);
 LULLABY_SETUP_TYPEID(lull::TextDefT);
 
 #endif  // _LULLABY_LULLABY_GENERATED_TEXT_DEF_GENERATED_H_

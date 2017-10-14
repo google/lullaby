@@ -24,16 +24,12 @@ limitations under the License.
 namespace lull {
 
 bool LoadAssetOrFile(const char* filename, std::string* dest) {
-  if (fplbase::LoadFileRaw(filename, dest)) {
-    return true;
-  }
-
-  // Only attempt to load from the file system if we start with '/' (we
-  // shouldn't be depending on current directory).
+  // Attempts to load using fplbase::LoadFileRaw if the filename is local.
   if (filename[0] != '/') {
-    return false;
+    return fplbase::LoadFileRaw(filename, dest);
   }
-
+  // Load from the file system if we start with '/' (we shouldn't be depending
+  // on current directory).
   std::ifstream file(filename, std::ios::binary);
   if (!file) {
     LOG(ERROR) << "Failed to open file " << filename;

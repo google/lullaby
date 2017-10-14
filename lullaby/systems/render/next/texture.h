@@ -24,34 +24,12 @@ limitations under the License.
 
 namespace lull {
 
-// Wraps an fplbase::Texture but also allows us to use subtextures inside of a
-// texture atlas with no differences to client code.
+// Wraps an fplbase::Texture.
 class Texture {
  public:
-  // A unique_ptr to the underlying fplbase::Texture.
-  typedef std::unique_ptr<fplbase::Texture,
-                          std::function<void(const fplbase::Texture*)>>
-      TextureImplPtr;
-
-  // A unique_ptr to the underlying fplbase::TextureAtlas.
-  typedef std::unique_ptr<fplbase::TextureAtlas,
-                          std::function<void(const fplbase::TextureAtlas*)>>
-      AtlasImplPtr;
-
-  // Creates a Texture from its GL |texture_target| and |texture_id|.
-  Texture(uint32_t texture_target, uint32_t texture_id);
-
-  // Takes ownership of the specified FPL texture.
-  explicit Texture(TextureImplPtr texture);
-
-  // Takes ownership of the specified FPL texture.
-  explicit Texture(AtlasImplPtr atlas);
-
-  // Takes ownership of the specified FPL subtexture (which is part of a FPL
-  // texture atlas).
-  // Note: Because the actual texture is owned by the atlas, "ownership" in this
-  // case is normally a unique_ptr with a no-op deleter.
-  Texture(TextureImplPtr texture, const mathfu::vec4& uv_bounds);
+  Texture() {}
+  Texture(const Texture& rhs) = delete;
+  Texture& operator=(const Texture& rhs) = delete;
 
   // Binds the texture to the specified texture unit for rendering.
   void Bind(int unit);
@@ -61,8 +39,7 @@ class Texture {
 
   // Add a function that will be called textures loaded from file are done
   // loading.
-  void AddOnLoadCallback(
-      const fplbase::AsyncAsset::AssetFinalizedCallback& callback);
+  void AddOnLoadCallback(const std::function<void()>& callback);
 
   // Gets the dimensions of the underlying texture.
   mathfu::vec2i GetDimensions() const;
@@ -71,7 +48,7 @@ class Texture {
   std::string GetName() const;
 
   // Returns true if the Texture is referencing a subtexture in a texture atlas.
-  const bool IsSubtexture() const;
+  bool IsSubtexture() const;
 
   // Gets the UV bounds of a subtexture.
   const mathfu::vec4& UvBounds() const;
@@ -86,13 +63,15 @@ class Texture {
   fplbase::TextureHandle GetResourceId() const;
 
  private:
-  TextureImplPtr texture_impl_;
-  AtlasImplPtr atlas_impl_;
-  mathfu::vec4 uv_bounds_;
-  bool is_subtexture_;
+  friend class TextureFactory;
+  void Init(std::unique_ptr<fplbase::Texture> texture_impl);
+  void Init(std::shared_ptr<Texture> containing_texture,
+            const mathfu::vec4& uv_bounds);
 
-  Texture(const Texture& rhs) = delete;
-  Texture& operator=(const Texture& rhs) = delete;
+  std::unique_ptr<fplbase::Texture> impl_;
+  std::shared_ptr<Texture> containing_texture_;
+  mathfu::vec4 uv_bounds_ = mathfu::vec4(0, 0, 1, 1);
+  std::vector<std::function<void()>> on_load_callbacks_;
 };
 
 }  // namespace lull

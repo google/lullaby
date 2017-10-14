@@ -71,312 +71,207 @@ limitations under the License.
 namespace lull {
 namespace {
 
-// Helper struct that stores ScriptFrame and arguments so that they can be
-// used by multiple functions.
-struct Args {
-  explicit Args(ScriptFrame* frame) : frame(frame) {
-    if (frame->HasNext()) {
-      arg1 = frame->EvalNext();
-    }
-    if (frame->HasNext()) {
-      arg2 = frame->EvalNext();
-    }
-  }
+using mathfu::quat;
+using mathfu::vec2;
+using mathfu::vec2i;
+using mathfu::vec3;
+using mathfu::vec3i;
+using mathfu::vec4;
+using mathfu::vec4i;
 
-  ScriptFrame* frame;
-  ScriptValue arg1;
-  ScriptValue arg2;
-};
+vec2 Vec2Create(float x, float y) { return vec2(x, y); }
+vec3 Vec3Create(float x, float y, float z) { return vec3(x, y, z); }
+vec4 Vec4Create(float x, float y, float z, float w) { return vec4(x, y, z, w); }
+vec2i Vec2iCreate(int x, int y) { return vec2i(x, y); }
+vec3i Vec3iCreate(int x, int y, int z) { return vec3i(x, y, z); }
+vec4i Vec4iCreate(int x, int y, int z, int w) { return vec4i(x, y, z, w); }
+quat QuatCreate(float x, float y, float z, float w) { return quat(x, y, z, w); }
 
-// Attempts to evaluate a floating-point value of the ScriptFrame.
-Optional<float> TryEvalNextFloatValue(ScriptFrame* frame) {
-  if (frame->HasNext()) {
-    return frame->EvalNext().NumericCast<float>();
-  } else {
-    return NullOpt;
-  }
+Variant GetX(ScriptFrame* frame, const Variant* vec) {
+  if (const vec2* v2 = vec->Get<vec2>()) return v2->x;
+  if (const vec3* v3 = vec->Get<vec3>()) return v3->x;
+  if (const vec4* v4 = vec->Get<vec4>()) return v4->x;
+  if (const vec2i* v2i = vec->Get<vec2i>()) return v2i->x;
+  if (const vec3i* v3i = vec->Get<vec3i>()) return v3i->x;
+  if (const vec4i* v4i = vec->Get<vec4i>()) return v4i->x;
+  if (const quat* qt = vec->Get<quat>()) return qt->vector().x;
+  frame->Error("get-x: arg was not a mathfu type");
+  return Variant();
 }
 
-// Mapping of vector/quaternoin dimensions to indices used by operator[] for
-// various mathfu types.
-enum Dimension {
-  kXValue = 0,
-  kYValue = 1,
-  kZValue = 2,
-  kWValue = 3,
-};
-
-// Template function used to create a vector with the specified Scalar type |T|
-// and number of Dimensions |D|.
-template <class T, int D>
-void VectorCreate(ScriptFrame* frame) {
-  mathfu::Vector<T, D> vec;
-  for (int i = 0; i < D; ++i) {
-    if (!frame->HasNext()) {
-      frame->Error("Invalid arguments for constructing vector.");
-      return;
-    }
-    const auto value = frame->EvalNext().NumericCast<T>();
-    if (!value) {
-      frame->Error("Invalid arguments for constructing vector.");
-      return;
-    }
-    vec[i] = *value;
-  }
-  frame->Return(vec);
+Variant GetY(ScriptFrame* frame, const Variant* vec) {
+  if (const vec2* v2 = vec->Get<vec2>()) return v2->y;
+  if (const vec3* v3 = vec->Get<vec3>()) return v3->y;
+  if (const vec4* v4 = vec->Get<vec4>()) return v4->y;
+  if (const vec2i* v2i = vec->Get<vec2i>()) return v2i->y;
+  if (const vec3i* v3i = vec->Get<vec3i>()) return v3i->y;
+  if (const vec4i* v4i = vec->Get<vec4i>()) return v4i->y;
+  if (const quat* qt = vec->Get<quat>()) return qt->vector().y;
+  frame->Error("get-y: arg was not a mathfu type");
+  return Variant();
 }
 
-// Template function that attempts to get the specified Dimensional value from a
-// vector. Returns true if successful, false if the arguments are of the wrong
-// type.
-template <typename T>
-bool TryGet(Args* args, Dimension index) {
-  auto* vec = args->arg1.Get<T>();
-  if (!vec) {
-    return false;
-  }
-  args->frame->Return((*vec)[index]);
-  return true;
+Variant GetZ(ScriptFrame* frame, const Variant* vec) {
+  if (const vec3* v3 = vec->Get<vec3>()) return v3->z;
+  if (const vec4* v4 = vec->Get<vec4>()) return v4->z;
+  if (const vec3i* v3i = vec->Get<vec3i>()) return v3i->z;
+  if (const vec4i* v4i = vec->Get<vec4i>()) return v4i->z;
+  if (const quat* qt = vec->Get<quat>()) return qt->vector().z;
+  frame->Error("get-z: arg was not a 3d or 4d mathfu type");
+  return Variant();
 }
 
-// Specialization of the TryGet function, but for quaternions.
-template <>
-bool TryGet<mathfu::quat>(Args* args, Dimension index) {
-  auto* quat = args->arg1.Get<mathfu::quat>();
-  if (!quat) {
-    return false;
-  }
-  if (index == kWValue) {
-    args->frame->Return(quat->scalar());
-  } else {
-    args->frame->Return(quat->vector()[index]);
-  }
-  return true;
+Variant GetW(ScriptFrame* frame, const Variant* vec) {
+  if (const vec4* v4 = vec->Get<vec4>()) return v4->w;
+  if (const vec4i* v4i = vec->Get<vec4i>()) return v4i->w;
+  if (const quat* qt = vec->Get<quat>()) return qt->scalar();
+  frame->Error("get-w: arg was not a 4d mathfu type");
+  return Variant();
 }
 
-// Template function that attempts to set the specified Dimensional value of a
-// vector. Returns true if successful, false if the arguments are of the wrong
-// type.
-template <typename T>
-bool TrySet(Args* args, Dimension index) {
-  auto* vec = args->arg1.Get<T>();
-  if (!vec) {
-    return false;
+void SetX(ScriptFrame* frame, Variant* vec, const Variant* num) {
+  Optional<float> f = num->NumericCast<float>();
+  if (!f) {
+    frame->Error("set-x: 2nd arg was not numeric");
+    return;
   }
-  const auto value = args->arg2.NumericCast<typename T::Scalar>();
-  if (!value) {
-    return false;
+  if (vec2* v2 = vec->Get<vec2>()) {
+    v2->x = *f;
+    return;
   }
-  (*vec)[index] = *value;
-  args->frame->Return(*value);
-  return true;
+  if (vec3* v3 = vec->Get<vec3>()) {
+    v3->x = *f;
+    return;
+  }
+  if (vec4* v4 = vec->Get<vec4>()) {
+    v4->x = *f;
+    return;
+  }
+  if (quat* qt = vec->Get<quat>()) {
+    qt->vector().x = *f;
+    return;
+  }
+  Optional<int> i = num->NumericCast<int>();
+  if (vec2i* v2i = vec->Get<vec2i>()) {
+    v2i->x = *i;
+    return;
+  }
+  if (vec3i* v3i = vec->Get<vec3i>()) {
+    v3i->x = *i;
+    return;
+  }
+  if (vec4i* v4i = vec->Get<vec4i>()) {
+    v4i->x = *i;
+    return;
+  }
+  frame->Error("set-x: 1st arg was not a mathfu type");
 }
 
-// Specialization of the TrySet function, but for quaternions.
-template <>
-bool TrySet<mathfu::quat>(Args* args, Dimension index) {
-  auto* quat = args->arg1.Get<mathfu::quat>();
-  if (!quat) {
-    return false;
+void SetY(ScriptFrame* frame, Variant* vec, const Variant* num) {
+  Optional<float> f = num->NumericCast<float>();
+  if (!f) {
+    frame->Error("set-y: 2nd arg was not numeric");
+    return;
   }
-  const auto value = args->arg2.NumericCast<float>();
-  if (!value) {
-    return false;
+  if (vec2* v2 = vec->Get<vec2>()) {
+    v2->y = *f;
+    return;
   }
-  if (index == kWValue) {
-    quat->scalar() = *value;
-  } else {
-    quat->vector()[index] = *value;
+  if (vec3* v3 = vec->Get<vec3>()) {
+    v3->y = *f;
+    return;
   }
-  args->frame->Return(*value);
-  return true;
+  if (vec4* v4 = vec->Get<vec4>()) {
+    v4->y = *f;
+    return;
+  }
+  if (quat* qt = vec->Get<quat>()) {
+    qt->vector().y = *f;
+    return;
+  }
+  Optional<int> i = num->NumericCast<int>();
+  if (vec2i* v2i = vec->Get<vec2i>()) {
+    v2i->y = *i;
+    return;
+  }
+  if (vec3i* v3i = vec->Get<vec3i>()) {
+    v3i->y = *i;
+    return;
+  }
+  if (vec4i* v4i = vec->Get<vec4i>()) {
+    v4i->y = *i;
+    return;
+  }
+  frame->Error("set-y: 1st arg was not a mathfu type");
 }
 
-void Vec2Create(ScriptFrame* frame) { VectorCreate<float, 2>(frame); }
-
-void Vec3Create(ScriptFrame* frame) { VectorCreate<float, 3>(frame); }
-
-void Vec4Create(ScriptFrame* frame) { VectorCreate<float, 4>(frame); }
-
-void Vec2iCreate(ScriptFrame* frame) { VectorCreate<int, 2>(frame); }
-
-void Vec3iCreate(ScriptFrame* frame) { VectorCreate<int, 3>(frame); }
-
-void Vec4iCreate(ScriptFrame* frame) { VectorCreate<int, 4>(frame); }
-
-void QuatCreate(ScriptFrame* frame) {
-  const mathfu::quat res;
-  const auto v1 = TryEvalNextFloatValue(frame);
-  const auto v2 = TryEvalNextFloatValue(frame);
-  const auto v3 = TryEvalNextFloatValue(frame);
-  const auto v4 = TryEvalNextFloatValue(frame);
-  if (v1 && v2 && v3 && v4) {
-    const mathfu::quat res(*v1, *v2, *v3, *v4);
-    frame->Return(res);
-  } else {
-    frame->Error("Invalid arguments for constructing quaternion.");
+void SetZ(ScriptFrame* frame, Variant* vec, const Variant* num) {
+  Optional<float> f = num->NumericCast<float>();
+  if (!f) {
+    frame->Error("set-z: 2nd arg was not numeric");
+    return;
   }
+  if (vec3* v3 = vec->Get<vec3>()) {
+    v3->z = *f;
+    return;
+  }
+  if (vec4* v4 = vec->Get<vec4>()) {
+    v4->z = *f;
+    return;
+  }
+  if (quat* qt = vec->Get<quat>()) {
+    qt->vector().z = *f;
+    return;
+  }
+  Optional<int> i = num->NumericCast<int>();
+  if (vec3i* v3i = vec->Get<vec3i>()) {
+    v3i->z = *i;
+    return;
+  }
+  if (vec4i* v4i = vec->Get<vec4i>()) {
+    v4i->z = *i;
+    return;
+  }
+  frame->Error("set-z: 1st arg was not a mathfu type");
 }
 
-void GetX(ScriptFrame* frame) {
-  Args args(frame);
-  if (TryGet<mathfu::vec2>(&args, kXValue)) {
+void SetW(ScriptFrame* frame, Variant* vec, const Variant* num) {
+  Optional<float> f = num->NumericCast<float>();
+  if (!f) {
+    frame->Error("set-w: 2nd arg was not numeric");
     return;
-  } else if (TryGet<mathfu::vec2i>(&args, kXValue)) {
-    return;
-  } else if (TryGet<mathfu::vec3>(&args, kXValue)) {
-    return;
-  } else if (TryGet<mathfu::vec3i>(&args, kXValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4>(&args, kXValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4i>(&args, kXValue)) {
-    return;
-  } else if (TryGet<mathfu::quat>(&args, kXValue)) {
-    return;
-  } else {
-    frame->Error("get-x: invalid arguments");
   }
+  if (vec4* v4 = vec->Get<vec4>()) {
+    v4->w = *f;
+    return;
+  }
+  if (quat* qt = vec->Get<quat>()) {
+    qt->scalar() = *f;
+    return;
+  }
+  Optional<int> i = num->NumericCast<int>();
+  if (vec4i* v4i = vec->Get<vec4i>()) {
+    v4i->w = *i;
+    return;
+  }
+  frame->Error("set-w: 1st arg was not a mathfu type");
 }
 
-void GetY(ScriptFrame* frame) {
-  Args args(frame);
-  if (TryGet<mathfu::vec2>(&args, kYValue)) {
-    return;
-  } else if (TryGet<mathfu::vec2i>(&args, kYValue)) {
-    return;
-  } else if (TryGet<mathfu::vec3>(&args, kYValue)) {
-    return;
-  } else if (TryGet<mathfu::vec3i>(&args, kYValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4>(&args, kYValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4i>(&args, kYValue)) {
-    return;
-  } else if (TryGet<mathfu::quat>(&args, kYValue)) {
-    return;
-  } else {
-    frame->Error("get-y: invalid arguments");
-  }
-}
-
-void GetZ(ScriptFrame* frame) {
-  Args args(frame);
-  if (TryGet<mathfu::vec3>(&args, kZValue)) {
-    return;
-  } else if (TryGet<mathfu::vec3i>(&args, kZValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4>(&args, kZValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4i>(&args, kZValue)) {
-    return;
-  } else if (TryGet<mathfu::quat>(&args, kZValue)) {
-    return;
-  } else {
-    frame->Error("get-z: invalid arguments");
-  }
-}
-
-void GetW(ScriptFrame* frame) {
-  Args args(frame);
-  if (TryGet<mathfu::vec4>(&args, kWValue)) {
-    return;
-  } else if (TryGet<mathfu::vec4i>(&args, kWValue)) {
-    return;
-  } else if (TryGet<mathfu::quat>(&args, kWValue)) {
-    return;
-  } else {
-    frame->Error("get-w: invalid arguments");
-  }
-}
-
-void SetX(ScriptFrame* frame) {
-  Args args(frame);
-  if (TrySet<mathfu::vec2>(&args, kXValue)) {
-    return;
-  } else if (TrySet<mathfu::vec2i>(&args, kXValue)) {
-    return;
-  } else if (TrySet<mathfu::vec3>(&args, kXValue)) {
-    return;
-  } else if (TrySet<mathfu::vec3i>(&args, kXValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4>(&args, kXValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4i>(&args, kXValue)) {
-    return;
-  } else if (TrySet<mathfu::quat>(&args, kXValue)) {
-    return;
-  } else {
-    frame->Error("set-x: invalid arguments");
-  }
-}
-
-void SetY(ScriptFrame* frame) {
-  Args args(frame);
-  if (TrySet<mathfu::vec2>(&args, kYValue)) {
-    return;
-  } else if (TrySet<mathfu::vec2i>(&args, kYValue)) {
-    return;
-  } else if (TrySet<mathfu::vec3>(&args, kYValue)) {
-    return;
-  } else if (TrySet<mathfu::vec3i>(&args, kYValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4>(&args, kYValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4i>(&args, kYValue)) {
-    return;
-  } else if (TrySet<mathfu::quat>(&args, kYValue)) {
-    return;
-  } else {
-    frame->Error("set-y: invalid arguments");
-  }
-}
-
-void SetZ(ScriptFrame* frame) {
-  Args args(frame);
-  if (TrySet<mathfu::vec3>(&args, kZValue)) {
-    return;
-  } else if (TrySet<mathfu::vec3i>(&args, kZValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4>(&args, kZValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4i>(&args, kZValue)) {
-    return;
-  } else if (TrySet<mathfu::quat>(&args, kZValue)) {
-    return;
-  } else {
-    frame->Error("set-z: invalid arguments");
-  }
-}
-
-void SetW(ScriptFrame* frame) {
-  Args args(frame);
-  if (TrySet<mathfu::vec4>(&args, kWValue)) {
-    return;
-  } else if (TrySet<mathfu::vec4i>(&args, kWValue)) {
-    return;
-  } else if (TrySet<mathfu::quat>(&args, kWValue)) {
-    return;
-  } else {
-    frame->Error("set-w: invalid arguments");
-  }
-}
-
-LULLABY_SCRIPT_FUNCTION(Vec2Create, "vec2");
-LULLABY_SCRIPT_FUNCTION(Vec3Create, "vec3");
-LULLABY_SCRIPT_FUNCTION(Vec4Create, "vec4");
-LULLABY_SCRIPT_FUNCTION(Vec2iCreate, "vec2i");
-LULLABY_SCRIPT_FUNCTION(Vec3iCreate, "vec3i");
-LULLABY_SCRIPT_FUNCTION(Vec4iCreate, "vec4i");
-LULLABY_SCRIPT_FUNCTION(QuatCreate, "quat");
-LULLABY_SCRIPT_FUNCTION(GetX, "get-x");
-LULLABY_SCRIPT_FUNCTION(GetY, "get-y");
-LULLABY_SCRIPT_FUNCTION(GetZ, "get-z");
-LULLABY_SCRIPT_FUNCTION(GetW, "get-w");
-LULLABY_SCRIPT_FUNCTION(SetX, "set-x");
-LULLABY_SCRIPT_FUNCTION(SetY, "set-y");
-LULLABY_SCRIPT_FUNCTION(SetZ, "set-z");
-LULLABY_SCRIPT_FUNCTION(SetW, "set-w");
+LULLABY_SCRIPT_FUNCTION_WRAP(Vec2Create, "vec2");
+LULLABY_SCRIPT_FUNCTION_WRAP(Vec3Create, "vec3");
+LULLABY_SCRIPT_FUNCTION_WRAP(Vec4Create, "vec4");
+LULLABY_SCRIPT_FUNCTION_WRAP(Vec2iCreate, "vec2i");
+LULLABY_SCRIPT_FUNCTION_WRAP(Vec3iCreate, "vec3i");
+LULLABY_SCRIPT_FUNCTION_WRAP(Vec4iCreate, "vec4i");
+LULLABY_SCRIPT_FUNCTION_WRAP(QuatCreate, "quat");
+LULLABY_SCRIPT_FUNCTION_WRAP(GetX, "get-x");
+LULLABY_SCRIPT_FUNCTION_WRAP(GetY, "get-y");
+LULLABY_SCRIPT_FUNCTION_WRAP(GetZ, "get-z");
+LULLABY_SCRIPT_FUNCTION_WRAP(GetW, "get-w");
+LULLABY_SCRIPT_FUNCTION_WRAP(SetX, "set-x");
+LULLABY_SCRIPT_FUNCTION_WRAP(SetY, "set-y");
+LULLABY_SCRIPT_FUNCTION_WRAP(SetZ, "set-z");
+LULLABY_SCRIPT_FUNCTION_WRAP(SetW, "set-w");
 
 }  // namespace
 }  // namespace lull

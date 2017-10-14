@@ -14,17 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_LAYOUT_LAYOUT_H_
-#define LULLABY_MODULES_LAYOUT_LAYOUT_H_
+#ifndef LULLABY_UTIL_LAYOUT_H_
+#define LULLABY_UTIL_LAYOUT_H_
 
 #include <vector>
 
-#include "mathfu/constants.h"
-#include "mathfu/glsl_mappings.h"
 #include "lullaby/generated/common_generated.h"
 #include "lullaby/modules/ecs/entity.h"
-#include "lullaby/util/registry.h"
+#include "lullaby/util/clock.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/registry.h"
+#include "mathfu/constants.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
@@ -94,6 +95,13 @@ struct LayoutElement {
   // space proportional to the total weight of all other weighted elements
   // vertically up to canvas_size.y if non-zero.
   float vertical_weight = 0.0f;
+
+  /// Duration to animate this element to its new position.
+  Clock::duration duration = Clock::duration::zero();
+
+  // Keep track of the first time a layout element is added.  Do not animate
+  // on the first time.
+  bool first = true;
 };
 
 // Data saved in ApplyLayout() that can be used to
@@ -118,6 +126,12 @@ struct CachedPositions {
   GridOfRows primary_positions;
 };
 
+// Function that ApplyLayout will use to set the children's positions.
+using SetLayoutPositionFn = std::function<void(Entity, const mathfu::vec2&)>;
+
+// Default SetLayoutPositionFn that just sets position in transform system.
+SetLayoutPositionFn GetDefaultSetLayoutPositionFn(Registry* registry);
+
 // DEPRECATED
 // Update the positions of the |entities| based on the |params|.  Returns
 // the total AABB that is filled up by the entities.
@@ -130,6 +144,7 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
 // Returns the total AABB that is filled up by the entities.
 Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
                  const std::vector<LayoutElement>& elements,
+                 const SetLayoutPositionFn& set_pos_fn,
                  Entity desired_source = kNullEntity,
                  CachedPositions* cached_positions = nullptr);
 
@@ -146,4 +161,4 @@ size_t CalculateInsertIndexForPosition(const CachedPositions& cached_positions,
 
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_LAYOUT_LAYOUT_H_
+#endif  // LULLABY_UTIL_LAYOUT_H_

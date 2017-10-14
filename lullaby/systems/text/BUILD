@@ -53,6 +53,7 @@ cc_library(
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
+        "//lullaby/modules/ecs:entity",
         "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/render",

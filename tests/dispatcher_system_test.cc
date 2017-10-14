@@ -20,7 +20,7 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/systems/dispatcher/event.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

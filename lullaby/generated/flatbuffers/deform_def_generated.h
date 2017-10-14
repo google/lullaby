@@ -88,13 +88,13 @@ struct DeformedDefBuilder {
   void add_waypoint_path_id(flatbuffers::Offset<flatbuffers::String> waypoint_path_id) {
     fbb_.AddOffset(DeformedDef::VT_WAYPOINT_PATH_ID, waypoint_path_id);
   }
-  DeformedDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DeformedDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DeformedDefBuilder &operator=(const DeformedDefBuilder &);
   flatbuffers::Offset<DeformedDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DeformedDef>(end);
     return o;
   }
@@ -175,13 +175,13 @@ struct DeformerDefBuilder {
   void add_waypoint_paths(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<WaypointPath>>> waypoint_paths) {
     fbb_.AddOffset(DeformerDef::VT_WAYPOINT_PATHS, waypoint_paths);
   }
-  DeformerDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DeformerDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DeformerDefBuilder &operator=(const DeformerDefBuilder &);
   flatbuffers::Offset<DeformerDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DeformerDef>(end);
     return o;
   }
@@ -265,13 +265,13 @@ struct WaypointPathBuilder {
   void add_use_aabb_anchor(bool use_aabb_anchor) {
     fbb_.AddElement<uint8_t>(WaypointPath::VT_USE_AABB_ANCHOR, static_cast<uint8_t>(use_aabb_anchor), 0);
   }
-  WaypointPathBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit WaypointPathBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   WaypointPathBuilder &operator=(const WaypointPathBuilder &);
   flatbuffers::Offset<WaypointPath> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<WaypointPath>(end);
     return o;
   }
@@ -315,39 +315,39 @@ struct Waypoint FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// The xyz position in space used as the original reference point to
   /// to match against in Waypoint deformations. Should be local to the
   /// deformer's coordinate system.
-  const lull::Vec3 *original_position() const {
-    return GetStruct<const lull::Vec3 *>(VT_ORIGINAL_POSITION);
+  const Vec3 *original_position() const {
+    return GetStruct<const Vec3 *>(VT_ORIGINAL_POSITION);
   }
   /// The xyz position in space used as the new position in space in
   /// Waypoint deformations.
-  const lull::Vec3 *remapped_position() const {
-    return GetStruct<const lull::Vec3 *>(VT_REMAPPED_POSITION);
+  const Vec3 *remapped_position() const {
+    return GetStruct<const Vec3 *>(VT_REMAPPED_POSITION);
   }
   /// The Euler angle used as the new mapping in Waypoint deformations.
-  const lull::Vec3 *remapped_rotation() const {
-    return GetStruct<const lull::Vec3 *>(VT_REMAPPED_ROTATION);
+  const Vec3 *remapped_rotation() const {
+    return GetStruct<const Vec3 *>(VT_REMAPPED_ROTATION);
   }
   /// Normalized coordinates representing a point in the Deformed's aabb that
   /// will match with |original_position|. (0,0,0) is the left, bottom, far
   /// corner, and (1,1,1) is the right, top, near corner.
   /// Ignored if |use_aabb_anchor| is false.
-  const lull::Vec3 *original_aabb_anchor() const {
-    return GetStruct<const lull::Vec3 *>(VT_ORIGINAL_AABB_ANCHOR);
+  const Vec3 *original_aabb_anchor() const {
+    return GetStruct<const Vec3 *>(VT_ORIGINAL_AABB_ANCHOR);
   }
   /// Normalized coordinates representing a point in the Deformed's aabb that
   /// will match with |remapped_position|. (0,0,0) is the left, bottom, far
   /// corner, and (1,1,1) is the right, top, near corner.
   /// Ignored if |use_aabb_anchor| is false
-  const lull::Vec3 *remapped_aabb_anchor() const {
-    return GetStruct<const lull::Vec3 *>(VT_REMAPPED_AABB_ANCHOR);
+  const Vec3 *remapped_aabb_anchor() const {
+    return GetStruct<const Vec3 *>(VT_REMAPPED_AABB_ANCHOR);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec3>(verifier, VT_ORIGINAL_POSITION) &&
-           VerifyField<lull::Vec3>(verifier, VT_REMAPPED_POSITION) &&
-           VerifyField<lull::Vec3>(verifier, VT_REMAPPED_ROTATION) &&
-           VerifyField<lull::Vec3>(verifier, VT_ORIGINAL_AABB_ANCHOR) &&
-           VerifyField<lull::Vec3>(verifier, VT_REMAPPED_AABB_ANCHOR) &&
+           VerifyField<Vec3>(verifier, VT_ORIGINAL_POSITION) &&
+           VerifyField<Vec3>(verifier, VT_REMAPPED_POSITION) &&
+           VerifyField<Vec3>(verifier, VT_REMAPPED_ROTATION) &&
+           VerifyField<Vec3>(verifier, VT_ORIGINAL_AABB_ANCHOR) &&
+           VerifyField<Vec3>(verifier, VT_REMAPPED_AABB_ANCHOR) &&
            verifier.EndTable();
   }
 };
@@ -355,28 +355,28 @@ struct Waypoint FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct WaypointBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_original_position(const lull::Vec3 *original_position) {
+  void add_original_position(const Vec3 *original_position) {
     fbb_.AddStruct(Waypoint::VT_ORIGINAL_POSITION, original_position);
   }
-  void add_remapped_position(const lull::Vec3 *remapped_position) {
+  void add_remapped_position(const Vec3 *remapped_position) {
     fbb_.AddStruct(Waypoint::VT_REMAPPED_POSITION, remapped_position);
   }
-  void add_remapped_rotation(const lull::Vec3 *remapped_rotation) {
+  void add_remapped_rotation(const Vec3 *remapped_rotation) {
     fbb_.AddStruct(Waypoint::VT_REMAPPED_ROTATION, remapped_rotation);
   }
-  void add_original_aabb_anchor(const lull::Vec3 *original_aabb_anchor) {
+  void add_original_aabb_anchor(const Vec3 *original_aabb_anchor) {
     fbb_.AddStruct(Waypoint::VT_ORIGINAL_AABB_ANCHOR, original_aabb_anchor);
   }
-  void add_remapped_aabb_anchor(const lull::Vec3 *remapped_aabb_anchor) {
+  void add_remapped_aabb_anchor(const Vec3 *remapped_aabb_anchor) {
     fbb_.AddStruct(Waypoint::VT_REMAPPED_AABB_ANCHOR, remapped_aabb_anchor);
   }
-  WaypointBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit WaypointBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   WaypointBuilder &operator=(const WaypointBuilder &);
   flatbuffers::Offset<Waypoint> Finish() {
-    const auto end = fbb_.EndTable(start_, 5);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Waypoint>(end);
     return o;
   }
@@ -384,11 +384,11 @@ struct WaypointBuilder {
 
 inline flatbuffers::Offset<Waypoint> CreateWaypoint(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec3 *original_position = 0,
-    const lull::Vec3 *remapped_position = 0,
-    const lull::Vec3 *remapped_rotation = 0,
-    const lull::Vec3 *original_aabb_anchor = 0,
-    const lull::Vec3 *remapped_aabb_anchor = 0) {
+    const Vec3 *original_position = 0,
+    const Vec3 *remapped_position = 0,
+    const Vec3 *remapped_rotation = 0,
+    const Vec3 *original_aabb_anchor = 0,
+    const Vec3 *remapped_aabb_anchor = 0) {
   WaypointBuilder builder_(_fbb);
   builder_.add_remapped_aabb_anchor(remapped_aabb_anchor);
   builder_.add_original_aabb_anchor(original_aabb_anchor);

@@ -18,7 +18,7 @@ limitations under the License.
 
 #include <string>
 #include "gtest/gtest.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

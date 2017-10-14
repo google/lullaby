@@ -24,7 +24,8 @@ namespace lull {
 namespace {
 
 struct Serializable {
-  Serializable(string name, int value) : name(std::move(name)), value(value) {}
+  Serializable(std::string name, int value)
+      : name(std::move(name)), value(value) {}
   std::string name;
   int value;
 
@@ -140,6 +141,20 @@ TEST_F(LullScriptEngineTest, SerializableObjects) {
   int value = 0;
   EXPECT_TRUE(engine_->GetValue(id, "y", &value));
   EXPECT_EQ(2, value);
+}
+
+TEST_F(LullScriptEngineTest, UnloadScript) {
+  const uint64_t id = engine_->LoadScript("(= x 5)", "script");
+  engine_->RunScript(id);
+
+  int value = 0;
+  EXPECT_TRUE(engine_->GetValue(id, "x", &value));
+  EXPECT_EQ(5, value);
+
+  engine_->UnloadScript(id);
+  engine_->RunScript(id);
+
+  EXPECT_FALSE(engine_->GetValue(id, "x", &value));
 }
 
 }  // namespace

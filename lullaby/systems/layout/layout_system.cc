@@ -18,16 +18,19 @@ limitations under the License.
 
 #include "lullaby/generated/layout_def_generated.h"
 #include "lullaby/events/render_events.h"
+#include "lullaby/modules/animation_channels/transform_channels.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/script/function_binder.h"
+#include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/layout/layout_box_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/time.h"
 
 namespace {
 struct LayoutDirtyEvent {
@@ -215,6 +218,7 @@ void LayoutSystem::Create(Entity e, HashValue type, const Def* def) {
 
     layout_element.horizontal_weight = data->horizontal_weight();
     layout_element.vertical_weight = data->vertical_weight();
+    layout_element.duration = DurationFromMilliseconds(data->duration_ms());
   } else if (type == kLayoutDef) {
     LayoutComponent* layout = layouts_.Emplace(e);
     const auto* data = ConvertDef<LayoutDef>(def);
@@ -423,6 +427,29 @@ void LayoutSystem::Layout(Entity e) {
   LayoutImpl(DirtyLayout(e, kOriginal));
 }
 
+void LayoutSystem::SetDuration(Entity element, Clock::duration duration) {
+  GetLayoutElement(element).duration = duration;
+}
+
+void LayoutSystem::SetLayoutPosition(Entity entity,
+                                     const mathfu::vec2& position) {
+  auto* animation_system = registry_->Get<AnimationSystem>();
+  auto* transform_system = registry_->Get<TransformSystem>();
+  auto& layout_element = GetLayoutElement(entity);
+  // Preserve the z, only change xy.
+  const mathfu::vec3 translation(
+      position, transform_system->GetLocalTranslation(entity).z);
+
+  if (!animation_system || layout_element.first ||
+      layout_element.duration <= Clock::duration::zero()) {
+    transform_system->SetLocalTranslation(entity, translation);
+  } else {
+    animation_system->SetTarget(entity, PositionChannel::kChannelName,
+                                &translation[0], 3, layout_element.duration);
+  }
+  layout_element.first = false;
+}
+
 // When the parameters for determining a Layout change, e.g.
 // OriginalBoxChanged, ParentChangedEvent, or any change in LayoutParams, then
 // the Layout will set its original_size and its children's desired_size.
@@ -494,7 +521,10 @@ void LayoutSystem::LayoutImpl(const DirtyLayout& dirty_layout) {
         params.canvas_size.y = *y;
       }
     }
-    const Aabb aabb = ApplyLayout(registry_, params, elements,
+    const auto set_pos_fn = [this](Entity entity, const mathfu::vec2& pos) {
+      SetLayoutPosition(entity, pos);
+    };
+    const Aabb aabb = ApplyLayout(registry_, params, elements, set_pos_fn,
                                   dirty_layout.GetChildrensDesiredSource(),
                                   &layout->cached_positions);
     transform_system->SetAabb(e, aabb);
@@ -514,14 +544,14 @@ void LayoutSystem::LayoutImpl(const DirtyLayout& dirty_layout) {
   SendEvent(registry_, e, LayoutChangedEvent(e));
 }
 
-LayoutElement LayoutSystem::GetLayoutElement(Entity e) {
+LayoutElement& LayoutSystem::GetLayoutElement(Entity e) {
   // Create a default element (weights = 0) if it doesn't exist yet, or get the
   // current one.
   auto iter = layout_elements_.find(e);
   if (iter != layout_elements_.end()) {
     return iter->second;
   } else {
-    return LayoutElement(e);
+    return layout_elements_.emplace(e, LayoutElement(e)).first->second;
   }
 }
 

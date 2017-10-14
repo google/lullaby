@@ -95,16 +95,22 @@ bool EventEmpty(const EventWrapper* event) {
   return values ? values->empty() : true;
 }
 
-Variant EventGet(const EventWrapper* event, HashValue key) {
+Variant EventGetOr(const EventWrapper* event, HashValue key,
+                   const Variant* default_value) {
   const auto* values = event->GetValues();
   if (!values) {
-    return Variant();
+    return *default_value;
   }
   auto iter = values->find(key);
   if (iter != values->end()) {
     return iter->second;
   }
-  return Variant();
+  return *default_value;
+}
+
+Variant EventGet(const EventWrapper* event, HashValue key) {
+  Variant nil;
+  return EventGetOr(event, key, &nil);
 }
 
 LULLABY_SCRIPT_FUNCTION(EventCreate, "make-event");
@@ -112,6 +118,7 @@ LULLABY_SCRIPT_FUNCTION_WRAP(EventType, "event-type");
 LULLABY_SCRIPT_FUNCTION_WRAP(EventSize, "event-size");
 LULLABY_SCRIPT_FUNCTION_WRAP(EventEmpty, "event-empty");
 LULLABY_SCRIPT_FUNCTION_WRAP(EventGet, "event-get");
+LULLABY_SCRIPT_FUNCTION_WRAP(EventGetOr, "event-get-or");
 
 }  // namespace
 }  // namespace lull

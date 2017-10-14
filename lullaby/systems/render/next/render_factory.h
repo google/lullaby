@@ -17,34 +17,22 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_RENDER_FACTORY_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_RENDER_FACTORY_H_
 
-#include <map>
-#include <memory>
-#include <vector>
-
 #include "fplbase/asset_manager.h"
 #include "fplbase/renderer.h"
-#include "fplbase/texture_atlas.h"
-#include "lullaby/modules/render/triangle_mesh.h"
-#include "lullaby/systems/render/next/mesh.h"
-#include "lullaby/systems/render/next/shader.h"
-#include "lullaby/systems/render/next/texture.h"
+#include "lullaby/systems/render/next/mesh_factory.h"
+#include "lullaby/systems/render/next/shader_factory.h"
+#include "lullaby/systems/render/next/texture_atlas_factory.h"
+#include "lullaby/systems/render/next/texture_factory.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/util/registry.h"
-#include "lullaby/util/resource_manager.h"
-#include "lullaby/util/string_view.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
 
-// The RenderFactory is used to create Render objects like Meshes, Textures and
-// Shaders.
+// Creates render objects like Meshes, Textures and Shaders.
 //
-// Shaders loaded from files are held by RenderFactory, and are NOT
-// automatically released with the last external reference.
-//
-// Meshes and textures, however, are not held by RenderFactory, and will be
-// automatically released along with the last external reference. The exception
-// is texture atlases, which need to be kept so their contents can be found.
+// Most of the work is actually delegated to individual underlying factories:
+// MeshFactory, ShaderFactory, and TextureFactory.
 class RenderFactory {
  public:
   RenderFactory(Registry* registry, fplbase::Renderer* renderer);
@@ -52,72 +40,57 @@ class RenderFactory {
   RenderFactory(const RenderFactory&) = delete;
   RenderFactory& operator=(const RenderFactory&) = delete;
 
-  // Returns a resident white texture with an alpha channel: (1, 1, 1, 1).
-  const TexturePtr& GetWhiteTexture() const { return white_texture_; }
+  // DEPRECATED: Use TextureFactory.
+  const TexturePtr& GetWhiteTexture() const;
 
-  // Returns a resident invalid texture to be used when a requested image fails
-  // to load.  On debug builds it's a watermelon; on release builds it's just
-  // the white texture.
-  const TexturePtr& GetInvalidTexture() const { return invalid_texture_; }
+  // DEPRECATED: Use TextureFactory.
+  const TexturePtr& GetInvalidTexture() const;
 
   // Queries if |texture| was successfully loaded.
   bool IsTextureValid(const TexturePtr& texture) const;
 
-  // Loads the mesh with the given |filename|.
+  // DEPRECATED: Use MeshFactory.
   MeshPtr LoadMesh(const std::string& filename);
 
-  // Loads the shader with the given |filename|.
+  // DEPRECATED: Use ShaderFactory.
   ShaderPtr LoadShader(const std::string& filename);
 
-  // Loads the texture with the given |filename| and optionally creates mips.
+  // DEPRECATED: Use TextureFactory.
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
 
-  // Retrieves a cached texture by its name hash. If the texture isn't cached
-  // this returns nullptr.
+  // DEPRECATED: Use TextureFactory.
   TexturePtr GetCachedTexture(HashValue texture_hash);
 
-  // Loads the texture atlas with the given |filename| and optionally creates
-  // mips.
+  // DEPRECATED: Use TextureFactory.
   void LoadTextureAtlas(const std::string& filename, bool create_mips);
 
-  // Creates a mesh using the specified data.
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  template <typename Vertex>
-  MeshPtr CreateMesh(const TriangleMesh<Vertex>& mesh);
-
-  // Creates a named mesh using the specified data.
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  template <typename Vertex>
-  MeshPtr CreateMesh(HashValue key, const TriangleMesh<Vertex>& mesh);
-
-  // Creates a mesh using the specified data.
+  // DEPRECATED: Use MeshFactory.
   MeshPtr CreateMesh(const MeshData& mesh);
 
-  // Creates a texture from memory.  |data| is copied into GL memory, so it's no
-  // longer needed after calling this function.
+  // DEPRECATED: Use MeshFactory.
+  MeshPtr CreateMesh(HashValue key, const MeshData& mesh);
+
+  // DEPRECATED: Use TextureFactory.
   TexturePtr CreateTextureFromMemory(const void* data, const mathfu::vec2i size,
                                      fplbase::TextureFormat format,
                                      bool create_mips);
 
 
-  // Create and return a pre-processed texture.  This will set up a rendering
-  // environment suitable to render |sourcE_texture| with a pre-process shader.
-  // texture and shader binding / setup should be performed in |processor|.
+  // DEPRECATED: Use TextureFactory.
   TexturePtr CreateProcessedTexture(
       const TexturePtr& source_texture, bool create_mips,
       const RenderSystem::TextureProcessor& processor);
 
-  // Create and return a pre-processed texture as above, but size the output
-  // according to |output_dimensions|.
+  // DEPRECATED: Use TextureFactory.
   TexturePtr CreateProcessedTexture(
       const TexturePtr& texture, bool create_mips,
       const RenderSystem::TextureProcessor& processor,
       const mathfu::vec2i& output_dimensions);
 
-  // Creates a texture from specified GL |texture_target| and |texture_id|.
+  // DEPRECATED: Use TextureFactory.
   TexturePtr CreateTexture(uint32_t texture_target, uint32_t texture_id);
 
-  // Caches a texture for later retrieval.
+  // DEPRECATED: Use TextureFactory.
   void CacheTexture(HashValue name, const TexturePtr& texture);
 
   // Attempts to Finalize the load of a single asset.
@@ -133,44 +106,13 @@ class RenderFactory {
   void StopLoadingAssets();
 
  private:
-  Mesh::MeshImplPtr LoadFplMesh(const std::string& name);
-  Shader::ShaderImplPtr LoadFplShader(const std::string& name);
-  Texture::TextureImplPtr LoadFplTexture(const std::string& name,
-                                         bool create_mips);
-  Texture::AtlasImplPtr LoadFplTextureAtlas(const std::string& name,
-                                            bool create_mips);
-  Texture::TextureImplPtr CreateFplTexture(const mathfu::vec2i& size,
-                                           bool create_mips);
-
-  Registry* registry_;
-  ResourceManager<Mesh> meshes_;
-  ResourceManager<Texture> textures_;
-  ResourceManager<Shader> shaders_;
-
-  fplbase::Renderer* fpl_renderer_;
   std::shared_ptr<fplbase::AssetManager> fpl_asset_manager_;
-  TexturePtr white_texture_;
-  fplbase::Texture* invalid_fpl_texture_;
-  TexturePtr invalid_texture_;
+
+  MeshFactory* mesh_factory_;
+  ShaderFactory* shader_factory_;
+  TextureFactory* texture_factory_;
+  TextureAtlasFactory* texture_atlas_factory_;
 };
-
-template <typename Vertex>
-MeshPtr RenderFactory::CreateMesh(const TriangleMesh<Vertex>& mesh) {
-  if (mesh.GetVertices().empty()) {
-    return MeshPtr();
-  }
-  return MeshPtr(new Mesh(mesh));
-}
-
-template <typename Vertex>
-MeshPtr RenderFactory::CreateMesh(HashValue key,
-                                  const TriangleMesh<Vertex>& mesh) {
-  DCHECK(key != 0) << "Invalid key for render factory mesh.";
-  if (mesh.GetVertices().empty()) {
-    return MeshPtr();
-  }
-  return meshes_.Create(key, [&]() { return MeshPtr(new Mesh(mesh)); });
-}
 
 }  // namespace lull
 

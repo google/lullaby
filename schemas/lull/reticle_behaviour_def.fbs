@@ -5,7 +5,7 @@ namespace lull;
 enum ReticleCollisionBehaviour : int {
   /// Handle the collision directly on this entity.
   HandleAlone,
-  /// Traverse to parents to find an entity with |HandleForDescendants|.
+  /// Traverse to parents to find an entity with |HandleDescendants|.
   FindAncestor,
   /// Handle reticle collisions passed from descendants with |FindAncestor|.
   HandleDescendants,

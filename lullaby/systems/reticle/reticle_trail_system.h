@@ -19,17 +19,13 @@ limitations under the License.
 
 #include <deque>
 
-#include "lullaby/generated/reticle_trail_def_generated.h"
-#include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
-#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/clock.h"
-#include "lullaby/util/math.h"
-#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
-// The ReticleTrailSystem renders the reticle trail
+/// DEPRECATED: This system just wraps CursorTrailSystem.  New users should use
+/// that system directly.
 class ReticleTrailSystem : public System {
  public:
   explicit ReticleTrailSystem(Registry* registry);
@@ -39,27 +35,6 @@ class ReticleTrailSystem : public System {
   void Destroy(Entity entity) override;
 
   void AdvanceFrame(const Clock::duration& delta_time);
-
- private:
-  struct ReticleTrail : Component {
-    explicit ReticleTrail(Entity entity);
-
-    std::vector<mathfu::vec3> trail_positions;
-    std::deque<mathfu::vec3> position_history;
-    mathfu::vec4 default_color;
-    int max_trail_length = 0;
-    int average_trail_length = 0;
-    int trail_length = 0;
-    int curve_samples = 0;
-    float quad_size = 0.f;
-    float average_speed = 0.f;
-  };
-
-  void CreateReticleTrail(Entity entity, const ReticleTrailDef* data);
-
-  void UpdateTrailMesh(Sqt sqt);
-
-  std::unique_ptr<ReticleTrail> reticle_trail_;
 };
 
 }  // namespace lull

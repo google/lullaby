@@ -18,6 +18,7 @@ cc_library(
         "..",
     ],
     deps = [
+        "@//third_party/gl",
         "@flatbuffers//:flatbuffers",
     ],
 )

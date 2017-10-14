@@ -93,6 +93,11 @@ inline ::testing::Matcher<mathfu::quat> EqualsMathfuQuat(
   return EqualsMathfu(actual);
 }
 
+inline ::testing::Matcher<mathfu::mat4> EqualsMathfuMat4(
+    const mathfu::mat4& actual) {
+  return EqualsMathfu(actual);
+}
+
 // These overloads return a gMock matcher that tests for approximate equality
 // between mathfu types within the specified error tolerance. Like the matcher
 // above this one uses an element-wise comparison, and does not account for
@@ -135,6 +140,11 @@ inline ::testing::Matcher<mathfu::vec4> NearMathfuVec4(
 
 inline ::testing::Matcher<mathfu::quat> NearMathfuQuat(
     const mathfu::quat& actual, float tolerance) {
+  return NearMathfu(actual, tolerance);
+}
+
+inline ::testing::Matcher<mathfu::mat4> NearMathfuMat4(
+    const mathfu::mat4& actual, float tolerance) {
   return NearMathfu(actual, tolerance);
 }
 

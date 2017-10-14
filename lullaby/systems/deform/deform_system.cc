@@ -42,6 +42,17 @@ mathfu::mat4 CalculateTransformMatrixFromParent(
              ? (*world_from_parent_mat) * parent_from_local_mat
              : parent_from_local_mat;
 }
+// Returns the standard SQT given the transform matrix and a nullable
+// world_from_parent_mat
+Sqt CalculateLocalSqt(const mathfu::mat4& world_from_entity_mat,
+                      const mathfu::mat4* world_from_parent_mat) {
+  if (world_from_parent_mat) {
+    return CalculateSqtFromMatrix(world_from_parent_mat->Inverse() *
+                                  world_from_entity_mat);
+  } else {
+    return CalculateSqtFromMatrix(world_from_entity_mat);
+  }
+}
 
 }  // namespace
 
@@ -233,9 +244,9 @@ Optional<DeformSystem::WaypointPath> DeformSystem::BuildWaypointPath(
 
 void DeformSystem::CalculateWaypointParameterization(WaypointPath* path) const {
   if (path->waypoints.size() > 1) {
-    path->parameterization_axis =
-        (path->waypoints.back().original_position -
-         path->waypoints.front().original_position).Normalized();
+    path->parameterization_axis = (path->waypoints.back().original_position -
+                                   path->waypoints.front().original_position)
+                                      .Normalized();
   } else {
     path->parameterization_axis = mathfu::kZeros3f;
   }
@@ -253,32 +264,41 @@ void DeformSystem::CalculateWaypointParameterization(WaypointPath* path) const {
 void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
   auto& transform_system = *registry_->Get<TransformSystem>();
   if (!deformer || deformer->mode == DeformMode_None) {
-    transform_system.SetWorldFromEntityMatrixFunction(e, nullptr);
+    transform_system.SetWorldFromEntityMatrixFunction(e, nullptr, nullptr);
     return;
   }
 
   TransformSystem::CalculateWorldFromEntityMatrixFunc world_from_entity_fn;
+  TransformSystem::CalculateLocalSqtFunc entity_from_world_fn;
   switch (deformer->mode) {
     case DeformMode_None:
       break;
     case DeformMode_GlobalCylinder: {
       const float radius = deformer->radius;
-      world_from_entity_fn = [this, e, radius](
-          const Sqt& local_sqt,
-          const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
+      world_from_entity_fn =
+          [this, e, radius](
+              const Sqt& local_sqt,
+              const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
         const float parent_radius =
             world_from_parent_mat ? GetRadius(*world_from_parent_mat) : 0.f;
         const auto tmp = CalculateCylinderDeformedTransformMatrix(
             local_sqt, parent_radius, radius);
         return world_from_parent_mat ? (*world_from_parent_mat) * tmp : tmp;
       };
+      entity_from_world_fn = nullptr;
       break;
     }
     case DeformMode_CylinderBend: {
-      world_from_entity_fn = [this, e](
-          const Sqt& local_sqt,
-          const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
+      world_from_entity_fn =
+          [this, e](const Sqt& local_sqt,
+                    const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
         return CalculateMatrixCylinderBend(e, local_sqt, world_from_parent_mat);
+      };
+      entity_from_world_fn = [this, e](
+                                 const mathfu::mat4& world_from_entity_mat,
+                                 const mathfu::mat4* world_from_parent_mat) {
+        return CalculateSqtCylinderBend(e, world_from_entity_mat,
+                                        world_from_parent_mat);
       };
       break;
     }
@@ -291,11 +311,13 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
         return CalculateWaypointTransformMatrix(e, local_sqt,
                                                 world_from_parent_mat);
       };
+      entity_from_world_fn = nullptr;
       break;
     }
   }
 
-  transform_system.SetWorldFromEntityMatrixFunction(e, world_from_entity_fn);
+  transform_system.SetWorldFromEntityMatrixFunction(e, world_from_entity_fn,
+                                                    &entity_from_world_fn);
 }
 
 void DeformSystem::DeformMesh(Entity e, float* data, size_t len,
@@ -347,6 +369,50 @@ mathfu::mat4 DeformSystem::CalculateMatrixCylinderBend(
          CalculateCylinderDeformedTransformMatrix(
              deformed->deformer_from_entity_undeformed_space, deformer->radius,
              deformer->clamp_angle);
+}
+
+Sqt DeformSystem::CalculateSqtCylinderBend(
+    Entity e, const mathfu::mat4& world_from_entity_mat,
+    const mathfu::mat4* world_from_parent_mat) const {
+  // SETUP:
+  const auto* deformed = deformed_.Get(e);
+  if (!deformed) {
+    LOG(ERROR) << "Missing deformed, skipping deformation for entity: " << e;
+    return CalculateLocalSqt(world_from_entity_mat, world_from_parent_mat);
+  }
+  const auto* deformer = deformers_.Get(deformed->deformer);
+  if (!deformer) {
+    LOG(ERROR) << "Missing deformer, skipping deformation for entity: " << e;
+    return CalculateLocalSqt(world_from_entity_mat, world_from_parent_mat);
+  }
+  // When the entity is its own deformer then there is nothing to do.
+  if (e == deformed->deformer) {
+    return CalculateLocalSqt(world_from_entity_mat, world_from_parent_mat);
+  }
+  const auto* transform_system = registry_->Get<TransformSystem>();
+  const Entity parent_entity = transform_system->GetParent(e);
+  const Deformed* parent_deformed = deformed_.Get(parent_entity);
+  if (!parent_deformed || parent_deformed->deformer == kNullEntity) {
+    LOG(ERROR) << "A deformed entity " << e << " has non deformed parent "
+               << parent_entity << ". It will not deform.";
+    return CalculateLocalSqt(world_from_entity_mat, world_from_parent_mat);
+  }
+
+  // LOGIC:
+  // Get the deformer_from_deformed_mat.
+  const mathfu::mat4* world_from_deformer_mat =
+      transform_system->GetWorldFromEntityMatrix(deformer->GetEntity());
+  const mathfu::mat4 deformer_from_deformed_mat =
+      world_from_deformer_mat->Inverse() * world_from_entity_mat;
+
+  // Undeform that matrix:
+  const mathfu::mat4 undeformed_mat =
+      CalculateCylinderUndeformedTransformMatrix(
+          deformer_from_deformed_mat, deformer->radius, deformer->clamp_angle);
+
+  // Remove parent's undeformed matrix from the undeformed_mat & calculate sqt:
+  return CalculateLocalSqt(
+      undeformed_mat, &parent_deformed->deformer_from_entity_undeformed_space);
 }
 
 mathfu::mat4 DeformSystem::CalculateWaypointTransformMatrix(
@@ -432,13 +498,13 @@ void DeformSystem::CylinderBendDeformMesh(const Deformed& deformed,
       (*world_from_deformer_deformed_space) *
       mathfu::mat4::FromTranslationVector(radius * mathfu::kAxisZ3f);
 
-  ApplyDeformation(data, len, stride, [&radius,
-                                       &root_from_entity_undeformed_space,
-                                       &entity_from_root_deformed_space](
-                                          const mathfu::vec3& pos) {
-    return entity_from_root_deformed_space *
-           DeformPoint(root_from_entity_undeformed_space * pos, radius);
-  });
+  ApplyDeformation(data, len, stride,
+                   [&radius, &root_from_entity_undeformed_space,
+                    &entity_from_root_deformed_space](const mathfu::vec3& pos) {
+                     return entity_from_root_deformed_space *
+                            DeformPoint(root_from_entity_undeformed_space * pos,
+                                        radius);
+                   });
 }
 
 void DeformSystem::OnParentChanged(const ParentChangedEvent& ev) {
@@ -558,10 +624,10 @@ void DeformSystem::RecalculateAnchoredPath(Entity entity) {
 
   // Then offset all the waypoints by the entity's aabb.
   for (auto& waypoint : deformed->anchored_path->waypoints) {
-    const mathfu::vec3 original_aabb_anchor = aabb->min +
-        waypoint.original_aabb_anchor * (aabb->max - aabb->min);
-    const mathfu::vec3 remapped_aabb_anchor = aabb->min +
-        waypoint.remapped_aabb_anchor * (aabb->max - aabb->min);
+    const mathfu::vec3 original_aabb_anchor =
+        aabb->min + waypoint.original_aabb_anchor * (aabb->max - aabb->min);
+    const mathfu::vec3 remapped_aabb_anchor =
+        aabb->min + waypoint.remapped_aabb_anchor * (aabb->max - aabb->min);
 
     waypoint.original_position -= original_aabb_anchor;
     waypoint.remapped_position -= remapped_aabb_anchor;

@@ -18,7 +18,7 @@ limitations under the License.
 
 #include "lullaby/modules/render/vertex.h"
 #include "lullaby/modules/render/vertex_format.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
@@ -173,7 +173,7 @@ TEST(VertexFormatDeathTest, RangeChecks) {
       "Cannot exceed max attributes size");
 
   const VertexFormat empty({});
-  EXPECT_DEATH(empty.GetAttributeAt(0), "Index out of bounds!");
+  PORT_EXPECT_DEATH(empty.GetAttributeAt(0), "Index out of bounds!");
 }
 
 }  // namespace

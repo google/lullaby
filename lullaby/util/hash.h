@@ -38,7 +38,10 @@ constexpr HashValue kHashPrimeMultiplier = 0x000001b3;
 
 HashValue Hash(const char* str);
 HashValue Hash(const char* str, size_t len);
+HashValue Hash(HashValue basis, const char* str, size_t len);
 HashValue Hash(string_view str);
+// Calling Hash(Hash("prefix"), "Suffix") is equivalent to Hash("prefixSuffix").
+HashValue Hash(HashValue prefix, string_view suffix);
 HashValue HashCaseInsensitive(const char* str, size_t len);
 
 namespace detail {

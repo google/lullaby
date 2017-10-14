@@ -69,13 +69,13 @@ struct CollisionDefBuilder {
   void add_clip_outside_bounds(bool clip_outside_bounds) {
     fbb_.AddElement<uint8_t>(CollisionDef::VT_CLIP_OUTSIDE_BOUNDS, static_cast<uint8_t>(clip_outside_bounds), 0);
   }
-  CollisionDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit CollisionDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   CollisionDefBuilder &operator=(const CollisionDefBuilder &);
   flatbuffers::Offset<CollisionDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<CollisionDef>(end);
     return o;
   }
@@ -103,12 +103,12 @@ struct CollisionClipBoundsDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Tab
     VT_AABB = 4
   };
   /// This aabb will be interpreted in this entities local coordinate space.
-  const lull::AabbDef *aabb() const {
-    return GetStruct<const lull::AabbDef *>(VT_AABB);
+  const AabbDef *aabb() const {
+    return GetStruct<const AabbDef *>(VT_AABB);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::AabbDef>(verifier, VT_AABB) &&
+           VerifyField<AabbDef>(verifier, VT_AABB) &&
            verifier.EndTable();
   }
 };
@@ -116,16 +116,16 @@ struct CollisionClipBoundsDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Tab
 struct CollisionClipBoundsDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_aabb(const lull::AabbDef *aabb) {
+  void add_aabb(const AabbDef *aabb) {
     fbb_.AddStruct(CollisionClipBoundsDef::VT_AABB, aabb);
   }
-  CollisionClipBoundsDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit CollisionClipBoundsDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   CollisionClipBoundsDefBuilder &operator=(const CollisionClipBoundsDefBuilder &);
   flatbuffers::Offset<CollisionClipBoundsDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<CollisionClipBoundsDef>(end);
     return o;
   }
@@ -133,7 +133,7 @@ struct CollisionClipBoundsDefBuilder {
 
 inline flatbuffers::Offset<CollisionClipBoundsDef> CreateCollisionClipBoundsDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::AabbDef *aabb = 0) {
+    const AabbDef *aabb = 0) {
   CollisionClipBoundsDefBuilder builder_(_fbb);
   builder_.add_aabb(aabb);
   return builder_.Finish();

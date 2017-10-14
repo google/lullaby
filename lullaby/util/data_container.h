@@ -18,9 +18,8 @@ limitations under the License.
 #define LULLABY_UTIL_DATA_CONTAINER_H_
 
 #include <cstring>
+#include <functional>
 #include <memory>
-
-#include "lullaby/util/logging.h"
 
 namespace lull {
 
@@ -38,28 +37,16 @@ class DataContainer {
     kAll = kRead | kWrite
   };
 
-  DataContainer() {}
+  DataContainer();
 
   // Creates an empty DataContainer that uses |data| as data storage, with
   // |capacity| bytes available for storage. Read-write access to the
   // DataContainer is set by |access|.
-  DataContainer(DataPtr data, const size_t capacity, AccessFlags access)
-      : DataContainer(std::move(data), 0, capacity, access) {}
+  DataContainer(DataPtr data, const size_t capacity, AccessFlags access);
 
   // Creates a DataContainer that initially has a size of |initial_size| bytes.
   DataContainer(DataPtr data, const size_t initial_size, const size_t capacity,
-                AccessFlags access)
-      : data_(std::move(data)),
-        size_(initial_size),
-        capacity_(capacity),
-        access_(access) {
-    if (size_ > capacity_) {
-      LOG(DFATAL) << "Tried to create a DataContainer with initial size > "
-                  << "capacity! initial size = " << initial_size << ", "
-                  << "capacity = " << capacity;
-      size_ = capacity_;
-    }
-  }
+                AccessFlags access);
 
   // Returns a DataContainer of |capacity| allocated from the heap with
   // read+write access.
@@ -67,6 +54,14 @@ class DataContainer {
     return DataContainer(DataPtr(new uint8_t[capacity],
                                  [](const uint8_t* ptr) { delete[] ptr; }),
                          capacity, AccessFlags::kAll);
+  }
+
+  // Returns a DataContainer which points to |size| bytes at |ptr| with
+  // read-only access. The DataContainer does not assume ownership of the data.
+  static DataContainer WrapDataAsReadOnly(const uint8_t* ptr, size_t size) {
+    return DataContainer(DataContainer::DataPtr(const_cast<uint8_t*>(ptr),
+                                                [](const uint8_t*) {}),
+                         size, size, AccessFlags::kRead);
   }
 
   // Returns true if the data container has read access. Data containers with
@@ -83,27 +78,11 @@ class DataContainer {
 
   // Returns const pointer to the beginning of the data, or nullptr if the
   // container does not have read access.
-  const uint8_t* GetReadPtr() const {
-    if (!IsReadable()) {
-      LOG(ERROR) << "Tried to get read pointer without read access; "
-                 << "returning nullptr instead.";
-      return nullptr;
-    }
-
-    return data_.get();
-  }
+  const uint8_t* GetReadPtr() const;
 
   // Returns mutable pointer to the beginning of the data, or nullptr if the
   // container does not have read+write access.
-  uint8_t* GetData() {
-    if (!IsReadable() || !IsWritable()) {
-      LOG(ERROR) << "Tried to get mutable pointer without read+write access; "
-                 << "returning nullptr instead.";
-      return nullptr;
-    }
-
-    return data_.get();
-  }
+  uint8_t* GetData();
 
   // Returns pointer to data to append |size| bytes at, or nullptr if
   // it can’t fit |size| bytes or no write access. Side effect of
@@ -112,43 +91,14 @@ class DataContainer {
   // to the memory of the container instead of copying it over.
   // Be careful not to read using this pointer unless read access is granted,
   // otherwise results will be undefined.
-  uint8_t* GetAppendPtr(size_t size) {
-    if (!IsWritable()) {
-      LOG(ERROR) << "Tried to get append pointer without write access; "
-                 << "returning nullptr instead.";
-      return nullptr;
-    }
-
-    if (GetSize() + size > GetCapacity()) {
-      LOG(ERROR) << "Tried to get append pointer for size " << size
-                 << " but couldn't fit in container with current size "
-                 << GetSize() << " and max size " << GetCapacity()
-                 << ". Returning nullptr instead.";
-      return nullptr;
-    }
-
-    // Get the append pointer from the current end of the data. Then bump
-    // the size so the next time we grab the pointer, it'll be at the
-    // end of the appended data.
-    uint8_t* append_ptr = data_.get() + size_;
-    size_ += size;
-    return append_ptr;
-  }
+  uint8_t* GetAppendPtr(size_t size);
 
   // Copies |size| bytes at |data| to the end of the container. Returns true
   // if the bytes were written at the end of the container, or false if |size|
   // bytes couldn’t fit or no write access. Does not append any bytes if there
   // is not enough room for all the bytes. This will overwrite data that is
   // written using the mutable pointer.
-  bool Append(const uint8_t* data, size_t size) {
-    uint8_t* append_ptr = GetAppendPtr(size);
-    if (append_ptr == nullptr) {
-      return false;
-    }
-
-    std::memcpy(append_ptr, data, size);
-    return true;
-  }
+  bool Append(const uint8_t* data, size_t size);
 
   // Returns the total number of bytes that can fit into the container.
   size_t GetCapacity() const { return capacity_; }
@@ -160,16 +110,7 @@ class DataContainer {
   // Creates a copy allocated from the heap with read+write access. If *this
   // doesn't have read access, this function will DFATAL and the result will be
   // empty.
-  DataContainer CreateHeapCopy() const {
-    DataContainer copy = CreateHeapDataContainer(capacity_);
-    if (!IsReadable()) {
-      LOG(DFATAL) << "Can't copy unreadable data.";
-    }
-    if (!copy.Append(data_.get(), size_)) {
-      LOG(DFATAL) << "Failed to copy data.";
-    }
-    return copy;
-  }
+  DataContainer CreateHeapCopy() const;
 
  private:
   DataPtr data_;

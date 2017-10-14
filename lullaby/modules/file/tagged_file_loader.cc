@@ -16,34 +16,20 @@ limitations under the License.
 
 #include "lullaby/modules/file/tagged_file_loader.h"
 
+#include <cstring>
 #include <utility>
 
-#include "ion/port/fileutils.h"
 #include "lullaby/modules/file/file.h"
+#include "lullaby/modules/file/file_loader.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {
 
 namespace {
-
 lull::TaggedFileLoader* g_tagged_loader = nullptr;
-
-// Attempts to load using fplbase::LoadFileRaw if the filename is local,
-// ion::port::ReadDataFromFile if the filename is absolute (starts with a '/').
-bool LoadFileFallback(const char* filename, std::string* dest) {
-  if (filename == nullptr) {
-    return false;
-  }
-  if (filename[0] == '/') {
-    return ion::port::ReadDataFromFile(filename, dest);
-  } else {
-    return fplbase::LoadFileRaw(filename, dest);
-  }
-}
-
 }  // namespace
 
-TaggedFileLoader::TaggedFileLoader() : fallback_load_fn_(LoadFileFallback) {}
+TaggedFileLoader::TaggedFileLoader() : fallback_load_fn_(LoadAssetOrFile) {}
 
 void TaggedFileLoader::SetTaggedFileLoader(TaggedFileLoader* loader) {
   g_tagged_loader = loader;
@@ -135,7 +121,7 @@ bool TaggedFileLoader::ApplySettingsToFile(
               << replacement_file->second;
     filename = replacement_file->second.c_str();
   }
-  const char* tag_delimiter = strchr(filename, ':');
+  const char* tag_delimiter = std::strchr(filename, ':');
   if (tag_delimiter != nullptr) {
     const std::string tag(filename, tag_delimiter - filename);
     filename = tag_delimiter + 1;

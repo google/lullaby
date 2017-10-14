@@ -104,21 +104,21 @@ TEST(ScriptEnvBenchmarkTest, BenchmarkTestVerification) {
   auto script = env.Read(kBenchmarkTestSrc);
   env.Eval(script);
 
-  EXPECT_THAT(*env.GetValue(Hash("bool")).Get<bool>(), Eq(false));
-  EXPECT_THAT(*env.GetValue(Hash("int16")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("int32")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("int64")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("uint16")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("uint32")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("uint64")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("entity")).Get<int32_t>(), Eq(124));
-  EXPECT_THAT(*env.GetValue(Hash("str")).Get<std::string>(),
+  EXPECT_THAT(*env.GetValue(Symbol("bool")).Get<bool>(), Eq(false));
+  EXPECT_THAT(*env.GetValue(Symbol("int16")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("int32")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("int64")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("uint16")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("uint32")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("uint64")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("entity")).Get<int32_t>(), Eq(124));
+  EXPECT_THAT(*env.GetValue(Symbol("str")).Get<std::string>(),
               Eq(std::string("abcabc")));
 
-  auto v2 = *env.GetValue(Hash("v2")).Get<mathfu::vec2>();
-  auto v3 = *env.GetValue(Hash("v3")).Get<mathfu::vec3>();
-  auto v4 = *env.GetValue(Hash("v4")).Get<mathfu::vec4>();
-  auto qt = *env.GetValue(Hash("qt")).Get<mathfu::quat>();
+  auto v2 = *env.GetValue(Symbol("v2")).Get<mathfu::vec2>();
+  auto v3 = *env.GetValue(Symbol("v3")).Get<mathfu::vec3>();
+  auto v4 = *env.GetValue(Symbol("v4")).Get<mathfu::vec4>();
+  auto qt = *env.GetValue(Symbol("qt")).Get<mathfu::quat>();
   EXPECT_THAT(v2, Eq(mathfu::vec2(2, 1)));
   EXPECT_THAT(v3, Eq(mathfu::vec3(2, 3, 1)));
   EXPECT_THAT(v4, Eq(mathfu::vec4(2, 3, 4, 1)));

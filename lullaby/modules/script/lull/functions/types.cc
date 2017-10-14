@@ -55,39 +55,29 @@ limitations under the License.
 namespace lull {
 namespace {
 
-// Helper function that evaluates the first argument in the frame and attempts
-// to perform a NumericCast on the value for type T.
-template <typename T>
-void DoConvert(ScriptFrame* frame) {
-  const ScriptValue value = frame->EvalNext();
-  auto res = value.NumericCast<T>();
-  if (res) {
-    frame->Return(*res);
-  } else {
-    frame->Error("Could not convert value.");
-  }
-}
+#define CONVERT(U, name)                                      \
+  Variant Convert_##U(ScriptFrame* frame, const Variant* v) { \
+    Variant w = v->NumericCast<U>();                          \
+    if (w.Empty()) {                                          \
+      frame->Error("Can't cast arg to " name);                \
+    }                                                         \
+    return w;                                                 \
+  }                                                           \
+  LULLABY_SCRIPT_FUNCTION_WRAP(Convert_##U, name)
 
 // Types and macros to implement a "constructor" for all numeric types.
-using float_t = float;
-using double_t = double;
-#define TYPES  \
-  TYPE(int32)  \
-  TYPE(float)  \
-  TYPE(uint32) \
-  TYPE(uint64) \
-  TYPE(int8)   \
-  TYPE(uint8)  \
-  TYPE(int16)  \
-  TYPE(uint16) \
-  TYPE(int64)  \
-  TYPE(double)
+CONVERT(int32_t, "int32")
+CONVERT(uint32_t, "uint32")
+CONVERT(uint64_t, "uint64")
+CONVERT(int8_t, "int8")
+CONVERT(uint8_t, "uint8")
+CONVERT(int16_t, "int16")
+CONVERT(uint16_t, "uint16")
+CONVERT(int64_t, "int64")
+CONVERT(float, "float")
+CONVERT(double, "double")
 
-#define TYPE(U)                                                     \
-  void Convert_##U(ScriptFrame* frame) { DoConvert<U##_t>(frame); } \
-  LULLABY_SCRIPT_FUNCTION(Convert_##U, #U);
-TYPES
-#undef TYPE
+#undef CONVERT
 
 }  // namespace
 }  // namespace lull

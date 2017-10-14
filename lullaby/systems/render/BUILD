@@ -25,9 +25,6 @@ private_headers = [
 
 fpl_headers = [
     "fpl/mesh.h",
-    "fpl/pano.h",
-    "fpl/pano_model.h",
-    "fpl/pano_viewer.h",
     "fpl/render_component.h",
     "fpl/render_factory.h",
     "fpl/render_system_fpl.h",
@@ -43,6 +40,7 @@ common_deps = [
     "//lullaby/modules/render",
     "//lullaby/systems/text",
     "//lullaby/systems/transform",
+    "//lullaby/util:bits",
     "//lullaby/util:hash",
     "//lullaby/util:logging",
     "//lullaby/util:make_unique",
@@ -89,6 +87,7 @@ cc_library(
     ],
     deps = common_deps + [
         ":profiler",
+        ":render_helpers",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/file",
@@ -126,26 +125,54 @@ cc_library(
 )
 
 cc_library(
+    name = "async_render_object",
+    srcs = [
+        "next/detail/async_render_object.cc",
+        "next/detail/async_render_object_factory.cc",
+    ],
+    hdrs = [
+        "next/detail/async_render_object.h",
+        "next/detail/async_render_object_factory.h",
+        "next/detail/render_asset.h",
+    ],
+    deps = [
+        "//lullaby/modules/file",
+        "//lullaby/util:thread_safe_deque",
+        "//lullaby/util:thread_safe_queue",
+    ],
+)
+
+cc_library(
     name = "next",
     srcs = [
         "detail/render_stats.cc",
         "detail/sort_order.cc",
         "next/mesh.cc",
+        "next/mesh_factory.cc",
         "next/render_factory.cc",
         "next/render_state.cc",
         "next/render_system_impl.cc",
         "next/render_system_next.cc",
         "next/shader.cc",
+        "next/shader_factory.cc",
         "next/texture.cc",
+        "next/texture_atlas.cc",
+        "next/texture_atlas_factory.cc",
+        "next/texture_factory.cc",
     ],
     hdrs = common_headers + private_headers + [
         "next/mesh.h",
+        "next/mesh_factory.h",
         "next/render_component.h",
         "next/render_factory.h",
         "next/render_state.h",
         "next/render_system_next.h",
         "next/shader.h",
+        "next/shader_factory.h",
         "next/texture.h",
+        "next/texture_atlas.h",
+        "next/texture_factory.h",
+        "next/texture_atlas_factory.h",
     ],
     copts = [
         "-Ithird_party/GL/gl/include/",
@@ -155,6 +182,8 @@ cc_library(
         ":binding_impl",
         ":profiler",
         ":render",
+        ":render_helpers",
+        "//third_party/fplbase:fplbase_fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/file",
@@ -164,6 +193,7 @@ cc_library(
         "//lullaby/systems/rig",
         "//lullaby/util:async_processor",
         "//lullaby/util:buffered_data",
+        "//lullaby/util:color",
         "//lullaby/util:resource_manager",
         "//lullaby/util:string_view",
         "//lullaby/util:time",
@@ -191,6 +221,7 @@ cc_library(
         ":binding_impl",
         ":profiler",
         ":render",
+        "@gtest//:gtest_main",
         "//lullaby/util:time",
     ],
     alwayslink = 1,
@@ -213,7 +244,6 @@ cc_library(
     srcs = [
         "detail/profiler.cc",
     ] + select({
-        "//tools/cc_target_os:android": ["detail/port/android/gpu_profiler.cc"],
         "//conditions:default": ["detail/port/default/gpu_profiler.cc"],
     }),
     hdrs = [
@@ -227,7 +257,6 @@ cc_library(
         "//lullaby/util:time",
         "//lullaby/util:typeid",
     ] + select({
-        "//tools/cc_target_os:android": ["@GL//:GLES_khronos_headers:GLES2"],
         "//conditions:default": [],
     }),
 )

@@ -21,7 +21,7 @@ limitations under the License.
 #include "flatbuffers/util.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/typeid.h"
-#include "lullaby/generated/tools/flatc_generated.h"
+#include "lullaby/generated/flatc_generated.h"
 
 namespace lull {
 namespace {

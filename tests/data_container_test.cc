@@ -18,8 +18,8 @@ limitations under the License.
 
 #include "lullaby/modules/render/vertex.h"
 #include "lullaby/util/data_container.h"
-#include "lullaby/tests/portable_test_macros.h"
-#include "lullaby/tests/test_data_container.h"
+#include "tests/portable_test_macros.h"
+#include "tests/test_data_container.h"
 
 namespace lull {
 namespace {
@@ -307,6 +307,17 @@ TEST(DataContainerDeathTest, CreateHeapCopyWithoutReadAccess) {
                            DataContainer::AccessFlags::kWrite);
 
   PORT_EXPECT_DEBUG_DEATH(unreadable.CreateHeapCopy(), "");
+}
+
+TEST(DataContainer, WrapDataAsReadOnly) {
+  const uint8_t data[] = {0x13, 0x12, 0x3f, 0x42, 0x98, 0xa1, 0xb3};
+  const size_t size = sizeof(data);
+  DataContainer container = DataContainer::WrapDataAsReadOnly(data, size);
+  EXPECT_TRUE(container.IsReadable());
+  EXPECT_FALSE(container.IsWritable());
+  EXPECT_EQ(container.GetReadPtr(), data);
+  EXPECT_EQ(container.GetSize(), size);
+  EXPECT_EQ(container.GetCapacity(), size);
 }
 
 }  // namespace

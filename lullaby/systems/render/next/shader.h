@@ -28,17 +28,12 @@ namespace lull {
 // rendering.
 class Shader {
  public:
-  // A unique_ptr to the underlying fplbase::Shader.
-  typedef std::unique_ptr<fplbase::Shader,
-      std::function<void(const fplbase::Shader*)>>
-      ShaderImplPtr;
+  Shader() {}
+  Shader(const Shader& rhs) = delete;
+  Shader& operator=(const Shader& rhs) = delete;
 
   // Simple typedef of FPL's UniformHandle type to minimize fpl namespace usage.
-  typedef fplbase::UniformHandle UniformHnd;
-
-  // Takes ownership of the specified FPL shader and uses the |renderer| when
-  // binding the shader for use.
-  Shader(fplbase::Renderer* renderer, ShaderImplPtr shader);
+  using UniformHnd = fplbase::UniformHandle;
 
   // Locates the uniform in the shader with the specified |name|.
   UniformHnd FindUniform(const char* name) const;
@@ -51,11 +46,12 @@ class Shader {
   void Bind();
 
  private:
-  ShaderImplPtr impl_;
-  fplbase::Renderer* renderer_;
+  friend class ShaderFactory;
+  void Init(fplbase::Renderer* renderer,
+            std::unique_ptr<fplbase::Shader> shader_impl);
 
-  Shader(const Shader& rhs);
-  Shader& operator=(const Shader& rhs);
+  fplbase::Renderer* renderer_ = nullptr;
+  std::unique_ptr<fplbase::Shader> impl_;
 };
 
 }  // namespace lull

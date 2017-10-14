@@ -17,8 +17,8 @@ limitations under the License.
 #include "lullaby/util/intersections.h"
 
 #include "gtest/gtest.h"
-#include "lullaby/tests/mathfu_matchers.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/mathfu_matchers.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

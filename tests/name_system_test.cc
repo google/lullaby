@@ -20,7 +20,7 @@ limitations under the License.
 #include "lullaby/generated/name_def_generated.h"
 #include "lullaby/modules/ecs/blueprint.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {

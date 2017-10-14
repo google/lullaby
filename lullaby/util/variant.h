@@ -14,17 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_UTIL_VARIANT_H_
-#define LULLABY_UTIL_VARIANT_H_
+#ifndef LULLABY_BASE_VARIANT_H_
+#define LULLABY_BASE_VARIANT_H_
 
 #include <functional>
 #include <unordered_map>
 #include <vector>
 
-#include "mathfu/glsl_mappings.h"
+#include "lullaby/util/common_types.h"
+#include "lullaby/util/logging.h"
 #include "lullaby/util/type_util.h"
 #include "lullaby/util/typeid.h"
-#include "lullaby/util/logging.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
@@ -223,6 +224,29 @@ class Variant {
     #undef TYPE_SWITCH
   }
 
+  // Utility type to enable/disable the NumericCast function below.
+  template <typename T>
+  using EnableIfNumeric =
+      typename std::enable_if<std::is_arithmetic<T>::value, T>;
+
+  // Similar to Get(), but attempts to perform a static_cast on the underlying
+  // type.  Both T and the stored type must be a numeric value (ie. int, float,
+  // etc.).  If neither type is numeric, returns an empty value.
+  template <typename T>
+  auto NumericCast() const -> Optional<typename EnableIfNumeric<T>::type> {
+    if (auto ptr = Get<int32_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<float>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<uint32_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<int64_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<uint64_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<double>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<int16_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
+    if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
+    return NullOpt;
+  }
+
  private:
   enum {
     kStoreSize = 128,  // Large enough to store a mathfu::mat4.
@@ -244,7 +268,7 @@ class Variant {
   // Performs the specified operation (copy, move, etc.) on the provided
   // pointers.  Using a single function to handle all the various operations
   // that can be performed on the variant type reduces the size of this class.
-  // Returns the lull::TypeId of the the provided |Type|.
+  // Returns the lull::TypeId of the provided |Type|.
   // The parameters are dependent on the type of operation.  Specifically:
   //   kNone: all parameters are ignored.
   //   kCopy: Object of |Type| is copied from |from| pointer to |to| pointer
@@ -398,4 +422,4 @@ LULLABY_SETUP_TYPEID(lull::Variant);
 LULLABY_SETUP_TYPEID(lull::VariantArray);
 LULLABY_SETUP_TYPEID(lull::VariantMap);
 
-#endif  // LULLABY_UTIL_VARIANT_H_
+#endif  // LULLABY_BASE_VARIANT_H_

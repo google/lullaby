@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "lullaby/modules/script/lull/script_compiler.h"
 #include "lullaby/modules/script/lull/script_env.h"
+#include "lullaby/modules/script/lull/script_types.h"
 
 namespace lull {
 
@@ -74,9 +75,10 @@ void ScriptCompiler::Process(TokenType type, const void* ptr,
     case kHashValue:
       writer_(reinterpret_cast<const HashValue*>(ptr), 0);
       break;
-    case kSymbol:
-      writer_(reinterpret_cast<const HashValue*>(ptr), 0);
-      break;
+    case kSymbol: {
+      const Symbol* symbol = reinterpret_cast<const Symbol*>(ptr);
+      writer_(&symbol->name, 0);
+    } break;
     case kString:
       writer_(reinterpret_cast<const string_view*>(ptr), 0);
       break;
@@ -95,6 +97,13 @@ template <typename Value>
 static void DoProcess(ParserCallbacks::TokenType type, ParserCallbacks* builder,
                       LoadFromBuffer* reader, Value value) {
   (*reader)(&value, 0);
+  builder->Process(type, &value, "");
+}
+
+static void DoProcess(ParserCallbacks::TokenType type, ParserCallbacks* builder,
+                      LoadFromBuffer* reader, Symbol value) {
+  (*reader)(&value.name, 0);
+  value.value = Hash(value.name);
   builder->Process(type, &value, "");
 }
 
@@ -169,7 +178,7 @@ void ScriptCompiler::Build(ParserCallbacks* builder) {
         break;
       }
       case kSymbol: {
-        DoProcess<HashValue>(type, builder, &reader, 0);
+        DoProcess(type, builder, &reader, Symbol());
         break;
       }
       case kString: {

@@ -19,8 +19,8 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/vertex.h"
-#include "lullaby/tests/portable_test_macros.h"
-#include "lullaby/tests/test_data_container.h"
+#include "tests/portable_test_macros.h"
+#include "tests/test_data_container.h"
 
 namespace lull {
 namespace {
@@ -479,6 +479,53 @@ TEST(MeshData, AddIndices) {
   EXPECT_EQ(readable_index_data[3], 3U);
 }
 
+TEST(MeshData, GetSubMeshes) {
+  MeshData mesh(PrimitiveType::kTriangles, VertexP::kFormat,
+                DataContainer::CreateHeapDataContainer(4U * sizeof(VertexP)),
+                DataContainer::CreateHeapDataContainer(4U * sizeof(Index)),
+                DataContainer::CreateHeapDataContainer(8U * sizeof(Index)));
+  for (size_t i = 0; i < 4; ++i) {
+    mesh.AddVertex<VertexP>(1.f, 2.f, 3.f);
+  }
+
+  EXPECT_TRUE(mesh.AddIndices({0U, 1U}));
+  EXPECT_TRUE(mesh.AddIndex(2U));
+
+  const Index extra_index = 3U;
+  EXPECT_TRUE(mesh.AddIndices(&extra_index, 1));
+
+  EXPECT_EQ(mesh.GetNumSubMeshes(), 3U);
+  EXPECT_EQ(mesh.GetSubMesh(0).start, 0U);
+  EXPECT_EQ(mesh.GetSubMesh(0).end, 2U);
+  EXPECT_EQ(mesh.GetSubMesh(1).start, 2U);
+  EXPECT_EQ(mesh.GetSubMesh(1).end, 3U);
+  EXPECT_EQ(mesh.GetSubMesh(2).start, 3U);
+  EXPECT_EQ(mesh.GetSubMesh(2).end, 4U);
+  EXPECT_EQ(mesh.GetSubMesh(3).start, MeshData::kInvalidIndex);
+  EXPECT_EQ(mesh.GetSubMesh(3).end, MeshData::kInvalidIndex);
+}
+
+TEST(MeshData, GetSubMeshesNoSubMeshData) {
+  MeshData mesh(PrimitiveType::kTriangles, VertexP::kFormat,
+                DataContainer::CreateHeapDataContainer(4U * sizeof(VertexP)),
+                DataContainer::CreateHeapDataContainer(4U * sizeof(Index)));
+  for (size_t i = 0; i < 4; ++i) {
+    mesh.AddVertex<VertexP>(1.f, 2.f, 3.f);
+  }
+
+  EXPECT_TRUE(mesh.AddIndices({0U, 1U}));
+  EXPECT_TRUE(mesh.AddIndex(2U));
+
+  const Index extra_index = 3U;
+  EXPECT_TRUE(mesh.AddIndices(&extra_index, 1));
+
+  EXPECT_EQ(mesh.GetNumSubMeshes(), 1U);
+  EXPECT_EQ(mesh.GetSubMesh(0).start, 0U);
+  EXPECT_EQ(mesh.GetSubMesh(0).end, 4U);
+  EXPECT_EQ(mesh.GetSubMesh(1).start, MeshData::kInvalidIndex);
+  EXPECT_EQ(mesh.GetSubMesh(1).end, MeshData::kInvalidIndex);
+}
+
 TEST(MeshData, AddIndicesFailsWithNoWriteAccess) {
   MeshData mesh(PrimitiveType::kTriangles, VertexP::kFormat,
                 CreateWriteDataContainer(3U * sizeof(VertexP)),
@@ -589,8 +636,7 @@ TEST(MeshData, CreateHeapCopy) {
 TEST(MeshDataDeathTest, CreateHeapCopyWithoutReadAccess) {
   MeshData uncopyable_mesh(PrimitiveType::kTriangles, VertexP::kFormat,
                            DataContainer(), DataContainer());
-  MeshData result;
-  PORT_EXPECT_DEBUG_DEATH(result = uncopyable_mesh.CreateHeapCopy(), "");
+  MeshData result = uncopyable_mesh.CreateHeapCopy();
   EXPECT_EQ(result.GetNumVertices(), 0U);
   EXPECT_EQ(result.GetNumIndices(), 0U);
 }

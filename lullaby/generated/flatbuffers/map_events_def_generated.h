@@ -34,13 +34,13 @@ struct EventMapDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   };
   /// These events will trigger the |output_events| to be sent to the target
   /// entities.
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *input_events() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_INPUT_EVENTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *input_events() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_INPUT_EVENTS);
   }
   /// These events will be sent to the target entities whenever |input_events|
   /// is received.
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *output_events() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_OUTPUT_EVENTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *output_events() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_OUTPUT_EVENTS);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -57,19 +57,19 @@ struct EventMapDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct EventMapDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_input_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> input_events) {
+  void add_input_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> input_events) {
     fbb_.AddOffset(EventMapDef::VT_INPUT_EVENTS, input_events);
   }
-  void add_output_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> output_events) {
+  void add_output_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> output_events) {
     fbb_.AddOffset(EventMapDef::VT_OUTPUT_EVENTS, output_events);
   }
-  EventMapDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit EventMapDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   EventMapDefBuilder &operator=(const EventMapDefBuilder &);
   flatbuffers::Offset<EventMapDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<EventMapDef>(end);
     return o;
   }
@@ -77,8 +77,8 @@ struct EventMapDefBuilder {
 
 inline flatbuffers::Offset<EventMapDef> CreateEventMapDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> input_events = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> output_events = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> input_events = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> output_events = 0) {
   EventMapDefBuilder builder_(_fbb);
   builder_.add_output_events(output_events);
   builder_.add_input_events(input_events);
@@ -87,12 +87,12 @@ inline flatbuffers::Offset<EventMapDef> CreateEventMapDef(
 
 inline flatbuffers::Offset<EventMapDef> CreateEventMapDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *input_events = nullptr,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *output_events = nullptr) {
+    const std::vector<flatbuffers::Offset<EventDef>> *input_events = nullptr,
+    const std::vector<flatbuffers::Offset<EventDef>> *output_events = nullptr) {
   return lull::CreateEventMapDef(
       _fbb,
-      input_events ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*input_events) : 0,
-      output_events ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*output_events) : 0);
+      input_events ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*input_events) : 0,
+      output_events ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*output_events) : 0);
 }
 
 /// Send events to the entity’s children.
@@ -120,13 +120,13 @@ struct MapEventsToChildrenDefBuilder {
   void add_events(flatbuffers::Offset<EventMapDef> events) {
     fbb_.AddOffset(MapEventsToChildrenDef::VT_EVENTS, events);
   }
-  MapEventsToChildrenDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit MapEventsToChildrenDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   MapEventsToChildrenDefBuilder &operator=(const MapEventsToChildrenDefBuilder &);
   flatbuffers::Offset<MapEventsToChildrenDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<MapEventsToChildrenDef>(end);
     return o;
   }
@@ -165,13 +165,13 @@ struct MapEventsToParentDefBuilder {
   void add_events(flatbuffers::Offset<EventMapDef> events) {
     fbb_.AddOffset(MapEventsToParentDef::VT_EVENTS, events);
   }
-  MapEventsToParentDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit MapEventsToParentDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   MapEventsToParentDefBuilder &operator=(const MapEventsToParentDefBuilder &);
   flatbuffers::Offset<MapEventsToParentDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<MapEventsToParentDef>(end);
     return o;
   }
@@ -218,13 +218,13 @@ struct MapEventsToSiblingsDefBuilder {
   void add_include_self(bool include_self) {
     fbb_.AddElement<uint8_t>(MapEventsToSiblingsDef::VT_INCLUDE_SELF, static_cast<uint8_t>(include_self), 0);
   }
-  MapEventsToSiblingsDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit MapEventsToSiblingsDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   MapEventsToSiblingsDefBuilder &operator=(const MapEventsToSiblingsDefBuilder &);
   flatbuffers::Offset<MapEventsToSiblingsDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<MapEventsToSiblingsDef>(end);
     return o;
   }
@@ -283,13 +283,13 @@ struct MapEventsToGroupDefBuilder {
   void add_include_self(bool include_self) {
     fbb_.AddElement<uint8_t>(MapEventsToGroupDef::VT_INCLUDE_SELF, static_cast<uint8_t>(include_self), 0);
   }
-  MapEventsToGroupDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit MapEventsToGroupDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   MapEventsToGroupDefBuilder &operator=(const MapEventsToGroupDefBuilder &);
   flatbuffers::Offset<MapEventsToGroupDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<MapEventsToGroupDef>(end);
     return o;
   }

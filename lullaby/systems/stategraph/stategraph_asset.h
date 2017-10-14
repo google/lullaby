@@ -28,6 +28,8 @@ limitations under the License.
 
 namespace lull {
 
+static constexpr auto kLullscriptEnvHash = ConstHash("lull.Stategraph.env");
+
 /// Creates a Stategraph instance from an AnimationStategraphDef and provides
 /// animation-specific operations on top of the underlying Stategraph.
 class StategraphAsset : public Asset {
@@ -61,6 +63,9 @@ class StategraphAsset : public Asset {
   Optional<HashValue> IsTransitionValid(const StategraphTransition& transition,
                                         const StategraphTrack* track,
                                         Clock::duration timestamp) const;
+
+  /// Return true if the stategraph has finished loading.
+  bool IsReady() const { return stategraph_ != nullptr; }
 
   StategraphAsset(const StategraphAsset&) = delete;
   StategraphAsset& operator=(const StategraphAsset&) = delete;

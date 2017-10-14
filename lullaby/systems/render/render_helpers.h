@@ -29,6 +29,10 @@ void SetAlphaMultiplierDescendants(Entity entity, float alpha_multiplier,
                                    const TransformSystem* transform_system,
                                    RenderSystem* render_system);
 
+// The default function for calculating the clip_from_model_matrix.
+mathfu::mat4 CalculateClipFromModelMatrix(const mathfu::mat4& model,
+                                          const mathfu::mat4& projection_view);
+
 }  // namespace lull
 
 #endif  // LULLABY_SYSTEMS_RENDER_RENDER_HELPERS_H_

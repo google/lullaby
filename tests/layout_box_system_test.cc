@@ -21,7 +21,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/file/asset_loader.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/tests/mathfu_matchers.h"
+#include "tests/mathfu_matchers.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {

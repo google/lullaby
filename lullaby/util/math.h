@@ -183,6 +183,13 @@ mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
     const mathfu::mat4& undeformed_mat, const float deform_radius,
     const float clamp_angle = 0.0f);
 
+// Inverse of CalculateCylinderDeformedTransformMatrix.  If the position is
+// beyond the bounds set by clamp_angle, it will be moved to the nearest
+// valid position.
+mathfu::mat4 CalculateCylinderUndeformedTransformMatrix(
+    const mathfu::mat4& deformed_mat, const float deform_radius,
+    const float clamp_angle = 0.0f);
+
 // Calculate a 4x4 viewing matrix based on the given camera parameters, which
 // use a view direction rather than look at center point. If the parameters
 // cannot form an orthonormal basis then this returns an identity matrix.
@@ -228,6 +235,15 @@ Sqt CalculateSqtFromAffineTransform(const mathfu::AffineTransform& mat);
 // centered around |point|.
 mathfu::mat4 CalculateRotateAroundMatrix(const mathfu::vec3& point,
                                          const mathfu::vec3& axis, float angle);
+
+// Computes the quaternion representing the rotation by the given Euler angles
+// using the Y * X * Z concatenation order.
+// This order of contatenation (Y * X * Z) or (Yaw * Pitch * Roll) gives a good
+// natural interaction when using Euler angles where if the user has yawed and
+// then tries to roll, the camera will roll properly.  If simple X * Y * Z
+// ordering is used, then if the user yaws say 90 degrees left, then tries to
+// roll, they will pitch.  It is a manifestation of the old gimbal lock problem.
+mathfu::quat FromEulerAnglesYXZ(const mathfu::vec3& euler);
 
 // Calculates the pitch (y) angle of a rotation. Return value ranges from -PI/2
 // to PI/2.
@@ -369,6 +385,11 @@ bool IsNearlyZero(float n, float epsilon = kDefaultEpsilon);
 // Returns true if |one| and |two| are nearly the same orientation. Note that
 // this is different than two rotations being the same.
 bool AreNearlyEqual(const mathfu::quat& one, const mathfu::quat& two,
+                    float epsilon = kDefaultEpsilon);
+
+// Returns true if every element of |one| is within the |epsilon| of the
+// counterpart of |two|.
+bool AreNearlyEqual(const mathfu::vec4& one, const mathfu::vec4& two,
                     float epsilon = kDefaultEpsilon);
 
 // Returns the |index|th 3D column vector of |mat|.

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/examples/example_app/port/sdl2/software_hmd.h"
+#include "examples/example_app/port/sdl2/software_hmd.h"
 
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/math.h"

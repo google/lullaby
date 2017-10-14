@@ -294,43 +294,57 @@ void TextBuffer::Finalize() {
   SetAabb(aabb);
 }
 
-TriangleMesh<VertexPT> TextBuffer::BuildSliceMesh(size_t slice) const {
+MeshData TextBuffer::BuildSliceMesh(size_t slice) const {
   const std::vector<uint16_t>& indices =
       static_cast<const flatui::FontBuffer*>(font_buffer_)
           ->get_indices(static_cast<int>(slice));
-  TriangleMesh<VertexPT> mesh;
-  mesh.GetIndices().reserve(indices.size());
 
-  // Copy vertices and remap indices.
-  for (const auto& index : indices) {
-    const uint16_t new_index = mesh.AddVertex(vertices_[index]);
-    mesh.GetIndices().emplace_back(new_index);
-  }
+  const size_t vertex_data_size = vertices_.size() * sizeof(vertices_[0]);
+  DataContainer vertex_data =
+      DataContainer::CreateHeapDataContainer(vertex_data_size);
+
+  const size_t index_data_size = indices.size() * sizeof(MeshData::Index);
+  DataContainer index_data =
+      DataContainer::CreateHeapDataContainer(index_data_size);
+
+  MeshData mesh(MeshData::kTriangles, VertexPT::kFormat, std::move(vertex_data),
+                std::move(index_data));
+
+  mesh.AddVertices(vertices_.data(), vertices_.size());
+  mesh.AddIndices(indices.data(), indices.size());
 
   return mesh;
 }
 
-TriangleMesh<VertexPT> TextBuffer::BuildUnderlineMesh() const {
-  TriangleMesh<VertexPT> mesh;
+MeshData TextBuffer::BuildUnderlineMesh() const {
   if (underline_vertices_.size() < 3) {
-    return mesh;
+    return MeshData();
   }
 
-  mesh.GetVertices() = underline_vertices_;
+  const size_t vertex_data_size =
+      underline_vertices_.size() * sizeof(underline_vertices_[0]);
+  DataContainer vertex_data =
+      DataContainer::CreateHeapDataContainer(vertex_data_size);
 
   // Underline vertices are arranged in triangle strips.  Convert them into
   // a triangle list.
   const size_t num_triangles = underline_vertices_.size() - 2;
-  mesh.GetIndices().reserve(3 * num_triangles);
+  const size_t index_data_size = 3 * num_triangles * sizeof(MeshData::Index);
+  DataContainer index_data =
+      DataContainer::CreateHeapDataContainer(index_data_size);
+
+  MeshData mesh(MeshData::kTriangles, VertexPT::kFormat, std::move(vertex_data),
+                std::move(index_data));
+  mesh.AddVertices(underline_vertices_.data(), underline_vertices_.size());
 
   for (size_t i = 2; i < underline_vertices_.size(); ++i) {
     const uint16_t index = static_cast<uint16_t>(i);
     if ((i % 2) == 0) {
-      mesh.AddTriangle(static_cast<uint16_t>(index - 2),
-                       static_cast<uint16_t>(index - 1), index);
+      mesh.AddIndices({static_cast<uint16_t>(index - 2),
+                       static_cast<uint16_t>(index - 1), index});
     } else {
-      mesh.AddTriangle(static_cast<uint16_t>(index - 2), index,
-                       static_cast<uint16_t>(index - 1));
+      mesh.AddIndices({static_cast<uint16_t>(index - 2), index,
+                       static_cast<uint16_t>(index - 1)});
     }
   }
 

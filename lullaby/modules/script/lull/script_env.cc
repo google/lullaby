@@ -46,8 +46,15 @@ ScriptEnv::ScriptEnv() {
   auto ret_fn = [this](ScriptFrame* frame) {
     frame->Return(Create(DefReturn(frame->EvalNext())));
   };
+  auto do_fn = [this](ScriptFrame* frame) {
+    frame->Return(DoImpl(frame->Next()));
+  };
   auto print_fn = [this](ScriptFrame* frame) {
-    const std::string str = Stringify(frame);
+    std::stringstream ss;
+    while (frame->HasNext()) {
+      ss << Stringify(frame->EvalNext()) << " ";
+    }
+    const std::string str = ss.str();
     if (print_fn_) {
       print_fn_(str);
     } else {
@@ -57,6 +64,7 @@ ScriptEnv::ScriptEnv() {
   };
 
   Register("=", NativeFunction{set_fn});
+  Register("do", NativeFunction{do_fn});
   Register("def", NativeFunction{def_fn});
   Register("eval", NativeFunction{eval_fn});
   Register("macro", NativeFunction{mac_fn});
@@ -76,7 +84,7 @@ void ScriptEnv::SetPrintFunction(PrintFn fn) {
 }
 
 void ScriptEnv::Register(string_view id, NativeFunction fn) {
-  SetValue(Hash(id.data(), id.length()), Create(fn));
+  SetValue(Symbol(id), Create(fn));
 }
 
 void ScriptEnv::Error(const char* msg, const ScriptValue& context) {
@@ -119,11 +127,11 @@ ScriptValue ScriptEnv::Exec(string_view src) {
   return Eval(Read(src));
 }
 
-void ScriptEnv::SetValue(HashValue symbol, ScriptValue value) {
+void ScriptEnv::SetValue(const Symbol& symbol, ScriptValue value) {
   table_.SetValue(symbol, std::move(value));
 }
 
-ScriptValue ScriptEnv::GetValue(HashValue symbol) const {
+ScriptValue ScriptEnv::GetValue(const Symbol& symbol) const {
   return table_.GetValue(symbol);
 }
 
@@ -137,7 +145,7 @@ ScriptValue ScriptEnv::Eval(ScriptValue script) {
       result = Eval(node->first);
     }
   } else if (const Symbol* symbol = script.Get<Symbol>()) {
-    result = Eval(GetValue(symbol->value));
+    result = Eval(GetValue(*symbol));
   } else {
     result = script;
   }
@@ -152,7 +160,7 @@ ScriptValue ScriptEnv::CallInternal(ScriptValue fn, const ScriptValue& args) {
   }
 
   if (const Symbol* symbol = fn.Get<Symbol>()) {
-    ScriptValue value = GetValue(symbol->value);
+    ScriptValue value = GetValue(*symbol);
     if (!value.IsNil()) {
       fn = value;
     }
@@ -166,26 +174,26 @@ ScriptValue ScriptEnv::CallInternal(ScriptValue fn, const ScriptValue& args) {
   } else if (const Lambda* lambda = fn.Get<Lambda>()) {
     table_.PushScope();
     if (AssignArgs(lambda->params, args, true)) {
-      result = ExecuteBody(lambda->body);
+      result = DoImpl(lambda->body);
     }
     table_.PopScope();
   } else if (const Macro* macro = fn.Get<Macro>()) {
     if (AssignArgs(macro->params, args, false)) {
-      result = ExecuteBody(macro->body);
+      result = DoImpl(macro->body);
     }
   } else if (const Symbol* symbol = fn.Get<Symbol>()) {
-    result = InvokeFunctionCall(symbol->value, args);
+    result = InvokeFunctionCall(*symbol, args);
   } else {
     Error("Expected callable type.", fn);
   }
   return result;
 }
 
-ScriptValue ScriptEnv::InvokeFunctionCall(HashValue id,
+ScriptValue ScriptEnv::InvokeFunctionCall(const Symbol& id,
                                           const ScriptValue& args) {
   ScriptValue result;
   if (call_handler_) {
-    FunctionCall call(id);
+    FunctionCall call(id.name);
 
     ScriptArgList arg_list(this, args);
     while (arg_list.HasNext()) {
@@ -206,7 +214,14 @@ ScriptValue ScriptEnv::InvokeFunctionCall(HashValue id,
 }
 
 bool ScriptEnv::AssignArgs(ScriptValue params, ScriptValue args, bool eval) {
-  // Assign the parameters to the arguments.
+  // Track the values that will be assigned to the parameter variables within
+  // the scope of the function or macro call.  We need to evaluate all the
+  // arguments before assigning them.
+  static const int kMaxArgs = 16;
+  int count = 0;
+  Symbol symbols[kMaxArgs];
+  ScriptValue values[kMaxArgs];
+
   while (!args.IsNil() && !params.IsNil()) {
     const AstNode* args_node = args.Get<AstNode>();
     if (args_node == nullptr) {
@@ -226,18 +241,21 @@ bool ScriptEnv::AssignArgs(ScriptValue params, ScriptValue args, bool eval) {
       return false;
     }
 
-    // Assign the argument to the parameters.  For lambdas/functions, the
-    // argument needs to be evaluated before being assigned to the parameter.
-    // For macros, the parameter should be set to the AstNode passed in as the
-    // argument.
-    ScriptValue value;
-    if (eval) {
-      value = Eval(args);
-    } else {
-      value = args;
+    if (count >= kMaxArgs) {
+      Error("Too many arguments, limit of 16.", args);
+      return false;
     }
 
-    SetValue(symbol->value, value);
+    // For lambdas/functions, the argument needs to be evaluated before being
+    // assigned to the parameter. For macros, the parameter should be set to the
+    // AstNode passed in as the argument.
+    if (eval) {
+      values[count] = Eval(args);
+    } else {
+      values[count] = args;
+    }
+    symbols[count] = *symbol;
+    ++count;
 
     // Go to the next parameter and argument.
     args = args_node->rest;
@@ -252,14 +270,18 @@ bool ScriptEnv::AssignArgs(ScriptValue params, ScriptValue args, bool eval) {
     return false;
   }
 
+  // Assign the evaluated argument values to the parameters.
+  for (int i = 0; i < count; ++i) {
+    SetValue(symbols[i], values[i]);
+  }
+
   return true;
 }
 
-ScriptValue ScriptEnv::ExecuteBody(const ScriptValue& body) {
+ScriptValue ScriptEnv::DoImpl(const ScriptValue& body) {
   ScriptValue result;
   if (!body.Is<AstNode>()) {
-    Error("Expected a node for the script body.", body);
-    return result;
+    return body;
   }
 
   ScriptValue iter = body;
@@ -297,29 +319,27 @@ ScriptValue ScriptEnv::SetImpl(const ScriptValue& args, ValueType type) {
     ScriptValue params = node->rest.Get<AstNode>()->first;
     ScriptValue body = node->rest.Get<AstNode>()->rest;
 
-    if (params.Is<AstNode>() == false) {
-      Error("Expected parameter list.", params);
-    } else if (type == kFunction) {
-      result = Create(Lambda(params, body.Get<AstNode>()->first));
+    if (type == kFunction) {
+      result = Create(Lambda(params, body));
     } else {
-      result = Create(Macro(params, body.Get<AstNode>()->first));
+      result = Create(Macro(params, body));
     }
   }
 
   if (!result.IsNil()) {
     // Get the symbol to which the value will be assigned.
     const Symbol* symbol = node->first.Get<Symbol>();
-    SetValue(symbol->value, result);
+    SetValue(*symbol, result);
   }
 
   return result;
 }
 
 ScriptValue ScriptEnv::CallWithArray(string_view id, Span<ScriptValue> args) {
-  return CallWithArray(Hash(id), args);
+  return CallWithArray(Symbol(id), args);
 }
 
-ScriptValue ScriptEnv::CallWithArray(HashValue id, Span<ScriptValue> args) {
+ScriptValue ScriptEnv::CallWithArray(const Symbol& id, Span<ScriptValue> args) {
   ScriptValue script_args;
   for (size_t i = 0; i < args.size(); ++i) {
     script_args = Create(AstNode(args[args.size() - i - 1], script_args));
@@ -329,10 +349,10 @@ ScriptValue ScriptEnv::CallWithArray(HashValue id, Span<ScriptValue> args) {
 }
 
 ScriptValue ScriptEnv::CallWithMap(string_view id, const VariantMap& kwargs) {
-  return CallWithMap(Hash(id), kwargs);
+  return CallWithMap(Symbol(id), kwargs);
 }
 
-ScriptValue ScriptEnv::CallWithMap(HashValue id, const VariantMap& kwargs) {
+ScriptValue ScriptEnv::CallWithMap(const Symbol& id, const VariantMap& kwargs) {
   ScriptValue callable = GetValue(id);
 
   ScriptValue params;
@@ -377,5 +397,9 @@ ScriptValue ScriptEnv::CallWithMap(HashValue id, const VariantMap& kwargs) {
   ScriptValue fn = Create(Symbol(id));
   return CallInternal(fn, script_args);
 }
+
+void ScriptEnv::PushScope() { table_.PushScope(); }
+
+void ScriptEnv::PopScope() { table_.PopScope(); }
 
 }  // namespace lull

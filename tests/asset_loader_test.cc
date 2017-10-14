@@ -18,7 +18,7 @@ limitations under the License.
 
 #include "gtest/gtest.h"
 #include "lullaby/modules/file/asset_loader.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
@@ -81,6 +81,37 @@ TEST(AssetLoader, LoadNow) {
 TEST(AssetLoader, LoadAsync) {
   AssetLoader loader(LoadFile);
   auto asset = loader.LoadAsync<TestAsset>("filename.txt");
+
+  while (loader.Finalize() != 0) {
+  }
+
+  EXPECT_EQ("filename.txt", asset->filename);
+  EXPECT_EQ(kDummyData, asset->on_load_data);
+  EXPECT_EQ(kDummyData, asset->on_final_data);
+  EXPECT_EQ(3, static_cast<int>(asset->callbacks.size()));
+  EXPECT_EQ(TestAsset::kSetFilename, asset->callbacks[0]);
+  EXPECT_EQ(TestAsset::kOnLoad, asset->callbacks[1]);
+  EXPECT_EQ(TestAsset::kOnFinalize, asset->callbacks[2]);
+}
+
+TEST(AssetLoader, LoadIntoNow) {
+  AssetLoader loader(LoadFile);
+  auto asset = std::make_shared<TestAsset>();
+  loader.LoadIntoNow<TestAsset>("filename.txt", asset);
+
+  EXPECT_EQ("filename.txt", asset->filename);
+  EXPECT_EQ(kDummyData, asset->on_load_data);
+  EXPECT_EQ(kDummyData, asset->on_final_data);
+  EXPECT_EQ(3, static_cast<int>(asset->callbacks.size()));
+  EXPECT_EQ(TestAsset::kSetFilename, asset->callbacks[0]);
+  EXPECT_EQ(TestAsset::kOnLoad, asset->callbacks[1]);
+  EXPECT_EQ(TestAsset::kOnFinalize, asset->callbacks[2]);
+}
+
+TEST(AssetLoader, LoadIntoAsync) {
+  AssetLoader loader(LoadFile);
+  auto asset = std::make_shared<TestAsset>();
+  loader.LoadIntoAsync<TestAsset>("filename.txt", asset);
 
   while (loader.Finalize() != 0) {
   }

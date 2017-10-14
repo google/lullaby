@@ -47,8 +47,19 @@ struct AstNode {
 // Reprents a Symbol (or identifier) in a parsed script.  Symbols refer to a
 // value that is stored in the symbol table.
 struct Symbol {
-  Symbol() {}
-  explicit Symbol(HashValue value) : value(value) {}
+  Symbol() : name() {}
+  explicit Symbol(string_view name)
+      : name(name.to_string()), value(lull::Hash(name.data(), name.length())) {}
+
+  bool operator==(const Symbol& other) const {
+    return value == other.value && name == other.name;
+  }
+
+  struct Hasher {
+    size_t operator()(const Symbol& symbol) const { return symbol.value; }
+  };
+
+  std::string name;
   HashValue value = 0;
 };
 

@@ -57,12 +57,24 @@ class AssetLoader {
   template <typename T, typename... Args>
   std::shared_ptr<T> LoadNow(const std::string& filename, Args&&... args);
 
+  // Similar to LoadNow, but loads the data into the provided |asset| (instead
+  // of creating the asset itself).
+  template <typename T>
+  void LoadIntoNow(const std::string& filename,
+                   const std::shared_ptr<T>& asset);
+
   // Creates an Asset object of type |T| using the specified constructor |Args|
   // and load the data specified by |filename| into the asset.  This call uses a
   // worker thread to perform the actual loading of the data after which the
   // Finalize() function can be called to finish the loading process.
   template <typename T, typename... Args>
   std::shared_ptr<T> LoadAsync(const std::string& filename, Args&&... args);
+
+  // Similar to LoadAsync, but loads the data into the provided |asset| (instead
+  // of creating the asset itself).
+  template <typename T>
+  void LoadIntoAsync(const std::string& filename,
+                     const std::shared_ptr<T>& asset);
 
   // Finalizes any assets that were loaded asynchronously and are ready for
   // finalizing.  This function should be called on the thread on which it is
@@ -134,6 +146,18 @@ std::shared_ptr<T> AssetLoader::LoadAsync(const std::string& filename,
   auto ptr = std::make_shared<T>(std::forward<Args>(args)...);
   LoadImpl(filename, ptr, kAsynchronous);
   return ptr;
+}
+
+template <typename T>
+void AssetLoader::LoadIntoNow(const std::string& filename,
+                              const std::shared_ptr<T>& asset) {
+  LoadImpl(filename, asset, kImmediate);
+}
+
+template <typename T>
+void AssetLoader::LoadIntoAsync(const std::string& filename,
+                                const std::shared_ptr<T>& asset) {
+  LoadImpl(filename, asset, kAsynchronous);
 }
 
 }  // namespace lull

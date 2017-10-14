@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/layout_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -46,6 +46,7 @@ class LayoutElementDefT {
 
   float horizontal_weight = 0.0f;
   float vertical_weight = 0.0f;
+  float duration_ms = 0.0f;
 
   template <typename Archive>
   void SerializeFlatbuffer(Archive archive);
@@ -96,6 +97,7 @@ template <typename Archive>
 void LayoutElementDefT::SerializeFlatbuffer(Archive archive) {
   archive.Scalar(&horizontal_weight, 4, 0.0f);
   archive.Scalar(&vertical_weight, 6, 0.0f);
+  archive.Scalar(&duration_ms, 8, 0.0f);
 }
 
 template <typename Archive>

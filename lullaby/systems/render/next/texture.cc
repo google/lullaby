@@ -18,66 +18,80 @@ limitations under the License.
 
 #include "fplbase/glplatform.h"
 #include "fplbase/internal/type_conversions_gl.h"
+#include "lullaby/util/logging.h"
 
 namespace lull {
 
-Texture::Texture(TextureImplPtr texture)
-    : texture_impl_(std::move(texture)),
-      uv_bounds_(0.f, 0.f, 1.f, 1.f),
-      is_subtexture_(false) {}
-
-Texture::Texture(AtlasImplPtr atlas)
-    : atlas_impl_(std::move(atlas)),
-      uv_bounds_(0.f, 0.f, 1.f, 1.f),
-      is_subtexture_(false) {}
-
-Texture::Texture(TextureImplPtr texture, const mathfu::vec4& uv_bounds)
-    : texture_impl_(std::move(texture)),
-      uv_bounds_(uv_bounds),
-      is_subtexture_(true) {}
-
-Texture::Texture(uint32_t texture_target, uint32_t texture_id)
-    : texture_impl_(new fplbase::Texture(),
-                    [](const fplbase::Texture* texture) { delete texture; }),
-      uv_bounds_(0.f, 0.f, 1.f, 1.f),
-      is_subtexture_(false) {
-  // TODO(jsanmiya): change this constructor (and all calls above it) to
-  // use rendering-system agnostic types fplbase::TextureTarget and
-  // fplbase::TextureHandle.
-  texture_impl_->SetTextureId(fplbase::TextureTargetFromGl(texture_target),
-                              fplbase::TextureHandleFromGl(texture_id));
+void Texture::Init(std::unique_ptr<fplbase::Texture> texture_impl) {
+  DCHECK(fplbase::ValidTextureHandle(texture_impl->id()));
+  impl_ = std::move(texture_impl);
+  for (auto& cb : on_load_callbacks_) {
+    cb();
+  }
+  on_load_callbacks_.clear();
 }
 
-void Texture::Bind(int unit) { texture_impl_->Set(unit); }
-
-bool Texture::IsLoaded() const {
-  // The OnLoad callback is only called for textures that are loaded from files.
-  // To avoid waiting forever for it to be called, we consider textures not
-  // loaded from files to always be loaded.
-  return fplbase::ValidTextureHandle(texture_impl_->id()) ||
-         texture_impl_->filename().empty();
+void Texture::Init(std::shared_ptr<Texture> containing_texture,
+                   const mathfu::vec4& uv_bounds) {
+  containing_texture_ = std::move(containing_texture);
+  uv_bounds_ = uv_bounds;
+  for (auto& cb : on_load_callbacks_) {
+    containing_texture_->AddOnLoadCallback(cb);
+  }
+  on_load_callbacks_.clear();
 }
 
-void Texture::AddOnLoadCallback(
-    const fplbase::AsyncAsset::AssetFinalizedCallback& callback) {
-  if (!IsLoaded()) {
-    texture_impl_->AddFinalizeCallback(callback);
+void Texture::Bind(int unit) {
+  if (impl_) {
+    impl_->Set(unit);
+  } else if (containing_texture_) {
+    containing_texture_->Bind(unit);
   }
 }
 
-mathfu::vec2i Texture::GetDimensions() const { return texture_impl_->size(); }
+bool Texture::IsLoaded() const {
+  if (impl_) {
+    return true;
+  } else if (containing_texture_) {
+    return containing_texture_->IsLoaded();
+  } else {
+    return false;
+  }
+}
+
+void Texture::AddOnLoadCallback(const std::function<void()>& callback) {
+  if (containing_texture_) {
+    containing_texture_->AddOnLoadCallback(callback);
+  } else if (impl_) {
+    callback();
+  } else {
+    on_load_callbacks_.push_back(callback);
+  }
+}
+
+mathfu::vec2i Texture::GetDimensions() const {
+  if (impl_) {
+    return impl_->size();
+  } else if (containing_texture_) {
+    return containing_texture_->GetDimensions();
+  } else {
+    return mathfu::kZeros2i;
+  }
+}
 
 std::string Texture::GetName() const {
-  if (texture_impl_) {
-    std::string name = texture_impl_->filename();
+  if (impl_) {
+    std::string name = impl_->filename();
     if (!name.empty()) {
       return name;
     }
+  } else if (containing_texture_) {
+    return containing_texture_->GetName();
   }
   return "anonymous texture";
 }
 
-const bool Texture::IsSubtexture() const { return is_subtexture_; }
+bool Texture::IsSubtexture() const { return containing_texture_ != nullptr; }
 
 const mathfu::vec4& Texture::UvBounds() const { return uv_bounds_; }
 
@@ -90,13 +104,23 @@ mathfu::vec4 Texture::CalculateClampBounds() const {
 }
 
 bool Texture::HasMips() const {
-  return (texture_impl_->flags() & fplbase::kTextureFlagsUseMipMaps) != 0;
+  if (impl_) {
+    return (impl_->flags() & fplbase::kTextureFlagsUseMipMaps) != 0;
+  } else if (containing_texture_) {
+    return containing_texture_->HasMips();
+  } else {
+    return false;
+  }
 }
 
 fplbase::TextureHandle Texture::GetResourceId() const {
-  const fplbase::Texture* resource =
-      atlas_impl_ ? atlas_impl_->atlas_texture() : texture_impl_.get();
-  return resource ? resource->id() : fplbase::InvalidTextureHandle();
+  if (impl_) {
+    return impl_->id();
+  } else if (containing_texture_) {
+    return containing_texture_->GetResourceId();
+  } else {
+    return fplbase::InvalidTextureHandle();
+  }
 }
 
 }  // namespace lull

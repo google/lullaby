@@ -32,24 +32,25 @@ mathfu::vec2 SnapPositionToGrid(const mathfu::vec2& position,
                                 const Aabb& content_bounds,
                                 ScrollSystem::SnapCallType type,
                                 const mathfu::vec2& grid_interval) {
-  // Flings should move the snap position by just over half the grid interval.
-  static const float fling_multiplier = 0.51f;
-
   // Determine the additional movement that should be added as a result of
   // a fling gesture.
   mathfu::vec2 delta = mathfu::kZeros2f;
   switch (gesture) {
     case InputManager::GestureDirection::kRight:
-      delta = mathfu::vec2(-fling_multiplier, 0.f) * grid_interval;
+      delta = mathfu::vec2(-ScrollSnapToGridSystem::kFlingMultiplier, 0.f) *
+              grid_interval;
       break;
     case InputManager::GestureDirection::kLeft:
-      delta = mathfu::vec2(fling_multiplier, 0.f) * grid_interval;
+      delta = mathfu::vec2(ScrollSnapToGridSystem::kFlingMultiplier, 0.f) *
+              grid_interval;
       break;
     case InputManager::GestureDirection::kUp:
-      delta = mathfu::vec2(0.f, fling_multiplier) * grid_interval;
+      delta = mathfu::vec2(0.f, ScrollSnapToGridSystem::kFlingMultiplier) *
+              grid_interval;
       break;
     case InputManager::GestureDirection::kDown:
-      delta = mathfu::vec2(0.f, -fling_multiplier) * grid_interval;
+      delta = mathfu::vec2(0.f, -ScrollSnapToGridSystem::kFlingMultiplier) *
+              grid_interval;
       break;
     case InputManager::GestureDirection::kNone:
       break;
@@ -72,6 +73,9 @@ mathfu::vec2 SnapPositionToGrid(const mathfu::vec2& position,
   return min + result;
 }
 }  // namespace
+
+// Flings should move the snap position by just over half the grid interval.
+const float ScrollSnapToGridSystem::kFlingMultiplier = .51f;
 
 ScrollSnapToGridSystem::ScrollSnapToGridSystem(Registry* registry)
     : System(registry) {

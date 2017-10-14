@@ -22,7 +22,8 @@ limitations under the License.
 #include <vector>
 
 #include "flatui/font_manager.h"
-#include "lullaby/modules/render/triangle_mesh.h"
+#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/text/flatui/font.h"
 #include "lullaby/systems/text/html_tags.h"
@@ -46,7 +47,10 @@ struct TextBufferParams {
 };
 
 // A TextBuffer holds the data necessary to render a text string: vertices,
-// indices, textures.
+// indices, textures. Each buffer can be composed of multiple slices, each of
+// which share a texture. This is necessary since each glyph atlas has a limited
+// amount of space, so any string of text might reference glyphs from multiple
+// atlases. We also break the underlined text from links into their own slices.
 class TextBuffer {
  public:
   static std::shared_ptr<TextBuffer> Create(flatui::FontManager* manager,
@@ -73,9 +77,9 @@ class TextBuffer {
   fplbase::Texture* GetSliceTexture(size_t i) const;
   bool IsLinkSlice(size_t i) const;
 
-  TriangleMesh<VertexPT> BuildSliceMesh(size_t i) const;
+  MeshData BuildSliceMesh(size_t slice) const;
 
-  TriangleMesh<VertexPT> BuildUnderlineMesh() const;
+  MeshData BuildUnderlineMesh() const;
 
   const Aabb& GetAabb() { return aabb_; }
 

@@ -14,7 +14,7 @@ struct ReticleBehaviourDef;
 
 enum ReticleCollisionBehaviour {
   /// Handle the collision directly on this entity.
-  ReticleCollisionBehaviour_HandleAlone = 0  /// Traverse to parents to find an entity with |HandleForDescendants|.
+  ReticleCollisionBehaviour_HandleAlone = 0  /// Traverse to parents to find an entity with |HandleDescendants|.
 ,
   ReticleCollisionBehaviour_FindAncestor = 1  /// Handle reticle collisions passed from descendants with |FindAncestor|.
 ,
@@ -67,8 +67,8 @@ struct ReticleBehaviourDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table 
   /// the Aabb. For example, an entity centered at origin with a 3x3x3 Aabb with
   /// a dead zone of (0.5,1,0.5) will only become targeted when the reticle
   /// collides with the 2x1x2 Aabb centered at the origin.
-  const lull::Vec3 *hover_start_dead_zone() const {
-    return GetStruct<const lull::Vec3 *>(VT_HOVER_START_DEAD_ZONE);
+  const Vec3 *hover_start_dead_zone() const {
+    return GetStruct<const Vec3 *>(VT_HOVER_START_DEAD_ZONE);
   }
   /// How this entity should handle reticle collisions.
   ReticleCollisionBehaviour collision_behaviour() const {
@@ -82,7 +82,7 @@ struct ReticleBehaviourDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table 
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec3>(verifier, VT_HOVER_START_DEAD_ZONE) &&
+           VerifyField<Vec3>(verifier, VT_HOVER_START_DEAD_ZONE) &&
            VerifyField<int32_t>(verifier, VT_COLLISION_BEHAVIOUR) &&
            VerifyField<uint8_t>(verifier, VT_INTERACTIVE_IF_HANDLE_DESCENDANTS) &&
            verifier.EndTable();
@@ -92,7 +92,7 @@ struct ReticleBehaviourDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table 
 struct ReticleBehaviourDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_hover_start_dead_zone(const lull::Vec3 *hover_start_dead_zone) {
+  void add_hover_start_dead_zone(const Vec3 *hover_start_dead_zone) {
     fbb_.AddStruct(ReticleBehaviourDef::VT_HOVER_START_DEAD_ZONE, hover_start_dead_zone);
   }
   void add_collision_behaviour(ReticleCollisionBehaviour collision_behaviour) {
@@ -101,13 +101,13 @@ struct ReticleBehaviourDefBuilder {
   void add_interactive_if_handle_descendants(bool interactive_if_handle_descendants) {
     fbb_.AddElement<uint8_t>(ReticleBehaviourDef::VT_INTERACTIVE_IF_HANDLE_DESCENDANTS, static_cast<uint8_t>(interactive_if_handle_descendants), 1);
   }
-  ReticleBehaviourDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ReticleBehaviourDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ReticleBehaviourDefBuilder &operator=(const ReticleBehaviourDefBuilder &);
   flatbuffers::Offset<ReticleBehaviourDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 3);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ReticleBehaviourDef>(end);
     return o;
   }
@@ -115,7 +115,7 @@ struct ReticleBehaviourDefBuilder {
 
 inline flatbuffers::Offset<ReticleBehaviourDef> CreateReticleBehaviourDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec3 *hover_start_dead_zone = 0,
+    const Vec3 *hover_start_dead_zone = 0,
     ReticleCollisionBehaviour collision_behaviour = ReticleCollisionBehaviour_HandleAlone,
     bool interactive_if_handle_descendants = true) {
   ReticleBehaviourDefBuilder builder_(_fbb);

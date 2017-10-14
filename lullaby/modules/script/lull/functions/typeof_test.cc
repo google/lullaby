@@ -40,7 +40,7 @@ TEST(ScriptFunctionsTypeOfTest, IsNil) {
   EXPECT_THAT(*res.Get<bool>(), Eq(false));
 
   Variant nil;
-  env.SetValue(ConstHash("nil"), ScriptValue::Create(nil));
+  env.SetValue(Symbol("nil"), ScriptValue::Create(nil));
   res = env.Exec("(nil? nil)");
   EXPECT_THAT(res.Is<bool>(), Eq(true));
   EXPECT_THAT(*res.Get<bool>(), Eq(true));

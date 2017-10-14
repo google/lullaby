@@ -20,7 +20,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {

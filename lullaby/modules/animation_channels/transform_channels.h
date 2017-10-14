@@ -59,6 +59,23 @@ class PositionXChannel : public AnimationChannel {
   TransformSystem* transform_system_;
 };
 
+// Channel for animating only the y-position of an entity.
+class PositionYChannel : public AnimationChannel {
+ public:
+  static const HashValue kChannelName;
+
+  static void Setup(Registry* registry, size_t pool_size);
+
+  PositionYChannel(Registry* registry, size_t pool_size);
+
+  const motive::MatrixOperationType* GetOperations() const override;
+
+ private:
+  bool Get(Entity e, float* values, size_t len) const override;
+  void Set(Entity e, const float* values, size_t len) override;
+  TransformSystem* transform_system_;
+};
+
 // Channel for animating only the z-position of an entity.
 class PositionZChannel : public AnimationChannel {
  public:

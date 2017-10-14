@@ -26,12 +26,26 @@ std::string Stringify(const ScriptValue& value) {
     return "nil";
   } else if (auto val = value.Get<bool>()) {
     return *val ? "true" : "false";
-  } else if (auto val = value.Get<int>()) {
+  } else if (auto val = value.Get<int8_t>()) {
+    return std::to_string(static_cast<int>(*val));
+  } else if (auto val = value.Get<int16_t>()) {
     return std::to_string(*val);
+  } else if (auto val = value.Get<int32_t>()) {
+    return std::to_string(*val);
+  } else if (auto val = value.Get<int64_t>()) {
+    return std::to_string(*val);
+  } else if (auto val = value.Get<uint8_t>()) {
+    return std::to_string(static_cast<int>(*val)) + "u";
+  } else if (auto val = value.Get<uint16_t>()) {
+    return std::to_string(*val) + "u";
+  } else if (auto val = value.Get<uint32_t>()) {
+    return std::to_string(*val) + "u";
+  } else if (auto val = value.Get<uint64_t>()) {
+    return std::to_string(*val) + "u";
   } else if (auto val = value.Get<float>()) {
     return std::to_string(*val);
   } else if (auto val = value.Get<Symbol>()) {
-    return std::to_string(val->value);
+    return val->name;
   } else if (auto val = value.Get<std::string>()) {
     return *val;
   } else if (auto val = value.Get<mathfu::vec2>()) {
@@ -42,6 +56,25 @@ std::string Stringify(const ScriptValue& value) {
   } else if (auto val = value.Get<mathfu::vec4>()) {
     return std::to_string(val->x) + ", " + std::to_string(val->y) + ", " +
            std::to_string(val->z) + ", " + std::to_string(val->w);
+  } else if (auto val = value.Get<mathfu::quat>()) {
+    return std::to_string(val->vector().x) + ", " +
+           std::to_string(val->vector().y) + ", " +
+           std::to_string(val->vector().z) + ", " +
+           std::to_string(val->scalar());
+  } else if (auto val = value.Get<mathfu::vec2i>()) {
+    return std::to_string(val->x) + "," + std::to_string(val->y);
+  } else if (auto val = value.Get<mathfu::vec3i>()) {
+    return std::to_string(val->x) + ", " + std::to_string(val->y) + ", " +
+           std::to_string(val->z);
+  } else if (auto val = value.Get<mathfu::vec4i>()) {
+    return std::to_string(val->x) + ", " + std::to_string(val->y) + ", " +
+           std::to_string(val->z) + ", " + std::to_string(val->w);
+  } else if (auto val = value.Get<VariantArray>()) {
+    return "[array]";
+  } else if (auto val = value.Get<VariantMap>()) {
+    return "[map]";
+  } else if (auto val = value.Get<EventWrapper>()) {
+    return "[event]";
   } else if (auto val = value.Get<Lambda>()) {
     return "[lambda]";
   } else if (auto val = value.Get<Macro>()) {
@@ -65,9 +98,9 @@ std::string Stringify(ScriptFrame* frame) {
     frame->Return(value);
 
     if (auto val = value.Get<Symbol>()) {
-      const ScriptValue value = frame->GetEnv()->GetValue(val->value);
+      const ScriptValue value = frame->GetEnv()->GetValue(*val);
       ScriptFrame f(frame->GetEnv(), value);
-      ss << val->value << "@" << Stringify(&f);
+      ss << val->name << "@" << Stringify(&f);
     } else if (auto val = value.Get<AstNode>()) {
       auto child = val->first.Get<AstNode>();
       if (child) {

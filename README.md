@@ -17,8 +17,7 @@ and augmented reality experiences.
    building VR UIs.
 *  Animation system for fluid, responsive UIs and "living" environmental
    objects.
-*  Support for Cardboard/Daydream headsets, Daydream VR Controller, and VR
-   Keyboard.
+*  Support for Cardboard/Daydream headsets and Daydream VR Controller.
 *  Java-based API for integration with existing Android applications.
 *  Used by multiple teams across Google incl: VR Home, Play Store, YouTube,
    Play Movies, and Earth.

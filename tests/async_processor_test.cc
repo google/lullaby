@@ -149,7 +149,7 @@ TEST(AsyncProcessor, Cancel) {
   // First test the simple case of cancelling a pending task.
   processor.Stop();
   TaskId task_to_cancel =
-      processor.Enqueue(nullptr, [](TestObjectPtr* object) { CHECK(false); });
+      processor.Enqueue(nullptr, [](TestObjectPtr* object) { LOG(FATAL); });
   EXPECT_TRUE(processor.Cancel(task_to_cancel));
 
   // Next test that it doesn't cancel or reorder other tasks.
@@ -158,7 +158,7 @@ TEST(AsyncProcessor, Cancel) {
                     [](TestObjectPtr* object) { (*object)->value = 1; });
 
   task_to_cancel =
-      processor.Enqueue(nullptr, [](TestObjectPtr* object) { CHECK(false); });
+      processor.Enqueue(nullptr, [](TestObjectPtr* object) { LOG(FATAL); });
 
   processor.Enqueue(object, [](TestObjectPtr* object) {
     (*object)->value = 2;

@@ -19,7 +19,7 @@ limitations under the License.
 #include "lullaby/modules/serialize/serialize.h"
 #include "lullaby/modules/serialize/variant_serializer.h"
 #include "lullaby/util/logging.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
@@ -73,11 +73,11 @@ struct MoveOnlyVariantTestClass {
   }
 
   MoveOnlyVariantTestClass(const MoveOnlyVariantTestClass&) {
-    CHECK(false) << "This function should not be called.";
+    LOG(FATAL) << "This function should not be called.";
   }
 
   MoveOnlyVariantTestClass& operator=(const MoveOnlyVariantTestClass&) {
-    CHECK(false) << "This function should not be called.";
+    LOG(FATAL) << "This function should not be called.";
     return *this;
   }
 

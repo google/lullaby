@@ -11,12 +11,14 @@ cc_library(
         "asset_loader.cc",
         "file.cc",
         "file_loader.cc",
+        "tagged_file_loader.cc",
     ],
     hdrs = [
         "asset.h",
         "asset_loader.h",
         "file.h",
         "file_loader.h",
+        "tagged_file_loader.h",
     ],
     deps = [
         "@fplbase//:fplbase",

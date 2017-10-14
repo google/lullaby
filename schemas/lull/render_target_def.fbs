@@ -4,10 +4,13 @@ namespace lull;
 
 // Format options for texture render targets.
 enum TextureFormat : ushort {
+  None,
   A8,
   R8,
   RGB8,
   RGBA8,
+  Depth16,
+  Depth32F
 }
 
 // Format options for the depth/stencil buffer.

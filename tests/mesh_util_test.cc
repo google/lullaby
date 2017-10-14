@@ -19,8 +19,8 @@ limitations under the License.
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/modules/render/mesh_util.h"
 #include "lullaby/modules/render/vertex.h"
-#include "lullaby/tests/mathfu_matchers.h"
-#include "lullaby/tests/portable_test_macros.h"
+#include "tests/mathfu_matchers.h"
+#include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
@@ -425,7 +425,7 @@ TEST(ApplyDeformation, MeshData) {
 }
 
 TEST(ApplyDeformationDeathTest, MeshDataWithInsufficientAccess) {
-  auto deform = [](float* data, size_t count, size_t stride) { CHECK(false); };
+  auto deform = [](float* data, size_t count, size_t stride) { LOG(FATAL); };
 
   uint8_t data_buf[8] = {0};
   DataContainer unreadable_data(
@@ -446,12 +446,12 @@ TEST(ApplyDeformationDeathTest, MeshDataWithInsufficientAccess) {
 
 TEST(CreateLatLonSphereDeathTest, CatchesBadArguments) {
   const float radius = 1.0f;
-  EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 0,
-                                  /* num_meridians = */ 3),
-               "");
-  EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1,
-                                  /* num_meridians = */ 2),
-               "");
+  PORT_EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 0,
+                                       /* num_meridians = */ 3),
+                    "");
+  PORT_EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1,
+                                       /* num_meridians = */ 2),
+                    "");
   PORT_EXPECT_DEBUG_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1000,
                                              /* num_meridians = */ 1000),
                           "Exceeded vertex limit");

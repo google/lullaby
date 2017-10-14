@@ -4,22 +4,15 @@ package(
 
 cc_library(
     name = "libunibreak",
-    srcs = [
-        "src/linebreak.c",
-        "src/linebreakdata.c",
-        "src/linebreakdef.c",
-        "src/unibreakbase.c",
-        "src/unibreakdef.c",
-        "src/wordbreak.c",
-    ],
-    hdrs = [
-        "src/linebreak.h",
-        "src/linebreakdef.h",
-        "src/unibreakbase.h",
-        "src/unibreakdef.h",
-        "src/wordbreak.h",
+    srcs = glob([
+        "src/*.c"
+    ], exclude = [
+        "src/filter_dup.c",
+    ]),
+    hdrs = glob([
+        "src/*.h",
         "src/wordbreakdata.c",
-        "src/wordbreakdef.h",
-    ],
+    ]),
     includes = ["src"],
+    copts = ["-Wno-unused-variable"],
 )

@@ -85,18 +85,15 @@ class ScriptValue {
   template <typename T>
   const T* Get() const;
 
-  // Utility type to enable/disable the NumericCast function below.
-  template <typename T>
-  using EnableIfNumeric =
-      typename std::enable_if<std::is_arithmetic<T>::value, T>;
-
   // Similar to Get(), but attempts to perform a static_cast on the underlying
   // type.  Both T and the stored type must be a numeric value (ie. int, float,
   // etc.).  If neither type is numeric, returns an empty value.
   template <typename T>
-  auto NumericCast() const -> Optional<typename EnableIfNumeric<T>::type>;
+  auto NumericCast() const
+      -> Optional<typename Variant::EnableIfNumeric<T>::type>;
 
   // Returns a pointer to the underlying variant (if available).
+  Variant* GetVariant();
   const Variant* GetVariant() const;
 
   // Sets a value directly from a variant rather than a value-type.
@@ -160,18 +157,8 @@ const T* ScriptValue::Get() const {
 
 template <typename T>
 auto ScriptValue::NumericCast() const
-    -> Optional<typename EnableIfNumeric<T>::type> {
-  if (auto ptr = Get<int32_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<float>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<uint32_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<int64_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<uint64_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<double>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<int16_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
-  if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
-  return NullOpt;
+    -> Optional<typename Variant::EnableIfNumeric<T>::type> {
+  return impl_ ? impl_->var.NumericCast<T>() : NullOpt;
 }
 
 inline bool ScriptValue::IsNil() const {
@@ -180,6 +167,10 @@ inline bool ScriptValue::IsNil() const {
 
 inline TypeId ScriptValue::GetTypeId() const {
   return impl_ ? impl_->var.GetTypeId() : 0;
+}
+
+inline Variant* ScriptValue::GetVariant() {
+  return impl_ ? &impl_->var : nullptr;
 }
 
 inline const Variant* ScriptValue::GetVariant() const {

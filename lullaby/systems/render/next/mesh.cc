@@ -22,22 +22,6 @@ namespace lull {
 
 namespace {
 
-template <typename Vertex>
-Mesh::MeshImplPtr CreateMesh(const TriangleMesh<Vertex>& src,
-                             const fplbase::Attribute* attributes) {
-  Mesh::MeshImplPtr mesh(
-      new fplbase::Mesh(src.GetVertices().data(),
-                        static_cast<int>(src.GetVertices().size()),
-                        sizeof(Vertex), attributes, nullptr /* max_position */,
-                        nullptr /* min_position */),
-      [](const fplbase::Mesh* mesh) { delete mesh; });
-  fplbase::Material* mat = nullptr;
-  mesh->AddIndices(src.GetIndices().data(),
-                   static_cast<int>(src.GetIndices().size()), mat);
-  mesh->Finalize();
-  return mesh;
-}
-
 Mesh::MeshImplPtr CreateMesh(const MeshData& src,
                              const fplbase::Attribute* attributes) {
   Mesh::MeshImplPtr mesh(
@@ -48,8 +32,13 @@ Mesh::MeshImplPtr CreateMesh(const MeshData& src,
       [](const fplbase::Mesh* mesh) { delete mesh; });
   fplbase::Material* mat = nullptr;
   const bool is_32_bit = false;
-  mesh->AddIndices(src.GetIndexData(), static_cast<int>(src.GetNumIndices()),
-                   mat, is_32_bit);
+
+  for (MeshData::Index i = 0; i < src.GetNumSubMeshes(); ++i) {
+    const MeshData::IndexRange submesh = src.GetSubMesh(i);
+    const int count = submesh.end - submesh.start;
+    const MeshData::Index* indices = src.GetIndexData();
+    mesh->AddIndices(indices + submesh.start, count, mat, is_32_bit);
+  }
   mesh->Finalize();
   return mesh;
 }
@@ -63,27 +52,6 @@ Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)), num_triangles_(0) {
           static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3);
     }
   });
-}
-
-// TODO(b/31523782): Remove once pipeline for MeshData is in-place.
-Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
-  static const fplbase::Attribute kAttributes[] = {
-      fplbase::kPosition3f,
-      fplbase::kEND,
-  };
-  impl_ = CreateMesh(mesh, kAttributes);
-  num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
-}
-
-// TODO(b/31523782): Remove once pipeline for MeshData is in-place.
-Mesh::Mesh(const TriangleMesh<VertexPT>& mesh) {
-  static const fplbase::Attribute kAttributes[] = {
-      fplbase::kPosition3f,
-      fplbase::kTexCoord2f,
-      fplbase::kEND,
-  };
-  impl_ = CreateMesh(mesh, kAttributes);
-  num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
 }
 
 Mesh::Mesh(const MeshData& mesh) {
@@ -254,6 +222,14 @@ void Mesh::GetFplAttributes(
           attributes[i] = fplbase::kBoneIndices4ub;
         } else {
           LOG(DFATAL) << "kIndex must be a kUnsignedInt8 with 4 elements.";
+          attributes[i] = fplbase::kEND;
+        }
+        break;
+      case VertexAttribute::kWeight:
+        if (src.type == VertexAttribute::kUnsignedInt8 && src.count == 4) {
+          attributes[i] = fplbase::kBoneWeights4ub;
+        } else {
+          LOG(DFATAL) << "kWeight must be a kUnsignedInt8 with 4 elements.";
           attributes[i] = fplbase::kEND;
         }
         break;

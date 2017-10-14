@@ -211,6 +211,7 @@ void TransformSystem::Create(Entity e, HashValue type, const Def* def) {
   MathfuVec3FromFbVec3(data->scale(), &node->local_sqt.scale);
   AabbFromFbAabb(data->aabb(), &world_transform->box);
   node->world_from_entity_matrix_function = CalculateWorldFromEntityMatrix;
+  node->local_sqt_function = CalculateLocalSqt;
 
   if (data->aabb_padding()) {
     AabbFromFbAabb(data->aabb_padding(), &node->aabb_padding);
@@ -235,6 +236,7 @@ void TransformSystem::Create(Entity e, const Sqt& sqt) {
     node = nodes_.Emplace(e);
     world_transforms_.Emplace(e);
     node->world_from_entity_matrix_function = CalculateWorldFromEntityMatrix;
+    node->local_sqt_function = CalculateLocalSqt;
   }
 
   node->local_sqt = sqt;
@@ -445,14 +447,13 @@ void TransformSystem::SetWorldFromEntityMatrix(
     return;
   }
 
-  mathfu::mat4 parent_from_local_mat(world_from_entity_mat);
+  mathfu::mat4* world_from_parent_mat = nullptr;
   auto parent = GetWorldTransform(node->parent);
   if (parent) {
-    const auto parent_from_world_mat = parent->world_from_entity_mat.Inverse();
-    parent_from_local_mat = parent_from_world_mat * world_from_entity_mat;
+    world_from_parent_mat = &parent->world_from_entity_mat;
   }
-
-  node->local_sqt = CalculateSqtFromMatrix(parent_from_local_mat);
+  node->local_sqt =
+      node->local_sqt_function(world_from_entity_mat, world_from_parent_mat);
 
   UpdateTransforms(e);
 }
@@ -463,11 +464,31 @@ const mathfu::mat4* TransformSystem::GetWorldFromEntityMatrix(Entity e) const {
 }
 
 void TransformSystem::SetWorldFromEntityMatrixFunction(
-    Entity e, CalculateWorldFromEntityMatrixFunc func) {
+    Entity e, const CalculateWorldFromEntityMatrixFunc& func,
+    const CalculateLocalSqtFunc* inverse_func) {
   auto node = nodes_.Get(e);
   if (node) {
     node->world_from_entity_matrix_function =
         func ? func : CalculateWorldFromEntityMatrix;
+    node->local_sqt_function = inverse_func ? *inverse_func : CalculateLocalSqt;
+#ifdef DEBUG
+    if (func != nullptr && inverse_func == nullptr) {
+      node->local_sqt_function =
+          [e](const mathfu::mat4& world_from_entity_mat,
+              const mathfu::mat4* world_from_parent_mat) {
+            // If you see this log, then whatever is calling
+            // SetWorldFromEntityMatrixFunction needs to implement a function to
+            // calculate the local sqt based on a matrix.
+            LOG(WARNING) << "Attempting to calculate local SQT from "
+                            "WorldFromEntityMatrix on entity "
+                         << e
+                         << ", which does not have a custom CalculateLocalSqt "
+                            "function.";
+            return CalculateLocalSqt(world_from_entity_mat,
+                                     world_from_parent_mat);
+          };
+    }
+#endif
     UpdateTransforms(e);
   }
 }
@@ -718,6 +739,17 @@ mathfu::mat4 TransformSystem::CalculateWorldFromEntityMatrix(
   }
 }
 
+Sqt TransformSystem::CalculateLocalSqt(
+    const mathfu::mat4& world_from_entity_mat,
+    const mathfu::mat4* world_from_parent_mat) {
+  mathfu::mat4 parent_from_local_mat(world_from_entity_mat);
+  if (world_from_parent_mat) {
+    parent_from_local_mat =
+        world_from_parent_mat->Inverse() * world_from_entity_mat;
+  }
+  return CalculateSqtFromMatrix(parent_from_local_mat);
+}
+
 void TransformSystem::UpdateTransforms(Entity child) {
   auto node = nodes_.Get(child);
   auto world_transform = GetWorldTransform(child);
@@ -800,7 +832,7 @@ TransformSystem::TransformFlags TransformSystem::RequestFlag() {
       return flag;
     }
   }
-  CHECK(false) << "Ran out of flags";
+  LOG(FATAL) << "Ran out of flags";
   return kInvalidFlag;
 }
 

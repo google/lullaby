@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/examples/example_app/example_app.h"
+#include "examples/example_app/example_app.h"
 
 #include "fplbase/utilities.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/file/asset_loader.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/modules/script/function_binder.h"
-#include "lullaby/modules/script/function_registry.h"
 #include "mathfu/constants.h"
 
 namespace lull {
@@ -29,7 +28,6 @@ namespace lull {
 void ExampleApp::Initialize() {
   dispatcher_ = new QueuedDispatcher();
   registry_->Create<FunctionBinder>(registry_.get());
-  registry_->Create<FunctionRegistry>();
   registry_->Register(std::unique_ptr<Dispatcher>(dispatcher_));
   registry_->Create<AssetLoader>(fplbase::LoadFile);
   registry_->Create<InputManager>();

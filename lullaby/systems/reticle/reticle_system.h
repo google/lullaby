@@ -48,8 +48,6 @@ class ReticleSystem : public System {
 
   explicit ReticleSystem(Registry* registry);
 
-  void Initialize() override;
-
   void Create(Entity entity, HashValue type, const Def* def) override;
 
   void PostCreateInit(Entity entity, HashValue type, const Def* def) override;
@@ -115,10 +113,6 @@ class ReticleSystem : public System {
 
     float no_hit_distance = 0.f;
     float ergo_angle_offset = 0.f;
-    float ring_active_diameter = 0.f;
-    float ring_inactive_diameter = 0.f;
-    mathfu::vec4 hit_color;
-    mathfu::vec4 no_hit_color;
     std::vector<InputManager::DeviceType> device_preference;
 
     ReticleMovementFn movement_fn = nullptr;
@@ -150,12 +144,6 @@ class ReticleSystem : public System {
   // If the target has a ReticleBehavior, apply that behavior and return the
   // actual target.
   Entity HandleReticleBehavior(Entity targeted_entity);
-
-  // Place the reticle at the desired location, rotate it to face the camera,
-  // and scale it to maintain constant visual size.
-  void SetReticleTransform(Entity reticle_entity,
-                           const mathfu::vec3& reticle_world_pos,
-                           const mathfu::vec3& camera_world_pos);
 
   // Calculate where the reticle should be based on input (assuming no actual
   // collisions take place).

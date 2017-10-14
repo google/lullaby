@@ -147,13 +147,13 @@ struct AnimInstanceDefBuilder {
   void add_blend_time(float blend_time) {
     fbb_.AddElement<float>(AnimInstanceDef::VT_BLEND_TIME, blend_time, 0.0f);
   }
-  AnimInstanceDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit AnimInstanceDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AnimInstanceDefBuilder &operator=(const AnimInstanceDefBuilder &);
   flatbuffers::Offset<AnimInstanceDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 8);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<AnimInstanceDef>(end);
     return o;
   }
@@ -258,13 +258,13 @@ struct AnimTargetDefBuilder {
   void add_start_delay_ms(int32_t start_delay_ms) {
     fbb_.AddElement<int32_t>(AnimTargetDef::VT_START_DELAY_MS, start_delay_ms, 0);
   }
-  AnimTargetDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit AnimTargetDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AnimTargetDefBuilder &operator=(const AnimTargetDefBuilder &);
   flatbuffers::Offset<AnimTargetDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<AnimTargetDef>(end);
     return o;
   }
@@ -336,13 +336,13 @@ struct DefiningAnimDefBuilder {
   void add_channel(flatbuffers::Offset<flatbuffers::String> channel) {
     fbb_.AddOffset(DefiningAnimDef::VT_CHANNEL, channel);
   }
-  DefiningAnimDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit DefiningAnimDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   DefiningAnimDefBuilder &operator=(const DefiningAnimDefBuilder &);
   flatbuffers::Offset<DefiningAnimDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<DefiningAnimDef>(end);
     return o;
   }
@@ -387,14 +387,14 @@ struct AnimationDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<flatbuffers::Offset<AnimTargetDef>> *targets() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<AnimTargetDef>> *>(VT_TARGETS);
   }
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *on_complete_events() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_ON_COMPLETE_EVENTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *on_complete_events() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_ON_COMPLETE_EVENTS);
   }
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *on_success_events() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_ON_SUCCESS_EVENTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *on_success_events() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_ON_SUCCESS_EVENTS);
   }
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *on_cancelled_events() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_ON_CANCELLED_EVENTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *on_cancelled_events() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_ON_CANCELLED_EVENTS);
   }
   /// The defining animation is contains the entire skeleton of the animation.
   /// Specifically, it ensures that the animation channel is initialized such
@@ -436,25 +436,25 @@ struct AnimationDefBuilder {
   void add_targets(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<AnimTargetDef>>> targets) {
     fbb_.AddOffset(AnimationDef::VT_TARGETS, targets);
   }
-  void add_on_complete_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> on_complete_events) {
+  void add_on_complete_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> on_complete_events) {
     fbb_.AddOffset(AnimationDef::VT_ON_COMPLETE_EVENTS, on_complete_events);
   }
-  void add_on_success_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> on_success_events) {
+  void add_on_success_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> on_success_events) {
     fbb_.AddOffset(AnimationDef::VT_ON_SUCCESS_EVENTS, on_success_events);
   }
-  void add_on_cancelled_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> on_cancelled_events) {
+  void add_on_cancelled_events(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> on_cancelled_events) {
     fbb_.AddOffset(AnimationDef::VT_ON_CANCELLED_EVENTS, on_cancelled_events);
   }
   void add_defining_animation(flatbuffers::Offset<DefiningAnimDef> defining_animation) {
     fbb_.AddOffset(AnimationDef::VT_DEFINING_ANIMATION, defining_animation);
   }
-  AnimationDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit AnimationDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AnimationDefBuilder &operator=(const AnimationDefBuilder &);
   flatbuffers::Offset<AnimationDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 6);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<AnimationDef>(end);
     return o;
   }
@@ -464,9 +464,9 @@ inline flatbuffers::Offset<AnimationDef> CreateAnimationDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<AnimInstanceDef>>> animations = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<AnimTargetDef>>> targets = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> on_complete_events = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> on_success_events = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> on_cancelled_events = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> on_complete_events = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> on_success_events = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> on_cancelled_events = 0,
     flatbuffers::Offset<DefiningAnimDef> defining_animation = 0) {
   AnimationDefBuilder builder_(_fbb);
   builder_.add_defining_animation(defining_animation);
@@ -482,17 +482,17 @@ inline flatbuffers::Offset<AnimationDef> CreateAnimationDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const std::vector<flatbuffers::Offset<AnimInstanceDef>> *animations = nullptr,
     const std::vector<flatbuffers::Offset<AnimTargetDef>> *targets = nullptr,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *on_complete_events = nullptr,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *on_success_events = nullptr,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *on_cancelled_events = nullptr,
+    const std::vector<flatbuffers::Offset<EventDef>> *on_complete_events = nullptr,
+    const std::vector<flatbuffers::Offset<EventDef>> *on_success_events = nullptr,
+    const std::vector<flatbuffers::Offset<EventDef>> *on_cancelled_events = nullptr,
     flatbuffers::Offset<DefiningAnimDef> defining_animation = 0) {
   return lull::CreateAnimationDef(
       _fbb,
       animations ? _fbb.CreateVector<flatbuffers::Offset<AnimInstanceDef>>(*animations) : 0,
       targets ? _fbb.CreateVector<flatbuffers::Offset<AnimTargetDef>>(*targets) : 0,
-      on_complete_events ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*on_complete_events) : 0,
-      on_success_events ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*on_success_events) : 0,
-      on_cancelled_events ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*on_cancelled_events) : 0,
+      on_complete_events ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*on_complete_events) : 0,
+      on_success_events ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*on_success_events) : 0,
+      on_cancelled_events ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*on_cancelled_events) : 0,
       defining_animation);
 }
 

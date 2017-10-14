@@ -37,4 +37,9 @@ void SetAlphaMultiplierDescendants(Entity entity, float alpha_multiplier,
   transform_system->ForAllDescendants(entity, fn);
 }
 
+mathfu::mat4 CalculateClipFromModelMatrix(const mathfu::mat4& model,
+                                          const mathfu::mat4& projection_view) {
+  return projection_view * model;
+}
+
 }  // namespace lull

@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/render_state_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -245,6 +245,10 @@ void RenderStateT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::RenderFunction);
+LULLABY_SETUP_TYPEID(lull::BlendFactor);
+LULLABY_SETUP_TYPEID(lull::CullFace);
+LULLABY_SETUP_TYPEID(lull::StencilAction);
 LULLABY_SETUP_TYPEID(lull::AlphaTestStateT);
 LULLABY_SETUP_TYPEID(lull::BlendStateT);
 LULLABY_SETUP_TYPEID(lull::CullStateT);

@@ -60,6 +60,21 @@ bool MeshData::AddIndices(const Index* list, size_t count) {
     }
   }
 
+  // Attempt to add this new range of indices to the range data if it is
+  // supported.
+  bool indexed = false;
+  if (index_range_data_.GetCapacity() > 0) {
+    const Index start = static_cast<Index>(GetNumIndices());
+    const Index end = static_cast<Index>(start + count);
+    const IndexRange range(start, end);
+    indexed = index_range_data_.Append(reinterpret_cast<const uint8_t*>(&range),
+                                       sizeof(range));
+    if (!indexed) {
+      LOG(DFATAL) << "Could not append indices to mesh.";
+      return false;
+    }
+  }
+
   const bool appended = index_data_.Append(
       reinterpret_cast<const uint8_t*>(list), count * sizeof(Index));
   if (!appended) {
@@ -67,7 +82,26 @@ bool MeshData::AddIndices(const Index* list, size_t count) {
     return false;
   }
 
+  if (appended && indexed) {
+    ++num_submeshes_;
+  }
   return true;
+}
+
+Index MeshData::GetNumSubMeshes() const {
+  return std::max(Index(1), num_submeshes_);
+}
+
+MeshData::IndexRange MeshData::GetSubMesh(Index index) const {
+  if (index == 0 && num_submeshes_ == 0) {
+    return IndexRange(0, static_cast<Index>(GetNumIndices()));
+  }
+  if (index >= num_submeshes_) {
+    return IndexRange(kInvalidIndex, kInvalidIndex);
+  }
+  const IndexRange* ptr =
+      reinterpret_cast<const IndexRange*>(index_range_data_.GetReadPtr());
+  return ptr[index];
 }
 
 Aabb MeshData::GetAabb() const {
@@ -107,7 +141,8 @@ Aabb MeshData::GetAabb() const {
 
 MeshData MeshData::CreateHeapCopy() const {
   MeshData copy(primitive_type_, vertex_format_, vertex_data_.CreateHeapCopy(),
-                index_data_.CreateHeapCopy());
+                index_data_.CreateHeapCopy(),
+                index_range_data_.CreateHeapCopy());
   copy.aabb_is_dirty_ = aabb_is_dirty_;
   copy.aabb_ = aabb_;
   return copy;

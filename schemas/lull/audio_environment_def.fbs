@@ -1,0 +1,46 @@
+include "lull/common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+enum AudioSurfaceMaterial : int {
+  Transparent,
+  AcousticCeilingTiles,
+  BrickBare,
+  BrickPainted,
+  ConcreteBlockCoarse,
+  ConcreteBlockPainted,
+  CurtainHeavy,
+  FiberGlassInsulation,
+  GlassThin,
+  GlassThick,
+  Grass,
+  LinoleumOnConcrete,
+  Marble,
+  Metal,
+  ParquetOnConcrete,
+  PlasterRough,
+  PlasterSmooth,
+  PlywoodPanel,
+  PolishedConcreteOrTile,
+  Sheetrock,
+  WaterOrIceSurface,
+  WoodCeiling,
+  WoodPanel,
+}
+
+table AudioEnvironmentDef {
+  /// One or more inputs that trigger this environment becoming the active audio
+  /// environment.  See dispatcher_def.fbs for more information.
+  set_environment_events: [EventDef];
+  /// Whether or not to use this environment as soon as it is created.
+  enable_on_create: bool = false;
+  room_dimensions: Vec3;
+  reflection_scalar: float;
+  reverb_brightness_modifier: float;
+  reverb_gain: float;
+  reverb_time: float;
+  surface_material_wall: AudioSurfaceMaterial;
+  surface_material_ceiling: AudioSurfaceMaterial;
+  surface_material_floor: AudioSurfaceMaterial;
+}

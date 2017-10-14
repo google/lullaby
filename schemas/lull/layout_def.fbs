@@ -69,6 +69,10 @@ table LayoutElementDef {
   /// space proportional to the total weight of all other weighted elements
   /// vertically up to canvas_size.y if non-zero.
   vertical_weight: float = 0.0;
+
+  /// Duration to animate this element to its new position in milliseconds.
+  /// A non-zero duration requires the AnimationSystem and the PositionChannel.
+  duration_ms: float = 0;
 }
 // Example of Layout (A) forcing Layout (B) to resize:
 //   A (LayoutDef) -> B (LayoutElementDef)(LayoutDef) -> C (LayoutElementDef)

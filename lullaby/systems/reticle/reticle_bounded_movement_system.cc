@@ -120,16 +120,19 @@ void ReticleBoundedMovementSystem::PostCreateInit(Entity entity, HashValue type,
 }
 
 void ReticleBoundedMovementSystem::Destroy(Entity entity) {
-  reticle_movement_map_.erase(entity);
-  registry_->Get<ReticleSystem>()->SetReticleMovementFn(nullptr);
+  const size_t num_removed = reticle_movement_map_.erase(entity);
+  if (num_removed > 0) {
+    registry_->Get<ReticleSystem>()->SetReticleMovementFn(nullptr);
+  }
 }
 
 void ReticleBoundedMovementSystem::Enable(Entity entity) {
   ResetReticlePosition(entity);
   ResetStabilizationCounter();
 
-  auto fn = [this,
-             entity](const lull::InputManager::DeviceType input_device) -> Sqt {
+  auto* reticle_system = registry_->Get<ReticleSystem>();
+  auto fn = [this, entity, reticle_system](
+                const lull::InputManager::DeviceType input_device) -> Sqt {
     Sqt sqt;
     auto iter = reticle_movement_map_.find(entity);
     if (iter == reticle_movement_map_.end()) {
@@ -201,10 +204,12 @@ void ReticleBoundedMovementSystem::Enable(Entity entity) {
         // First rotate around x axis using the absolute pitch value in vertical
         // direction, then rotate around y axis using the relative movement in
         // horizontal direction.
-        sqt.rotation =
-            mathfu::quat::RotateFromToWithAxis(-mathfu::kAxisZ3f, direction,
-                                               mathfu::kAxisY3f) *
-            mathfu::quat::FromAngleAxis(input_orientation.y, mathfu::kAxisX3f);
+        sqt.rotation = mathfu::quat::RotateFromToWithAxis(
+                           -mathfu::kAxisZ3f, direction, mathfu::kAxisY3f) *
+                       mathfu::quat::FromAngleAxis(
+                           input_orientation.y +
+                               reticle_system->GetReticleErgoAngleOffset(),
+                           mathfu::kAxisX3f);
       } else {
         sqt.rotation = mathfu::quat::RotateFromTo(-mathfu::kAxisZ3f, direction);
       }
@@ -213,7 +218,6 @@ void ReticleBoundedMovementSystem::Enable(Entity entity) {
     }
     return sqt;
   };
-  auto* reticle_system = registry_->Get<ReticleSystem>();
   reticle_system->SetReticleMovementFn(fn);
 }
 

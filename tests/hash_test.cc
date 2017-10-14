@@ -64,5 +64,11 @@ TEST(Hash, Hasher) {
   EXPECT_THAT(Hasher<string_view>()("Hello"), Eq(Hash("Hello")));
 }
 
+TEST(Hash, Basis) {
+  EXPECT_THAT(Hash("prefixSuffix"), Eq(Hash(Hash("prefix"), "Suffix")));
+  EXPECT_THAT(Hash("prefixOther"), Eq(Hash(Hash("prefix"), "Other")));
+  EXPECT_THAT(Hash("Other"), Eq(Hash(Hash(""), "Other")));
+}
+
 }  // namespace
 }  // namespace lull

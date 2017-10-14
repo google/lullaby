@@ -69,6 +69,41 @@ class RandomAnimationSelector : public StategraphState::TrackSelector {
   RandomNumberGenerator* rng_;
 };
 
+// TrackSelector that runs a script to choose among tracks.
+class ScriptedAnimationSelector : public StategraphState::TrackSelector {
+ public:
+  explicit ScriptedAnimationSelector(const ScriptedAnimationSelectorDef* def) {
+    ScriptEnv compiler;
+    if (def->code()) {
+      code_ = compiler.Read(def->code()->c_str());
+    }
+  }
+
+  Optional<size_t> Select(const VariantMap& params,
+                          Span<Type> choices) override {
+    Optional<size_t> ret;
+    auto env_it = params.find(kLullscriptEnvHash);
+    if (env_it != params.end()) {
+      auto* env =
+          reinterpret_cast<ScriptEnv*>(env_it->second.ValueOr(uint64_t(0)));
+      if (env) {
+        VariantArray tracks;
+        tracks.reserve(choices.size());
+        for (const auto& choice : choices) {
+          tracks.emplace_back(choice->GetSelectionParams());
+        }
+        ScriptEnvScope scope(env);
+        env->SetValue(Symbol("tracks"), env->Create(tracks));
+        ret = env->Eval(code_).NumericCast<size_t>();
+      }
+    }
+    return ret;
+  }
+
+ private:
+  ScriptValue code_;
+};
+
 // A Stategraph track that also has a pointer to an animation to play and
 // information about how to play it.
 class AnimationTrack : public StategraphTrack {
@@ -164,6 +199,15 @@ StategraphTransition StategraphAsset::CreateTransition(
           DurationFromSeconds(def->active_time_from_end_s());
     }
     transition.transition_time = DurationFromSeconds(def->blend_time_s());
+    const auto* signals = def->signals();
+    if (signals) {
+      transition.signals.reserve(signals->size());
+      for (auto iter : *signals) {
+        const HashValue from_signal = iter->from_signal();
+        const HashValue to_signal = iter->to_signal();
+        transition.signals.emplace_back(std::make_pair(from_signal, to_signal));
+      }
+    }
   }
   return transition;
 }
@@ -267,6 +311,10 @@ std::unique_ptr<StategraphAsset::TrackSelector> StategraphAsset::CreateSelector(
     case AnimationSelectorDef_RandomAnimationSelectorDef:
       ptr =
           new RandomAnimationSelector(registry_->Get<RandomNumberGenerator>());
+      break;
+    case AnimationSelectorDef_ScriptedAnimationSelectorDef:
+      ptr = new ScriptedAnimationSelector(
+          reinterpret_cast<const ScriptedAnimationSelectorDef*>(def));
       break;
     default:
       LOG(ERROR) << "Unknown selector type: " << type;

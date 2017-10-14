@@ -172,5 +172,6 @@ TEST(ScriptFunctionsMathfuTest, Setters) {
   LULLABY_TEST_SCRIPT_VALUE(env, "(get-w qtf)", 0.0f);
 }
 
+
 }  // namespace
 }  // namespace lull

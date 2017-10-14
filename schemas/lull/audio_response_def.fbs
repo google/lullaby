@@ -1,0 +1,48 @@
+include "lull/audio_playback_types.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// A response that plays a sound based on an input event.  (For example,
+/// playing a sound when an Entity is clicked.)
+table AudioResponseDef {
+  /// One or more inputs that trigger the response.  See dispatcher_def.fbs for
+  /// more information.
+  inputs: [EventDef];
+
+  /// The name of the sound to play.
+  sound: string;
+
+  /// An array of sounds, of which one will be picked at random in response.
+  /// Only used if the 'sound' field is not present.
+  random_sounds: [string];
+
+  /// How this sound should be loaded and played. By default, response sounds
+  /// are preloaded, and will skip playing if they are not done loading.
+  playback_type: AudioPlaybackType = PlayIfReady;
+
+  /// The volume level, in the range [0,+inf], where values higher than 1.0
+  /// indicate gain.
+  volume: float = 1.0;
+
+  /// The type of audio source.
+  source_type: AudioSourceType = Spatialized;
+
+  /// The directivity constant "alpha". This value is a weighting balance
+  /// between a figure 8 pattern and omnidirectional pattern for source
+  /// emission. Range of [0, 1], with a value of 0.5 results in a cardioid
+  /// pattern.
+  /// This value will be only be checked when source_type = Spatialized. If it
+  /// is not in the range [0, 1], it will be ignored and directivity will not be
+  /// set for this sound.
+  spatial_directivity_alpha: float = -1.0;
+
+  /// The directivity constant "order". This value is applied to computed
+  /// directivity. Higher values will result in narrower and sharper directivity
+  /// patterns. Range of [1, inf).
+  /// This value will be only be checked when source_type = Spatialized. If it
+  /// is not in the range [1, inf), it will be ignored and directivity will not
+  /// be set for this sound.
+  spatial_directivity_order: float = -1.0;
+}
+

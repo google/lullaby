@@ -123,6 +123,9 @@ class EntityFactory {
                                    const char* const* component_def_names,
                                    string_view file_identifier);
 
+  // Returns the number of flatbuffer converters that have been registered.
+  size_t GetFlatbufferConverterCount();
+
   // In some situations (namely tests), we need to do more than the "basic"
   // initialization, but we need to explicitly control/test the Loader and
   // Finalizers, so these functions can be used to selectively perform that type

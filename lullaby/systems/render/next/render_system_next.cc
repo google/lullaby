@@ -26,6 +26,7 @@ limitations under the License.
 #include "lullaby/modules/config/config.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/file/asset_loader.h"
 #include "lullaby/modules/file/file.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/render/mesh_util.h"
@@ -35,6 +36,7 @@ limitations under the License.
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/render/detail/profiler.h"
 #include "lullaby/systems/render/next/render_state.h"
+#include "lullaby/systems/render/render_helpers.h"
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/render/simple_font.h"
 #include "lullaby/systems/rig/rig_system.h"
@@ -63,7 +65,7 @@ void RemoveFromVector(std::vector<T>* vector, const T& value) {
     return;
   }
 
-  for (auto it = vector->cbegin(); it != vector->cend(); ++it) {
+  for (auto it = vector->begin(); it != vector->end(); ++it) {
     if (*it == value) {
       vector->erase(it);
       return;
@@ -105,6 +107,9 @@ void DrawDynamicMesh(const MeshData* mesh) {
 fplbase::RenderTargetTextureFormat RenderTargetTextureFormatToFpl(
     TextureFormat format) {
   switch (format) {
+    case TextureFormat_None:
+      return fplbase::kRenderTargetTextureFormatNone;
+      break;
     case TextureFormat_A8:
       return fplbase::kRenderTargetTextureFormatA8;
       break;
@@ -116,6 +121,12 @@ fplbase::RenderTargetTextureFormat RenderTargetTextureFormatToFpl(
       break;
     case TextureFormat_RGBA8:
       return fplbase::kRenderTargetTextureFormatRGBA8;
+      break;
+    case TextureFormat_Depth16:
+      return fplbase::kRenderTargetTextureFormatDepth16;
+      break;
+    case TextureFormat_Depth32F:
+      return fplbase::kRenderTargetTextureFormatDepth32F;
       break;
     default:
       LOG(DFATAL) << "Unknown render target texture format.";
@@ -173,7 +184,8 @@ void UpdateUniformBinding(Uniform::Description* desc, const ShaderPtr& shader) {
 RenderSystemNext::RenderSystemNext(Registry* registry)
     : System(registry),
       components_(kInitialRenderPoolSize),
-      sort_order_manager_(registry_) {
+      sort_order_manager_(registry_),
+      clip_from_model_matrix_func_(CalculateClipFromModelMatrix) {
   renderer_.Initialize(mathfu::kZeros2i, "lull::RenderSystem");
 
   factory_ = registry->Create<RenderFactory>(registry, &renderer_);
@@ -433,30 +445,13 @@ void RenderSystemNext::Destroy(Entity e, HashValue component_id) {
   sort_order_manager_.Destroy(entity_id_pair);
 }
 
-void RenderSystemNext::SetQuadImpl(Entity e, HashValue component_id,
-                                   const Quad& quad) {
-  if (quad.has_uv) {
-    SetMesh(e, component_id, CreateQuad<VertexPT>(e, component_id, quad));
-  } else {
-    SetMesh(e, component_id, CreateQuad<VertexP>(e, component_id, quad));
-  }
-}
-
 void RenderSystemNext::CreateDeferredMeshes() {
   while (!deferred_meshes_.empty()) {
     DeferredMesh& defer = deferred_meshes_.front();
-    switch (defer.type) {
-      case DeferredMesh::kQuad:
-        SetQuadImpl(defer.entity_id_pair.entity, defer.entity_id_pair.id,
-                    defer.quad);
-        break;
-      case DeferredMesh::kMesh:
-        DeformMesh(defer.entity_id_pair.entity, defer.entity_id_pair.id,
-                   &defer.mesh);
-        SetMesh(defer.entity_id_pair.entity, defer.entity_id_pair.id,
-                defer.mesh);
-        break;
-    }
+    DeformMesh(defer.entity_id_pair.entity, defer.entity_id_pair.id,
+               &defer.mesh);
+    SetMesh(defer.entity_id_pair.entity, defer.entity_id_pair.id, defer.mesh,
+            defer.mesh_id);
     deferred_meshes_.pop();
   }
 }
@@ -471,6 +466,8 @@ void RenderSystemNext::ProcessTasks() {
 void RenderSystemNext::WaitForAssetsToLoad() {
   CreateDeferredMeshes();
   factory_->WaitForAssetsToLoad();
+  while (registry_->Get<AssetLoader>()->Finalize()) {
+  }
 }
 
 const mathfu::vec4& RenderSystemNext::GetDefaultColor(Entity entity) const {
@@ -648,7 +645,19 @@ RenderSystemNext::GetDefaultBoneTransformInverses(Entity e, int* num) const {
 void RenderSystemNext::SetBoneTransforms(
     Entity entity, const mathfu::AffineTransform* transforms,
     int num_transforms) {
-  RenderComponent* component = components_.Get(entity);
+  auto iter = entity_ids_.find(entity);
+  if (iter != entity_ids_.end()) {
+    for (const EntityIdPair& entity_id_pair : iter->second) {
+      SetBoneTransforms(entity, entity_id_pair.id, transforms, num_transforms);
+    }
+  }
+}
+
+void RenderSystemNext::SetBoneTransforms(
+    Entity entity, HashValue component_id,
+    const mathfu::AffineTransform* transforms, int num_transforms) {
+  const EntityIdPair entity_id_pair(entity, component_id);
+  auto* component = components_.Get(entity_id_pair);
   if (!component || !component->mesh) {
     return;
   }
@@ -681,7 +690,8 @@ void RenderSystemNext::SetBoneTransforms(
     component->need_to_gather_bone_transforms = true;
   }
 
-  SetUniform(entity, kBoneTransformsUniform, data, dimension, count);
+  SetUniform(entity, component_id, kBoneTransformsUniform, data, dimension,
+             count);
 }
 
 void RenderSystemNext::OnTextureLoaded(const RenderComponent& component,
@@ -829,15 +839,26 @@ void RenderSystemNext::SetQuad(Entity e, HashValue component_id,
   }
   render_component->quad = quad;
 
+  MeshData mesh;
+  if (quad.has_uv) {
+    mesh = CreateQuadMesh<VertexPT>(quad.size.x, quad.size.y, quad.verts.x,
+                                    quad.verts.y, quad.corner_radius,
+                                    quad.corner_verts, quad.corner_mask);
+  } else {
+    mesh = CreateQuadMesh<VertexP>(quad.size.x, quad.size.y, quad.verts.x,
+                                   quad.verts.y, quad.corner_radius,
+                                   quad.corner_verts, quad.corner_mask);
+  }
+
   auto iter = deformations_.find(entity_id_pair);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
     defer.entity_id_pair = entity_id_pair;
-    defer.type = DeferredMesh::kQuad;
-    defer.quad = quad;
+    defer.mesh_id = quad.id;
+    defer.mesh = std::move(mesh);
     deferred_meshes_.push(std::move(defer));
   } else {
-    SetQuadImpl(e, component_id, quad);
+    SetMesh(e, component_id, mesh, quad.id);
   }
 }
 
@@ -847,7 +868,7 @@ void RenderSystemNext::SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh) {
 
 void RenderSystemNext::SetMesh(Entity e, HashValue component_id,
                                const TriangleMesh<VertexPT>& mesh) {
-  SetMesh(e, component_id, factory_->CreateMesh(mesh));
+  SetMesh(e, component_id, mesh.CreateMeshData());
 }
 
 void RenderSystemNext::SetAndDeformMesh(Entity entity,
@@ -857,22 +878,52 @@ void RenderSystemNext::SetAndDeformMesh(Entity entity,
 
 void RenderSystemNext::SetAndDeformMesh(Entity entity, HashValue component_id,
                                         const TriangleMesh<VertexPT>& mesh) {
+  SetAndDeformMesh(entity, component_id, mesh.CreateMeshData());
+}
+
+void RenderSystemNext::SetMesh(Entity e, const MeshData& mesh) {
+  SetMesh(e, kDefaultRenderId, mesh);
+}
+
+void RenderSystemNext::SetMesh(Entity entity, HashValue component_id,
+                               const MeshData& mesh, HashValue mesh_id) {
+  MeshPtr gpu_mesh;
+  if (mesh_id != 0) {
+    gpu_mesh = factory_->CreateMesh(mesh_id, mesh);
+  } else {
+    gpu_mesh = factory_->CreateMesh(mesh);
+  }
+  SetMesh(entity, component_id, gpu_mesh);
+}
+
+void RenderSystemNext::SetMesh(Entity entity, HashValue component_id,
+                               const MeshData& mesh) {
+  const HashValue mesh_id = 0;
+  SetMesh(entity, component_id, mesh, mesh_id);
+}
+
+void RenderSystemNext::SetAndDeformMesh(Entity entity, const MeshData& mesh) {
+  SetAndDeformMesh(entity, kDefaultRenderId, mesh);
+}
+
+void RenderSystemNext::SetAndDeformMesh(Entity entity, HashValue component_id,
+                                        const MeshData& mesh) {
+  if (mesh.GetVertexBytes() == nullptr) {
+    LOG(WARNING) << "Can't deform mesh without read access.";
+    SetMesh(entity, component_id, mesh);
+    return;
+  }
+
   const EntityIdPair entity_id_pair(entity, component_id);
   auto iter = deformations_.find(entity_id_pair);
   if (iter != deformations_.end()) {
     DeferredMesh defer;
     defer.entity_id_pair = entity_id_pair;
-    defer.type = DeferredMesh::kMesh;
-    defer.mesh.GetVertices() = mesh.GetVertices();
-    defer.mesh.GetIndices() = mesh.GetIndices();
+    defer.mesh = mesh.CreateHeapCopy();
     deferred_meshes_.emplace(std::move(defer));
   } else {
     SetMesh(entity, component_id, mesh);
   }
-}
-
-void RenderSystemNext::SetMesh(Entity e, const MeshData& mesh) {
-  SetMesh(e, factory_->CreateMesh(mesh));
 }
 
 void RenderSystemNext::SetMesh(Entity e, const std::string& file) {
@@ -1090,43 +1141,14 @@ MeshPtr RenderSystemNext::GetMesh(Entity e, HashValue component_id) {
   return render_component->mesh;
 }
 
-template <typename Vertex>
 void RenderSystemNext::DeformMesh(Entity entity, HashValue component_id,
-                                  TriangleMesh<Vertex>* mesh) {
+                                  MeshData* mesh) {
   const EntityIdPair entity_id_pair(entity, component_id);
   auto iter = deformations_.find(entity_id_pair);
   const Deformation deform =
       iter != deformations_.end() ? iter->second : nullptr;
   if (deform) {
-    // TODO(b/28313614) Use TriangleMesh::ApplyDeformation.
-    if (sizeof(Vertex) % sizeof(float) == 0) {
-      const int stride = static_cast<int>(sizeof(Vertex) / sizeof(float));
-      std::vector<Vertex>& vertices = mesh->GetVertices();
-      deform(reinterpret_cast<float*>(vertices.data()),
-             vertices.size() * stride, stride);
-    } else {
-      LOG(ERROR) << "Tried to deform an unsupported vertex format.";
-    }
-  }
-}
-
-template <typename Vertex>
-MeshPtr RenderSystemNext::CreateQuad(Entity e, HashValue component_id,
-                                     const Quad& quad) {
-  if (quad.size.x == 0 || quad.size.y == 0) {
-    return nullptr;
-  }
-
-  TriangleMesh<Vertex> mesh;
-  mesh.SetQuad(quad.size.x, quad.size.y, quad.verts.x, quad.verts.y,
-               quad.corner_radius, quad.corner_verts, quad.corner_mask);
-
-  DeformMesh<Vertex>(e, component_id, &mesh);
-
-  if (quad.id != 0) {
-    return factory_->CreateMesh(quad.id, mesh);
-  } else {
-    return factory_->CreateMesh(mesh);
+    ApplyDeformationToMesh(mesh, deform);
   }
 }
 
@@ -1181,6 +1203,11 @@ void RenderSystemNext::SetRenderPass(Entity e, HashValue pass) {
   if (render_component) {
     render_component->pass = pass;
   }
+}
+
+void RenderSystemNext::SetClearParams(HashValue pass,
+                                      const ClearParams& clear_params) {
+  pass_definitions_[pass].clear_params = clear_params;
 }
 
 RenderSystem::SortMode RenderSystemNext::GetSortMode(HashValue pass) const {
@@ -1250,6 +1277,16 @@ void RenderSystemNext::SetViewport(const View& view) {
 
 void RenderSystemNext::SetClipFromModelMatrix(const mathfu::mat4& mvp) {
   renderer_.set_model_view_projection(mvp);
+}
+
+void RenderSystemNext::SetClipFromModelMatrixFunction(
+    const CalculateClipFromModelMatrixFunc& func) {
+  if (!func) {
+    clip_from_model_matrix_func_ = CalculateClipFromModelMatrix;
+    return;
+  }
+
+  clip_from_model_matrix_func_ = func;
 }
 
 void RenderSystemNext::BindStencilMode(StencilMode mode, int ref) {
@@ -1356,6 +1393,12 @@ mathfu::vec4 RenderSystemNext::GetClearColor() const { return clear_color_; }
 
 void RenderSystemNext::SetClearColor(float r, float g, float b, float a) {
   clear_color_ = mathfu::vec4(r, g, b, a);
+
+  ClearParams clear_params;
+  clear_params.clear_options =
+      ClearParams::kColor | ClearParams::kDepth | ClearParams::kStencil;
+  clear_params.color_value = clear_color_;
+  SetClearParams(ConstHash("ClearDisplay"), clear_params);
 }
 
 void RenderSystemNext::SubmitRenderData() {
@@ -1396,13 +1439,14 @@ void RenderSystemNext::SubmitRenderData() {
     entry.render_objects.emplace_back(std::move(render_obj));
   });
 
-  for (auto& iter : *data) {
-    const RenderPassDefinition& pass = pass_definitions_[iter.first];
-    iter.second.pass_definition = pass;
+  for (const auto& iter : pass_definitions_) {
+    RenderPassAndObjects& pass_data = (*data)[iter.first];
+    pass_data.pass_definition = iter.second;
     // Sort only objects with "static" sort order, such as explicit sort order
     // or absolute z-position.
-    if (IsSortModeViewIndependent(pass.sort_mode)) {
-      SortObjects(&iter.second.render_objects, pass.sort_mode);
+    if (IsSortModeViewIndependent(pass_data.pass_definition.sort_mode)) {
+      SortObjects(&pass_data.render_objects,
+                  pass_data.pass_definition.sort_mode);
     }
   }
 
@@ -1411,10 +1455,6 @@ void RenderSystemNext::SubmitRenderData() {
 
 void RenderSystemNext::BeginRendering() {
   LULLABY_CPU_TRACE_CALL();
-  GL_CALL(glClearColor(clear_color_.x, clear_color_.y, clear_color_.z,
-                       clear_color_.w));
-  GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT |
-                  GL_STENCIL_BUFFER_BIT));
 
   // Retrieve the (current) default frame buffer.
   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &default_frame_buffer_);
@@ -1445,8 +1485,8 @@ void RenderSystemNext::RenderAt(const RenderObject* component,
     return;
   }
 
-  const mathfu::mat4 clip_from_entity_matrix =
-      view.clip_from_world_matrix * world_from_entity_matrix;
+  const mathfu::mat4 clip_from_entity_matrix = clip_from_model_matrix_func_(
+      world_from_entity_matrix, view.clip_from_world_matrix);
   renderer_.set_model_view_projection(clip_from_entity_matrix);
   renderer_.set_model(world_from_entity_matrix);
 
@@ -1605,8 +1645,20 @@ void RenderSystemNext::Render(const View* views, size_t num_views,
     // No data associated with this pass.
     return;
   }
+
+  const RenderPassDefinition& pass_definition = iter->second.pass_definition;
+
+  // Set the render target, if needed.
+  if (pass_definition.render_target) {
+    pass_definition.render_target->SetAsRenderTarget();
+  }
+  ApplyClearParams(pass_definition.clear_params);
+
   if (iter->second.render_objects.empty()) {
     // No objects to render with this pass.
+    if (pass_definition.render_target) {
+      GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, default_frame_buffer_));
+    }
     return;
   }
 
@@ -1624,14 +1676,6 @@ void RenderSystemNext::Render(const View* views, size_t num_views,
         Hash("lull.Render.ResetState");
     reset_state = config->Get(kRenderResetStateHash, reset_state);
   }
-
-  const RenderPassDefinition& pass_definition = iter->second.pass_definition;
-
-  // Set the render target, if needed.
-  if (pass_definition.render_target) {
-    pass_definition.render_target->SetAsRenderTarget();
-  }
-
   // Prepare the pass.
   renderer_.SetRenderState(pass_definition.render_state);
   cached_render_state_ = pass_definition.render_state;
@@ -1904,7 +1948,7 @@ void RenderSystemNext::OnParentChanged(const ParentChangedEvent& event) {
       [this](EntityIdPair entity) { return components_.Get(entity); });
 }
 
-const fplbase::RenderState& RenderSystemNext::GetRenderState() const {
+const fplbase::RenderState& RenderSystemNext::GetCachedRenderState() const {
   return renderer_.GetRenderState();
 }
 
@@ -2012,6 +2056,12 @@ void RenderSystemNext::SortObjectsUsingView(RenderObjectList* objects,
 
 void RenderSystemNext::InitDefaultRenderPasses() {
   fplbase::RenderState render_state;
+  ClearParams clear_params;
+
+  // Create a pass that clears the display.
+  clear_params.clear_options =
+      ClearParams::kColor | ClearParams::kDepth | ClearParams::kStencil;
+  SetClearParams(ConstHash("ClearDisplay"), clear_params);
 
   // RenderPass_Pano. Premultiplied alpha blend state, everything else default.
   render_state.blend_state.enabled = true;
@@ -2029,6 +2079,8 @@ void RenderSystemNext::InitDefaultRenderPasses() {
   render_state.depth_state.function = fplbase::kRenderLessEqual;
   render_state.cull_state.enabled = true;
   render_state.cull_state.face = fplbase::CullState::kBack;
+  render_state.point_state.point_sprite_enabled = true;
+  render_state.point_state.program_point_size_enabled = true;
   SetRenderState(ConstHash("Opaque"), render_state);
 
   // RenderPass_Main. Depth test on, write off. Premultiplied alpha blend state,
@@ -2043,6 +2095,8 @@ void RenderSystemNext::InitDefaultRenderPasses() {
   render_state.depth_state.write_enabled = false;
   render_state.cull_state.enabled = true;
   render_state.cull_state.face = fplbase::CullState::kBack;
+  render_state.point_state.point_sprite_enabled = true;
+  render_state.point_state.program_point_size_enabled = true;
   SetRenderState(ConstHash("Main"), render_state);
 
   // RenderPass_OverDraw. Depth test and write false, premultiplied alpha, back
@@ -2056,6 +2110,8 @@ void RenderSystemNext::InitDefaultRenderPasses() {
   render_state.blend_state.dst_color = fplbase::BlendState::kOneMinusSrcAlpha;
   render_state.cull_state.enabled = true;
   render_state.cull_state.face = fplbase::CullState::kBack;
+  render_state.point_state.point_sprite_enabled = false;
+  render_state.point_state.program_point_size_enabled = false;
   SetRenderState(ConstHash("OverDraw"), render_state);
 
   // RenderPass_OverDrawGlow. Depth test and write off, additive blend mode, no
@@ -2102,6 +2158,32 @@ void RenderSystemNext::SetRenderPass(const RenderPassDefT& data) {
       break;
   }
   Apply(&def.render_state, data.render_state);
+}
+
+void RenderSystemNext::ApplyClearParams(const ClearParams& clear_params) {
+  GLbitfield gl_clear_mask = 0;
+  if (CheckBit(clear_params.clear_options, ClearParams::kColor)) {
+    gl_clear_mask |= GL_COLOR_BUFFER_BIT;
+    GL_CALL(glClearColor(clear_params.color_value.x, clear_params.color_value.y,
+                         clear_params.color_value.z,
+                         clear_params.color_value.w));
+  }
+
+  if (CheckBit(clear_params.clear_options, ClearParams::kDepth)) {
+    gl_clear_mask |= GL_DEPTH_BUFFER_BIT;
+#ifdef FPLBASE_GLES
+    GL_CALL(glClearDepthf(clear_params.depth_value));
+#else
+    GL_CALL(glClearDepth(static_cast<double>(clear_params.depth_value)));
+#endif
+  }
+
+  if (CheckBit(clear_params.clear_options, ClearParams::kStencil)) {
+    gl_clear_mask |= GL_STENCIL_BUFFER_BIT;
+    GL_CALL(glClearStencil(clear_params.stencil_value));
+  }
+
+  GL_CALL(glClear(gl_clear_mask));
 }
 
 void RenderSystemNext::CreateRenderTarget(

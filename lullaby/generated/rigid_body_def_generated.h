@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/rigid_body_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -56,6 +56,8 @@ void RigidBodyDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::RigidBodyType);
+LULLABY_SETUP_TYPEID(lull::ColliderType);
 LULLABY_SETUP_TYPEID(lull::RigidBodyDefT);
 
 #endif  // _LULLABY_LULLABY_GENERATED_RIGID_BODY_DEF_GENERATED_H_

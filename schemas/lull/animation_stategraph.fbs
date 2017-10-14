@@ -12,10 +12,18 @@ table FirstAnimationSelectorDef {}
 /// tracks.  If not supplied, the default weight is 1.0.
 table RandomAnimationSelectorDef {}
 
+/// Animation selector that executes a script to pick a track for a
+/// state.
+table ScriptedAnimationSelectorDef {
+  /// Inline lullscript to execute when choosing the track.
+  code: string;
+}
+
 /// Union of all animation selectors.
 union AnimationSelectorDef {
   FirstAnimationSelectorDef,
   RandomAnimationSelectorDef,
+  ScriptedAnimationSelectorDef,
 }
 
 /// An animation window within a single track of animation.
@@ -55,6 +63,11 @@ table AnimationTrackDef {
   animation_channel: uint = 0 (hashvalue);
 }
 
+struct SignalPair {
+  from_signal: uint = 0 (hashvalue);
+  to_signal: uint = 0 (hashvalue);
+}
+
 /// A transition between two states within the stategraph.
 table AnimationTransitionDef {
   /// The name (id) of the destination/target state.
@@ -70,6 +83,11 @@ table AnimationTransitionDef {
 
   /// The time to blend between the source animation and the target animation.
   blend_time_s: float = 0.0;
+
+  /// Signals used to indicate valid state transitions. The "from_signal" is the
+  /// signal within the current state that indicates that the transition is
+  /// active. The "to_signal" is the signal in the target state to enter.
+  signals: [SignalPair];
 }
 
 /// A single animation state within a stategraph.

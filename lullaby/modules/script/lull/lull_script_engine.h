@@ -46,6 +46,9 @@ class LullScriptEngine {
   // Run a loaded script.
   void RunScript(uint64_t id);
 
+  // Unload a loaded script.
+  void UnloadScript(uint64_t id);
+
   // Set a value in the script's environment.
   template <typename T>
   void SetValue(uint64_t id, const std::string& name, const T& value);
@@ -76,7 +79,7 @@ void LullScriptEngine::SetValue(uint64_t id, const std::string& name,
     ScriptValue script_value = ScriptValue::CreateFromVariant(std::move(var));
 
     ScriptEnv& env = iter->second.env;
-    env.SetValue(Hash(name), std::move(script_value));
+    env.SetValue(Symbol(name), std::move(script_value));
   }
 }
 
@@ -89,7 +92,7 @@ bool LullScriptEngine::GetValue(uint64_t id, const std::string& name,
   }
 
   ScriptEnv& env = iter->second.env;
-  const ScriptValue script_value = env.GetValue(Hash(name));
+  const ScriptValue script_value = env.GetValue(Symbol(name));
   const Variant* var = script_value.GetVariant();
   if (var) {
     return VariantConverter::FromVariant(*var, value);

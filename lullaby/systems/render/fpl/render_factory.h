@@ -24,13 +24,12 @@ limitations under the License.
 #include "fplbase/asset_manager.h"
 #include "fplbase/renderer.h"
 #include "fplbase/texture_atlas.h"
-#include "lullaby/modules/render/triangle_mesh.h"
 #include "lullaby/systems/render/fpl/mesh.h"
+#include "lullaby/util/registry.h"
+#include "lullaby/util/resource_manager.h"
 #include "lullaby/systems/render/fpl/shader.h"
 #include "lullaby/systems/render/fpl/texture.h"
 #include "lullaby/systems/render/render_system.h"
-#include "lullaby/util/registry.h"
-#include "lullaby/util/resource_manager.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -55,31 +54,26 @@ class RenderFactory {
   // Queries if |texture| was successfully loaded.
   bool IsTextureValid(const TexturePtr& texture) const;
 
-  // Loads the mesh with the given |filename|.
+  // Loads the mesh with the given |filename|. The mesh is automatically cached.
   MeshPtr LoadMesh(const std::string& filename);
 
-  // Loads the shader with the given |filename|.
+  // Loads the shader with the given |filename|. The shader is automatically
+  // cached.
   ShaderPtr LoadShader(const std::string& filename);
 
   // Loads the texture with the given |filename| and optionally creates mips.
+  // The texture is automatically cached.
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
 
   // Loads the texture atlas with the given |filename| and optionally creates
-  // mips.
+  // mips. The atlas is automatically cached.
   void LoadTextureAtlas(const std::string& filename, bool create_mips);
 
   // Creates a mesh using the specified data.
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  template <typename Vertex>
-  MeshPtr CreateMesh(const TriangleMesh<Vertex>& mesh);
-
-  // Creates a named mesh using the specified data.
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  template <typename Vertex>
-  MeshPtr CreateMesh(HashValue key, const TriangleMesh<Vertex>& mesh);
-
-  // Creates a mesh using the specified data.
   MeshPtr CreateMesh(const MeshData& mesh);
+
+  // Creates and caches a named mesh using the specified data.
+  MeshPtr CreateMesh(HashValue key, const MeshData& mesh);
 
   // Creates a texture from memory.  |data| is copied into GL memory, so it's no
   // longer needed after calling this function.
@@ -118,6 +112,19 @@ class RenderFactory {
   // Pause loading assets asynchronously.
   void StopLoadingAssets();
 
+  // Releases the cached mesh associated with |key|.
+  void ReleaseMeshFromCache(HashValue key);
+
+  // Caches a texture for later retrieval.
+  void CacheTexture(HashValue key, const TexturePtr& texture);
+
+  // Retrieves a cached texture by its name hash. If the texture isn't cached
+  // this returns nullptr.
+  TexturePtr GetCachedTexture(HashValue key) const;
+
+  // Releases the cached texture associated with |key|.
+  void ReleaseTextureFromCache(HashValue key);
+
  private:
   Mesh::MeshImplPtr LoadFplMesh(const std::string& name);
   Shader::ShaderImplPtr LoadFplShader(const std::string& name);
@@ -139,24 +146,6 @@ class RenderFactory {
   fplbase::Texture* invalid_fpl_texture_;
   TexturePtr invalid_texture_;
 };
-
-template <typename Vertex>
-MeshPtr RenderFactory::CreateMesh(const TriangleMesh<Vertex>& mesh) {
-  if (mesh.GetVertices().empty()) {
-    return MeshPtr();
-  }
-  return MeshPtr(new Mesh(mesh));
-}
-
-template <typename Vertex>
-MeshPtr RenderFactory::CreateMesh(HashValue key,
-                                  const TriangleMesh<Vertex>& mesh) {
-  DCHECK(key != 0) << "Invalid key for render factory mesh.";
-  if (mesh.GetVertices().empty()) {
-    return MeshPtr();
-  }
-  return meshes_.Create(key, [&]() { return MeshPtr(new Mesh(mesh)); });
-}
 
 }  // namespace lull
 

@@ -161,9 +161,13 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
   for (int i = 0; i < dimensions_; ++i) {
     anim->base_offset[i] = 0.f;
     anim->multiplier[i] = 1.f;
-    targets[i] =
-        motive::TargetToTarget1f(current_values[i], 0.f, delay_time,
-                                 target_values[i], 0.f, anim->total_time);
+    if (delay_time > 0) {
+      targets[i] =
+          motive::TargetToTarget1f(current_values[i], 0.f, delay_time,
+                                   target_values[i], 0.f, anim->total_time);
+    } else {
+      targets[i] = motive::Target1f(target_values[i], 0.f, anim->total_time);
+    }
   }
 
   anim->motivator.SetTargets(targets);

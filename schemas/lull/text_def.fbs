@@ -1,9 +1,7 @@
 include "lull/common.fbs";
 include "lull/render_def.fbs";
 
-/// The text system is responsible for rendering i18n text strings.  There are
-/// two backend implementations: flatui and ion.  Several text features are
-/// not supported equally across them, as noted below.
+/// The text system is responsible for rendering i18n text strings.
 
 namespace lull;
 
@@ -52,9 +50,7 @@ table TextDef {
 
   /// Required.  A list of fonts to use. Each font should contain suffix as
   /// well, such as ".ttf".  For flatui, fonts are selected with a fallback
-  /// priority, and ".SystemFont" can be used to refer to system font.  For
-  /// Ion backend, the first font in the list will be always used and the
-  /// rest are simply ignored.
+  /// priority, and ".SystemFont" can be used to refer to system font.
   fonts: [string];
 
   /// Required.  The font size, measured in meters from the top to bottom of
@@ -90,7 +86,6 @@ table TextDef {
 
   /// Optional.  If not None, sets the aabb bounds to the bounds of the text
   /// content.  Otherwise, sets it to bounds.x or bounds.y if non-zero.
-  /// Note: This applies to flatui rendering only.
   wrap_mode: TextWrapMode = None;
 
   /// Optional.  The string used as an ellipsis.  Setting this to a nonempty
@@ -103,7 +98,7 @@ table TextDef {
   edge_softness: float = 0.3;
 
   /// Optional.  A float value specifying a scale applied to the kerning value
-  /// between glyphs.  This applies to flatui rendering only.
+  /// between glyphs.
   kerning_scale: float = 1.0;
 
   /// Optional.  How HTML tags are processed.

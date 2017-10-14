@@ -11,11 +11,10 @@ cc_library(
         "functions/array.cc",
         "functions/compare.cc",
         "functions/cond.cc",
-        "functions/do.cc",
         "functions/event.cc",
         "functions/map.cc",
-        "functions/math.cc",
         "functions/mathfu.cc",
+        "functions/operators.cc",
         "functions/stringify.cc",
         "functions/time.cc",
         "functions/typeof.cc",
@@ -48,6 +47,7 @@ cc_library(
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/function",
         "//lullaby/modules/serialize",
+        "//lullaby/util:clock",
         "//lullaby/util:common_types",
         "//lullaby/util:hash",
         "//lullaby/util:optional",
@@ -61,4 +61,3 @@ cc_library(
     ],
     alwayslink = 1,
 )
-

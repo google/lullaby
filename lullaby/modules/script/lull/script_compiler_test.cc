@@ -82,7 +82,7 @@ bool operator==(const Entry& lhs, const Entry& rhs) {
     case ParserCallbacks::kHashValue:
       return Compare<HashValue>(lhs.value, rhs.value);
     case ParserCallbacks::kSymbol:
-      return Compare<HashValue>(lhs.value, rhs.value);
+      return Compare<Symbol>(lhs.value, rhs.value);
     case ParserCallbacks::kString:
       return Compare<std::string>(lhs.value, rhs.value);
   }
@@ -144,7 +144,7 @@ struct TestParserCallbacks : ParserCallbacks {
         var = *reinterpret_cast<const double*>(ptr);
         break;
       case kSymbol:
-        var = *reinterpret_cast<const HashValue*>(ptr);
+        var = *reinterpret_cast<const Symbol*>(ptr);
         break;
       case kHashValue:
         var = *reinterpret_cast<const HashValue*>(ptr);
@@ -187,7 +187,7 @@ TEST(ScriptCompilerTest, CompileAndBuild) {
   callbacks.Expect(ParserCallbacks::kPop);
   callbacks.Expect(ParserCallbacks::kString, std::string("hello"));
   callbacks.Expect(ParserCallbacks::kPop);
-  callbacks.Expect(ParserCallbacks::kSymbol, Hash("world"));
+  callbacks.Expect(ParserCallbacks::kSymbol, Symbol("world"));
   callbacks.Expect(ParserCallbacks::kPop);
   callbacks.Expect(ParserCallbacks::kPop);
   callbacks.Expect(ParserCallbacks::kEof);

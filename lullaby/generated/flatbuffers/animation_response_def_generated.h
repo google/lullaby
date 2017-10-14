@@ -27,12 +27,12 @@ struct AnimationResponseDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table
   };
   /// One or more inputs that trigger the response.  See dispatcher_def.fbs for
   /// more information about the EventDef table.
-  const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *inputs() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>> *>(VT_INPUTS);
+  const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *inputs() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<EventDef>> *>(VT_INPUTS);
   }
   /// Animations to play based on the input.
-  const lull::AnimationDef *animation() const {
-    return GetPointer<const lull::AnimationDef *>(VT_ANIMATION);
+  const AnimationDef *animation() const {
+    return GetPointer<const AnimationDef *>(VT_ANIMATION);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -48,19 +48,19 @@ struct AnimationResponseDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table
 struct AnimationResponseDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_inputs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> inputs) {
+  void add_inputs(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> inputs) {
     fbb_.AddOffset(AnimationResponseDef::VT_INPUTS, inputs);
   }
-  void add_animation(flatbuffers::Offset<lull::AnimationDef> animation) {
+  void add_animation(flatbuffers::Offset<AnimationDef> animation) {
     fbb_.AddOffset(AnimationResponseDef::VT_ANIMATION, animation);
   }
-  AnimationResponseDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit AnimationResponseDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   AnimationResponseDefBuilder &operator=(const AnimationResponseDefBuilder &);
   flatbuffers::Offset<AnimationResponseDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 2);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<AnimationResponseDef>(end);
     return o;
   }
@@ -68,8 +68,8 @@ struct AnimationResponseDefBuilder {
 
 inline flatbuffers::Offset<AnimationResponseDef> CreateAnimationResponseDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::EventDef>>> inputs = 0,
-    flatbuffers::Offset<lull::AnimationDef> animation = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<EventDef>>> inputs = 0,
+    flatbuffers::Offset<AnimationDef> animation = 0) {
   AnimationResponseDefBuilder builder_(_fbb);
   builder_.add_animation(animation);
   builder_.add_inputs(inputs);
@@ -78,11 +78,11 @@ inline flatbuffers::Offset<AnimationResponseDef> CreateAnimationResponseDef(
 
 inline flatbuffers::Offset<AnimationResponseDef> CreateAnimationResponseDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const std::vector<flatbuffers::Offset<lull::EventDef>> *inputs = nullptr,
-    flatbuffers::Offset<lull::AnimationDef> animation = 0) {
+    const std::vector<flatbuffers::Offset<EventDef>> *inputs = nullptr,
+    flatbuffers::Offset<AnimationDef> animation = 0) {
   return lull::CreateAnimationResponseDef(
       _fbb,
-      inputs ? _fbb.CreateVector<flatbuffers::Offset<lull::EventDef>>(*inputs) : 0,
+      inputs ? _fbb.CreateVector<flatbuffers::Offset<EventDef>>(*inputs) : 0,
       animation);
 }
 

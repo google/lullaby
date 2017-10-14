@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/render_pass_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -42,6 +42,7 @@ void RenderPassDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::SortMode);
 LULLABY_SETUP_TYPEID(lull::RenderPassDefT);
 
 #endif  // _LULLABY_LULLABY_GENERATED_RENDER_PASS_DEF_GENERATED_H_

@@ -154,6 +154,7 @@ class TextSystem : public System {
   bool IsTextReady(Entity entity) const;
 
   // Updates the worker threads.  Call once per frame before any draw calls.
+  // Make sure all uniforms for rendering are updated before this.
   void ProcessTasks();
 
   // Blocks until all pending operations are complete.  Some implementations

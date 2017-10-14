@@ -43,8 +43,8 @@ struct ReticleTrailDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return GetField<float>(VT_AVERAGE_SPEED, 0.2f);
   }
   /// Default reticle color
-  const lull::Color *default_color() const {
-    return GetStruct<const lull::Color *>(VT_DEFAULT_COLOR);
+  const Color *default_color() const {
+    return GetStruct<const Color *>(VT_DEFAULT_COLOR);
   }
   /// Max number of reticles to draw. If this limit is reached the reticle trail
   /// will become sparser.
@@ -57,7 +57,7 @@ struct ReticleTrailDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<float>(verifier, VT_QUAD_SIZE) &&
            VerifyField<int32_t>(verifier, VT_CURVE_SAMPLES) &&
            VerifyField<float>(verifier, VT_AVERAGE_SPEED) &&
-           VerifyField<lull::Color>(verifier, VT_DEFAULT_COLOR) &&
+           VerifyField<Color>(verifier, VT_DEFAULT_COLOR) &&
            VerifyField<int32_t>(verifier, VT_MAX_TRAIL_LENGTH) &&
            verifier.EndTable();
   }
@@ -78,19 +78,19 @@ struct ReticleTrailDefBuilder {
   void add_average_speed(float average_speed) {
     fbb_.AddElement<float>(ReticleTrailDef::VT_AVERAGE_SPEED, average_speed, 0.2f);
   }
-  void add_default_color(const lull::Color *default_color) {
+  void add_default_color(const Color *default_color) {
     fbb_.AddStruct(ReticleTrailDef::VT_DEFAULT_COLOR, default_color);
   }
   void add_max_trail_length(int32_t max_trail_length) {
     fbb_.AddElement<int32_t>(ReticleTrailDef::VT_MAX_TRAIL_LENGTH, max_trail_length, 32);
   }
-  ReticleTrailDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ReticleTrailDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ReticleTrailDefBuilder &operator=(const ReticleTrailDefBuilder &);
   flatbuffers::Offset<ReticleTrailDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 6);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ReticleTrailDef>(end);
     return o;
   }
@@ -102,7 +102,7 @@ inline flatbuffers::Offset<ReticleTrailDef> CreateReticleTrailDef(
     float quad_size = 0.05f,
     int32_t curve_samples = 4,
     float average_speed = 0.2f,
-    const lull::Color *default_color = 0,
+    const Color *default_color = 0,
     int32_t max_trail_length = 32) {
   ReticleTrailDefBuilder builder_(_fbb);
   builder_.add_max_trail_length(max_trail_length);

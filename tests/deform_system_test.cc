@@ -17,7 +17,6 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "ion/base/logchecker.h"
 #include "lullaby/generated/deform_def_generated.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
@@ -27,19 +26,20 @@ limitations under the License.
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/registry.h"
-#include "lullaby/tests/mathfu_matchers.h"
+#include "tests/mathfu_matchers.h"
 #include "lullaby/generated/transform_def_generated.h"
 
 namespace lull {
 namespace {
 
-using ::testing::_;
 using ::testing::Contains;
 using ::testing::Eq;
 using ::testing::FloatNear;
 using ::testing::Invoke;
 using ::testing::Key;
 using ::testing::Not;
+using ::testing::_;
+using testing::EqualsMathfuMat4;
 using testing::NearMathfu;
 
 constexpr float kEpsilon = 1e-5f;
@@ -80,8 +80,6 @@ class DeformSystemTest : public ::testing::Test {
                 FloatNear(kDeformRadius, kEpsilon));
 
     ASSERT_THAT(deformation_fns_, Contains(Key(e)));
-    deformation_fns_[e](nullptr, 0, 0);
-    EXPECT_FALSE(log_checker_.HasAnyMessages());
   }
 
   // Checks that the deform system reports the entity as undeformed and that
@@ -93,11 +91,6 @@ class DeformSystemTest : public ::testing::Test {
     EXPECT_THAT(deform_system_->GetDeformRadius(e), FloatNear(0.0f, kEpsilon));
 
     ASSERT_THAT(deformation_fns_, Contains(Key(e)));
-    if (deformation_fns_[e]) {
-      deformation_fns_[e](nullptr, 0, 0);
-      EXPECT_TRUE(log_checker_.HasMessage(
-          "ERROR", "Invalid deformer, skipping deformation for entity"));
-    }
   }
 
   // Checks that the entity is not located at the undeformed offset. This does
@@ -166,7 +159,6 @@ class DeformSystemTest : public ::testing::Test {
 
   RenderSystemImpl* mock_render_system_;
   std::map<Entity, RenderSystem::Deformation> deformation_fns_;
-  ion::base::LogChecker log_checker_;
 };
 
 TEST_F(DeformSystemTest, DeformerMissingDeformed) {
@@ -442,6 +434,45 @@ TEST_F(DeformSystemTest, DeformedInCode) {
   ExpectDeformedTransform(deformed, offset);
 }
 
+TEST_F(DeformSystemTest, DeformedSetWorldFromEntityMatrix) {
+  const mathfu::vec3 offset(0.5f, 0.0f, 0.0f);
+  Blueprint blueprint1;
+  {
+    TransformDefT transform;
+    blueprint1.Write(&transform);
+
+    DeformerDefT deformer;
+    deformer.horizontal_radius = kDeformRadius;
+    blueprint1.Write(&deformer);
+  }
+
+  Blueprint blueprint2;
+  {
+    TransformDefT transform;
+    transform.position = offset;
+    blueprint2.Write(&transform);
+
+    DeformedDefT deformed;
+    blueprint2.Write(&deformed);
+  }
+
+  Entity deformer = entity_factory_->Create(&blueprint1);
+  Entity deformed1 = entity_factory_->Create(&blueprint2);
+  Entity deformed2 = entity_factory_->Create(&blueprint2);
+  transform_system_->AddChild(deformer, deformed1);
+  transform_system_->AddChild(deformed1, deformed2);
+
+  const mathfu::mat4 desired_mat =
+      *transform_system_->GetWorldFromEntityMatrix(deformed2);
+
+  transform_system_->SetWorldFromEntityMatrix(deformed2, desired_mat);
+
+  const mathfu::mat4 result_mat =
+      *transform_system_->GetWorldFromEntityMatrix(deformed2);
+
+  EXPECT_THAT(desired_mat, EqualsMathfuMat4(result_mat));
+}
+
 TEST_F(DeformSystemTest, WaypointDeformerTranslation) {
   // Create the deformer with a waypoint mapping that remaps elements upwards
   // on the y axis and very slightly rotates them
@@ -671,14 +702,14 @@ TEST_F(DeformSystemTest, WaypointDeformerUseAabbAnchor) {
   //                       |-0-|             |-3-|
   {
     const mathfu::vec3 original_positions[] = {
-      {0.0f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f},
-      {3.5f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, {4.5f, 0.0f, 0.0f},
-      {5.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f},
+        {3.5f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, {4.5f, 0.0f, 0.0f},
+        {5.0f, 0.0f, 0.0f},
     };
     const mathfu::vec3 remapped_positions[] = {
-      {0.5f, 1.0f, 0.0f}, {0.5f, 1.0f, 0.0f}, {2.0f, 1.5f, 0.0f},
-      {3.5f, 2.0f, 0.0f}, {3.5f, 2.5f, 0.0f}, {3.5f, 3.0f, 0.0f},
-      {3.5f, 3.0f, 0.0f},
+        {0.5f, 1.0f, 0.0f}, {0.5f, 1.0f, 0.0f}, {2.0f, 1.5f, 0.0f},
+        {3.5f, 2.0f, 0.0f}, {3.5f, 2.5f, 0.0f}, {3.5f, 3.0f, 0.0f},
+        {3.5f, 3.0f, 0.0f},
     };
 
     for (int i = 0; i < 7; ++i) {
@@ -702,14 +733,14 @@ TEST_F(DeformSystemTest, WaypointDeformerUseAabbAnchor) {
   //                         |---0---|       |---3---|
   {
     const mathfu::vec3 original_positions[] = {
-      {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f},
-      {3.0f, 0.0f, 0.0f}, {4.5f, 0.0f, 0.0f}, {5.0f, 0.0f, 0.0f},
-      {6.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f},
+        {3.0f, 0.0f, 0.0f}, {4.5f, 0.0f, 0.0f}, {5.0f, 0.0f, 0.0f},
+        {6.0f, 0.0f, 0.0f},
     };
     const mathfu::vec3 remapped_positions[] = {
-      {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.5f, 1.25f, 0.0f},
-      {3.0f, 2.0f, 0.0f}, {3.0f, 2.75f, 0.0f}, {3.0f, 3.0f, 0.0f},
-      {3.0f, 3.0f, 0.0f},
+        {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f},  {1.5f, 1.25f, 0.0f},
+        {3.0f, 2.0f, 0.0f}, {3.0f, 2.75f, 0.0f}, {3.0f, 3.0f, 0.0f},
+        {3.0f, 3.0f, 0.0f},
     };
 
     for (int i = 0; i < 7; ++i) {

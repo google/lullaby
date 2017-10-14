@@ -17,29 +17,38 @@ limitations under the License.
 #include "lullaby/modules/script/lull/script_parser.h"
 
 #include <cctype>
+#include "lullaby/modules/script/lull/script_types.h"
+#include "lullaby/util/hash.h"
 #include "lullaby/util/optional.h"
 
 namespace lull {
 namespace {
 
+bool is_delimiter(const char c) {
+  return (c == '(') || (c == ')') || (c == '[') || (c == ']') || (c == '{') ||
+         (c == '}');
+}
+
+bool is_separator(const char c) { return std::isspace(c) || (c == ';'); }
+
 string_view Strip(string_view str) {
   int len = static_cast<int>(str.length());
   const char* ptr = str.data();
-  while (std::isspace(ptr[0]) && len > 0) {
+  while (len > 0 && std::isspace(ptr[0])) {
     ++ptr;
     --len;
   }
-  while (std::isspace(ptr[len - 1]) && len > 0) {
+  while (len > 0 && std::isspace(ptr[len - 1])) {
     --len;
   }
-  while (*ptr == '#') {
+  while (len > 0 && *ptr == ';') {
     ++ptr;
     --len;
-    while (*ptr != '\r' && *ptr != '\n' && len > 0) {
+    while (len > 0 && *ptr != '\r' && *ptr != '\n') {
       ++ptr;
       --len;
     }
-    while (std::isspace(*ptr) && len > 0) {
+    while (len > 0 && std::isspace(*ptr)) {
       ++ptr;
       --len;
     }
@@ -171,17 +180,13 @@ struct ScriptParser {
   explicit ScriptParser(ParserCallbacks* callbacks) : callbacks(callbacks) {}
 
   // Parses the given |source|, invoking the appropriate callbacks as needed.
-  void Parse(string_view source);
+  string_view Parse(string_view source);
 
-  // Splits the |source| into two parts, first and rest, using whitespace as
-  // a delimeter.  Whitespace inside code blocks (ie. code enclosed in
-  // parentheses) or text (ie. code enclosed in quotes) is ignored during the
-  // splitting process.  The |first| element is then passed to the Parse()
-  // function for processing, while the |rest| of the source is recursively
-  // passed back to Split.
-  void Split(string_view source);
+  // Returns the next token and if not null sets 'rest' to the portion of source
+  // following the token.
+  string_view NextToken(string_view source, string_view* rest);
 
-  void ParseBlock(string_view str);
+  string_view ParseBlock(string_view token, string_view rest, string_view src);
   void ParseString(string_view str);
 
   ParserCallbacks* callbacks;
@@ -191,53 +196,69 @@ struct ScriptParser {
 
 void ParseScript(string_view source, ParserCallbacks* callbacks) {
   ScriptParser parser(callbacks);
-  parser.Parse(source);
+  // We split the source to separate the first block from any trailing
+  // comments or others.
+  string_view remaining = parser.Parse(source);
+  // Check whether there are any tokens following the script.
+  string_view token = parser.NextToken(remaining, nullptr);
+  if (token.length() > 0) {
+    callbacks->Error(remaining, "Unexpected content after script.");
+  }
   callbacks->Process(ParserCallbacks::kEof, nullptr, "");
 }
 
-void ScriptParser::ParseBlock(string_view str) {
-  if (str.length() < 2) {
-    callbacks->Error(str, "Expected matching closing parenthesis.");
-    return;
+string_view ScriptParser::ParseBlock(string_view token, string_view rest,
+                                     string_view src) {
+  if (rest.length() < 1) {
+    callbacks->Error(token, "Expected delimited block.");
+    return rest;
   }
 
-  const char open = str[0];
-  const char close = str[str.length() - 1];
+  char close;
+  string_view error_msg;
   ParserCallbacks::TokenType push_code = ParserCallbacks::kEof;
   ParserCallbacks::TokenType pop_code = ParserCallbacks::kEof;
 
-  if (open == '(') {
-    if (close != ')') {
-      callbacks->Error(str, "Expected matching closing parenthesis.");
-      return;
-    }
-    push_code = ParserCallbacks::kPush;
-    pop_code = ParserCallbacks::kPop;
-  } else if (open == '[') {
-    if (close != ']') {
-      callbacks->Error(str, "Expected matching closing parenthesis.");
-      return;
-    }
-    push_code = ParserCallbacks::kPushArray;
-    pop_code = ParserCallbacks::kPopArray;
-  } else if (open == '{') {
-    if (close != '}') {
-      callbacks->Error(str, "Expected matching closing parenthesis.");
-      return;
-    }
-    push_code = ParserCallbacks::kPushMap;
-    pop_code = ParserCallbacks::kPopMap;
-  } else {
-    callbacks->Error(str, "Invalid parenthesis type.");
-    return;
+  switch (token[0]) {
+    case '(':
+      close = ')';
+      push_code = ParserCallbacks::kPush;
+      pop_code = ParserCallbacks::kPop;
+      error_msg = "Expected closing ')'";
+      break;
+    case '[':
+      close = ']';
+      push_code = ParserCallbacks::kPushArray;
+      pop_code = ParserCallbacks::kPopArray;
+      error_msg = "Expected closing ']'";
+      break;
+    case '{':
+      close = '}';
+      push_code = ParserCallbacks::kPushMap;
+      pop_code = ParserCallbacks::kPopMap;
+      error_msg = "Expected closing '}'";
+      break;
+    default:
+      callbacks->Error(src, "Invalid delimiter.");
+      return rest;
   }
 
-  callbacks->Process(push_code, nullptr, string_view(&open, 1));
-  // Get the code contained inside the parentheses and process its contents
-  // recursively using the Split function.
-  const string_view sub = str.substr(1, str.length() - 2);
-  Split(sub);
+  callbacks->Process(push_code, nullptr, token);
+  bool closed = false;
+  while (rest.length() > 0) {
+    // Peek at the next token to see if it's our closing delimiter.
+    if (rest[0] == close) {
+      closed = true;
+      break;
+    }
+    rest = Parse(rest);
+  }
+  if (!closed) {
+    callbacks->Error(src, error_msg);
+    return rest;
+  }
   callbacks->Process(pop_code, nullptr, string_view(&close, 1));
+  return Strip(rest.substr(1));  // consume the closing delimiter.
 }
 
 void ScriptParser::ParseString(string_view str) {
@@ -253,61 +274,62 @@ void ScriptParser::ParseString(string_view str) {
   callbacks->Process(ParserCallbacks::kString, &sub, str);
 }
 
-void ScriptParser::Parse(string_view source) {
-  string_view str = Strip(source);
-  if (str.length() == 0) {
-    return;
-  } else if (str[0] == '(' || str[0] == '[' || str[0] == '{') {
-    ParseBlock(str);
-  } else if (str[0] == '\'' || str[0] == '"') {
-    ParseString(str);
-  } else if (str[0] == ':') {
-    HashValue id = Hash(str.substr(1));
-    callbacks->Process(ParserCallbacks::kHashValue, &id, str);
-  } else if (auto b = ParseBoolean(str)) {
-    callbacks->Process(ParserCallbacks::kBool, b.get(), str);
-  } else if (auto i = ParseUint64(str)) {
-    callbacks->Process(ParserCallbacks::kUint64, i.get(), str);
-  } else if (auto i = ParseInt64(str)) {
-    callbacks->Process(ParserCallbacks::kInt64, i.get(), str);
-  } else if (auto i = ParseUint32(str)) {
-    callbacks->Process(ParserCallbacks::kUint32, i.get(), str);
-  } else if (auto i = ParseInt32(str)) {
-    callbacks->Process(ParserCallbacks::kInt32, i.get(), str);
-  } else if (auto f = ParseFloat(str)) {
-    callbacks->Process(ParserCallbacks::kFloat, f.get(), str);
-  } else if (auto f = ParseDouble(str)) {
-    callbacks->Process(ParserCallbacks::kDouble, f.get(), str);
-  } else if (str.length() > 0) {
-    HashValue id = Hash(str);
-    callbacks->Process(ParserCallbacks::kSymbol, &id, str);
+string_view ScriptParser::Parse(string_view source) {
+  string_view rest;
+  string_view token = NextToken(source, &rest);
+  if (token.length() == 0) {
+    return token;
+  } else if (token[0] == '(' || token[0] == '[' || token[0] == '{') {
+    rest = ParseBlock(token, rest, source);
+  } else if (token[0] == '\'' || token[0] == '"') {
+    ParseString(token);
+  } else if (token[0] == ':') {
+    HashValue id = Hash(token.substr(1));
+    callbacks->Process(ParserCallbacks::kHashValue, &id, token);
+  } else if (auto b = ParseBoolean(token)) {
+    callbacks->Process(ParserCallbacks::kBool, b.get(), token);
+  } else if (auto i = ParseUint64(token)) {
+    callbacks->Process(ParserCallbacks::kUint64, i.get(), token);
+  } else if (auto i = ParseInt64(token)) {
+    callbacks->Process(ParserCallbacks::kInt64, i.get(), token);
+  } else if (auto i = ParseUint32(token)) {
+    callbacks->Process(ParserCallbacks::kUint32, i.get(), token);
+  } else if (auto i = ParseInt32(token)) {
+    callbacks->Process(ParserCallbacks::kInt32, i.get(), token);
+  } else if (auto f = ParseFloat(token)) {
+    callbacks->Process(ParserCallbacks::kFloat, f.get(), token);
+  } else if (auto f = ParseDouble(token)) {
+    callbacks->Process(ParserCallbacks::kDouble, f.get(), token);
+  } else if (token.length() > 0) {
+    Symbol id = Symbol(token);
+    callbacks->Process(ParserCallbacks::kSymbol, &id, token);
   } else {
-    callbacks->Error(str, "Unknown token type.");
+    callbacks->Error(token, "Unknown token type.");
   }
+  return rest;
 }
 
-void ScriptParser::Split(string_view in) {
-  if (Strip(in).length() == 0) {
-    return;
+string_view ScriptParser::NextToken(string_view source, string_view* rest) {
+  source = Strip(source);
+  if (source.length() == 0) {
+    if (rest) {
+      *rest = source;
+    }
+    return string_view();
   }
 
-  const char* str = in.data();
-  const char* end = in.data() + in.length();
+  const char* str = source.data();
+  const char* end = source.data() + source.length();
+
+  if (is_delimiter(*str)) {
+    if (rest) {
+      *rest = Strip(string_view(str + 1, end - str - 1));
+    }
+    return string_view(str, 1);
+  }
 
   char quote = 0;
-  char open = 0;
-  char close = 0;
-  int stack = 0;
-  if (*str == '(') {
-    open = '(';
-    close = ')';
-  } else if (*str == '[') {
-    open = '[';
-    close = ']';
-  } else if (*str == '{') {
-    open = '{';
-    close = '}';
-  } else if (*str == '"') {
+  if (*str == '"') {
     quote = '"';
   } else if (*str == '\'') {
     quote = '\'';
@@ -329,27 +351,18 @@ void ScriptParser::Split(string_view in) {
     } else if (c == quote) {
       ++ptr;
       break;
-    } else if (c == open) {
-      ++stack;
-    } else if (c == close) {
-      --stack;
-      if (stack == 0) {
-        ++ptr;
-        break;
-      }
-    } else if (quote != 0 || stack > 0) {
+    } else if (quote != 0) {
       // nothing
-    } else if (std::isspace(c)) {
+    } else if (is_separator(c) || is_delimiter(c)) {
       break;
     }
     ++ptr;
   }
 
-  const string_view word(str, ptr - str);
-  Parse(Strip(word));
-
-  const string_view rest(ptr, end - ptr);
-  Split(Strip(rest));
+  if (rest) {
+    *rest = Strip(string_view(ptr, end - ptr));
+  }
+  return string_view(str, ptr - str);
 }
 
 }  // namespace lull

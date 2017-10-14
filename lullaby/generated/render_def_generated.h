@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/render_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -171,6 +171,9 @@ void RenderDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::RenderPass);
+LULLABY_SETUP_TYPEID(lull::HorizontalAlignment);
+LULLABY_SETUP_TYPEID(lull::VerticalAlignment);
 LULLABY_SETUP_TYPEID(lull::QuadDefT);
 LULLABY_SETUP_TYPEID(lull::UniformDefT);
 LULLABY_SETUP_TYPEID(lull::FontDefT);

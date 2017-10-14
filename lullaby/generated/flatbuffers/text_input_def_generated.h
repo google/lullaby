@@ -42,8 +42,8 @@ struct TextInputDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// The color of the above hint string; by default this will match whatever
   /// is specified in the RenderDef.
-  const lull::Color *hint_color() const {
-    return GetStruct<const lull::Color *>(VT_HINT_COLOR);
+  const Color *hint_color() const {
+    return GetStruct<const Color *>(VT_HINT_COLOR);
   }
   /// The blueprint to create the composing indicator entity.
   const flatbuffers::String *composing_entity() const {
@@ -73,7 +73,7 @@ struct TextInputDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<uint8_t>(verifier, VT_DEACTIVATE_ON_ACCEPT) &&
            VerifyOffset(verifier, VT_HINT) &&
            verifier.Verify(hint()) &&
-           VerifyField<lull::Color>(verifier, VT_HINT_COLOR) &&
+           VerifyField<Color>(verifier, VT_HINT_COLOR) &&
            VerifyOffset(verifier, VT_COMPOSING_ENTITY) &&
            verifier.Verify(composing_entity()) &&
            VerifyField<float>(verifier, VT_COMPOSING_DISTANCE) &&
@@ -97,7 +97,7 @@ struct TextInputDefBuilder {
   void add_hint(flatbuffers::Offset<flatbuffers::String> hint) {
     fbb_.AddOffset(TextInputDef::VT_HINT, hint);
   }
-  void add_hint_color(const lull::Color *hint_color) {
+  void add_hint_color(const Color *hint_color) {
     fbb_.AddStruct(TextInputDef::VT_HINT_COLOR, hint_color);
   }
   void add_composing_entity(flatbuffers::Offset<flatbuffers::String> composing_entity) {
@@ -115,13 +115,13 @@ struct TextInputDefBuilder {
   void add_is_clipped(bool is_clipped) {
     fbb_.AddElement<uint8_t>(TextInputDef::VT_IS_CLIPPED, static_cast<uint8_t>(is_clipped), 0);
   }
-  TextInputDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit TextInputDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   TextInputDefBuilder &operator=(const TextInputDefBuilder &);
   flatbuffers::Offset<TextInputDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 9);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<TextInputDef>(end);
     return o;
   }
@@ -132,7 +132,7 @@ inline flatbuffers::Offset<TextInputDef> CreateTextInputDef(
     bool activate_immediately = false,
     bool deactivate_on_accept = false,
     flatbuffers::Offset<flatbuffers::String> hint = 0,
-    const lull::Color *hint_color = 0,
+    const Color *hint_color = 0,
     flatbuffers::Offset<flatbuffers::String> composing_entity = 0,
     float composing_distance = 0.0f,
     float composing_thickness = 0.0f,
@@ -156,7 +156,7 @@ inline flatbuffers::Offset<TextInputDef> CreateTextInputDefDirect(
     bool activate_immediately = false,
     bool deactivate_on_accept = false,
     const char *hint = nullptr,
-    const lull::Color *hint_color = 0,
+    const Color *hint_color = 0,
     const char *composing_entity = nullptr,
     float composing_distance = 0.0f,
     float composing_thickness = 0.0f,

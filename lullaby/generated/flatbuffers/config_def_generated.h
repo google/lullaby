@@ -20,8 +20,8 @@ struct ConfigDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_VALUES = 4
   };
-  const flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *values() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *>(VT_VALUES);
+  const flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>> *values() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>> *>(VT_VALUES);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -35,16 +35,16 @@ struct ConfigDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ConfigDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_values(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>>> values) {
+  void add_values(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> values) {
     fbb_.AddOffset(ConfigDef::VT_VALUES, values);
   }
-  ConfigDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ConfigDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ConfigDefBuilder &operator=(const ConfigDefBuilder &);
   flatbuffers::Offset<ConfigDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ConfigDef>(end);
     return o;
   }
@@ -52,7 +52,7 @@ struct ConfigDefBuilder {
 
 inline flatbuffers::Offset<ConfigDef> CreateConfigDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<lull::KeyVariantPairDef>>> values = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<KeyVariantPairDef>>> values = 0) {
   ConfigDefBuilder builder_(_fbb);
   builder_.add_values(values);
   return builder_.Finish();
@@ -60,10 +60,10 @@ inline flatbuffers::Offset<ConfigDef> CreateConfigDef(
 
 inline flatbuffers::Offset<ConfigDef> CreateConfigDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const std::vector<flatbuffers::Offset<lull::KeyVariantPairDef>> *values = nullptr) {
+    const std::vector<flatbuffers::Offset<KeyVariantPairDef>> *values = nullptr) {
   return lull::CreateConfigDef(
       _fbb,
-      values ? _fbb.CreateVector<flatbuffers::Offset<lull::KeyVariantPairDef>>(*values) : 0);
+      values ? _fbb.CreateVector<flatbuffers::Offset<KeyVariantPairDef>>(*values) : 0);
 }
 
 inline const lull::ConfigDef *GetConfigDef(const void *buf) {

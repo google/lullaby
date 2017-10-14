@@ -254,13 +254,13 @@ struct UniformDefBuilder {
   void add_count(int32_t count) {
     fbb_.AddElement<int32_t>(UniformDef::VT_COUNT, count, 1);
   }
-  UniformDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit UniformDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   UniformDefBuilder &operator=(const UniformDefBuilder &);
   flatbuffers::Offset<UniformDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<UniformDef>(end);
     return o;
   }
@@ -397,8 +397,8 @@ struct FontDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// If parse_and_strip_html is true then this will be the color of any of the
   /// href links in the font.
-  const lull::Color *html_link_color() const {
-    return GetStruct<const lull::Color *>(VT_HTML_LINK_COLOR);
+  const Color *html_link_color() const {
+    return GetStruct<const Color *>(VT_HTML_LINK_COLOR);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -420,7 +420,7 @@ struct FontDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<uint8_t>(verifier, VT_WRAP_CONTENT) &&
            VerifyField<float>(verifier, VT_KERNING_SCALE) &&
            VerifyField<uint8_t>(verifier, VT_PARSE_AND_STRIP_HTML) &&
-           VerifyField<lull::Color>(verifier, VT_HTML_LINK_COLOR) &&
+           VerifyField<Color>(verifier, VT_HTML_LINK_COLOR) &&
            verifier.EndTable();
   }
 };
@@ -470,16 +470,16 @@ struct FontDefBuilder {
   void add_parse_and_strip_html(bool parse_and_strip_html) {
     fbb_.AddElement<uint8_t>(FontDef::VT_PARSE_AND_STRIP_HTML, static_cast<uint8_t>(parse_and_strip_html), 0);
   }
-  void add_html_link_color(const lull::Color *html_link_color) {
+  void add_html_link_color(const Color *html_link_color) {
     fbb_.AddStruct(FontDef::VT_HTML_LINK_COLOR, html_link_color);
   }
-  FontDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit FontDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   FontDefBuilder &operator=(const FontDefBuilder &);
   flatbuffers::Offset<FontDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 15);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<FontDef>(end);
     return o;
   }
@@ -501,7 +501,7 @@ inline flatbuffers::Offset<FontDef> CreateFontDef(
     bool wrap_content = false,
     float kerning_scale = 1.0f,
     bool parse_and_strip_html = false,
-    const lull::Color *html_link_color = 0) {
+    const Color *html_link_color = 0) {
   FontDefBuilder builder_(_fbb);
   builder_.add_html_link_color(html_link_color);
   builder_.add_kerning_scale(kerning_scale);
@@ -537,7 +537,7 @@ inline flatbuffers::Offset<FontDef> CreateFontDefDirect(
     bool wrap_content = false,
     float kerning_scale = 1.0f,
     bool parse_and_strip_html = false,
-    const lull::Color *html_link_color = 0) {
+    const Color *html_link_color = 0) {
   return lull::CreateFontDef(
       _fbb,
       font ? _fbb.CreateString(font) : 0,
@@ -624,8 +624,8 @@ struct RenderDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// An rgba color associated with the entity.  Can be specified either as a
   /// 4-component map of RGBA values ranging from 0.0 to 1.0 or as a
   /// hexadecimal string (eg. "#336699FF").
-  const lull::Color *color() const {
-    return GetStruct<const lull::Color *>(VT_COLOR);
+  const Color *color() const {
+    return GetStruct<const Color *>(VT_COLOR);
   }
   /// "xxxxxx" or "xxxxxxxx" with optional "#" prefix
   const flatbuffers::String *color_hex() const {
@@ -685,7 +685,7 @@ struct RenderDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.Verify(text()) &&
            VerifyOffset(verifier, VT_FONT) &&
            verifier.VerifyTable(font()) &&
-           VerifyField<lull::Color>(verifier, VT_COLOR) &&
+           VerifyField<Color>(verifier, VT_COLOR) &&
            VerifyOffset(verifier, VT_COLOR_HEX) &&
            verifier.Verify(color_hex()) &&
            VerifyOffset(verifier, VT_UNIFORMS) &&
@@ -731,7 +731,7 @@ struct RenderDefBuilder {
   void add_font(flatbuffers::Offset<FontDef> font) {
     fbb_.AddOffset(RenderDef::VT_FONT, font);
   }
-  void add_color(const lull::Color *color) {
+  void add_color(const Color *color) {
     fbb_.AddStruct(RenderDef::VT_COLOR, color);
   }
   void add_color_hex(flatbuffers::Offset<flatbuffers::String> color_hex) {
@@ -758,13 +758,13 @@ struct RenderDefBuilder {
   void add_id(uint32_t id) {
     fbb_.AddElement<uint32_t>(RenderDef::VT_ID, id, 0);
   }
-  RenderDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit RenderDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   RenderDefBuilder &operator=(const RenderDefBuilder &);
   flatbuffers::Offset<RenderDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 17);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<RenderDef>(end);
     return o;
   }
@@ -780,7 +780,7 @@ inline flatbuffers::Offset<RenderDef> CreateRenderDef(
     bool create_mips = false,
     flatbuffers::Offset<flatbuffers::String> text = 0,
     flatbuffers::Offset<FontDef> font = 0,
-    const lull::Color *color = 0,
+    const Color *color = 0,
     flatbuffers::Offset<flatbuffers::String> color_hex = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<UniformDef>>> uniforms = 0,
     int32_t sort_order_offset = 0,
@@ -820,7 +820,7 @@ inline flatbuffers::Offset<RenderDef> CreateRenderDefDirect(
     bool create_mips = false,
     const char *text = nullptr,
     flatbuffers::Offset<FontDef> font = 0,
-    const lull::Color *color = 0,
+    const Color *color = 0,
     const char *color_hex = nullptr,
     const std::vector<flatbuffers::Offset<UniformDef>> *uniforms = nullptr,
     int32_t sort_order_offset = 0,

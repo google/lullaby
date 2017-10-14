@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/script_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -135,6 +135,7 @@ void ScriptOnDestroyDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::Language);
 LULLABY_SETUP_TYPEID(lull::ScriptDefT);
 LULLABY_SETUP_TYPEID(lull::ScriptOnEventDefT);
 LULLABY_SETUP_TYPEID(lull::ScriptEveryFrameDefT);

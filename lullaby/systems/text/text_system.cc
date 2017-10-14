@@ -116,15 +116,20 @@ const std::string* TextSystem::GetText(Entity entity) const {
 
 void TextSystem::SetText(Entity entity, const std::string& text,
                          TextSystemPreprocessingModes preprocess) {
-  switch (preprocess) {
-    case kPreprocessingModeNone:
-      // Adding the kLiteralStringPrefixString causes the preprocessor to ignore
-      // the string.
-      impl_->SetText(entity, GetUnprocessedText(text));
-      break;
-    case kPreprocessingModeStringPreprocessor:
-      impl_->SetText(entity, text);
-      break;
+  auto* preprocessor = registry_->Get<StringPreprocessor>();
+  if (preprocessor != nullptr) {
+    switch (preprocess) {
+      case kPreprocessingModeNone:
+        // Adding the kLiteralStringPrefixString causes the preprocessor to
+        // ignore the string.
+        impl_->SetText(entity, GetUnprocessedText(text));
+        break;
+      case kPreprocessingModeStringPreprocessor:
+        impl_->SetText(entity, text);
+        break;
+    }
+  } else {
+    impl_->SetText(entity, text);
   }
 }
 

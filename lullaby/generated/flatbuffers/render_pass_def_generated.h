@@ -74,8 +74,8 @@ struct RenderPassDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::String *name() const {
     return GetPointer<const flatbuffers::String *>(VT_NAME);
   }
-  const lull::RenderState *render_state() const {
-    return GetPointer<const lull::RenderState *>(VT_RENDER_STATE);
+  const RenderState *render_state() const {
+    return GetPointer<const RenderState *>(VT_RENDER_STATE);
   }
   SortMode sort_mode() const {
     return static_cast<SortMode>(GetField<uint16_t>(VT_SORT_MODE, 0));
@@ -102,7 +102,7 @@ struct RenderPassDefBuilder {
   void add_name(flatbuffers::Offset<flatbuffers::String> name) {
     fbb_.AddOffset(RenderPassDef::VT_NAME, name);
   }
-  void add_render_state(flatbuffers::Offset<lull::RenderState> render_state) {
+  void add_render_state(flatbuffers::Offset<RenderState> render_state) {
     fbb_.AddOffset(RenderPassDef::VT_RENDER_STATE, render_state);
   }
   void add_sort_mode(SortMode sort_mode) {
@@ -111,13 +111,13 @@ struct RenderPassDefBuilder {
   void add_render_target_ref(flatbuffers::Offset<flatbuffers::String> render_target_ref) {
     fbb_.AddOffset(RenderPassDef::VT_RENDER_TARGET_REF, render_target_ref);
   }
-  RenderPassDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit RenderPassDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   RenderPassDefBuilder &operator=(const RenderPassDefBuilder &);
   flatbuffers::Offset<RenderPassDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<RenderPassDef>(end);
     return o;
   }
@@ -126,7 +126,7 @@ struct RenderPassDefBuilder {
 inline flatbuffers::Offset<RenderPassDef> CreateRenderPassDef(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::String> name = 0,
-    flatbuffers::Offset<lull::RenderState> render_state = 0,
+    flatbuffers::Offset<RenderState> render_state = 0,
     SortMode sort_mode = SortMode_None,
     flatbuffers::Offset<flatbuffers::String> render_target_ref = 0) {
   RenderPassDefBuilder builder_(_fbb);
@@ -140,7 +140,7 @@ inline flatbuffers::Offset<RenderPassDef> CreateRenderPassDef(
 inline flatbuffers::Offset<RenderPassDef> CreateRenderPassDefDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const char *name = nullptr,
-    flatbuffers::Offset<lull::RenderState> render_state = 0,
+    flatbuffers::Offset<RenderState> render_state = 0,
     SortMode sort_mode = SortMode_None,
     const char *render_target_ref = nullptr) {
   return lull::CreateRenderPassDef(

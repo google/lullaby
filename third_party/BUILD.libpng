@@ -1,0 +1,22 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libpng",
+    srcs = glob([
+        "*.c"
+    ], exclude = [
+        "pngtest.c",
+    ]),
+    hdrs = glob(["*.h"]),
+    copts = [
+        "-DHAVE_CONFIG_H",
+    ],
+    includes = ["."],
+    linkopts = ["-lm"],
+    deps = [
+        "@//third_party/libpng:config",
+        "@zlib//:zlib",
+    ],
+)

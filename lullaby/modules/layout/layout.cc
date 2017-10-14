@@ -692,45 +692,39 @@ using UpdateFunction =
     std::function<void (Entity entity, size_t outer_idx, size_t index,
                         mathfu::vec2 pos, mathfu::vec2 size)>;
 // Function to move all children from flatui.
-UpdateFunction ApplyLayoutUpdateFunction(TransformSystem* transform_system,
-    LayoutBoxSystem* layout_box_system, const LayoutParams* params,
+UpdateFunction ApplyLayoutUpdateFunction(
+    const SetLayoutPositionFn& set_pos_fn,
+    const LayoutBoxSystem* layout_box_system, const LayoutParams* params,
     bool horizontal_first, const mathfu::vec2* root_pos, bool* min_max_set,
     mathfu::vec2* min, mathfu::vec2* max,
     CachedPositionsCalculator* calculator) {
   return [=](Entity entity, size_t outer_idx, size_t index, mathfu::vec2 pos,
              mathfu::vec2 size) {
-    const Sqt* sqt = transform_system->GetSqt(entity);
-    if (!sqt) {
-      return;
-    }
-
-    Sqt new_sqt = *sqt;
-    new_sqt.translation.x = pos.x;
-    new_sqt.translation.y = -pos.y;
+    mathfu::vec2 new_pos(pos.x, -pos.y);
 
     // Flatui element positions are in the top-left corner, but Lullaby
     // positions are centered in the aabb, so adjust accordingly.
     const mathfu::vec2 half_size = size * 0.5f;
-    new_sqt.translation.x += half_size.x;
-    new_sqt.translation.y -= half_size.y;
+    new_pos.x += half_size.x;
+    new_pos.y -= half_size.y;
 
     // Similarly, child entities are centered in the middle of their parent's
     // Aabb, so move them up to the top-left.
-    new_sqt.translation.x -= params->canvas_size.x * 0.5f;
-    new_sqt.translation.y += params->canvas_size.y * 0.5f;
+    new_pos.x -= params->canvas_size.x * 0.5f;
+    new_pos.y += params->canvas_size.y * 0.5f;
 
     // Enforce alignment by using the "empty" groups as true origin.
-    new_sqt.translation.x -= root_pos->x;
-    new_sqt.translation.y += root_pos->y;
+    new_pos.x -= root_pos->x;
+    new_pos.y += root_pos->y;
 
     // Adjust for the extra spacing caused by the "empty" fill element.
     if (horizontal_first) {
-      new_sqt.translation.y += params->spacing.y;
+      new_pos.y += params->spacing.y;
     } else {
-      new_sqt.translation.x -= params->spacing.x;
+      new_pos.x -= params->spacing.x;
     }
 
-    const mathfu::vec2 entity_xy = new_sqt.translation.xy();
+    const mathfu::vec2 entity_xy = new_pos;
     const mathfu::vec2 entity_min = entity_xy - half_size;
     const mathfu::vec2 entity_max = entity_xy + half_size;
     calculator->UpdateWithPositions(outer_idx, index, entity_min, entity_max);
@@ -750,11 +744,11 @@ UpdateFunction ApplyLayoutUpdateFunction(TransformSystem* transform_system,
     // Finally, adjust for an AABB that is not centered around the origin.
     const Aabb* aabb = layout_box_system->GetActualBox(entity);
     if (aabb) {
-      new_sqt.translation.x -= 0.5f * (aabb->min.x + aabb->max.x);
-      new_sqt.translation.y -= 0.5f * (aabb->min.y + aabb->max.y);
+      new_pos.x -= 0.5f * (aabb->min.x + aabb->max.x);
+      new_pos.y -= 0.5f * (aabb->min.y + aabb->max.y);
     }
 
-    transform_system->SetSqt(entity, new_sqt);
+    set_pos_fn(entity, new_pos);
   };
 }
 
@@ -768,14 +762,16 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   for (Entity e : entities) {
     elements.emplace_back(e);
   }
-  return ApplyLayout(registry, params, elements);
+  return ApplyLayout(registry, params, elements,
+                     GetDefaultSetLayoutPositionFn(registry));
 }
 
 // Uses the flatui::LayoutManager to arrange the specified entities in
 // |elements| based on the Layout |params|.
 Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
                  const std::vector<LayoutElement>& elements,
-                 Entity desired_source, CachedPositions* cached_positions) {
+                 const SetLayoutPositionFn& set_pos_fn, Entity desired_source,
+                 CachedPositions* cached_positions) {
   // The minimum and maximum points making up the area used for this layout.
   mathfu::vec2 min = mathfu::kZeros2f;
   mathfu::vec2 max = mathfu::kZeros2f;
@@ -917,9 +913,9 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   CachedPositionsCalculator calculator(context.IsHorizontalFirst(),
       IsInnerForwardFillOrder(params.fill_order), context.GetOuterCount(),
       context.GetElementsPerWrap(), cached_positions);
-  const auto update_fn = ApplyLayoutUpdateFunction(transform_system,
-      layout_box_system, &params, context.IsHorizontalFirst(), &root_pos,
-      &min_max_set, &min, &max, &calculator);
+  const auto update_fn = ApplyLayoutUpdateFunction(
+      set_pos_fn, layout_box_system, &params, context.IsHorizontalFirst(),
+      &root_pos, &min_max_set, &min, &max, &calculator);
 
   // Break the elements into groups based on the wrapping.
   layout.Run([&]() {
@@ -1018,6 +1014,17 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   calculator.Finalize(params.spacing);
 
   return Aabb(mathfu::vec3(min, 0.0f), mathfu::vec3(max, 0.0f));
+}
+
+// This needs to by after ApplyLayout due to compilation ambiguities.
+SetLayoutPositionFn GetDefaultSetLayoutPositionFn(Registry* registry) {
+  return [=](Entity entity, const mathfu::vec2& position) {
+    auto* transform_system = registry->Get<TransformSystem>();
+    // Preserve the z, only change xy.
+    const mathfu::vec3 translation(
+        position, transform_system->GetLocalTranslation(entity).z);
+    transform_system->SetLocalTranslation(entity, translation);
+  };
 }
 
 void ApplyRadialLayout(Registry* registry, const std::vector<Entity>& entities,

@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "lullaby/systems/render/uniform.h"
 
+#include <cstring>
+
 #include "lullaby/util/logging.h"
 #include "lullaby/util/make_unique.h"
 
@@ -39,7 +41,7 @@ void Uniform::SetData(const void* data, size_t num_bytes, size_t bytes_offset) {
                 << " \" with maximum size of " << description_.num_bytes << ".";
     return;
   }
-  memcpy(data_.data() + bytes_offset, data, num_bytes);
+  std::memcpy(data_.data() + bytes_offset, data, num_bytes);
 }
 
 }  // namespace lull

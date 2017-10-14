@@ -21,12 +21,14 @@ limitations under the License.
 #include "lullaby/modules/animation_channels/transform_channels.h"
 #include "lullaby/modules/config/config.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/flatbuffers/common_fb_conversions.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/modules/reticle/reticle_provider.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/collision/collision_system.h"
+#include "lullaby/systems/cursor/cursor_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/reticle/reticle_system_reticle_provider.h"
@@ -44,13 +46,9 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kRingDiamaterChannelName = Hash("ring-diameter");
 const HashValue kReticleDef = Hash("ReticleDef");
 const HashValue kReticleBehaviourDef = Hash("ReticleBehaviourDef");
 const HashValue kEnableHmdFallback = Hash("lull.Reticle.EnableHmdFallback");
-
-const int kNumVerticesPerTrailQuad = 4;
-const int kNumIndicesPerTrailQuad = 6;
 
 ReticleSystem::Reticle::Reticle(Entity e)
     : Component(e),
@@ -58,11 +56,7 @@ ReticleSystem::Reticle::Reticle(Entity e)
       pressed_entity(kNullEntity),
       collision_ray(mathfu::kZeros3f, -mathfu::kAxisZ3f),
       no_hit_distance(kDefaultNoHitDistance),
-      ergo_angle_offset(0.f),
-      ring_active_diameter(0.f),
-      ring_inactive_diameter(0.f),
-      hit_color(mathfu::kZeros4f),
-      no_hit_color(mathfu::kZeros4f) {}
+      ergo_angle_offset(0.f) {}
 
 ReticleSystem::ReticleSystem(Registry* registry)
     : System(registry), reticle_behaviours_(16) {
@@ -72,17 +66,9 @@ ReticleSystem::ReticleSystem(Registry* registry)
   RegisterDef(this, kReticleBehaviourDef);
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
-}
-
-void ReticleSystem::Initialize() {
-  // Only attempt to setup the channel if it will succeed. This lets this
-  // system's tests function without the AnimationSystem.
-  if (registry_->Get<AnimationSystem>() && registry_->Get<RenderSystem>()) {
-    UniformChannel::Setup(registry_, 2, kRingDiamaterChannelName,
-                          "ring_diameter", 1);
-  } else {
-    LOG(ERROR) << "Failed to set up the ring_diameter channel due to missing "
-                  "Animation or Render system.";
+  auto* entity_factory = registry_->Get<EntityFactory>();
+  if (entity_factory != nullptr) {
+    entity_factory->CreateSystem<CursorSystem>();
   }
 }
 
@@ -103,14 +89,17 @@ void ReticleSystem::Create(Entity entity, HashValue type, const Def* def) {
 void ReticleSystem::CreateReticle(Entity entity, const ReticleDef* data) {
   reticle_.reset(new Reticle(entity));
 
+  CursorDefT cursor;
+
   if (data->ring_active_diameter() != 0) {
-    reticle_->ring_active_diameter = data->ring_active_diameter();
+    cursor.ring_active_diameter = data->ring_active_diameter();
   }
   if (data->ring_inactive_diameter() != 0) {
-    reticle_->ring_inactive_diameter = data->ring_inactive_diameter();
+    cursor.ring_inactive_diameter = data->ring_inactive_diameter();
   }
   if (data->no_hit_distance() != 0) {
     reticle_->no_hit_distance = data->no_hit_distance();
+    cursor.no_hit_distance = data->no_hit_distance();
   }
   reticle_->ergo_angle_offset = data->ergo_angle_offset();
 
@@ -137,28 +126,21 @@ void ReticleSystem::CreateReticle(Entity entity, const ReticleDef* data) {
     reticle_->device_preference.push_back(InputManager::kHmd);
   }
 
-  MathfuVec4FromFbColor(data->hit_color(), &reticle_->hit_color);
-  MathfuVec4FromFbColor(data->no_hit_color(), &reticle_->no_hit_color);
+  mathfu::vec4 color = mathfu::kZeros4f;
+  MathfuVec4FromFbColor(data->hit_color(), &color);
+  cursor.hit_color = Color4ub(color);
+  MathfuVec4FromFbColor(data->no_hit_color(), &color);
+  cursor.no_hit_color = Color4ub(color);
 
-  const float inner_hole = data->inner_hole();
-  const float inner_ring_end = data->inner_ring_end();
-  const float inner_ring_thickness = data->inner_ring_thickness();
-  const float mid_ring_end = data->mid_ring_end();
-  const float mid_ring_opacity = data->mid_ring_opacity();
+  cursor.inner_hole = data->inner_hole();
+  cursor.inner_ring_end = data->inner_ring_end();
+  cursor.inner_ring_thickness = data->inner_ring_thickness();
+  cursor.mid_ring_end = data->mid_ring_end();
+  cursor.mid_ring_opacity = data->mid_ring_opacity();
 
-  // Set some initial uniform values.
-  auto* render_system = registry_->Get<RenderSystem>();
-  if (render_system) {
-    mathfu::vec4 reticle_color = reticle_->no_hit_color;
-    render_system->SetUniform(entity, "color", &reticle_color[0], 4);
-    render_system->SetUniform(entity, "ring_diameter",
-                              &reticle_->ring_inactive_diameter, 1);
-    render_system->SetUniform(entity, "inner_hole", &inner_hole, 1);
-    render_system->SetUniform(entity, "inner_ring_end", &inner_ring_end, 1);
-    render_system->SetUniform(entity, "inner_ring_thickness",
-                              &inner_ring_thickness, 1);
-    render_system->SetUniform(entity, "mid_ring_end", &mid_ring_end, 1);
-    render_system->SetUniform(entity, "mid_ring_opacity", &mid_ring_opacity, 1);
+  auto* cursor_system = registry_->Get<CursorSystem>();
+  if (cursor_system != nullptr) {
+    cursor_system->CreateComponent(entity, Blueprint(&cursor));
   }
 }
 
@@ -215,13 +197,14 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
   const Entity entity = reticle_->GetEntity();
   auto* input = registry_->Get<InputManager>();
   auto* transform_system = registry_->Get<TransformSystem>();
+  auto* cursor_system = registry_->Get<CursorSystem>();
   auto device = GetActiveDevice();
 
   if (device == InputManager::kMaxNumDeviceTypes) {
-    // No valid connected input device.  Set the scale to 0 to hide the reticle.
-    Sqt sqt;
-    sqt.scale = mathfu::kZeros3f;
-    transform_system->SetSqt(entity, sqt);
+    if (cursor_system != nullptr) {
+      cursor_system->DoNotCallUpdateCursor(entity, false, kNullEntity, false,
+                                           mathfu::kZeros3f);
+    }
     return;
   }
 
@@ -237,7 +220,10 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
   auto collision_system = registry_->Get<CollisionSystem>();
   if (!collision_system) {
     // If there is no collision system, this is the reticle's final position.
-    SetReticleTransform(entity, reticle_position, camera_position);
+    if (cursor_system != nullptr) {
+      cursor_system->DoNotCallUpdateCursor(entity, true, kNullEntity, false,
+                                           reticle_position);
+    }
     return;
   }
 
@@ -281,8 +267,6 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
     }
   }
 
-  SetReticleTransform(entity, reticle_position, camera_position);
-
   //////////////////////////////////////////////////////////////////////////////
   // Finalize what entity to actually target
   //////////////////////////////////////////////////////////////////////////////
@@ -304,7 +288,6 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
   if (reticle_->target_entity != targeted_entity || !is_interactive) {
     auto dispatcher = registry_->Get<Dispatcher>();
     auto dispatcher_system = registry_->Get<DispatcherSystem>();
-    auto render_system = registry_->Get<RenderSystem>();
 
     if (reticle_->target_entity != kNullEntity) {
       dispatcher->Send(StopHoverEvent(reticle_->target_entity));
@@ -326,22 +309,6 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
                                 StartHoverEvent(reticle_->target_entity));
       }
     }
-
-    const float ring_diameter = is_interactive
-                                    ? reticle_->ring_active_diameter
-                                    : reticle_->ring_inactive_diameter;
-    auto* animation_system = registry_->Get<AnimationSystem>();
-    if (animation_system) {
-      const auto kAnimTime = std::chrono::milliseconds(250);
-      animation_system->SetTarget(entity, kRingDiamaterChannelName,
-                                  &ring_diameter, 1, kAnimTime);
-    } else {
-      render_system->SetUniform(entity, "ring_diameter", &ring_diameter, 1);
-    }
-
-    const float* color_data =
-        is_interactive ? &reticle_->hit_color[0] : &reticle_->no_hit_color[0];
-    render_system->SetUniform(entity, "color", color_data, 4);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -417,6 +384,18 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
       dispatcher_system->Send(current_entity, PrimaryButtonLongPress());
     }
   }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Update Cursor rendering and placement
+  //////////////////////////////////////////////////////////////////////////////
+
+  if (cursor_system != nullptr) {
+    const bool actually_interactive =
+        reticle_->target_entity == kNullEntity ? false : is_interactive;
+    cursor_system->DoNotCallUpdateCursor(entity, true, reticle_->target_entity,
+                                         actually_interactive,
+                                         reticle_position);
+  }
 }
 
 bool ReticleSystem::IsInsideEntityDeadZone(Entity collided_entity) const {
@@ -471,30 +450,6 @@ Entity ReticleSystem::HandleReticleBehavior(Entity targeted_entity) {
     }
   }
   return targeted_entity;
-}
-
-void ReticleSystem::SetReticleTransform(Entity reticle_entity,
-                                        const mathfu::vec3& reticle_world_pos,
-                                        const mathfu::vec3& camera_world_pos) {
-  auto* transform_system = registry_->Get<TransformSystem>();
-
-  Sqt sqt;
-  mathfu::vec3 reticle_to_camera = camera_world_pos - reticle_world_pos;
-
-  // Place the reticle at the desired location:
-  sqt.translation = reticle_world_pos;
-
-  // Rotate to face the camera.  We want the reticle's +z to point directly
-  // at the camera, with a preference for rotating around the y axis in
-  // ambiguous cases.
-  sqt.rotation = mathfu::quat::RotateFromToWithAxis(
-      mathfu::kAxisZ3f, reticle_to_camera, mathfu::kAxisY3f);
-
-  // Scale the reticle to maintain constant apparent size.
-  sqt.scale *= reticle_to_camera.Length() / reticle_->no_hit_distance;
-
-  transform_system->SetWorldFromEntityMatrix(reticle_entity,
-                                             CalculateTransformMatrix(sqt));
 }
 
 mathfu::vec3 ReticleSystem::CalculateReticleNoHitPosition(
@@ -575,6 +530,10 @@ Ray ReticleSystem::GetCollisionRay() const {
 void ReticleSystem::SetNoHitDistance(float distance) {
   if (reticle_) {
     reticle_->no_hit_distance = distance;
+    auto* cursor_system = registry_->Get<CursorSystem>();
+    if (cursor_system != nullptr) {
+      cursor_system->SetNoHitDistance(reticle_->GetEntity(), distance);
+    }
   }
 }
 

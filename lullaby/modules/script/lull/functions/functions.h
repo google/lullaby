@@ -111,12 +111,29 @@ class ScriptFunctionContext {
   ScriptValue args_[kMaxArgs];
 };
 
+// If the first argument of the function is a ScriptFrame*, this will bind the
+// frame as the first arg, so that CallNativeFunction doesn't see that arg.
+template <typename Fn>
+struct MaybePassScriptFrame {
+  static inline Fn Wrap(ScriptFrame* frame, Fn fn) { return fn; }
+};
+
+template <typename Ret, typename... Args>
+struct MaybePassScriptFrame<Ret (*)(ScriptFrame*, Args...)> {
+  static inline std::function<Ret(Args...)> Wrap(ScriptFrame* frame,
+                                                 Ret (*fn)(ScriptFrame*,
+                                                           Args...)) {
+    return [fn, frame](Args... args) { return fn(frame, args...); };
+  }
+};
+
 // Wraps arbitrary functions and presents them as ScriptFunctions.
 template <typename Fn>
 ScriptFunction WrapScriptFunction(Fn fn, string_view name) {
   return [fn, name](ScriptFrame* frame) {
     detail::ScriptFunctionContext context(frame);
-    CallNativeFunction(&context, name.data(), fn);
+    CallNativeFunction(&context, name.data(),
+                       MaybePassScriptFrame<Fn>::Wrap(frame, fn));
   };
 }
 

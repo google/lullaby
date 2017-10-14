@@ -5,8 +5,8 @@
 #include <type_traits>
 #include <memory>
 #include "flatbuffers/reticle_behaviour_def_generated.h"
-#include "lullaby/util/color.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -39,6 +39,7 @@ void ReticleBehaviourDefT::SerializeFlatbuffer(Archive archive) {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::ReticleCollisionBehaviour);
 LULLABY_SETUP_TYPEID(lull::ReticleBehaviourDefT);
 
 #endif  // _LULLABY_LULLABY_GENERATED_RETICLE_BEHAVIOUR_DEF_GENERATED_H_

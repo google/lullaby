@@ -348,6 +348,10 @@ void RenderSystem::SetMesh(Entity e, const MeshData& mesh) {
   impl_->SetMesh(e, mesh);
 }
 
+void RenderSystem::SetAndDeformMesh(Entity entity, const MeshData& mesh) {
+  impl_->SetAndDeformMesh(entity, mesh);
+}
+
 void RenderSystem::SetMesh(Entity e, const std::string& file) {
   impl_->SetMesh(e, file);
 }
@@ -429,6 +433,16 @@ void RenderSystem::SetRenderPass(Entity e, RenderPass pass) {
   impl_->SetRenderPass(e, pass);
 }
 
+void RenderSystem::SetRenderState(HashValue pass,
+                                  const fplbase::RenderState& render_state) {
+  impl_->SetRenderState(pass, render_state);
+}
+
+void RenderSystem::SetClearParams(HashValue pass,
+                                  const ClearParams& clear_params) {
+  impl_->SetClearParams(pass, clear_params);
+}
+
 void RenderSystem::SetSortMode(RenderPass pass, SortMode mode) {
   impl_->SetSortMode(pass, mode);
 }
@@ -460,6 +474,11 @@ void RenderSystem::SetViewport(const View& view) {
 
 void RenderSystem::SetClipFromModelMatrix(const mathfu::mat4& mvp) {
   impl_->SetClipFromModelMatrix(mvp);
+}
+
+void RenderSystem::SetClipFromModelMatrixFunction(
+    const CalculateClipFromModelMatrixFunc& func) {
+  impl_->SetClipFromModelMatrixFunction(func);
 }
 
 mathfu::vec4 RenderSystem::GetClearColor() const {
@@ -497,6 +516,15 @@ void RenderSystem::EndFrame() {
   }
 
   impl_->EndFrame();
+}
+
+const fplbase::RenderState& RenderSystem::GetCachedRenderState() const {
+  return impl_->GetCachedRenderState();
+}
+
+void RenderSystem::UpdateCachedRenderState(
+    const fplbase::RenderState& render_state) {
+  impl_->UpdateCachedRenderState(render_state);
 }
 
 void RenderSystem::BeginRendering() { impl_->BeginRendering(); }

@@ -44,8 +44,9 @@ void DebugRenderImpl::Begin(const RenderSystem::View* views, size_t num_views) {
 }
 
 void DebugRenderImpl::End() {
-  render_system_->SetDepthTest(false);
-  render_system_->SetDepthWrite(false);
+  // TODO(b/66690010) Reset depth test and depth write to original state.
+  render_system_->SetDepthTest(true);
+  render_system_->SetDepthWrite(true);
 }
 
 void DebugRenderImpl::DrawLine(const mathfu::vec3& start_point,

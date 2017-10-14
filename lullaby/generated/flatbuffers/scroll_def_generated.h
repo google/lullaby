@@ -35,13 +35,13 @@ struct ScrollDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   /// The virtual size of the entire field of content. The content location is
   /// assumed to start at the origin.  (Note: the z-values are ignored since
   /// scrolling only happens in 2-dimensions.)
-  const lull::AabbDef *content_bounds() const {
-    return GetStruct<const lull::AabbDef *>(VT_CONTENT_BOUNDS);
+  const AabbDef *content_bounds() const {
+    return GetStruct<const AabbDef *>(VT_CONTENT_BOUNDS);
   }
   /// Defines how fast the scroll view will move relative to the touch pad
   /// input. A value of 0 will prevent scrolling in the specified dimension.
-  const lull::Vec2 *touch_sensitivity() const {
-    return GetStruct<const lull::Vec2 *>(VT_TOUCH_SENSITIVITY);
+  const Vec2 *touch_sensitivity() const {
+    return GetStruct<const Vec2 *>(VT_TOUCH_SENSITIVITY);
   }
   /// Defines (in milliseconds) how long the touch momentum is carried when the
   /// touch is released.  Must be >= 0.
@@ -56,8 +56,8 @@ struct ScrollDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   /// If defined, this allows the scroll view to be dragged past its content
   /// bounds with increasing resistance.
-  const lull::Vec2 *drag_border() const {
-    return GetStruct<const lull::Vec2 *>(VT_DRAG_BORDER);
+  const Vec2 *drag_border() const {
+    return GetStruct<const Vec2 *>(VT_DRAG_BORDER);
   }
   /// Same as touch_momentum_ms, but for dragging.  Must be >= 0.
   int32_t drag_momentum_ms() const {
@@ -65,11 +65,11 @@ struct ScrollDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::AabbDef>(verifier, VT_CONTENT_BOUNDS) &&
-           VerifyField<lull::Vec2>(verifier, VT_TOUCH_SENSITIVITY) &&
+           VerifyField<AabbDef>(verifier, VT_CONTENT_BOUNDS) &&
+           VerifyField<Vec2>(verifier, VT_TOUCH_SENSITIVITY) &&
            VerifyField<int32_t>(verifier, VT_TOUCH_MOMENTUM_MS) &&
            VerifyField<int32_t>(verifier, VT_ACTIVE_PRIORITY) &&
-           VerifyField<lull::Vec2>(verifier, VT_DRAG_BORDER) &&
+           VerifyField<Vec2>(verifier, VT_DRAG_BORDER) &&
            VerifyField<int32_t>(verifier, VT_DRAG_MOMENTUM_MS) &&
            verifier.EndTable();
   }
@@ -78,10 +78,10 @@ struct ScrollDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ScrollDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_content_bounds(const lull::AabbDef *content_bounds) {
+  void add_content_bounds(const AabbDef *content_bounds) {
     fbb_.AddStruct(ScrollDef::VT_CONTENT_BOUNDS, content_bounds);
   }
-  void add_touch_sensitivity(const lull::Vec2 *touch_sensitivity) {
+  void add_touch_sensitivity(const Vec2 *touch_sensitivity) {
     fbb_.AddStruct(ScrollDef::VT_TOUCH_SENSITIVITY, touch_sensitivity);
   }
   void add_touch_momentum_ms(int32_t touch_momentum_ms) {
@@ -90,19 +90,19 @@ struct ScrollDefBuilder {
   void add_active_priority(int32_t active_priority) {
     fbb_.AddElement<int32_t>(ScrollDef::VT_ACTIVE_PRIORITY, active_priority, 0);
   }
-  void add_drag_border(const lull::Vec2 *drag_border) {
+  void add_drag_border(const Vec2 *drag_border) {
     fbb_.AddStruct(ScrollDef::VT_DRAG_BORDER, drag_border);
   }
   void add_drag_momentum_ms(int32_t drag_momentum_ms) {
     fbb_.AddElement<int32_t>(ScrollDef::VT_DRAG_MOMENTUM_MS, drag_momentum_ms, 50);
   }
-  ScrollDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScrollDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScrollDefBuilder &operator=(const ScrollDefBuilder &);
   flatbuffers::Offset<ScrollDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 6);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScrollDef>(end);
     return o;
   }
@@ -110,11 +110,11 @@ struct ScrollDefBuilder {
 
 inline flatbuffers::Offset<ScrollDef> CreateScrollDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::AabbDef *content_bounds = 0,
-    const lull::Vec2 *touch_sensitivity = 0,
+    const AabbDef *content_bounds = 0,
+    const Vec2 *touch_sensitivity = 0,
     int32_t touch_momentum_ms = 250,
     int32_t active_priority = 0,
-    const lull::Vec2 *drag_border = 0,
+    const Vec2 *drag_border = 0,
     int32_t drag_momentum_ms = 50) {
   ScrollDefBuilder builder_(_fbb);
   builder_.add_drag_momentum_ms(drag_momentum_ms);
@@ -137,12 +137,12 @@ struct ScrollSnapToGridDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table 
   };
   /// The space between grid points where the first grid point is at (0,0).
   /// Must be > (0,0)
-  const lull::Vec2 *interval() const {
-    return GetStruct<const lull::Vec2 *>(VT_INTERVAL);
+  const Vec2 *interval() const {
+    return GetStruct<const Vec2 *>(VT_INTERVAL);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<lull::Vec2>(verifier, VT_INTERVAL) &&
+           VerifyField<Vec2>(verifier, VT_INTERVAL) &&
            verifier.EndTable();
   }
 };
@@ -150,16 +150,16 @@ struct ScrollSnapToGridDef FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table 
 struct ScrollSnapToGridDefBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_interval(const lull::Vec2 *interval) {
+  void add_interval(const Vec2 *interval) {
     fbb_.AddStruct(ScrollSnapToGridDef::VT_INTERVAL, interval);
   }
-  ScrollSnapToGridDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScrollSnapToGridDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScrollSnapToGridDefBuilder &operator=(const ScrollSnapToGridDefBuilder &);
   flatbuffers::Offset<ScrollSnapToGridDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScrollSnapToGridDef>(end);
     return o;
   }
@@ -167,7 +167,7 @@ struct ScrollSnapToGridDefBuilder {
 
 inline flatbuffers::Offset<ScrollSnapToGridDef> CreateScrollSnapToGridDef(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const lull::Vec2 *interval = 0) {
+    const Vec2 *interval = 0) {
   ScrollSnapToGridDefBuilder builder_(_fbb);
   builder_.add_interval(interval);
   return builder_.Finish();
@@ -200,13 +200,13 @@ struct ScrollSnapToGrandchildrenDefBuilder {
   void add_fling_multiplier(float fling_multiplier) {
     fbb_.AddElement<float>(ScrollSnapToGrandchildrenDef::VT_FLING_MULTIPLIER, fling_multiplier, 1.0f);
   }
-  ScrollSnapToGrandchildrenDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScrollSnapToGrandchildrenDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScrollSnapToGrandchildrenDefBuilder &operator=(const ScrollSnapToGrandchildrenDefBuilder &);
   flatbuffers::Offset<ScrollSnapToGrandchildrenDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 1);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScrollSnapToGrandchildrenDef>(end);
     return o;
   }
@@ -273,13 +273,13 @@ struct ScrollContentLayoutDefBuilder {
   void add_bottom_padding(float bottom_padding) {
     fbb_.AddElement<float>(ScrollContentLayoutDef::VT_BOTTOM_PADDING, bottom_padding, 0.0f);
   }
-  ScrollContentLayoutDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  explicit ScrollContentLayoutDefBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
   ScrollContentLayoutDefBuilder &operator=(const ScrollContentLayoutDefBuilder &);
   flatbuffers::Offset<ScrollContentLayoutDef> Finish() {
-    const auto end = fbb_.EndTable(start_, 4);
+    const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<ScrollContentLayoutDef>(end);
     return o;
   }

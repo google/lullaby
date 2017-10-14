@@ -110,7 +110,7 @@ explore the Lullaby codebase.
 
 ## Codebase
 
-All C++ code is available under the src/ folder. It contains the following
+All C++ code is available under the `src/` folder. It contains the following
 subfolders:
 
 *   base: The ECS implementation and the base tech libraries.
@@ -123,7 +123,7 @@ subfolders:
 *   util: Various utility libraries as described above.
 *   schemas: Flatbuffer schema files.
 
-Note: Some code that should be in util/ may actually be in base/ and vice-versa
+Note: Some code that should be in `util/` may actually be in `base/ and vice-versa
 due to legacy reasons. (Mainly because it's somewhat arbitrary as to what is a
 "base" technology vs. what is a utility.)
 

@@ -21,9 +21,9 @@ following information might be useful:
 ```
 -   Build all the files with the following exceptions:
     -   For android, remove
-        src/lullaby/systems/render/detail/port/default/gpu_profiler.cc
+        `src/lullaby/systems/render/detail/port/default/gpu_profiler.cc`
     -   For all other platforms, remove
-        src/lullaby/systems/render/detail/port/android/gpu_profiler.cc
+        `src/lullaby/systems/render/detail/port/android/gpu_profiler.cc`
 
 ### Dependencies
 

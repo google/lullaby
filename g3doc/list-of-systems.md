@@ -1,8 +1,7 @@
 # List of Systems
 
 The following is a list of [Systems](ecs.md#system) that are available in the
-Lullaby repository.  Detailed documentation for individual [Systems]
-(ecs.md#system) is available in their respective folders.
+Lullaby repository.  Detailed documentation for individual [Systems](ecs.md#system) is available in their respective folders.
 
 System                                              | Description
 --------------------------------------------------- | --------------------------
@@ -17,7 +16,7 @@ System                                              | Description
 [name](../src/systems/name)                         | Associates a name with an entity
 [render](../src/systems/render)                     | Draws (renders) Entities on the screen
 [reticle](../src/systems/reticle)                   | Provides a point-and-click style cursor
-[script](../src/systems/script)                     | Allows scripts to be attached to entites
+[script](../src/systems/script)                     | Allows scripts to be attached to entities
 [scroll](../src/systems/scroll)                     | Updates the position of its children based on touch input
 [text](../src/systems/text)                         | Manages the rendering of i18n strings
 [transform](../src/systems/transform)               | Provides Entities with position, rotation, scale and volume

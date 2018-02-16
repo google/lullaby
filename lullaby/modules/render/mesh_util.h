@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_RENDER_MESH_UTIL_H_
-#define LULLABY_MODULES_RENDER_MESH_UTIL_H_
+#ifndef LULLABY_UTIL_MESH_UTIL_H_
+#define LULLABY_UTIL_MESH_UTIL_H_
 
 #include <stdint.h>
 #include <algorithm>
@@ -24,14 +24,12 @@ limitations under the License.
 
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/math.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
 using PositionDeformation = std::function<mathfu::vec3(const mathfu::vec3&)>;
-
-using VertexListDeformation =
-    std::function<void(float* data, size_t count, size_t stride_in_floats)>;
 
 // Bitmask for representing a set of quad corners.  These are named as if
 // looking down the -z axis: +x = right and +y is top.
@@ -59,15 +57,9 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
                                                      int num_verts_y,
                                                      int corner_verts);
 
-// TODO(b/38379841) Reduce complexity of deformations.
-void ApplyDeformation(float* vertices, size_t len, size_t stride,
-                      const PositionDeformation& deform);
-
 // Deforms |mesh| in-place by applying |deform| to each of its vertices. Fails
 // with a DFATAL if |mesh| doesn't have read+write access.
-// TODO(b/38379841) Reduce complexity of deformations.
-void ApplyDeformationToMesh(MeshData* mesh,
-                            const VertexListDeformation& deform);
+void ApplyDeformation(MeshData* mesh, const PositionDeformation& deform);
 
 // Returns the number of vertices a needed for a tessellated quad.  Optionally,
 // also returns the number of interior verts in out params so that this function
@@ -328,6 +320,7 @@ MeshData CreateQuadMesh(float size_x, float size_y, int num_verts_x,
   MeshData mesh(
       MeshData::kTriangles, Vertex::kFormat,
       DataContainer::CreateHeapDataContainer(vertices.size() * sizeof(Vertex)),
+      MeshData::kIndexU16,
       DataContainer::CreateHeapDataContainer(indices.size() *
                                              sizeof(uint16_t)));
   mesh.AddVertices(vertices.data(), vertices.size());
@@ -336,14 +329,17 @@ MeshData CreateQuadMesh(float size_x, float size_y, int num_verts_x,
 }
 
 // Creates a VertexPT sphere mesh using latitude-longitude tessellation. The
-// sphere will be external-facing unless |radius| is negative. If the requested
-// mesh exceeds MeshData's vertex limit, this will log a DFATAL and return an
-// empty mesh. The 'u' texture coordinate tracks longitude; the 'v' coordinate
-// tracks latitude, with 0 and 1 at the north and south poles, respectively.
-// |num_parallels| is the number of latitude divisions not incl. poles. [1,inf)
-// |num_meridians| is the number of longitude divisions. [3,inf).
+// sphere will be external-facing unless |radius| is negative. The mesh will
+// always use 32-bit indices. The 'u' texture coordinate tracks longitude; the
+// 'v' coordinate tracks latitude, with 0 and 1 at the north and south poles,
+// respectively. |num_parallels| is the number of latitude divisions not incl.
+// poles. [1,inf) |num_meridians| is the number of longitude divisions. [3,inf).
 MeshData CreateLatLonSphere(float radius, int num_parallels, int num_meridians);
+
+// Returns the 3D box that contains all of the points represented by |mesh|.
+// Logs a DFATAL and returns an empty box if |mesh| doesn't have read access.
+Aabb GetBoundingBox(const MeshData& mesh);
 
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_RENDER_MESH_UTIL_H_
+#endif  // LULLABY_UTIL_MESH_UTIL_H_

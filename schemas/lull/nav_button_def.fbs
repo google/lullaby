@@ -1,0 +1,60 @@
+include "lull/lull_common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// Convenience component to define and control a navigation button following
+/// the standard design pattern.
+table NavButtonDef {
+  /// Icon blueprint (example at lullaby/data/blueprints/nav-button-icon.json).
+  icon_blueprint: string;
+  /// Label blueprint (example at
+  /// lullaby/data/blueprints/nav-button-label.json).
+  label_blueprint: string;
+  /// Background blueprint (example at
+  /// lullaby/data/blueprints/nav-button-background.json).
+  background_blueprint: string;
+
+  /// Icon texture to be displayed.
+  icon: string;
+  /// Text to display in the label.
+  text: string;
+
+  /// Icon color.
+  icon_color_hex: string;
+  /// Label color.
+  label_color_hex: string;
+  /// Background color.
+  background_color_hex: string;
+
+  /// Color to animate the label to on hover.
+  label_hover_color_hex: string;
+  /// Color to animate the background to on hover.
+  background_hover_color_hex: string;
+
+  /// Duration for the start hover color animations on the label and background
+  /// in milliseconds.
+  start_hover_duration_millis: int = 150;
+  /// Duration for the stop hover color animations on the label and background
+  /// in milliseconds.
+  stop_hover_duration_millis: int = 100;
+
+  /// When these events are received, if the event contains a "text" string
+  /// variant it will set the text on the label.
+  set_text_events: [EventDef];
+
+  /// Optional shader to use for the label. The default label blueprint will use
+  /// the texture shader. Consider using the clamped texture shader if the
+  /// icon is part of a texture atlas.
+  icon_shader: string;
+
+  /// Optional shader to use for the label text, overriding the shader contained
+  /// in the default blueprint.
+  label_shader: string;
+
+  /// When these events are received, if the event contains a "icon" string
+  /// variant, it will set the texture on the icon.
+  set_icon_events: [EventDef];
+}
+
+root_type NavButtonDef;

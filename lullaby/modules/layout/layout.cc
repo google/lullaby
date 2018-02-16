@@ -18,7 +18,7 @@ limitations under the License.
 
 #include <algorithm>
 
-#include "flatui/internal/flatui_layout.h"
+#include "lullaby/modules/layout/layout_manager.h"
 #include "lullaby/systems/layout/layout_box_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
@@ -28,34 +28,35 @@ namespace lull {
 namespace {
 
 // Converts a lull::LayoutHorizontalAlignment to it's flatui equivalent.
-flatui::Alignment HorizontalAlignmentToFlatUi(LayoutHorizontalAlignment align) {
+LayoutGroupAlignment HorizontalToGroupAlignment(
+    LayoutHorizontalAlignment align) {
   switch (align) {
     case LayoutHorizontalAlignment_Left:
-      return flatui::kAlignLeft;
+      return LayoutGroupAlignment::kLeft;
       break;
     case LayoutHorizontalAlignment_Center:
-      return flatui::kAlignCenter;
+      return LayoutGroupAlignment::kCenter;
       break;
     case LayoutHorizontalAlignment_Right:
-      return flatui::kAlignRight;
+      return LayoutGroupAlignment::kRight;
       break;
   }
 
-  return flatui::kAlignLeft;
+  return LayoutGroupAlignment::kLeft;
 }
 
 // Converts a lull::LayoutVerticalAlignment to it's flatui equivalent.
-flatui::Alignment VerticalAlignmentToFlatUi(LayoutVerticalAlignment align) {
+LayoutGroupAlignment VerticalToGroupAlignment(LayoutVerticalAlignment align) {
   switch (align) {
     case LayoutVerticalAlignment_Top:
-      return flatui::kAlignTop;
+      return LayoutGroupAlignment::kTop;
     case LayoutVerticalAlignment_Center:
-      return flatui::kAlignCenter;
+      return LayoutGroupAlignment::kCenter;
     case LayoutVerticalAlignment_Bottom:
-      return flatui::kAlignBottom;
+      return LayoutGroupAlignment::kBottom;
   }
 
-  return flatui::kAlignTop;
+  return LayoutGroupAlignment::kTop;
 }
 
 size_t CalculateElementsPerWrap(size_t elements_per_wrap, size_t total_count) {
@@ -113,7 +114,7 @@ bool IsInnerBackwardFillOrder(LayoutFillOrder fill_order) {
 struct InnerIndexRange {
   LayoutFillOrder fill_order;
   size_t start = 0;  // Always the minimum index of a row
-  size_t size = 0;  // Size of a row, will be capped by total_size
+  size_t size = 0;   // Size of a row, will be capped by total_size
 
   // outer_idx is the index in the secondary direction
   // outer_count is the count of primary rows in secondary direction
@@ -121,7 +122,8 @@ struct InnerIndexRange {
   // total_size is the count of all the elements
   InnerIndexRange(LayoutFillOrder fill_order_, size_t outer_idx,
                   size_t outer_count, size_t elements_per_wrap,
-                  size_t total_size) : fill_order(fill_order_) {
+                  size_t total_size)
+      : fill_order(fill_order_) {
     size_t index;
     if (IsOuterForward()) {
       index = outer_idx;
@@ -192,9 +194,7 @@ struct DesiredSize {
   bool IsHidden() const {
     return (x && *x == 0) || (y && *y == 0) || (z && *z == 0);
   }
-  bool IsChanged() const {
-    return x || y || z;
-  }
+  bool IsChanged() const { return x || y || z; }
 };
 
 // A class to determine the inner size and weight based on fill_order axis.
@@ -206,7 +206,7 @@ class InnerElement {
                DesiredSize* desired_size)
       : horizontal_first_(horizontal_first), desired_size_(desired_size) {
     const mathfu::vec3 entity_size =
-      layout_box_system->GetOriginalBox(element.entity)->Size();
+        layout_box_system->GetOriginalBox(element.entity)->Size();
 
     if (horizontal_first_) {
       weight_ = element.horizontal_weight;
@@ -283,9 +283,7 @@ class OuterElement {
 
   // The desired size is the max of size_ or weighted_size_, in case the
   // weight was relatively low and superceded by another element in the row.
-  float GetDesiredSize() const {
-    return std::max(size_, weighted_size_);
-  }
+  float GetDesiredSize() const { return std::max(size_, weighted_size_); }
 
   // If all of the elements in a row are hidden by weight, don't create the
   // inner_group at all so there isn't extra spacing.
@@ -306,12 +304,14 @@ class OuterElement {
 // InnerElements.
 class ApplyLayoutContext {
  public:
-  ApplyLayoutContext(const LayoutParams &params,
+  ApplyLayoutContext(const LayoutParams& params,
                      const std::vector<LayoutElement>& elements,
                      LayoutBoxSystem* layout_box_system,
                      std::vector<DesiredSize>* desired_sizes)
-      : fill_order_(params.fill_order), elements_(elements),
-        layout_box_system_(layout_box_system), desired_sizes_(desired_sizes) {
+      : fill_order_(params.fill_order),
+        elements_(elements),
+        layout_box_system_(layout_box_system),
+        desired_sizes_(desired_sizes) {
     if (IsHorizontalFirstFillOrder()) {
       horizontal_first_ = true;
     } else if (IsVerticalFirstFillOrder()) {
@@ -383,8 +383,8 @@ class ApplyLayoutContext {
 
 // If it has weight, sum it up.  Otherwise, it is unresizable and should
 // account for used size.
-void UpdateWeightAndSize(float weight, float size,
-                         float* total_weight, float* used_size) {
+void UpdateWeightAndSize(float weight, float size, float* total_weight,
+                         float* used_size) {
   if (weight > 0) {
     *total_weight += weight;
   } else {
@@ -410,7 +410,7 @@ void ApplyLayoutInnerDesired(const float inner_spacing,
                              const float inner_canvas_size,
                              ApplyLayoutContext* context,
                              std::vector<OuterElement>* outer_elements) {
-  for (size_t outer_idx  = 0; outer_idx < outer_elements->size(); ++outer_idx) {
+  for (size_t outer_idx = 0; outer_idx < outer_elements->size(); ++outer_idx) {
     const InnerIndexRange range = context->GetRangeForOuter(outer_idx);
     if (range.size == 0) {
       return;
@@ -437,9 +437,8 @@ void ApplyLayoutInnerDesired(const float inner_spacing,
         InnerElement inner_element = context->GetInnerElementInRange(range, i);
 
         if (inner_element.GetWeight() > 0) {
-          const float child_inner_size =
-              CalculateChildSizeFromWeight(inner_element.GetWeight(),
-                                           free_size_per_weight);
+          const float child_inner_size = CalculateChildSizeFromWeight(
+              inner_element.GetWeight(), free_size_per_weight);
           inner_element.SetInnerDesiredSize(child_inner_size);
         }
       }
@@ -493,9 +492,8 @@ void ApplyLayoutOuterDesired(const float outer_spacing,
          ++outer_idx) {
       OuterElement& outer_element = outer_elements->at(outer_idx);
       if (outer_element.GetWeight() > 0) {
-        const float child_outer_size =
-            CalculateChildSizeFromWeight(outer_element.GetWeight(),
-                                         free_outer_size_per_weight);
+        const float child_outer_size = CalculateChildSizeFromWeight(
+            outer_element.GetWeight(), free_outer_size_per_weight);
         if (child_outer_size < outer_element.GetSize()) {
           // Don't use weight, just leave as original max_size.
           outer_element.SetWeight(0.0f);
@@ -558,21 +556,14 @@ void ApplyLayoutOuterDesired(const float outer_spacing,
 void ApplyLayoutSetDesired(const std::vector<LayoutElement>& elements,
                            const std::vector<DesiredSize>& desired_sizes,
                            Entity desired_source,
-                           TransformSystem* transform_system,
                            LayoutBoxSystem* layout_box_system) {
   for (size_t i = 0; i < elements.size(); ++i) {
     const LayoutElement& element = elements[i];
     const Entity entity = element.entity;
     const DesiredSize& desired_size = desired_sizes[i];
-    if (desired_size.IsHidden()) {
-      transform_system->Disable(entity);
-    } else if (element.horizontal_weight > 0 || element.vertical_weight > 0) {
-      transform_system->Enable(entity);
-      if (desired_size.IsChanged()) {
-        layout_box_system->SetDesiredSize(entity, desired_source,
-                                          desired_size.x, desired_size.y,
-                                          desired_size.z);
-      }
+    if (desired_size.IsChanged()) {
+      layout_box_system->SetDesiredSize(entity, desired_source, desired_size.x,
+                                        desired_size.y, desired_size.z);
     }
   }
 }
@@ -582,11 +573,14 @@ void ApplyLayoutSetDesired(const std::vector<LayoutElement>& elements,
 class CachedPositionsCalculator {
  public:
   CachedPositionsCalculator(bool is_horizontal_first, bool is_inner_forward,
-      size_t outer_count, size_t elements_per_wrap,
-      CachedPositions* cached_positions)
+                            size_t outer_count, size_t elements_per_wrap,
+                            CachedPositions* cached_positions)
       : is_horizontal_first_(is_horizontal_first),
-        cached_positions_(cached_positions), outer_idx_set_(false),
-        current_outer_idx_(0), min_(mathfu::kZeros2f), max_(mathfu::kZeros2f) {
+        cached_positions_(cached_positions),
+        outer_idx_set_(false),
+        current_outer_idx_(0),
+        min_(mathfu::kZeros2f),
+        max_(mathfu::kZeros2f) {
     if (!cached_positions_) {
       return;
     }
@@ -605,7 +599,8 @@ class CachedPositionsCalculator {
   // Layout's coordinate space.  It is expected to be called in the same order
   // which FlatUI processes elements, top-left to bottom-right.
   void UpdateWithPositions(size_t outer_idx, size_t index,
-      const mathfu::vec2& entity_min, const mathfu::vec2& entity_max) {
+                           const mathfu::vec2& entity_min,
+                           const mathfu::vec2& entity_max) {
     if (!cached_positions_) {
       return;
     }
@@ -689,8 +684,8 @@ class CachedPositionsCalculator {
 
 // Alias for update function used to set elements' position.
 using UpdateFunction =
-    std::function<void (Entity entity, size_t outer_idx, size_t index,
-                        mathfu::vec2 pos, mathfu::vec2 size)>;
+    std::function<void(Entity entity, size_t outer_idx, size_t index,
+                       mathfu::vec2 pos, mathfu::vec2 size)>;
 // Function to move all children from flatui.
 UpdateFunction ApplyLayoutUpdateFunction(
     const SetLayoutPositionFn& set_pos_fn,
@@ -766,7 +761,7 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
                      GetDefaultSetLayoutPositionFn(registry));
 }
 
-// Uses the flatui::LayoutManager to arrange the specified entities in
+// Uses the LayoutManager to arrange the specified entities in
 // |elements| based on the Layout |params|.
 Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
                  const std::vector<LayoutElement>& elements,
@@ -795,11 +790,10 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   // mapping as most Lullaby elements are not smaller than mm scale.
   static const float kScaleFactor = 100000.f;
 
-  // Setup the flatui::LayoutManager using the specified canvas size.
-  const mathfu::vec2i canvas_size(
-      static_cast<int>(kScaleFactor),
-      static_cast<int>(kScaleFactor));
-  flatui::LayoutManager layout(canvas_size);
+  // Setup the LayoutManager using the specified canvas size.
+  const mathfu::vec2i canvas_size(static_cast<int>(kScaleFactor),
+                                  static_cast<int>(kScaleFactor));
+  LayoutManager layout(canvas_size);
 
   const mathfu::vec2i spacing =
       layout.VirtualToPhysical(params.spacing * kScaleFactor);
@@ -814,15 +808,14 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   // groups in the secondary order axis.  The "inner" groups are used to
   // arrange elements in the primary order axis.
 
-  flatui::Group inner_group;
-  flatui::Group outer_group;
-  flatui::Group outermost_group;
+  LayoutGroup inner_group;
+  LayoutGroup outer_group;
+  LayoutGroup outermost_group;
   float inner_canvas_size;
   float outer_canvas_size;
   float inner_spacing;
   float outer_spacing;
 
-  auto* transform_system = registry->Get<TransformSystem>();
   auto* layout_box_system = registry->Get<LayoutBoxSystem>();
   std::vector<DesiredSize> desired_sizes(elements.size());
   ApplyLayoutContext context(params, elements, layout_box_system,
@@ -830,41 +823,41 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   std::vector<OuterElement> outer_elements(context.GetOuterCount());
 
   if (context.IsHorizontalFirst()) {
-    inner_group.direction_ = flatui::kDirHorizontal;
-    outer_group.direction_ = flatui::kDirVertical;
-    outermost_group.direction_ = flatui::kDirHorizontal;
+    inner_group.direction_ = LayoutGroupDirection::kHorizontal;
+    outer_group.direction_ = LayoutGroupDirection::kVertical;
+    outermost_group.direction_ = LayoutGroupDirection::kHorizontal;
 
     inner_group.spacing_ = spacing.x;
     outer_group.spacing_ = spacing.y;
 
     // Set the horizontal alignment of the entire layout collectively.
     outer_group.align_ =
-        HorizontalAlignmentToFlatUi(params.horizontal_alignment);
+        HorizontalToGroupAlignment(params.horizontal_alignment);
     // Set the vertical alignment of the entire layout collectively.
     outermost_group.align_ =
-        VerticalAlignmentToFlatUi(params.vertical_alignment);
+        VerticalToGroupAlignment(params.vertical_alignment);
     // Set the vertical alignment of entities within a row.
-    inner_group.align_ = VerticalAlignmentToFlatUi(params.row_alignment);
+    inner_group.align_ = VerticalToGroupAlignment(params.row_alignment);
 
     inner_canvas_size = params.canvas_size.x;
     outer_canvas_size = params.canvas_size.y;
     inner_spacing = params.spacing.x;
     outer_spacing = params.spacing.y;
   } else {
-    inner_group.direction_ = flatui::kDirVertical;
-    outer_group.direction_ = flatui::kDirHorizontal;
-    outermost_group.direction_ = flatui::kDirVertical;
+    inner_group.direction_ = LayoutGroupDirection::kVertical;
+    outer_group.direction_ = LayoutGroupDirection::kHorizontal;
+    outermost_group.direction_ = LayoutGroupDirection::kVertical;
 
     inner_group.spacing_ = spacing.y;
     outer_group.spacing_ = spacing.x;
 
     // // Set the horizontal alignment of the entire layout collectively.
-    outer_group.align_ = VerticalAlignmentToFlatUi(params.vertical_alignment);
+    outer_group.align_ = VerticalToGroupAlignment(params.vertical_alignment);
     // // Set the vertical alignment of the entire layout collectively.
     outermost_group.align_ =
-      HorizontalAlignmentToFlatUi(params.horizontal_alignment);
+        HorizontalToGroupAlignment(params.horizontal_alignment);
     // Set the horizontal alignment of entities within a column.
-    inner_group.align_ = HorizontalAlignmentToFlatUi(params.column_alignment);
+    inner_group.align_ = HorizontalToGroupAlignment(params.column_alignment);
 
     inner_canvas_size = params.canvas_size.y;
     outer_canvas_size = params.canvas_size.x;
@@ -876,7 +869,7 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
     // If any elements are weighted, we need to resize remaining space
     // proportional to the weight.
     ApplyLayoutInnerDesired(inner_spacing, inner_canvas_size, &context,
-                           &outer_elements);
+                            &outer_elements);
     ApplyLayoutOuterDesired(outer_spacing, outer_canvas_size, &context,
                             &outer_elements);
 
@@ -886,7 +879,7 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
     // after the actual_box changes for real.  The subsequent iteration will
     // have desired_source = kNullEntity so no infinite loop occurs.
     ApplyLayoutSetDesired(elements, desired_sizes, desired_source,
-                          transform_system, layout_box_system);
+                          layout_box_system);
   }
 
   // We will keep track of 2 "empty" groups that will each hold one canvas_size
@@ -910,9 +903,9 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
     root_pos.y = virtual_pos.y;
   };
 
-  CachedPositionsCalculator calculator(context.IsHorizontalFirst(),
-      IsInnerForwardFillOrder(params.fill_order), context.GetOuterCount(),
-      context.GetElementsPerWrap(), cached_positions);
+  CachedPositionsCalculator calculator(
+      context.IsHorizontalFirst(), IsInnerForwardFillOrder(params.fill_order),
+      context.GetOuterCount(), context.GetElementsPerWrap(), cached_positions);
   const auto update_fn = ApplyLayoutUpdateFunction(
       set_pos_fn, layout_box_system, &params, context.IsHorizontalFirst(),
       &root_pos, &min_max_set, &min, &max, &calculator);
@@ -920,41 +913,40 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
   // Break the elements into groups based on the wrapping.
   layout.Run([&]() {
     // Start the group that handles the collective vertical alignment.
-    layout.StartGroup(outermost_group, kNullEntity);
+    layout.StartGroup(outermost_group);
     // Add an "empty" group that fills the entire height of the canvas so rows
     // will be aligned correctly within it.
     // Also, we will save the final position of the "empty" group to offset
     // all the children with it if they overflow
-    layout.StartGroup(outer_group, kNullEntity);
+    layout.StartGroup(outer_group);
     if (context.IsHorizontalFirst()) {
       layout.Element(mathfu::vec2(0, params.canvas_size.y) * kScaleFactor,
-                     kNullEntity, update_root_y_fn);
+                     update_root_y_fn);
     } else {
       layout.Element(mathfu::vec2(params.canvas_size.x, 0) * kScaleFactor,
-                     kNullEntity, update_root_x_fn);
+                     update_root_x_fn);
     }
     layout.EndGroup();
 
     // Start the outer group that expands in the "secondary" fill direction.
-    layout.StartGroup(outer_group, kNullEntity);
+    layout.StartGroup(outer_group);
 
     // Add an "empty" inner group that fills the extents of the canvas so that
     // elements will be aligned to the canvas rather than to themselves.
     // Also, we will save the final position of the "empty" group to offset
     // all the children with it if they overflow
-    layout.StartGroup(inner_group, kNullEntity);
+    layout.StartGroup(inner_group);
     if (context.IsHorizontalFirst()) {
       layout.Element(mathfu::vec2(params.canvas_size.x, 0) * kScaleFactor,
-                     kNullEntity, update_root_x_fn);
+                     update_root_x_fn);
     } else {
       layout.Element(mathfu::vec2(0, params.canvas_size.y) * kScaleFactor,
-                     kNullEntity, update_root_y_fn);
+                     update_root_y_fn);
     }
     layout.EndGroup();
 
     // Add entities as elements.
-    for (size_t outer_idx = 0; outer_idx < outer_elements.size();
-         ++outer_idx) {
+    for (size_t outer_idx = 0; outer_idx < outer_elements.size(); ++outer_idx) {
       const InnerIndexRange range = context.GetRangeForOuter(outer_idx);
       if (range.size == 0) {
         continue;
@@ -968,7 +960,7 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
 
       // Start the actual inner group for the elements that expands in the
       // "primary" fill direction.
-      layout.StartGroup(inner_group, kNullEntity);
+      layout.StartGroup(inner_group);
 
       // Use i = [0, size-1] for inner group indexes
       for (size_t i = 0; i < range.size; ++i) {
@@ -991,8 +983,7 @@ Aabb ApplyLayout(Registry* registry, const LayoutParams& params,
         }
 
         // Add the entity as an element to the layout.
-        layout.Element(size, entity,
-            [&](mathfu::vec2i pos, mathfu::vec2i size) {
+        layout.Element(size, [&](mathfu::vec2i pos, mathfu::vec2i size) {
           const mathfu::vec2 virtual_pos =
               layout.PhysicalToVirtual(pos) / kScaleFactor;
           const mathfu::vec2 virtual_size =
@@ -1044,10 +1035,12 @@ void ApplyRadialLayout(Registry* registry, const std::vector<Entity>& entities,
 
 size_t CalculateInsertIndexForPosition(const CachedPositions& cached_positions,
                                        const mathfu::vec3& local_position) {
-  const float outer_position = cached_positions.is_horizontal_first ?
-      local_position.y : local_position.x;
-  const float inner_position = cached_positions.is_horizontal_first ?
-      local_position.x : local_position.y;
+  const float outer_position = cached_positions.is_horizontal_first
+                                   ? local_position.y
+                                   : local_position.x;
+  const float inner_position = cached_positions.is_horizontal_first
+                                   ? local_position.x
+                                   : local_position.y;
   if (cached_positions.primary_positions.empty()) {
     // Layout has no children, just return 0.
     return 0;

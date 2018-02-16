@@ -11,6 +11,8 @@ cc_library(
         "animation_events.h",
         "audio_events.h",
         "entity_events.h",
+        "fade_events.h",
+        "grab_events.h",
         "input_events.h",
         "layout_events.h",
         "lifetime_events.h",
@@ -21,7 +23,7 @@ cc_library(
         "ui_events.h",
     ],
     deps = [
-        "//lullaby/modules/ecs:entity",
+        "//lullaby/util:entity",
         "//lullaby/util:hash",
         "//lullaby/util:math",
         "//lullaby/util:optional",

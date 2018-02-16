@@ -45,11 +45,11 @@ class UniformChannel : public AnimationChannel {
 };
 
 // Channel for animating Render matrix palette for rigged skeletal animation.
-class RigChannel : public AnimationChannel {
+class RenderRigChannel : public AnimationChannel {
  public:
   static const HashValue kChannelName;
 
-  RigChannel(Registry* registry, size_t pool_size);
+  RenderRigChannel(Registry* registry, size_t pool_size);
 
   bool IsRigChannel() const override { return true; }
 

@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_EVENTS_RENDER_EVENTS_H_
 #define LULLABY_EVENTS_RENDER_EVENTS_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -103,20 +103,22 @@ struct ShowEvent {
   Entity entity = kNullEntity;
 };
 
-// Dispatched when an entity's mesh had been changed.
+/// Dispatched when an entity's mesh had been changed.
 struct MeshChangedEvent {
   MeshChangedEvent() {}
-  MeshChangedEvent(Entity entity, HashValue component_id)
-      : entity(entity), component_id(component_id) {}
+  MeshChangedEvent(Entity entity, HashValue pass)
+      : entity(entity), pass(pass) {}
 
   template <typename Archive>
   void Serialize(Archive archive) {
     archive(&entity, Hash("target"));
-    archive(&component_id, Hash("component_id"));
+    archive(&pass, Hash("pass"));
   }
 
+  /// The entity whose mesh was changed.
   Entity entity = kNullEntity;
-  HashValue component_id = 0;
+  /// The pass that the entity's mesh was changed in.
+  HashValue pass = 0;
 };
 
 }  // namespace lull

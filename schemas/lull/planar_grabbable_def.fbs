@@ -1,0 +1,16 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Constrains the translation of the entity to a plane defined in either world
+/// or object-local coordinates. The position of the plane is defined at runtime
+/// as the point of initial grab.
+table PlanarGrabbableDef {
+  /// Orientation of the plane. Position will be defined at runtime by where
+  /// the object is grabbed.
+  normal: Vec3 (native_default:"{0.0f, 0.0f, -1.0f}");
+  /// Whether the orientation is defined in the entity's local space.
+  local_orientation: bool = false;
+}
+
+root_type PlanarGrabbableDef;

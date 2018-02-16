@@ -23,7 +23,6 @@ limitations under the License.
 #include "lullaby/events/text_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
-#include "lullaby/modules/file/file.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/systems/deform/deform_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
@@ -31,6 +30,8 @@ limitations under the License.
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/text/detail/util.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/android_context.h"
+#include "lullaby/util/filename.h"
 #include "lullaby/util/string_preprocessor.h"
 #include "lullaby/util/trace.h"
 #include "lullaby/generated/text_def_generated.h"
@@ -46,10 +47,12 @@ const HashValue kTextDefHash = Hash("TextDef");
 const mathfu::vec4 kDefaultLinkColor(39.0f / 255.0f, 121.0f / 255.0f, 1.0f,
                                      1.0f);  // "#2779FF";
 const mathfu::vec4 kDefaultUnderlineSdfParams(1, 0, 0, 1);
+const float kDefaultUnderlineTexCoordAaPadding = 0.75f;
 
 constexpr const char* kDefaultLinkTextBlueprint = ":DefaultLinkText:";
 constexpr const char* kDefaultLinkUnderlineBlueprint = ":DefaultLinkUnderline:";
 
+constexpr const char* kTexCoordAaPaddingUniform = "tex_coord_aa_padding";
 constexpr const char* kSdfParamsUniform = "sdf_params";
 constexpr const char* kTextureSizeUniform = "texture_size";
 
@@ -118,6 +121,16 @@ static int32_t GetGlyphSizeForTextSize(int32_t size) {
 
 FlatuiTextSystem::FlatuiTextSystem(Registry* registry)
     : TextSystemImpl(registry), components_(kDefaultPoolSize) {
+#ifdef __ANDROID__
+  if (fplbase::GetAAssetManager() == nullptr) {
+    auto* context = registry->Get<AndroidContext>();
+    if (context) {
+      // fplbase::AndroidSetJavaVM(vm, JNI_VERSION_1_6);
+      fplbase::SetAAssetManager(context->GetAndroidAssetManager());
+    }
+  }
+#endif
+
   // Initialize the renderer so it knows the device capabilities for flatui's
   // texture creation.
   renderer_.Initialize(/* window_size = */ mathfu::kZeros2i,
@@ -139,7 +152,7 @@ FlatuiTextSystem::~FlatuiTextSystem() {
 
   // First, stop the queue and drain any completed tasks.
   task_queue_.Stop();
-  TaskPtr task = nullptr;
+  TextTaskPtr task = nullptr;
   while (task_queue_.Dequeue(&task)) {
     task.reset();
   }
@@ -215,6 +228,11 @@ void FlatuiTextSystem::Create(Entity entity, DefType type, const Def* def) {
   component->text_buffer_params.horizontal_align =
       text_def.horizontal_alignment();
   component->text_buffer_params.vertical_align = text_def.vertical_alignment();
+  if (text_def.underline_padding()) {
+    mathfu::vec2 underline_padding;
+    MathfuVec2FromFbVec2(text_def.underline_padding(), &underline_padding);
+    component->text_buffer_params.underline_padding = underline_padding;
+  }
   if (text_def.direction() == TextDirection_UseSystemSetting) {
     component->text_buffer_params.direction = text_direction_;
   } else {
@@ -364,13 +382,15 @@ void FlatuiTextSystem::Destroy(Entity entity) {
 void FlatuiTextSystem::ProcessTasks() {
   LULLABY_CPU_TRACE_CALL();
 
-  TaskPtr task = nullptr;
-  while (task_queue_.Dequeue(&task)) {
-    --num_pending_tasks_;
-    task->Finalize();
-    const Entity entity = task->GetTarget();
-    TextComponent* component = components_.Get(entity);
-    if (component && task->GetOutputTextBuffer()) {
+  for (const auto& entry : update_map_) {
+    GenerateText(entry.first, entry.second);
+  }
+  update_map_.clear();
+
+  TextTaskPtr task = nullptr;
+  // Dequeue all completed tasks, but only apply the newest for each entity.
+  while (DequeueTask(&task)) {
+    if (task) {
       // The font geometry is ready but the texture atlas might not be ready,
       // so move the font buffer to the completed tasks buffer until the atlas
       // is ready.  We can't rely just on OutputTextBuffer()->IsReady(), as that
@@ -383,7 +403,7 @@ void FlatuiTextSystem::ProcessTasks() {
     // Once we have successfully started the font render pass we can assume that
     // the font texture atlases have been successfully updated and it is now
     // safe to render fonts.
-    for (const TaskPtr& completed_task : completed_tasks_) {
+    for (const TextTaskPtr& completed_task : completed_tasks_) {
       UpdateTextBuffer(completed_task);
     }
     completed_tasks_.clear();
@@ -395,27 +415,66 @@ void FlatuiTextSystem::ProcessTasks() {
 }
 
 void FlatuiTextSystem::WaitForAllTasks() {
-  while (num_pending_tasks_ > 0 || !completed_tasks_.empty()) {
+  while (!update_map_.empty() || num_pending_tasks_ > 0 ||
+         !completed_tasks_.empty()) {
     ProcessTasks();
   }
 }
 
-void FlatuiTextSystem::EnqueueTask(TaskPtr task) {
-  task_queue_.Enqueue(std::move(task),
-                      [](TaskPtr* task) { (*task)->Process(); });
+void FlatuiTextSystem::EnqueueTask(TextComponent* component, TextTaskPtr task) {
+  if (component->task_id != TextTaskQueue::kInvalidTaskId) {
+    task_queue_.Cancel(component->task_id);
+  }
+  component->task = task;
+  component->task_id = task_queue_.Enqueue(
+      std::move(task), [](TextTaskPtr* task) { (*task)->Process(); });
   ++num_pending_tasks_;
+}
+
+bool FlatuiTextSystem::DequeueTask(TextTaskPtr* task) {
+  task->reset();
+  TextTaskPtr dequeued;
+  if (!task_queue_.Dequeue(&dequeued)) {
+    return false;
+  }
+  --num_pending_tasks_;
+
+  TextComponent* component = components_.Get(dequeued->GetTarget());
+  if (!component) {
+    return true;
+  }
+
+  if (component->task != dequeued) {
+    return true;
+  }
+
+  component->task.reset();
+  component->task_id = TextTaskQueue::kInvalidTaskId;
+  dequeued->Finalize();
+  if (!dequeued->GetOutputTextBuffer()) {
+    return true;
+  }
+
+  *task = std::move(dequeued);
+  return true;
 }
 
 void FlatuiTextSystem::SetFont(Entity entity, FontPtr font) {
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->font = font;
+    update_map_[entity] = kNullEntity;
   }
 }
 
 const std::string* FlatuiTextSystem::GetText(Entity entity) const {
   const TextComponent* component = components_.Get(entity);
   return (component ? &component->text : nullptr);
+}
+
+const std::string* FlatuiTextSystem::GetRenderedText(Entity entity) const {
+  const TextComponent* component = components_.Get(entity);
+  return component ? &component->rendered_text : nullptr;
 }
 
 void FlatuiTextSystem::SetText(Entity entity, const std::string& text) {
@@ -427,7 +486,7 @@ void FlatuiTextSystem::SetText(Entity entity, const std::string& text) {
   // Store the unprocessed text.
   component->text = text;
 
-  GenerateText(entity);
+  update_map_[entity] = kNullEntity;
 }
 
 void FlatuiTextSystem::GenerateText(Entity entity, Entity desired_size_source) {
@@ -442,8 +501,8 @@ void FlatuiTextSystem::GenerateText(Entity entity, Entity desired_size_source) {
   }
 
   auto* preprocessor = registry_->Get<StringPreprocessor>();
-  const std::string processed_text =
-      preprocessor ? preprocessor->ProcessString(component->text)
+  component->rendered_text =
+      preprocessor ? preprocessor->ProcessEntityText(entity, component->text)
                    : component->text;
 
   component->loading_buffer = true;
@@ -462,14 +521,17 @@ void FlatuiTextSystem::GenerateText(Entity entity, Entity desired_size_source) {
       params.bounds.y = *y;
     }
   }
-  EnqueueTask(TaskPtr(new GenerateTextBufferTask(
-      entity, desired_size_source, component->font, processed_text, params)));
+  EnqueueTask(component, TextTaskPtr(new TextTask(entity, desired_size_source,
+                                                  component->font,
+                                                  component->rendered_text,
+                                                  params)));
 }
 
 void FlatuiTextSystem::SetFontSize(Entity entity, float size) {
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->text_buffer_params.font_size = size;
+    update_map_[entity] = kNullEntity;
   }
 }
 
@@ -477,6 +539,7 @@ void FlatuiTextSystem::SetBounds(Entity entity, const mathfu::vec2& bounds) {
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->text_buffer_params.bounds = bounds;
+    update_map_[entity] = kNullEntity;
   }
 }
 
@@ -484,6 +547,7 @@ void FlatuiTextSystem::SetWrapMode(Entity entity, TextWrapMode wrap_mode) {
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->text_buffer_params.wrap_mode = wrap_mode;
+    update_map_[entity] = kNullEntity;
   }
 }
 
@@ -491,6 +555,7 @@ void FlatuiTextSystem::SetEllipsis(Entity entity, const std::string& ellipsis) {
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->text_buffer_params.ellipsis = ellipsis;
+    update_map_[entity] = kNullEntity;
   }
 }
 
@@ -499,6 +564,7 @@ void FlatuiTextSystem::SetHorizontalAlignment(Entity entity,
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->text_buffer_params.horizontal_align = horizontal;
+    update_map_[entity] = kNullEntity;
   }
 }
 
@@ -507,6 +573,7 @@ void FlatuiTextSystem::SetVerticalAlignment(Entity entity,
   TextComponent* component = components_.Get(entity);
   if (component) {
     component->text_buffer_params.vertical_align = vertical;
+    update_map_[entity] = kNullEntity;
   }
 }
 
@@ -517,6 +584,15 @@ void FlatuiTextSystem::SetTextDirection(TextDirection direction) {
     return;
   }
   text_direction_ = direction;
+}
+
+void FlatuiTextSystem::SetTextDirection(Entity entity,
+                                        TextDirection direction) {
+  TextComponent* component = components_.Get(entity);
+  if (component) {
+    component->text_buffer_params.direction = direction;
+    update_map_[entity] = kNullEntity;
+  }
 }
 
 const std::vector<LinkTag>* FlatuiTextSystem::GetLinkTags(Entity entity) const {
@@ -573,7 +649,7 @@ void FlatuiTextSystem::SetTextBuffer(TextComponent* component,
   }
 }
 
-void FlatuiTextSystem::UpdateTextBuffer(const TaskPtr& task) {
+void FlatuiTextSystem::UpdateTextBuffer(const TextTaskPtr& task) {
   auto* component = components_.Get(task->GetTarget());
   if (component && task->GetOutputTextBuffer()) {
     SetTextBuffer(component, task->GetOutputTextBuffer(),
@@ -602,6 +678,11 @@ Entity FlatuiTextSystem::CreateEntity(TextComponent* component,
     render_system->SetTexture(entity, 0, render_system->GetWhiteTexture());
     render_system->SetUniform(entity, kSdfParamsUniform,
                               &kDefaultUnderlineSdfParams[0], 4, 1);
+    if (component->text_buffer_params.underline_padding) {
+      // Increase the minimum width of the underline.
+      render_system->SetUniform(entity, kTexCoordAaPaddingUniform,
+                                &kDefaultUnderlineTexCoordAaPadding, 1, 1);
+    }
   } else {
     auto* transform_system = registry_->Get<TransformSystem>();
     entity = transform_system->CreateChild(parent, blueprint);
@@ -691,6 +772,9 @@ void FlatuiTextSystem::UpdateEntityUniforms(Entity entity, Entity source,
   float texture_size[2];
   const bool have_texture_size =
       render_system->GetUniform(entity, kTextureSizeUniform, 2, texture_size);
+  float aa_padding;
+  const bool have_aa_padding = render_system->GetUniform(
+      entity, kTexCoordAaPaddingUniform, 1, &aa_padding);
 
   render_system->CopyUniforms(entity, source);
 
@@ -706,11 +790,21 @@ void FlatuiTextSystem::UpdateEntityUniforms(Entity entity, Entity source,
     render_system->SetUniform(entity, kTextureSizeUniform, &texture_size[0], 2,
                               1);
   }
+
+  if (have_aa_padding) {
+    render_system->SetUniform(entity, kTexCoordAaPaddingUniform,
+                              &aa_padding, 1, 1);
+  }
 }
 
 void FlatuiTextSystem::UpdateUniforms(const TextComponent* component) {
   auto* render_system = registry_->Get<RenderSystem>();
+  const auto* transform_system = registry_->Get<TransformSystem>();
   const Entity source = component->GetEntity();
+  if (!transform_system->IsEnabled(source)) {
+    return;
+  }
+
   mathfu::vec4 source_color;
   mathfu::vec4 plain_color = mathfu::kOnes4f;
   if (render_system->GetColor(source, &source_color)) {
@@ -759,7 +853,15 @@ bool FlatuiTextSystem::IsTextReady(Entity entity) const {
     return true;
   }
 
-  return !component->loading_buffer;
+  if (component->loading_buffer) {
+    return false;
+  }
+
+  if (update_map_.count(entity) > 0) {
+    return false;
+  }
+
+  return true;
 }
 
 void FlatuiTextSystem::HideRenderEntities(const TextComponent& component) {
@@ -822,37 +924,7 @@ void FlatuiTextSystem::OnDesiredSizeChanged(
     const DesiredSizeChangedEvent& event) {
   const TextComponent* component = components_.Get(event.target);
   if (component) {
-    GenerateText(event.target, event.source);
+    update_map_[event.target] = event.source;
   }
-}
-
-FlatuiTextSystem::GenerateTextBufferTask::GenerateTextBufferTask(
-    Entity target_entity, Entity desired_size_source, const FontPtr& font,
-    const std::string& text, const TextBufferParams& params)
-    : target_entity_(target_entity),
-      desired_size_source_(desired_size_source),
-      font_(font),
-      text_(text),
-      params_(params),
-      text_buffer_(nullptr),
-      output_text_buffer_(nullptr) {}
-
-void FlatuiTextSystem::GenerateTextBufferTask::Process() {
-  if (font_ && font_->Bind()) {
-    TextBufferPtr buffer =
-        TextBuffer::Create(font_->GetFontManager(), text_, params_);
-    text_buffer_ = std::move(buffer);
-  } else {
-    LOG(ERROR) << "Font is null or failed to bind in "
-                  "GenerateTextBufferTask::Process()";
-  }
-}
-
-void FlatuiTextSystem::GenerateTextBufferTask::Finalize() {
-  if (text_buffer_) {
-    // TODO(b/33705855) Remove Finalize.
-    text_buffer_->Finalize();
-  }
-  output_text_buffer_ = text_buffer_;
 }
 }  // namespace lull

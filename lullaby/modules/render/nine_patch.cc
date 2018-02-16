@@ -16,10 +16,28 @@ limitations under the License.
 
 #include "lullaby/modules/render/nine_patch.h"
 
+#include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/vertex.h"
+#include "lullaby/util/logging.h"
 
 namespace lull {
+
+void NinePatchFromDef(const NinePatchDef* def, NinePatch* nine_patch) {
+  MathfuVec2FromFbVec2(def->size(), &nine_patch->size);
+  nine_patch->left_slice = def->left_slice();
+  nine_patch->right_slice = def->right_slice();
+  nine_patch->bottom_slice = def->bottom_slice();
+  nine_patch->top_slice = def->top_slice();
+  MathfuVec2FromFbVec2(def->original_size(), &nine_patch->original_size);
+  if (def->subdivisions()) {
+    MathfuVec2iFromFbVec2i(def->subdivisions(), &nine_patch->subdivisions);
+    DCHECK_GE(nine_patch->subdivisions.x, 1);
+    DCHECK_GE(nine_patch->subdivisions.y, 1);
+  }
+  MathfuVec2FromFbVec2(def->texture_alt_min(), &nine_patch->texture_alt_min);
+  MathfuVec2FromFbVec2(def->texture_alt_max(), &nine_patch->texture_alt_max);
+}
 
 
 // Generates vertex data for a nine patch.
@@ -134,26 +152,28 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
       nine_patch.size - mathfu::vec2(left_patch_width + right_patch_width,
                                      bottom_patch_width + top_patch_width);
 
+  const float indices_per_width = nine_patch.size.x > 0.f
+      ? static_cast<float>(nine_patch.subdivisions.x) / nine_patch.size.x
+      : 0.f;
+  const float indices_per_height = nine_patch.size.y > 0.f
+      ? static_cast<float>(nine_patch.subdivisions.y) / nine_patch.size.y
+      : 0.f;
   // The 1 + and 2 + here account for the extra vertices added for the slices.
   const int left_slice_index =
-      1 + static_cast<int>(static_cast<float>(nine_patch.subdivisions.x) *
-                           left_patch_width / nine_patch.size.x);
+      1 + static_cast<int>(indices_per_width * left_patch_width);
   const int right_slice_index =
-      2 + static_cast<int>(static_cast<float>(nine_patch.subdivisions.x) *
-                           (left_patch_width + middle_patch_size.x) /
-                           nine_patch.size.x);
+      2 + static_cast<int>(indices_per_width *
+                           (left_patch_width + middle_patch_size.x));
   const int bottom_slice_index =
-      1 + static_cast<int>(static_cast<float>(nine_patch.subdivisions.y) *
-                           bottom_patch_width / nine_patch.size.y);
+      1 + static_cast<int>(indices_per_height * bottom_patch_width);
   const int top_slice_index =
-      2 + static_cast<int>(static_cast<float>(nine_patch.subdivisions.y) *
-                           (bottom_patch_width + middle_patch_size.y) /
-                           nine_patch.size.y);
+      2 + static_cast<int>(indices_per_height *
+                           (bottom_patch_width + middle_patch_size.y));
 
   // Save the current number of vertices to use later as a base index during
   // index generation.  This allows a nine patch mesh to be tacked on to the end
   // of an existing mesh.
-  const uint16_t num_verts = static_cast<uint16_t>(mesh->GetNumVertices());
+  const uint32_t num_verts = static_cast<uint32_t>(mesh->GetNumVertices());
 
   // Now generate the mesh.  It is nothing more than a tessellated quad with
   // some fancy positioning of vertices and UVs.
@@ -161,34 +181,38 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
   for (int y_index = 0; y_index < row_vert_count; ++y_index) {
     float interval_x = 0.0f;
 
-    float y, v0;
+    float y, v0, v1;
 
     ComputeVertexValues(nine_patch.size.y, nine_patch.original_size.y,
                         nine_patch.bottom_slice, bottom_slice_index,
                         bottom_patch_width, nine_patch.top_slice,
                         top_slice_index, top_patch_width, middle_patch_size.y,
                         middle_patch_uv_size.y, y_index, interval_y, &y, &v0);
+    v1 =
+        mathfu::Lerp(1.f - nine_patch.texture_alt_min.y,
+                     1.f - nine_patch.texture_alt_max.y, y / nine_patch.size.y);
 
     if (y_index != bottom_slice_index && y_index != top_slice_index) {
       interval_y += y_step;
     }
 
     for (int x_index = 0; x_index < col_vert_count; ++x_index) {
-      float x, u0;
+      float x, u0, u1;
 
       ComputeVertexValues(
           nine_patch.size.x, nine_patch.original_size.x, nine_patch.left_slice,
           left_slice_index, left_patch_width, nine_patch.right_slice,
           right_slice_index, right_patch_width, middle_patch_size.x,
           middle_patch_uv_size.x, x_index, interval_x, &x, &u0);
+      u1 = mathfu::Lerp(nine_patch.texture_alt_min.x,
+                        nine_patch.texture_alt_max.x, x / nine_patch.size.x);
 
       if (x_index != left_slice_index && x_index != right_slice_index) {
         interval_x += x_step;
       }
 
       mesh->AddVertex<lull::VertexPTT>(x - half_size.x, y - half_size.y, 0.0f,
-                                       u0, 1.0f - v0, x / nine_patch.size.x,
-                                       1.0f - y / nine_patch.size.y);
+                                       u0, 1.0f - v0, u1, v1);
     }
   }
 
@@ -198,17 +222,12 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
     const int last_row = row - col_vert_count;
 
     for (int x_index = 1; x_index < col_vert_count; ++x_index) {
-      mesh->AddIndex(
-          static_cast<MeshData::Index>(num_verts + last_row + x_index - 1));
-      mesh->AddIndex(
-          static_cast<MeshData::Index>(num_verts + last_row + x_index));
-      mesh->AddIndex(
-          static_cast<MeshData::Index>(num_verts + row + x_index - 1));
-      mesh->AddIndex(
-          static_cast<MeshData::Index>(num_verts + last_row + x_index));
-      mesh->AddIndex(static_cast<MeshData::Index>(num_verts + row + x_index));
-      mesh->AddIndex(
-          static_cast<MeshData::Index>(num_verts + row + x_index - 1));
+      mesh->AddIndex(num_verts + last_row + x_index - 1);
+      mesh->AddIndex(num_verts + last_row + x_index);
+      mesh->AddIndex(num_verts + row + x_index - 1);
+      mesh->AddIndex(num_verts + last_row + x_index);
+      mesh->AddIndex(num_verts + row + x_index);
+      mesh->AddIndex(num_verts + row + x_index - 1);
     }
   }
 }

@@ -19,14 +19,15 @@ limitations under the License.
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "flatui/font_manager.h"
 #include "fplbase/renderer.h"
 #include "lullaby/events/layout_events.h"
 #include "lullaby/systems/text/flatui/text_buffer.h"
 #include "lullaby/systems/text/flatui/text_component.h"
+#include "lullaby/systems/text/flatui/text_task.h"
 #include "lullaby/systems/text/text_system.h"
-#include "lullaby/util/async_processor.h"
 #include "lullaby/generated/text_def_generated.h"
 
 namespace lull {
@@ -59,6 +60,7 @@ class FlatuiTextSystem : public TextSystemImpl {
   void SetFont(Entity entity, FontPtr font) override;
 
   const std::string* GetText(Entity entity) const override;
+  const std::string* GetRenderedText(Entity entity) const override;
   void SetText(Entity entity, const std::string& text) override;
 
   void SetFontSize(Entity entity, float size) override;
@@ -75,6 +77,8 @@ class FlatuiTextSystem : public TextSystemImpl {
 
   void SetTextDirection(TextDirection direction) override;
 
+  void SetTextDirection(Entity entity, TextDirection direction) override;
+
   const std::vector<LinkTag>* GetLinkTags(Entity entity) const override;
   const std::vector<mathfu::vec3>* GetCaretPositions(
       Entity entity) const override;
@@ -85,41 +89,6 @@ class FlatuiTextSystem : public TextSystemImpl {
   void WaitForAllTasks() override;
 
  private:
-  // Task to generate a text buffer in a worker thread.
-  class GenerateTextBufferTask {
-   public:
-    GenerateTextBufferTask(Entity target_entity, Entity desired_size_source,
-                           const FontPtr& font, const std::string& text,
-                           const TextBufferParams& params);
-
-    Entity GetTarget() const { return target_entity_; }
-
-    Entity GetDesiredSizeSource() const { return desired_size_source_; }
-
-    // Called on a worker thread, this initializes the text buffer.
-    void Process();
-
-    // Called on the host thread, this performs post-processing such as
-    // deformation (if applicable).
-    void Finalize();
-
-    const TextBufferPtr& GetOutputTextBuffer() const {
-      return output_text_buffer_;
-    }
-
-   private:
-    Entity target_entity_;
-    Entity desired_size_source_;
-    FontPtr font_;
-    std::string text_;
-    TextBufferParams params_;
-    TextBufferPtr text_buffer_;
-    TextBufferPtr output_text_buffer_;
-  };
-
-  using TaskPtr = std::shared_ptr<GenerateTextBufferTask>;
-  using TaskQueue = AsyncProcessor<TaskPtr>;
-
   void GenerateText(Entity entity, Entity desired_size_source = kNullEntity);
 
   // Sets and activates |task.text_buffer_| on |component|.
@@ -128,9 +97,12 @@ class FlatuiTextSystem : public TextSystemImpl {
 
   // Updates the text buffer with the results from any queued
   // GenerateTextBufferTasks.
-  void UpdateTextBuffer(const TaskPtr& task);
+  void UpdateTextBuffer(const TextTaskPtr& task);
 
-  void EnqueueTask(TaskPtr task);
+  void EnqueueTask(TextComponent* component, TextTaskPtr task);
+  // Returns true if there was a task to dequeue, but |task| can still be null
+  // if it was invalid.
+  bool DequeueTask(TextTaskPtr* task);
 
   Entity CreateEntity(TextComponent* component, const std::string& blueprint);
   void CreateTextEntities(TextComponent* component);
@@ -166,10 +138,10 @@ class FlatuiTextSystem : public TextSystemImpl {
   ComponentPool<TextComponent> components_;
 
   // List of completed tasks that are waiting on a glyph texture update.
-  std::vector<TaskPtr> completed_tasks_;
+  std::vector<TextTaskPtr> completed_tasks_;
 
   // List of text buffer generation tasks.
-  TaskQueue task_queue_;
+  TextTaskQueue task_queue_;
 
   // Number of pending tasks.
   int num_pending_tasks_ = 0;
@@ -184,6 +156,10 @@ class FlatuiTextSystem : public TextSystemImpl {
 
   // Global text direction that applies to text entities to be created.
   TextDirection text_direction_ = TextDirection_LeftToRight;
+
+  // Set of entities which need to have their rendering data refreshed. The
+  // value of the map is the entity's desired_size_source.
+  std::unordered_map<Entity, Entity> update_map_;
 };
 
 }  // namespace lull

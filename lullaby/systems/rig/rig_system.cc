@@ -15,11 +15,45 @@ limitations under the License.
 */
 
 #include "lullaby/systems/rig/rig_system.h"
+
+#include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/util/make_unique.h"
 
 namespace lull {
 
+class RigChannel : public AnimationChannel {
+ public:
+  RigChannel(Registry* registry, size_t pool_size)
+      : AnimationChannel(registry, 0, pool_size) {
+    rig_system_ = registry->Get<RigSystem>();
+  }
+
+  bool IsRigChannel() const override { return true; }
+
+  void Set(Entity e, const float* values, size_t len) override {
+    LOG(DFATAL) << "SetRig should be called for rig channels.";
+  }
+
+  void SetRig(Entity entity, const mathfu::AffineTransform* values,
+              size_t len) override {
+    rig_system_->SetPose(entity, {values, len});
+  }
+
+  RigSystem* rig_system_;
+};
+
 RigSystem::RigSystem(Registry* registry) : System(registry) {}
+
+void RigSystem::Initialize() {
+  auto* animation_system = registry_->Get<AnimationSystem>();
+  if (animation_system) {
+    AnimationChannelPtr ptr = MakeUnique<RigChannel>(registry_, 8);
+    animation_system->AddChannel(ConstHash("rig"), std::move(ptr));
+  } else {
+    LOG(DFATAL) << "Failed to setup RigChannel.";
+  }
+}
 
 void RigSystem::SetRig(Entity entity, BoneIndices parent_indices,
                        Pose inverse_bind_pose, BoneIndices shader_indices,
@@ -36,10 +70,39 @@ void RigSystem::SetRig(Entity entity, BoneIndices parent_indices,
     return;
   }
   RigComponent& rig = res.first->second;
-  rig.parent_indices = std::move(parent_indices);
-  rig.inverse_bind_pose = std::move(inverse_bind_pose);
-  rig.shader_indices = std::move(shader_indices);
+  rig.parent_indices.assign(parent_indices.begin(), parent_indices.end());
+
+#if 0
+  rig.inverse_bind_pose.assign(inverse_bind_pose.begin(),
+                               inverse_bind_pose.end());
+#else
+  // TODO(b/72828343): The data in the inverse_bind_pose may not be aligned
+  // correctly, so manually copy the floats into the rig's inverse_bind_pose.
+  const size_t num_bind_bones = inverse_bind_pose.size();
+  rig.inverse_bind_pose.reserve(num_bind_bones);
+  for (size_t i = 0; i < num_bind_bones; ++i) {
+    const auto& m = inverse_bind_pose[i];
+    rig.inverse_bind_pose.emplace_back(m[0], m[1], m[2], m[3],
+                                       m[4], m[5], m[6], m[7],
+                                       m[8], m[9], m[10], m[11]);
+  }
+#endif
+
+  rig.shader_indices.assign(shader_indices.begin(), shader_indices.end());
   rig.bone_names = std::move(bone_names);
+
+  // Clear out any previous pose.
+  rig.pose.resize(num_bones);
+  for (size_t i = 0; i < rig.pose.size(); ++i) {
+    rig.pose[i] = mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
+  }
+  for (size_t i = 0; i < rig.shader_indices.size(); ++i) {
+    const uint8_t bone_index = rig.shader_indices[i];
+    CHECK(bone_index < rig.parent_indices.size());
+    const mathfu::mat4 transform =
+        mathfu::mat4::FromAffineTransform(rig.inverse_bind_pose[bone_index]);
+    rig.pose[bone_index] = mathfu::mat4::ToAffineTransform(transform.Inverse());
+  }
   UpdateShaderTransforms(entity, &rig);
 }
 
@@ -69,6 +132,23 @@ Span<std::string> RigSystem::GetBoneNames(Entity entity) const {
   return {};
 }
 
+RigSystem::Pose RigSystem::GetDefaultBoneTransformInverses(
+    Entity entity) const {
+  auto iter = rigs_.find(entity);
+  if (iter != rigs_.end()) {
+    return iter->second.inverse_bind_pose;
+  }
+  return {};
+}
+
+RigSystem::Pose RigSystem::GetPose(Entity entity) const {
+  auto iter = rigs_.find(entity);
+  if (iter != rigs_.end()) {
+    return iter->second.pose;
+  }
+  return {};
+}
+
 void RigSystem::SetPose(Entity entity, Pose pose) {
   auto iter = rigs_.find(entity);
   if (iter == rigs_.end()) {
@@ -77,11 +157,12 @@ void RigSystem::SetPose(Entity entity, Pose pose) {
 
   RigComponent& rig = iter->second;
   if (pose.size() != rig.parent_indices.size()) {
-    LOG(DFATAL) << "Bone mismatch.";
+    LOG(DFATAL) << "Bone count mismatch. Expected " << rig.parent_indices.size()
+                << " got " << pose.size() << ".";
     return;
   }
 
-  rig.pose = std::move(pose);
+  rig.pose.assign(pose.begin(), pose.end());
   UpdateShaderTransforms(entity, &rig);
 }
 

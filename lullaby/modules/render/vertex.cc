@@ -18,80 +18,60 @@ limitations under the License.
 
 namespace lull {
 
-// The standard position attribute expected in every vertex format instance.
-static VertexAttribute PositionAttribute() {
-  return VertexAttribute(0, VertexAttribute::kPosition, 3,
-                         VertexAttribute::kFloat32);
-}
-
-const VertexFormat VertexP::kFormat({PositionAttribute()});
+const VertexFormat VertexP::kFormat({{VertexAttributeUsage_Position,
+                                      VertexAttributeType_Vec3f}});
 
 const VertexFormat VertexPT::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
 });
 
 const VertexFormat VertexPTT::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(20, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32, 1),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
 });
 
 const VertexFormat VertexPTTN::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(20, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32, 1),
-    VertexAttribute(28, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_Normal, VertexAttributeType_Vec3f},
 });
 
 const VertexFormat VertexPN::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_Normal, VertexAttributeType_Vec3f},
 });
 
 const VertexFormat VertexPC::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kColor, 4,
-                    VertexAttribute::kUnsignedInt8),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_Color, VertexAttributeType_Vec4ub},
 });
 
 const VertexFormat VertexPTC::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(20, VertexAttribute::kColor, 4,
-                    VertexAttribute::kUnsignedInt8),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_Color, VertexAttributeType_Vec4ub},
 });
 
 const VertexFormat VertexPTN::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(20, VertexAttribute::kNormal, 3, VertexAttribute::kFloat32),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_Normal, VertexAttributeType_Vec3f},
 });
 
 const VertexFormat VertexPTI::kFormat({
-    PositionAttribute(),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(20, VertexAttribute::kIndex, 4,
-                    VertexAttribute::kUnsignedInt8),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_BoneIndices, VertexAttributeType_Vec4ub},
 });
 
 const VertexFormat VertexPTTI::kFormat({
-    VertexAttribute(0, VertexAttribute::kPosition, 3,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32),
-    VertexAttribute(20, VertexAttribute::kTexCoord, 2,
-                    VertexAttribute::kFloat32, 1),
-    VertexAttribute(28, VertexAttribute::kIndex, 4,
-                    VertexAttribute::kUnsignedInt8),
+    {VertexAttributeUsage_Position, VertexAttributeType_Vec3f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_TexCoord, VertexAttributeType_Vec2f},
+    {VertexAttributeUsage_BoneIndices, VertexAttributeType_Vec4ub},
 });
 
 }  // namespace lull

@@ -230,7 +230,7 @@ struct MaterialBuilder {
   void add_wrapmode(TextureWrap wrapmode) {
     fbb_.AddElement<uint8_t>(Material::VT_WRAPMODE, static_cast<uint8_t>(wrapmode), 0);
   }
-  explicit MaterialBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  MaterialBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }

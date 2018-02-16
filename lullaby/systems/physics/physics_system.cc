@@ -22,6 +22,7 @@ limitations under the License.
 #include "lullaby/events/physics_events.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/systems/dispatcher/event.h"
+#include "lullaby/systems/physics/bullet_utils.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/bits.h"
 #include "lullaby/util/logging.h"
@@ -48,9 +49,10 @@ PhysicsSystem::PhysicsSystem(Registry* registry, const InitParams& params)
       bt_dispatcher_(MakeUnique<btCollisionDispatcher>(bt_config_.get())),
       bt_broadphase_(MakeUnique<btDbvtBroadphase>()),
       bt_solver_(MakeUnique<btSequentialImpulseConstraintSolver>()),
-      bt_world_(MakeUnique<btDiscreteDynamicsWorld>(
-          bt_dispatcher_.get(), bt_broadphase_.get(), bt_solver_.get(),
-          bt_config_.get())) {
+      bt_world_(MakeUnique<btDiscreteDynamicsWorld>(bt_dispatcher_.get(),
+                                                    bt_broadphase_.get(),
+                                                    bt_solver_.get(),
+                                                    bt_config_.get())) {
   RegisterDef(this, kRigidBodyDef);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<TransformSystem>(this);
@@ -137,11 +139,12 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
   }
 
   // Ensure that center of mass transforms are applied in local space.
-  MathfuVec3FromFbVec3(data->center_of_mass_translation(),
-                       &body->center_of_mass_translation);
-  const mathfu::mat4 simulation_mat =
-      *world_from_entity_mat *
-      mathfu::mat4::FromTranslationVector(body->center_of_mass_translation);
+  MathfuVec3FromFbVec3(
+      data->center_of_mass_translation(), &body->center_of_mass_translation);
+  const mathfu::mat4 simulation_mat
+      = *world_from_entity_mat
+          * mathfu::mat4::FromTranslationVector(
+              body->center_of_mass_translation);
   const Sqt sqt = CalculateSqtFromMatrix(simulation_mat);
 
   // Check for shear (not explicitly supported in Lullaby, but occurs if
@@ -157,8 +160,7 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
   InitCollisionShape(body, data);
 
   // Apply the Entity's scaling on top of individual collision shape scaling.
-  body->bt_primary_shape->setLocalScaling(
-      BtVectorFromMathfu(sqt.scale * body->primary_shape_scale));
+  body->shape->ApplyEntityScale(sqt.scale);
 
   // Set up standard rigid body parameters. Zero mass Entities will be treated
   // by Bullet as static.
@@ -173,14 +175,15 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
   // Calculate the local inertia for dynamic objects.
   btVector3 local_inertia(0.f, 0.f, 0.f);
   if (is_dynamic) {
-    body->bt_primary_shape->calculateLocalInertia(mass, local_inertia);
+    local_inertia = body->shape->CalculateLocalInertia(mass);
   }
 
   // Create the motion state and rigid body.
   body->bt_motion_state = MakeUnique<MotionState>(xform, this, entity);
 
   btRigidBody::btRigidBodyConstructionInfo construction_info(
-      mass, body->bt_motion_state.get(), body->bt_primary_shape, local_inertia);
+      mass, body->bt_motion_state.get(), &body->shape->GetBtShape(),
+      local_inertia);
   construction_info.m_friction = data->friction();
   construction_info.m_restitution = data->restitution();
   body->bt_body = MakeUnique<btRigidBody>(construction_info);
@@ -189,7 +192,8 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
   SetupBtFlags(body);
 
   // Give the rigid body a pointer to the Lullaby entity.
-  body->bt_body->setUserPointer(reinterpret_cast<void*>(entity));
+  body->bt_body->setUserPointer(
+      reinterpret_cast<void*>(static_cast<intptr_t>(entity)));
 
   // Enable the entity, putting it into the physics world.
   if (data->enable_on_create()) {
@@ -209,33 +213,26 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
   }
 }
 
-void PhysicsSystem::InitCollisionShape(RigidBody* body,
-                                       const RigidBodyDef* data) {
+void PhysicsSystem::InitCollisionShape(
+    RigidBody* body, const RigidBodyDef* data) {
   // If the shape list is empty, fall back to using the AABB of the shape.
   const auto* shape_parts = data->shapes();
   if (shape_parts == nullptr || shape_parts->size() < 1) {
-    // Create a unit box, then place it in a compound to handle asymmetrical
-    // AABB's. The offset and local scaling of the shape will be changed in
-    // SetupAabbCollisionShape().
-    auto box = MakeUnique<btBoxShape>(btVector3(0.5f, 0.5f, 0.5f));
-    auto compound = MakeUnique<btCompoundShape>(true /* dynamic AABB tree */,
-                                                1 /* initial size */);
-    body->bt_primary_shape = compound.get();
-
-    const btTransform transform(btQuaternion::getIdentity(),
-                                btVector3(0.f, 0.f, 0.f));
-    compound->addChildShape(transform, box.get());
-    body->bt_shapes.emplace_back(std::move(box));
-    body->bt_shapes.emplace_back(std::move(compound));
+    auto aabb_shape = MakeUnique<AabbCollisionShape>();
+    auto* raw_shape = aabb_shape.get();
 
     // Scale and reposition the box shape, if appropriate.
-    SetupAabbCollisionShape(body);
+    SetupAabbCollisionShape(body->GetEntity(), raw_shape);
 
     // Listen for AABB changes on this Entity.
     auto* dispatcher_system = registry_->Get<DispatcherSystem>();
     dispatcher_system->Connect(
         body->GetEntity(), this,
-        [this](const AabbChangedEvent& event) { OnAabbChanged(event.target); });
+        [this, raw_shape](const AabbChangedEvent& event) {
+          OnAabbChanged(event.target, raw_shape);
+        });
+
+    body->shape = std::move(aabb_shape);
     return;
   }
 
@@ -244,80 +241,25 @@ void PhysicsSystem::InitCollisionShape(RigidBody* body,
   const auto num_shapes = shape_parts->size();
   if (num_shapes == 1) {
     const PhysicsShapePart* part = (*shape_parts)[0];
-    const Sqt shape_sqt = GetShapeSqt(part);
-    std::unique_ptr<btCollisionShape> shape = CreateCollisionShape(part);
-    shape->setLocalScaling(BtVectorFromMathfu(shape_sqt.scale));
-
-    // If no local transforms are applied, make this shape the primary shape and
-    // avoid using a compound shape altogether.
-    if (shape_sqt.translation == mathfu::kZeros3f &&
-        AreNearlyEqual(shape_sqt.rotation, mathfu::quat::identity)) {
-      body->bt_primary_shape = shape.get();
-      // Mark that local scaling was applied directly to bt_primary_shape.
-      body->primary_shape_scale = shape_sqt.scale;
-      body->bt_shapes.emplace_back(std::move(shape));
-    } else {
-      // Otherwise, create a compound, add the shape to it with the transform,
-      // and use that as the primary.
-      auto compound = MakeUnique<btCompoundShape>(true /* dynamic AABB tree */,
-                                                  1 /* initial size */);
-      body->bt_primary_shape = compound.get();
-
-      const btTransform transform(BtQuatFromMathfu(shape_sqt.rotation),
-                                  BtVectorFromMathfu(shape_sqt.translation));
-      compound->addChildShape(transform, shape.get());
-      body->bt_shapes.emplace_back(std::move(shape));
-
-      body->bt_shapes.emplace_back(std::move(compound));
-    }
+    body->shape = CollisionShape::CreateCollisionShape(part);
   } else {
     // Otherwise, create a compound shape and populate it with the other shapes.
-    auto compound = MakeUnique<btCompoundShape>(true /* dynamic AABB tree */,
-                                                num_shapes /* initial size */);
-    body->bt_primary_shape = compound.get();
+    auto compound = MakeUnique<CompoundCollisionShape>(num_shapes);
     for (const auto* part : *shape_parts) {
-      Sqt shape_sqt = GetShapeSqt(part);
-      auto shape = CreateCollisionShape(part);
-      shape->setLocalScaling(BtVectorFromMathfu(shape_sqt.scale));
-
-      const btTransform transform(BtQuatFromMathfu(shape_sqt.rotation),
-                                  BtVectorFromMathfu(shape_sqt.translation));
-      compound->addChildShape(transform, shape.get());
-      body->bt_shapes.emplace_back(std::move(shape));
+      compound->AddSubShape(CreateBtShape(part), GetShapeSqt(part));
     }
-
-    // Finally, store the compound as well to ensure it is cleaned up.
-    body->bt_shapes.emplace_back(std::move(compound));
+    body->shape = std::move(compound);
   }
 }
 
-void PhysicsSystem::SetupAabbCollisionShape(RigidBody* body) {
-  const Aabb* aabb = transform_system_->GetAabb(body->GetEntity());
+void PhysicsSystem::SetupAabbCollisionShape(Entity entity,
+                                            AabbCollisionShape* shape) {
+  const Aabb* aabb = transform_system_->GetAabb(entity);
   if (!aabb) {
     LOG(DFATAL) << "No AABB found for Entity.";
     return;
   }
-
-  // Upcast the primary shape to a compound to change child transforms.
-  btCompoundShape* compound =
-      dynamic_cast<btCompoundShape*>(body->bt_primary_shape);
-  if (!compound) {
-    LOG(DFATAL) << "AABB-backed body has improper shape representation.";
-    return;
-  }
-
-  // Local scaling of compound shapes is actually just applied to child shapes,
-  // so make sure the box doesn't lose that scaling.
-  auto compound_scaling = compound->getLocalScaling();
-  auto box_shape_iter = body->bt_shapes.begin();
-  (*box_shape_iter)
-      ->setLocalScaling(BtVectorFromMathfu(aabb->Size()) * compound_scaling);
-
-  // Reposition the box shape within the enclosing compound.
-  const mathfu::vec3 center = (aabb->min + aabb->max) / 2.f;
-  const btTransform transform(btQuaternion::getIdentity(),
-                              BtVectorFromMathfu(center));
-  compound->updateChildTransform(0, transform);
+  shape->UpdateShape(*aabb);
 }
 
 void PhysicsSystem::SetupBtFlags(RigidBody* body) const {
@@ -328,44 +270,46 @@ void PhysicsSystem::SetupBtFlags(RigidBody* body) const {
     case ColliderType::ColliderType_Standard: {
       // Non-triggers can have the static and kinematic flags if appropriate
       if (body->type == RigidBodyType::RigidBodyType_Static) {
-        collision_flags =
-            SetBit(collision_flags,
-                   btCollisionObject::CollisionFlags::CF_STATIC_OBJECT);
-      } else {
-        collision_flags =
-            ClearBit(collision_flags,
+        collision_flags
+            = SetBit(collision_flags,
                      btCollisionObject::CollisionFlags::CF_STATIC_OBJECT);
+      } else {
+        collision_flags
+            = ClearBit(collision_flags,
+                       btCollisionObject::CollisionFlags::CF_STATIC_OBJECT);
       }
 
       if (body->type == RigidBodyType::RigidBodyType_Kinematic) {
-        collision_flags =
-            SetBit(collision_flags,
-                   btCollisionObject::CollisionFlags::CF_KINEMATIC_OBJECT);
-      } else {
-        collision_flags =
-            ClearBit(collision_flags,
+        collision_flags
+            = SetBit(collision_flags,
                      btCollisionObject::CollisionFlags::CF_KINEMATIC_OBJECT);
+      } else {
+        collision_flags
+            = ClearBit(collision_flags,
+                       btCollisionObject::CollisionFlags::CF_KINEMATIC_OBJECT);
       }
       break;
     }
     case ColliderType::ColliderType_Trigger: {
       // All triggers have the no contact response flag.
-      collision_flags =
-          SetBit(collision_flags,
-                 btCollisionObject::CollisionFlags::CF_NO_CONTACT_RESPONSE);
+      collision_flags
+          = SetBit(collision_flags,
+                   btCollisionObject::CollisionFlags::CF_NO_CONTACT_RESPONSE);
 
       // Triggers should never have the static or kinematic object flags, else
       // they will not collide with other triggers.
-      collision_flags = ClearBit(
-          collision_flags, btCollisionObject::CollisionFlags::CF_STATIC_OBJECT);
-      collision_flags =
-          ClearBit(collision_flags,
-                   btCollisionObject::CollisionFlags::CF_KINEMATIC_OBJECT);
+      collision_flags
+          = ClearBit(collision_flags,
+                     btCollisionObject::CollisionFlags::CF_STATIC_OBJECT);
+      collision_flags
+          = ClearBit(collision_flags,
+                     btCollisionObject::CollisionFlags::CF_KINEMATIC_OBJECT);
 
       // Only dynamic triggers should be affect by gravity.
       if (body->type != RigidBodyType::RigidBodyType_Dynamic) {
-        rigid_body_flags = SetBit(rigid_body_flags,
-                                  btRigidBodyFlags::BT_DISABLE_WORLD_GRAVITY);
+        rigid_body_flags
+            = SetBit(rigid_body_flags,
+                     btRigidBodyFlags::BT_DISABLE_WORLD_GRAVITY);
       }
       break;
     }
@@ -377,13 +321,11 @@ void PhysicsSystem::SetupBtFlags(RigidBody* body) const {
   body->bt_body->setFlags(rigid_body_flags);
 }
 
-void PhysicsSystem::SetupBtIntertialProperties(RigidBody* body) const {
+void PhysicsSystem::SetupBtInertialProperties(RigidBody* body) const {
   const float inv_mass = body->bt_body->getInvMass();
   const float mass = inv_mass == 0.f ? 0.f : 1.f / inv_mass;
 
-  btVector3 local_inertia(0.f, 0.f, 0.f);
-  body->bt_primary_shape->calculateLocalInertia(mass, local_inertia);
-  body->bt_body->setMassProps(mass, local_inertia);
+  body->bt_body->setMassProps(mass, body->shape->CalculateLocalInertia(mass));
 
   // setMassProps() can change collision flags, so reset them to be sure.
   SetupBtFlags(body);
@@ -463,9 +405,10 @@ void PhysicsSystem::UpdateSimulationTransform(
   // Convert the matrix to a SQT to ensure that scale is extracted before the
   // rotation matrix is calculated. Also make sure that local offset transforms
   // are applied in local space.
-  const mathfu::mat4 simulation_mat =
-      world_from_entity_mat *
-      mathfu::mat4::FromTranslationVector(body->center_of_mass_translation);
+  const mathfu::mat4 simulation_mat
+      = world_from_entity_mat
+          * mathfu::mat4::FromTranslationVector(
+              body->center_of_mass_translation);
   const Sqt sqt = CalculateSqtFromMatrix(simulation_mat);
 
   btTransform transform = body->bt_body->getWorldTransform();
@@ -479,20 +422,19 @@ void PhysicsSystem::UpdateSimulationTransform(
   }
   body->bt_body->activate(true);
 
-  // Ensure that local scaling is also applied, but only do so if it changes
-  // since this operation can be expensive.
-  btVector3 scale = BtVectorFromMathfu(sqt.scale * body->primary_shape_scale);
-  if (scale != body->bt_primary_shape->getLocalScaling()) {
-    body->bt_primary_shape->setLocalScaling(scale);
-    // Reset inertial properties since the local inertia has changed.
-    if (body->type == RigidBodyType::RigidBodyType_Dynamic) {
-      SetupBtIntertialProperties(body);
-    }
+  // Apply the Entity scale on top of any local shape scaling. If the overall
+  // shape scale of a dynamic body changes, reset inertial properties as well.
+  if (body->shape->ApplyEntityScale(sqt.scale)
+      && body->type == RigidBodyType::RigidBodyType_Dynamic) {
+    SetupBtInertialProperties(body);
   }
 }
 
 void PhysicsSystem::MarkForUpdate(Entity entity) {
-  updated_entities_.push_back(entity);
+  auto* body = rigid_bodies_.Get(entity);
+  if (body && body->type == RigidBodyType::RigidBodyType_Dynamic) {
+    updated_entities_.push_back(entity);
+  }
 }
 
 void PhysicsSystem::UpdateLullabyTransform(Entity entity) {
@@ -546,8 +488,8 @@ void PhysicsSystem::PickPrimaryAndSecondaryEntities(
 }
 
 bool PhysicsSystem::UsesKinematicMotionState(const RigidBody* body) {
-  return body->type == RigidBodyType::RigidBodyType_Kinematic &&
-         body->collider_type == ColliderType::ColliderType_Standard;
+  return body->type == RigidBodyType::RigidBodyType_Kinematic
+      && body->collider_type == ColliderType::ColliderType_Standard;
 }
 
 bool PhysicsSystem::AreInContact(Entity one, Entity two) const {
@@ -646,11 +588,11 @@ void PhysicsSystem::OnParentChanged(Entity entity, Entity new_parent) {
   }
 }
 
-void PhysicsSystem::OnAabbChanged(Entity entity) {
+void PhysicsSystem::OnAabbChanged(Entity entity, AabbCollisionShape* shape) {
   auto* body = rigid_bodies_.Get(entity);
   if (body) {
-    SetupAabbCollisionShape(body);
-    SetupBtIntertialProperties(body);
+    SetupAabbCollisionShape(entity, shape);
+    SetupBtInertialProperties(body);
   }
 }
 

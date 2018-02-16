@@ -12,15 +12,12 @@ cc_library(
     ],
     hdrs = [
         "common_fb_conversions.h",
-        "flatbuffer_native_types.h",
-        "flatbuffer_reader.h",
-        "flatbuffer_writer.h",
         "mathfu_fb_conversions.h",
         "variant_fb_conversions.h",
     ],
     deps = [
         "@flatbuffers//:flatbuffers",
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/input",
         "//lullaby/util:arc",
         "//lullaby/util:color",

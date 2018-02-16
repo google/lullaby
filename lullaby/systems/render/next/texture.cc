@@ -16,15 +16,24 @@ limitations under the License.
 
 #include "lullaby/systems/render/next/texture.h"
 
-#include "fplbase/glplatform.h"
-#include "fplbase/internal/type_conversions_gl.h"
-#include "lullaby/util/logging.h"
+#include "lullaby/systems/render/next/detail/glplatform.h"
+#include "mathfu/constants.h"
 
 namespace lull {
 
-void Texture::Init(std::unique_ptr<fplbase::Texture> texture_impl) {
-  DCHECK(fplbase::ValidTextureHandle(texture_impl->id()));
-  impl_ = std::move(texture_impl);
+Texture::~Texture() {
+  if (hnd_ && !containing_texture_ && (flags_ & kIsExternal) == 0) {
+    const auto handle = *hnd_;
+    GL_CALL(glDeleteTextures(1, &handle));
+  }
+}
+
+void Texture::Init(TextureHnd texture, Target texture_target,
+                   const mathfu::vec2i& size, uint32_t flags) {
+  hnd_ = texture;
+  target_ = texture_target;
+  size_ = size;
+  flags_ = flags;
   for (auto& cb : on_load_callbacks_) {
     cb();
   }
@@ -42,27 +51,22 @@ void Texture::Init(std::shared_ptr<Texture> containing_texture,
 }
 
 void Texture::Bind(int unit) {
-  if (impl_) {
-    impl_->Set(unit);
-  } else if (containing_texture_) {
+  if (containing_texture_) {
     containing_texture_->Bind(unit);
+  } else if (hnd_) {
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(unit)));
+    GL_CALL(glBindTexture(target_, *hnd_));
   }
 }
 
 bool Texture::IsLoaded() const {
-  if (impl_) {
-    return true;
-  } else if (containing_texture_) {
-    return containing_texture_->IsLoaded();
-  } else {
-    return false;
-  }
+  return containing_texture_ ? containing_texture_->IsLoaded() : hnd_.Valid();
 }
 
 void Texture::AddOnLoadCallback(const std::function<void()>& callback) {
   if (containing_texture_) {
     containing_texture_->AddOnLoadCallback(callback);
-  } else if (impl_) {
+  } else if (IsLoaded()) {
     callback();
   } else {
     on_load_callbacks_.push_back(callback);
@@ -70,25 +74,23 @@ void Texture::AddOnLoadCallback(const std::function<void()>& callback) {
 }
 
 mathfu::vec2i Texture::GetDimensions() const {
-  if (impl_) {
-    return impl_->size();
-  } else if (containing_texture_) {
-    return containing_texture_->GetDimensions();
-  } else {
-    return mathfu::kZeros2i;
-  }
+  return containing_texture_ ? containing_texture_->GetDimensions() : size_;
 }
 
+Texture::Target Texture::GetTarget() const {
+  return containing_texture_ ? containing_texture_->GetTarget() : target_;
+}
+
+void Texture::SetName(const std::string& name) { name_ = name; }
+
 std::string Texture::GetName() const {
-  if (impl_) {
-    std::string name = impl_->filename();
-    if (!name.empty()) {
-      return name;
-    }
-  } else if (containing_texture_) {
+  if (containing_texture_) {
     return containing_texture_->GetName();
+  } else if (!name_.empty()) {
+    return name_;
+  } else {
+    return "anonymous texture";
   }
-  return "anonymous texture";
 }
 
 bool Texture::IsSubtexture() const { return containing_texture_ != nullptr; }
@@ -104,23 +106,15 @@ mathfu::vec4 Texture::CalculateClampBounds() const {
 }
 
 bool Texture::HasMips() const {
-  if (impl_) {
-    return (impl_->flags() & fplbase::kTextureFlagsUseMipMaps) != 0;
-  } else if (containing_texture_) {
+  if (containing_texture_) {
     return containing_texture_->HasMips();
   } else {
-    return false;
+    return (flags_ & kHasMipMaps) != 0;
   }
 }
 
-fplbase::TextureHandle Texture::GetResourceId() const {
-  if (impl_) {
-    return impl_->id();
-  } else if (containing_texture_) {
-    return containing_texture_->GetResourceId();
-  } else {
-    return fplbase::InvalidTextureHandle();
-  }
+TextureHnd Texture::GetResourceId() const {
+  return containing_texture_ ? containing_texture_->GetResourceId() : hnd_;
 }
 
 }  // namespace lull

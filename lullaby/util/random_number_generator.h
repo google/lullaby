@@ -39,6 +39,13 @@ class RandomNumberGenerator {
     return std::uniform_real_distribution<float>(min, max)(rng_engine_);
   }
 
+  // Randomly shuffle elements in the range [first, last).
+  // * RandomIt must be a random-access iterator.
+  template <typename RandomIt>
+  void Shuffle(RandomIt first, RandomIt last) {
+    std::shuffle(first, last, rng_engine_);
+  }
+
  private:
   std::mt19937 rng_engine_;
 };

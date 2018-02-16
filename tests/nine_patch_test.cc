@@ -37,8 +37,9 @@ void AssertCorrectTranslations(
     const NinePatch& nine_patch,
     const std::vector<lull::VertexPTT>& nine_patch_vertices,
     const float* expected_positions, const float* expected_uvs,
-    size_t count = 0, size_t count_offset = 0, size_t stride = 1,
-    float x_offset = 0, float y_offset = 0, float z_offset = 0) {
+    const float* expected_uv1s, size_t count = 0, size_t count_offset = 0,
+    size_t stride = 1, float x_offset = 0, float y_offset = 0,
+    float z_offset = 0) {
   if (count == 0) {
     count = nine_patch_vertices.size();
   }
@@ -53,8 +54,8 @@ void AssertCorrectTranslations(
                 kEpsilon);
     EXPECT_NEAR(v.u0, expected_uvs[vertex_index * 2 + 0], kEpsilon);
     EXPECT_NEAR(v.v0, expected_uvs[vertex_index * 2 + 1], kEpsilon);
-    EXPECT_NEAR(v.u1, v.x / nine_patch.size.x + .5f, kEpsilon);
-    EXPECT_NEAR(v.v1, .5f - v.y / nine_patch.size.y, kEpsilon);
+    EXPECT_NEAR(v.u1, expected_uv1s[vertex_index * 2 + 0], kEpsilon);
+    EXPECT_NEAR(v.v1, expected_uv1s[vertex_index * 2 + 1], kEpsilon);
   }
 }
 
@@ -62,7 +63,7 @@ void AssertCorrectTranslations(
 // vectors.
 MeshData BuildMeshFromNinePatchVerticesAndIndices(
     std::vector<VertexPTT>* nine_patch_vertices,
-    std::vector<MeshData::Index>* nine_patch_indices) {
+    std::vector<uint16_t>* nine_patch_indices) {
   DataContainer::DataPtr vertex_data_ptr(
       reinterpret_cast<uint8_t*>(nine_patch_vertices->data()),
       // Data is managed by the vector.
@@ -76,11 +77,11 @@ MeshData BuildMeshFromNinePatchVerticesAndIndices(
       // Data is managed by the vector.
       [](const uint8_t* ptr) {});
   DataContainer index_data(std::move(index_data_ptr),
-                           nine_patch_indices->size() * sizeof(MeshData::Index),
+                           nine_patch_indices->size() * sizeof(uint16_t),
                            DataContainer::AccessFlags::kAll);
   return MeshData(lull::MeshData::PrimitiveType::kTriangles,
                   lull::VertexPTT::kFormat, std::move(vertex_data),
-                  std::move(index_data));
+                  MeshData::kIndexU16, std::move(index_data));
 }
 
 TEST(NinePatch, CheckCounts) {
@@ -137,8 +138,13 @@ TEST(NinePatch, CheckUnstretchedVertices) {
                           0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
                           0, 0,    .25f, 0,    .75f, 0,    1, 0};
 
+  float expected_uv1s[] = {0, 1,    .25f, 1,    .75f, 1,    1, 1,
+                           0, .75f, .25f, .75f, .75f, .75f, 1, .75f,
+                           0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
+                           0, 0,    .25f, 0,    .75f, 0,    1, 0};
+
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
-                            expected_uvs);
+                            expected_uvs, expected_uv1s);
 }
 
 TEST(NinePatch, CheckStretchedVertices) {
@@ -169,8 +175,13 @@ TEST(NinePatch, CheckStretchedVertices) {
                           0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
                           0, 0,    .25f, 0,    .75f, 0,    1, 0};
 
+  float expected_uv1s[] = {0, 1,     .125f, 1,     .875f, 1,     1, 1,
+                           0, .875f, .125f, .875f, .875f, .875f, 1, .875f,
+                           0, .125f, .125f, .125f, .875f, .125f, 1, .125f,
+                           0, 0,     .125f, 0,     .875f, 0,     1, 0};
+
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
-                            expected_uvs);
+                            expected_uvs, expected_uv1s);
 }
 
 TEST(NinePatch, CheckMinifiedVertices) {
@@ -201,8 +212,130 @@ TEST(NinePatch, CheckMinifiedVertices) {
                           0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
                           0, 0,    .25f, 0,    .75f, 0,    1, 0};
 
+  float expected_uv1s[] = {0,   1,   .5f, 1, .5f, 1, 1,   1,   0,   .5f, .5f,
+                           .5f, .5f, .5f, 1, .5f, 0, .5f, .5f, .5f, .5f, .5f,
+                           1,   .5f, 0,   0, .5f, 0, .5f, 0,   1,   0};
+
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
-                            expected_uvs);
+                            expected_uvs, expected_uv1s);
+}
+
+TEST(NinePatch, CheckUnstretchedAlt) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(1, 1);
+  nine_patch.original_size = mathfu::vec2(1, 1);
+  nine_patch.left_slice = .25f;
+  nine_patch.right_slice = .25f;
+  nine_patch.bottom_slice = .25f;
+  nine_patch.top_slice = .25f;
+  nine_patch.texture_alt_min = mathfu::vec2(.1f, .1f);
+  nine_patch.texture_alt_max = mathfu::vec2(.9f, .9f);
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -.5f, -.5f,  0, -.25f, -.5f,  0, .25f, -.5f,  0, .5f, -.5f,  0,
+      -.5f, -.25f, 0, -.25f, -.25f, 0, .25f, -.25f, 0, .5f, -.25f, 0,
+      -.5f, .25f,  0, -.25f, .25f,  0, .25f, .25f,  0, .5f, .25f,  0,
+      -.5f, .5f,   0, -.25f, .5f,   0, .25f, .5f,   0, .5f, .5f,   0};
+
+  float expected_uvs[] = {0, 1,    .25f, 1,    .75f, 1,    1, 1,
+                          0, .75f, .25f, .75f, .75f, .75f, 1, .75f,
+                          0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
+                          0, 0,    .25f, 0,    .75f, 0,    1, 0};
+
+  float expected_uv1s[] = {.1f, .9f, .3f, .9f, .7f, .9f, .9f, .9f,
+                           .1f, .7f, .3f, .7f, .7f, .7f, .9f, .7f,
+                           .1f, .3f, .3f, .3f, .7f, .3f, .9f, .3f,
+                           .1f, .1f, .3f, .1f, .7f, .1f, .9f, .1f};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+TEST(NinePatch, CheckStretchedAlt) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(2, 2);
+  nine_patch.original_size = mathfu::vec2(1, 1);
+  nine_patch.left_slice = .25f;
+  nine_patch.right_slice = .25f;
+  nine_patch.bottom_slice = .25f;
+  nine_patch.top_slice = .25f;
+  nine_patch.texture_alt_min = mathfu::vec2(.1f, .1f);
+  nine_patch.texture_alt_max = mathfu::vec2(.9f, .9f);
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -1.f, -1.f,  0, -.75f, -1.f,  0, .75f, -1.f,  0, 1.f, -1.f,  0,
+      -1.f, -.75f, 0, -.75f, -.75f, 0, .75f, -.75f, 0, 1.f, -.75f, 0,
+      -1.f, .75f,  0, -.75f, .75f,  0, .75f, .75f,  0, 1.f, .75f,  0,
+      -1.f, 1.f,   0, -.75f, 1.f,   0, .75f, 1.f,   0, 1.f, 1.f,   0};
+
+  float expected_uvs[] = {0, 1,    .25f, 1,    .75f, 1,    1, 1,
+                          0, .75f, .25f, .75f, .75f, .75f, 1, .75f,
+                          0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
+                          0, 0,    .25f, 0,    .75f, 0,    1, 0};
+
+  float expected_uv1s[] = {.1f, .9f, .2f, .9f, .8f, .9f, .9f, .9f,
+                           .1f, .8f, .2f, .8f, .8f, .8f, .9f, .8f,
+                           .1f, .2f, .2f, .2f, .8f, .2f, .9f, .2f,
+                           .1f, .1f, .2f, .1f, .8f, .1f, .9f, .1f};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+TEST(NinePatch, CheckMinifiedAlt) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(.5f, .5f);
+  nine_patch.original_size = mathfu::vec2(1, 1);
+  nine_patch.left_slice = .25f;
+  nine_patch.right_slice = .25f;
+  nine_patch.bottom_slice = .25f;
+  nine_patch.top_slice = .25f;
+  nine_patch.texture_alt_min = mathfu::vec2(.1f, .1f);
+  nine_patch.texture_alt_max = mathfu::vec2(.9f, .9f);
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -.25f, -.25f, 0, 0, -.25f, 0, 0, -.25f, 0, .25f, -.25f, 0,
+      -.25f, 0,     0, 0, 0,     0, 0, 0,     0, .25f, 0,     0,
+      -.25f, 0,     0, 0, 0,     0, 0, 0,     0, .25f, 0,     0,
+      -.25f, .25f,  0, 0, .25f,  0, 0, .25f,  0, .25f, .25f,  0};
+
+  float expected_uvs[] = {0, 1,    .25f, 1,    .75f, 1,    1, 1,
+                          0, .75f, .25f, .75f, .75f, .75f, 1, .75f,
+                          0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
+                          0, 0,    .25f, 0,    .75f, 0,    1, 0};
+
+  float expected_uv1s[] = {.1f, .9f, .5f, .9f, .5f, .9f, .9f, .9f,
+                           .1f, .5f, .5f, .5f, .5f, .5f, .9f, .5f,
+                           .1f, .5f, .5f, .5f, .5f, .5f, .9f, .5f,
+                           .1f, .1f, .5f, .1f, .5f, .1f, .9f, .1f};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
 }
 
 float ComputeMiddlePatchU(const NinePatch& nine_patch, float x) {
@@ -245,6 +378,10 @@ TEST(NinePatch, CheckMiddlePatchSubdivision) {
   float middle_vertex_u[2];
   middle_vertex_u[0] = ComputeMiddlePatchU(nine_patch, 2.f / 3.f);
   middle_vertex_u[1] = ComputeMiddlePatchU(nine_patch, 4.f / 3.f);
+  // UV1s are scaled evenly [0,1] in texture space.
+  float middle_vertex_u1[2];
+  middle_vertex_u1[0] = 1.f / 3.f;
+  middle_vertex_u1[1] = 2.f / 3.f;
 
   // 2 extra divisions for the slices plus an extra row and column of vertices
   // to make complete quads on the ends means 3 + 2 + 1 on each side.
@@ -269,10 +406,15 @@ TEST(NinePatch, CheckMiddlePatchSubdivision) {
       0, 1, .2f, 1, middle_vertex_u[0], 1, middle_vertex_u[1], 1, .8f, 1, 1, 1,
   };
 
+  const float expected_uv1s[] = {
+      0,   1, .1f, 1, middle_vertex_u1[0], 1, middle_vertex_u1[1], 1,
+      .9f, 1, 1,   1,
+  };
+
   constexpr int kVerticesInRow = 6;
 
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
-                            expected_uvs, kVerticesInRow);
+                            expected_uvs, expected_uv1s, kVerticesInRow);
 }
 
 float ComputeLeftPatchU(const NinePatch& nine_patch, float x) {
@@ -318,6 +460,9 @@ TEST(NinePatch, CheckEdgePatchSubdivision) {
   // And for the 2nd to right vertex, the UV of the rest of the NinePatch has
   // to be added as well:
   const float second_u = ComputeRightPatchU(nine_patch, 4.0f + 2.0f / 3.0f);
+  // UV1s are scaled evenly [0,1] in texture space.
+  const float first_u1 = 1.0f / 3.0f;
+  const float second_u1 = 2.0f / 3.0f;
 
   // 2 extra divisions for the slices plus an extra row and column of vertices
   // to make complete quads on the ends means 3 + 2 + 1 on each side.
@@ -347,9 +492,13 @@ TEST(NinePatch, CheckEdgePatchSubdivision) {
       0, 1, first_u, 1, .5f, 1, .5f, 1, second_u, 1, 1, 1,
   };
 
-  AssertCorrectTranslations(nine_patch, nine_patch_vertices,
-                            positions_first_row, uvs_first_row, kVerticesInRow,
-                            count_offset, stride, x_offset, y_offset);
+  float uv1s_first_row[] = {
+      0, 1, first_u1, 1, (3.f / 7.f), 1, (4.f / 7.f), 1, second_u1, 1, 1, 1,
+  };
+
+  AssertCorrectTranslations(
+      nine_patch, nine_patch_vertices, positions_first_row, uvs_first_row,
+      uv1s_first_row, kVerticesInRow, count_offset, stride, x_offset, y_offset);
 
   // Check the last row.
   float positions_last_row[] = {0, 7, 0, 2.f + (1.f / 3.f), 7, 0, 3, 7, 0,
@@ -359,10 +508,14 @@ TEST(NinePatch, CheckEdgePatchSubdivision) {
       0, 0, first_u, 0, .5f, 0, .5f, 0, second_u, 0, 1, 0,
   };
 
+  float uv1s_last_row[] = {
+      0, 0, first_u1, 0, (3.f / 7.f), 0, (4.f / 7.f), 0, second_u1, 0, 1, 0,
+  };
+
   count_offset = kVerticesInRow * (kVerticesInRow - 1);
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, positions_last_row,
-                            uvs_last_row, kVerticesInRow, count_offset, stride,
-                            x_offset, y_offset);
+                            uvs_last_row, uv1s_last_row, kVerticesInRow,
+                            count_offset, stride, x_offset, y_offset);
 
   // Check the first column
   float positions_first_col[] = {0, 0, 0, 0, 2.f + (1.f / 3.f), 0, 0, 3, 0,
@@ -372,11 +525,15 @@ TEST(NinePatch, CheckEdgePatchSubdivision) {
       0, 1, 0, second_u, 0, .5f, 0, .5f, 0, first_u, 0, 0,
   };
 
+  float uv1s_first_col[] = {
+      0, 1, 0, second_u1, 0, (4.f / 7.f), 0, (3.f / 7.f), 0, first_u1, 0, 0,
+  };
+
   count_offset = 0;
   stride = kVerticesInRow;
-  AssertCorrectTranslations(nine_patch, nine_patch_vertices,
-                            positions_first_col, uvs_first_col, kVerticesInRow,
-                            count_offset, stride, x_offset, y_offset);
+  AssertCorrectTranslations(
+      nine_patch, nine_patch_vertices, positions_first_col, uvs_first_col,
+      uv1s_first_col, kVerticesInRow, count_offset, stride, x_offset, y_offset);
 
   // Check the last column
   float positions_last_col[] = {7, 0, 0, 7, 2.f + (1.f / 3.f), 0, 7, 3, 0,
@@ -386,11 +543,15 @@ TEST(NinePatch, CheckEdgePatchSubdivision) {
       1, 1, 1, second_u, 1, .5f, 1, .5f, 1, first_u, 1, 0,
   };
 
+  float uv1s_last_col[] = {
+      1, 1, 1, second_u1, 1, (4.f / 7.f), 1, (3.f / 7.f), 1, first_u1, 1, 0,
+  };
+
   count_offset = kVerticesInRow - 1;
   stride = kVerticesInRow;
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, positions_last_col,
-                            uvs_last_col, kVerticesInRow, count_offset, stride,
-                            x_offset, y_offset);
+                            uvs_last_col, uv1s_last_col, kVerticesInRow,
+                            count_offset, stride, x_offset, y_offset);
 }
 
 TEST(NinePatch, CheckThinSliceVertices) {
@@ -421,8 +582,12 @@ TEST(NinePatch, CheckThinSliceVertices) {
                           0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
                           0, 0,    .25f, 0,    .75f, 0,    1, 0};
 
+  float expected_uv1s[] = {0,   1,   .5f, 1, .5f, 1, 1,   1,   0,   .5f, .5f,
+                           .5f, .5f, .5f, 1, .5f, 0, .5f, .5f, .5f, .5f, .5f,
+                           1,   .5f, 0,   0, .5f, 0, .5f, 0,   1,   0};
+
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
-                            expected_uvs);
+                            expected_uvs, expected_uv1s);
 }
 
 TEST(NinePatch, CheckThinUnsymmetricalSliceVertices) {
@@ -452,8 +617,12 @@ TEST(NinePatch, CheckThinUnsymmetricalSliceVertices) {
                           .9f, .9f, .9f, 1, .9f, 0, .4f, .4f, .4f, .9f, .4f,
                           1,   .4f, 0,   0, .4f, 0, .9f, 0,   1,   0};
 
+  float expected_uv1s[] = {0,   1,   .8f, 1, .8f, 1, 1,   1,   0,   .8f, .8f,
+                           .8f, .8f, .8f, 1, .8f, 0, .8f, .8f, .8f, .8f, .8f,
+                           1,   .8f, 0,   0, .8f, 0, .8f, 0,   1,   0};
+
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
-                            expected_uvs);
+                            expected_uvs, expected_uv1s);
 }
 
 }  // namespace

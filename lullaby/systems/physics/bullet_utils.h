@@ -62,8 +62,7 @@ bool MatrixAlmostOrthogonal(const mathfu::mat3& m, float tolerance);
 Sqt GetShapeSqt(const PhysicsShapePart* part);
 
 // Create a collision shape from |part|.
-std::unique_ptr<btCollisionShape> CreateCollisionShape(
-    const PhysicsShapePart* part);
+std::unique_ptr<btCollisionShape> CreateBtShape(const PhysicsShapePart* part);
 
 }  // namespace lull
 

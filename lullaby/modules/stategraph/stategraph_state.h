@@ -73,7 +73,7 @@ class StategraphState {
   // Adds a Transition to the State to another State.
   void AddTransition(StategraphTransition transition) {
     CHECK_EQ(transition.from_state, id_);
-    CHECK_NE(transition.to_state, 0);
+    CHECK_NE(transition.to_state, 0u);
     transitions_.emplace_back(std::move(transition));
   }
 

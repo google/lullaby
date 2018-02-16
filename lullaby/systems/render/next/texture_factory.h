@@ -17,10 +17,10 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_FACTORY_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_FACTORY_H_
 
-#include "fplbase/asset_manager.h"
-#include "fplbase/renderer.h"
+#include "lullaby/modules/render/image_data.h"
 #include "lullaby/systems/render/next/texture.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/systems/render/texture_factory.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/resource_manager.h"
 
@@ -28,13 +28,72 @@ namespace lull {
 
 // Creates and manages Texture objects.
 //
-// Textures will be automatically released along with the last external
-// reference unless explicitly added to the internal texture cache.
-class TextureFactory {
+// See TextureFactory documentation for more information.
+class TextureFactoryImpl : public TextureFactory {
  public:
-  TextureFactory(Registry* registry, fplbase::Renderer* renderer);
-  TextureFactory(const TextureFactory&) = delete;
-  TextureFactory& operator=(const TextureFactory&) = delete;
+  explicit TextureFactoryImpl(Registry* registry);
+  TextureFactoryImpl(const TextureFactoryImpl&) = delete;
+  TextureFactoryImpl& operator=(const TextureFactoryImpl&) = delete;
+
+  /// Caches a texture for later retrieval. Effectively stores the shared_ptr
+  /// to the texture in an internal cache, allowing all references to be
+  /// destroyed without actually destroying the texture itself.
+  void CacheTexture(HashValue name, const TexturePtr& texture) override;
+
+  /// Retrieves a cached texture by its name hash, or returns nullptr if the
+  /// texture is not cached.
+  TexturePtr GetTexture(HashValue name) const override;
+
+  /// Releases the cached texture associated with |name|. If no other references
+  /// to the texture exist, then it will be destroyed.
+  void ReleaseTexture(HashValue name) override;
+
+  /// Creates a texture using the |image| data and configured on the GPU using
+  /// the creation |params|.
+  TexturePtr CreateTexture(ImageData image,
+                           const CreateParams& params) override;
+
+  /// Creates a "named" texture using the |image| data and configured on the GPU
+  /// using the creation |params|. Subsequent calls to this function with the
+  /// same texture |name| will return the original texture as long as any
+  /// references to that texture are still alive.
+  TexturePtr CreateTexture(HashValue name, ImageData image,
+                           const CreateParams& params) override;
+
+  /// Loads a texture off disk with the given |filename| and uses the creation
+  /// |params| to configure it for the GPU. The filename is also used as the
+  /// "name" of the texture. Subsequent calls to this function with the same
+  /// |filename| will return the original texture as long as any references to
+  /// that texture are still alive.
+  TexturePtr LoadTexture(string_view filename,
+                         const CreateParams& params) override;
+
+  /// Updates the entire image contents of |texture| using |image|. Image data
+  /// is sent as-is. Returns false if the dimensions don't match or if the
+  /// texture isn't internal and 2D.
+  bool UpdateTexture(TexturePtr texture, ImageData image) override;
+
+  /// Creates a texture from specified GL |texture_target| and |texture_id|.
+  /// This function is primarily used for "wrapping" a texture from an external
+  /// source (eg. camera feed) within a lull::Texture.
+  TexturePtr CreateTexture(uint32_t texture_target, uint32_t texture_id);
+
+  /// Similar to above, but allows the caller to specify the texture size.
+  TexturePtr CreateTexture(uint32_t texture_target, uint32_t texture_id,
+                           const mathfu::vec2i& size);
+
+  /// Creates an "empty" texture of the specified size. The |params| must
+  /// specify a format for the texture.
+  TexturePtr CreateTexture(const mathfu::vec2i& size,
+                           const CreateParams& params);
+
+  // Creates a texture as a subtexture of another texture.
+  TexturePtr CreateSubtexture(const TexturePtr& texture,
+                              const mathfu::vec4& uv_bounds);
+
+  // Creates a named texture as a subtexture of another texture.
+  TexturePtr CreateSubtexture(HashValue key, const TexturePtr& texture,
+                              const mathfu::vec4& uv_bounds);
 
   // Returns a resident white texture with an alpha channel: (1, 1, 1, 1).
   const TexturePtr& GetWhiteTexture() const;
@@ -44,49 +103,17 @@ class TextureFactory {
   // the white texture.
   const TexturePtr& GetInvalidTexture() const;
 
-  // Caches a texture for later retrieval.
-  void CacheTexture(HashValue name, const TexturePtr& texture);
-
-  // Releases the cached texture associated with |texture_hash|.
-  void ReleaseTextureFromCache(HashValue texture_hash);
-
-  // Retrieves a cached texture by its name hash. If the texture isn't cached
-  // this returns nullptr.
-  TexturePtr GetCachedTexture(HashValue texture_hash) const;
-
-  // Loads the texture with the given |filename| and optionally creates mips.
-  TexturePtr LoadTexture(const std::string& filename, bool create_mips);
-
-  // Creates a texture from specified GL |texture_target| and |texture_id|.
-  TexturePtr CreateTexture(uint32_t texture_target, uint32_t texture_id);
-
-  // Creates a texture from memory.  |data| is copied into GL memory, so it's no
-  // longer needed after calling this function.
-  TexturePtr CreateTextureFromMemory(const void* data, const mathfu::vec2i size,
-                                     fplbase::TextureFormat format,
-                                     bool create_mips = false);
-
-  void CreateSubtexture(HashValue key, const TexturePtr& texture,
-                        const mathfu::vec4& uv_bounds);
-
-  // Create and return a pre-processed texture.  This will set up a rendering
-  // environment suitable to render |sourcE_texture| with a pre-process shader.
-  // texture and shader binding / setup should be performed in |processor|.
-  TexturePtr CreateProcessedTexture(
-      const TexturePtr& texture, bool create_mips,
-      const RenderSystem::TextureProcessor& processor,
-      const mathfu::vec2i& output_dimensions);
-
-  // Create and return a pre-processed texture as above, but size the output
-  // according to |output_dimensions|.
-  TexturePtr CreateProcessedTexture(
-      const TexturePtr& source_texture, bool create_mips,
-      const RenderSystem::TextureProcessor& processor);
-
+  // DEPRECATED. Old RenderSystem API passes ImageData by const reference which
+  // can be redirected here.
+  TexturePtr CreateTexture(const ImageData* image, const CreateParams& params);
+  TexturePtr CreateTexture(HashValue name, const ImageData* image,
+                           const CreateParams& params);
 
  private:
+  void InitTextureImpl(const TexturePtr& texture, const ImageData* image,
+                       const TextureFactory::CreateParams& params);
+
   Registry* registry_;
-  fplbase::Renderer* fpl_renderer_;
   ResourceManager<Texture> textures_;
   TexturePtr white_texture_;
   TexturePtr invalid_texture_;
@@ -94,6 +121,6 @@ class TextureFactory {
 
 }  // namespace lull
 
-LULLABY_SETUP_TYPEID(lull::TextureFactory);
+LULLABY_SETUP_TYPEID(lull::TextureFactoryImpl);
 
 #endif  // LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_FACTORY_H_

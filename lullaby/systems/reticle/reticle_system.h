@@ -19,13 +19,14 @@ limitations under the License.
 
 #include <deque>
 
-#include "lullaby/generated/reticle_behaviour_def_generated.h"
-#include "lullaby/generated/reticle_def_generated.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/input/input_manager.h"
+#include "lullaby/modules/reticle/standard_input_pipeline.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/math.h"
+#include "lullaby/generated/reticle_behaviour_def_generated.h"
+#include "lullaby/generated/reticle_def_generated.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
@@ -39,7 +40,7 @@ class ReticleSystem : public System {
 
   /// The reticle movemt function takes the active input device as the parameter
   /// and returns an Sqt which contains the origin and direction of reticle ray.
-  using ReticleMovementFn = std::function<Sqt(InputManager::DeviceType)>;
+  using ReticleMovementFn = std::function<Ray(InputManager::DeviceType)>;
 
   /// The reticle smoothing function takes the current controller direction
   /// and frame interval as parameters and returns the reticle direction.
@@ -56,11 +57,9 @@ class ReticleSystem : public System {
 
   void AdvanceFrame(const Clock::duration& delta_time);
 
-  /// Sets the distance for the reticle when there is no collision.
+  // TODO(b/63343249) Remove this function.
+  /// Deprecated - call CursorSystem::SetNoHitDistance instead.
   void SetNoHitDistance(float distance);
-
-  /// Gets the distance for the reticle when there is no collision.
-  float GetNoHitDistance() const;
 
   /// Gets the current reticle entity.
   Entity GetReticle() const;
@@ -74,9 +73,6 @@ class ReticleSystem : public System {
   /// Returns the type of the device currently used to position the reticle.
   InputManager::DeviceType GetActiveDevice() const;
 
-  /// Returns the reticle ergo angle offset.
-  float GetReticleErgoAngleOffset() const;
-
   /// Set a preset reticle movement function if the default reticle movement is
   /// not applicable in some cases.
   void SetReticleMovementFn(ReticleMovementFn fn);
@@ -89,10 +85,6 @@ class ReticleSystem : public System {
   /// Pass kNullEntity to return ReticleSystem to normal behavior.
   void LockOn(Entity entity, const mathfu::vec3& offset);
 
-  /// Sets the reticle collision behaviour for |entity|.
-  void SetReticleCollisionBehaviour(Entity entity,
-      ReticleCollisionBehaviour collision_behaviour);
-
  private:
   struct Reticle : Component {
     explicit Reticle(Entity entity);
@@ -103,60 +95,25 @@ class ReticleSystem : public System {
     // that receives a ClickEvent, and later a ClickReleasedEvent.
     Entity pressed_entity = kNullEntity;
 
-    // The amount of time between press and release, reported in
-    // ClickPressedAndReleasedEvent.
-    int64_t ms_since_press = 0;
-
-    // The ray representing the direction that the reticle is pointing. This is
-    // used for collision checking.
-    Ray collision_ray;
-
-    float no_hit_distance = 0.f;
-    float ergo_angle_offset = 0.f;
     std::vector<InputManager::DeviceType> device_preference;
 
     ReticleMovementFn movement_fn = nullptr;
     ReticleSmoothingFn smoothing_fn = nullptr;
-
-    // An entity that (if set), the reticle is forced to target.
-    Entity locked_target = kNullEntity;
-
-    // The world space offset from the locked_entity's position.
-    mathfu::vec3 lock_offset = mathfu::kZeros3f;
-  };
-
-  struct ReticleBehaviour : Component {
-    explicit ReticleBehaviour(Entity entity)
-        : Component(entity), hover_start_dead_zone(mathfu::kZeros3f) {}
-
-    // The amount to shrink this entity's Aabb by when checking for a hover
-    // start event. The dead zone is applied on both sides.
-    mathfu::vec3 hover_start_dead_zone;
-
-    // How this entity should handle collisions.
-    ReticleCollisionBehaviour collision_behaviour;
   };
 
   void CreateReticle(Entity entity, const ReticleDef* data);
 
   void CreateReticleBehaviour(Entity entity, const ReticleBehaviourDef* data);
 
-  // If the target has a ReticleBehavior, apply that behavior and return the
-  // actual target.
-  Entity HandleReticleBehavior(Entity targeted_entity);
+  // Calculate the origin, collision_ray, and an ideal cursor_position for
+  // where the cursor should be based on input (assuming no actual collisions
+  // or collision ray modifications take place).
+  void CalculateFocusPositions(Entity reticle_entity,
+                               const Clock::duration& delta_time,
+                               InputFocus* focus);
 
-  // Calculate where the reticle should be based on input (assuming no actual
-  // collisions take place).
-  mathfu::vec3 CalculateReticleNoHitPosition(Entity reticle_entity,
-                                             InputManager::DeviceType device,
-                                             const Clock::duration& delta_time);
-
-  // Checks if |collided_entity| has a hover start dead zone. If it does and the
-  // reticle is currently within the dead zone, return true. Otherwise, return
-  // false.
-  bool IsInsideEntityDeadZone(Entity collided_entity) const;
   std::unique_ptr<Reticle> reticle_;
-  ComponentPool<ReticleBehaviour> reticle_behaviours_;
+  std::unique_ptr<StandardInputPipeline> pipeline_;
 };
 
 }  // namespace lull

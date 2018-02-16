@@ -63,8 +63,14 @@ class ExampleApp {
   // Returns the Registry associated with this app.
   std::shared_ptr<Registry> GetRegistry() { return registry_; }
 
-  // Initializes the example (including the derived class).
-  void Initialize();
+  // Initializes the example (including the derived class).  The native window
+  // pointer must be one of the following types depending on the platform:
+  //   Android: ANativeWindow*
+  //   IOS: CAEAGLLayer*
+  //   Windows: HWND
+  //   OSX: NSView*
+  //   X11: Window
+  void Initialize(void* native_window = nullptr);
 
   // Updates the example once per frame (including the derived class).
   void Update();
@@ -84,6 +90,9 @@ class ExampleApp {
   // Registry class that owns all other high-level systems and utility classes.
   std::shared_ptr<Registry> registry_;
 
+  // The opaque reference to the native window which owns the app.
+  void* native_window_ = nullptr;
+
   // Event dispatcher for handling thread-safe communication.  Owned by
   // registry_.
   QueuedDispatcher* dispatcher_ = nullptr;
@@ -92,6 +101,8 @@ class ExampleApp {
   Clock::time_point last_frame_time_;
 
  private:
+  int frame_count_ = 0;
+
   ExampleApp(const ExampleApp&) = delete;
   ExampleApp& operator=(const ExampleApp&) = delete;
 };

@@ -26,6 +26,7 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/optional.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
@@ -75,12 +76,12 @@ class ScrollSystem : public System {
   // Processes touch input to control scrolling.
   void AdvanceFrame(Clock::duration delta_time);
 
-  // Activates scrolling for the |entity| regardless of whether or not it is
-  // the current hover target.
-  void Activate(Entity entity);
-
-  // Deactivates scrolling for the |entity| unless it is the hover target.
+  // Deactivates scrolling for the |entity|, ignoring all hovers and priority.
   void Deactivate(Entity entity);
+
+  // Activates a previously Deactivated |entity| for scrolling. If this is
+  // kHoverPriority, it won't start scrolling again until a new StartHoverEvent.
+  void Activate(Entity entity);
 
   // Calls the snap_by_delta_fn callback set on the view, if applicable. If
   // time_ms is unset or less than 0 it'll automatically be set to be the same
@@ -147,6 +148,9 @@ class ScrollSystem : public System {
     int priority = kHoverPriority;
     Dispatcher::ScopedConnection on_animation_complete;
     AnimationId forced_offset_animation = kNullAnimation;
+    bool activated = true;
+    bool lock_axis = false;
+    Optional<mathfu::vec2> locked_axis = NullOpt;
   };
 
   struct EntityPriorityTuple {
@@ -174,9 +178,10 @@ class ScrollSystem : public System {
   void OnAnimationComplete(Entity entity, AnimationId animation);
 
   void ProcessTouch();
-  void StartTouch();
   void UpdateTouch();
-  void EndTouch();
+  void EndActiveTouch();
+  void EndTouch(const ScrollView* view);
+  void TryEndTouch(const ScrollView* previous_view);
 
   void ActuallySetContentBounds(ScrollView* view, const Aabb& bounds);
   void ActuallySetViewOffset(Entity e, const mathfu::vec2& offset);
@@ -190,14 +195,23 @@ class ScrollSystem : public System {
                               Clock::duration time);
 
   bool IsInputView(Entity e) const;
-  void RemoveInputView(Entity e);
+  void RemoveInputView(Entity entity);
 
+  // Describes how UpdateInputView handles updating the current hover view.
+  enum class UpdateInputViewMode {
+    // Do not change priority away from hover while the entity is hovered.
+    kDontChangeFromHoverPriority,
+    // Allows changing from hover even while hovered.
+    kForceChangePriority,
+  };
   // Updates |e|'s entry within input_views_ by doing one of the following:
   // - removes if |priority| is kHoverPiroty and |e| isn't hovered; or
   // - seemlessly updates priority if |e| is and will continue to be active; or
   // - updates priority and moves |e|, de/activating if necessary; or
   // - adds |e|, activating if necessary.
-  void UpdateInputView(Entity e, int priority);
+  void UpdateInputView(Entity entity, int priority,
+                       UpdateInputViewMode mode =
+                           UpdateInputViewMode::kDontChangeFromHoverPriority);
 
   ScrollViewPool views_;
   InputViewQueue input_views_;

@@ -64,6 +64,9 @@ class FunctionCall {
   template <typename T>
   void AddArg(T&& value);
 
+  /// Adds a value to the argument list.
+  void AddArg(Variant value);
+
   /// Converts the argument at the specified index to the native CPP value type.
   /// This function is required by CallNativeFunction.
   template <typename T>
@@ -103,6 +106,15 @@ FunctionCall FunctionCall::Create(string_view name, Args... args) {
   int dummy[] = {(call.AddArg(std::forward<Args>(args)), 0)...};
   (void)dummy;
   return call;
+}
+
+inline void FunctionCall::AddArg(Variant value) {
+  if (num_args_ < kMaxArgs) {
+    args_[num_args_] = std::move(value);
+    ++num_args_;
+  } else {
+    LOG(DFATAL) << "Maximum number of args exceeded.";
+  }
 }
 
 template <typename T>

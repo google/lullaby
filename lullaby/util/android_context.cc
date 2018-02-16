@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/util/android_context.h"
 
 #include "lullaby/util/logging.h"
+#include "lullaby/util/make_unique.h"
 
 #ifdef __ANDROID__
 
@@ -99,10 +100,12 @@ AndroidContext::AndroidContext(JavaVM* jvm, jint version) {
 
 AndroidContext::~AndroidContext() {
   JNIEnv* env = AttachCurrentThread();
+  if (asset_manager_ != nullptr) {
+    env->DeleteWeakGlobalRef(asset_manager_);
+  }
   if (context_ != nullptr) {
     env->DeleteWeakGlobalRef(context_);
   }
-
   if (class_loader_ != nullptr) {
     env->DeleteWeakGlobalRef(class_loader_);
   }
@@ -117,10 +120,13 @@ void AndroidContext::SetApplicationContext(jobject context) {
   CHECK_NOTNULL(env);
   if (context_ != nullptr) {
     env->DeleteWeakGlobalRef(context_);
+    context_ = nullptr;
   }
 
-  context_ = env->NewWeakGlobalRef(context);
-  CHECK_NOTNULL(context_);
+  if (context) {
+    context_ = env->NewWeakGlobalRef(context);
+    CHECK_NOTNULL(context_);
+  }
 }
 
 ScopedJavaLocalRef AndroidContext::GetApplicationContext() const {
@@ -134,16 +140,59 @@ void AndroidContext::SetClassLoader(jobject loader) {
   CHECK_NOTNULL(env);
   if (class_loader_ != nullptr) {
     env->DeleteWeakGlobalRef(class_loader_);
+    class_loader_ = nullptr;
   }
 
-  class_loader_ = env->NewWeakGlobalRef(loader);
-  CHECK_NOTNULL(class_loader_);
+  if (loader) {
+    class_loader_ = env->NewWeakGlobalRef(loader);
+    CHECK_NOTNULL(class_loader_);
+  }
 }
 
 ScopedJavaLocalRef AndroidContext::GetClassLoader() const {
   JNIEnv* env = AttachCurrentThread();
   CHECK_NOTNULL(env);
   return ScopedJavaLocalRef(env->NewLocalRef(class_loader_), env);
+}
+
+void AndroidContext::SetAndroidAssetManager(jobject manager) {
+  JNIEnv* env = AttachCurrentThread();
+  CHECK_NOTNULL(env);
+
+  if (asset_manager_ != nullptr) {
+    env->DeleteWeakGlobalRef(asset_manager_);
+    asset_manager_ = nullptr;
+  }
+  if (manager) {
+    asset_manager_ = env->NewWeakGlobalRef(manager);
+    CHECK_NOTNULL(asset_manager_);
+  }
+}
+
+void AndroidContext::SetAndroidAssetManagerFromContext(jobject context) {
+  JNIEnv* env = AttachCurrentThread();
+  CHECK_NOTNULL(env);
+
+  jobject manager = nullptr;
+  if (context) {
+    jclass context_class = env->FindClass("android/content/Context");
+    jmethodID context_get_assets_method = env->GetMethodID(
+        context_class, "getAssets", "()Landroid/content/res/AssetManager;");
+    manager = env->CallObjectMethod(context, context_get_assets_method);
+  }
+  SetAndroidAssetManager(manager);
+}
+
+AAssetManager* AndroidContext::GetAndroidAssetManager() {
+  JNIEnv* env = AttachCurrentThread();
+  CHECK_NOTNULL(env);
+
+  if (asset_manager_) {
+    ScopedJavaLocalRef ref(env->NewLocalRef(asset_manager_), env);
+    return AAssetManager_fromJava(env, ref.Get());
+  } else {
+    return nullptr;
+  }
 }
 
 }  // namespace lull

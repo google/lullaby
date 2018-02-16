@@ -54,11 +54,10 @@ inline constexpr HashValue ConstHash(const char (&str)[N], int start,
   // about integral constant overflow (warning C4307).
   return (start == N || start == N - 1)
              ? hash
-             : ConstHash(
-                   str, start + 1,
-                   static_cast<HashValue>(
-                       (hash ^ static_cast<unsigned char>(str[start])) *
-                       static_cast<uint64_t>(kHashPrimeMultiplier)));
+             : ConstHash(str, start + 1,
+                         static_cast<HashValue>(
+                             (hash ^ static_cast<unsigned char>(str[start])) *
+                             static_cast<uint64_t>(kHashPrimeMultiplier)));
 }
 
 }  // namespace detail
@@ -70,10 +69,18 @@ inline constexpr HashValue ConstHash(const char (&str)[N]) {
 }
 
 // Functor for using hashable types in STL containers.
-template <class T>
 struct Hasher {
-  std::size_t operator()(const T& value) const { return Hash(value); }
+  template <class T>
+  std::size_t operator()(const T& value) const {
+    return Hash(value);
+  }
 };
+
+#ifdef LULLABY_DEBUG_HASH
+// Returns the string that generated the HashValue, for debugging. To enable it,
+// use this blaze flag: blaze build --define=lullaby_debug_hash=1 ...
+string_view Unhash(HashValue value);
+#endif
 
 }  // namespace lull
 

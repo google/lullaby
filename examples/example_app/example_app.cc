@@ -16,47 +16,84 @@ limitations under the License.
 
 #include "examples/example_app/example_app.h"
 
-#include "fplbase/utilities.h"
-#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/input/input_manager.h"
+#include "lullaby/modules/config/config.h"
 #include "lullaby/modules/script/function_binder.h"
-#include "mathfu/constants.h"
+#include "lullaby/modules/input_processor/input_processor.h"
+
+#if LULLABY_ENABLE_EDITOR
+#include "editor/src/editor.h"
+#endif
 
 namespace lull {
+constexpr HashValue kScreenshotTestHash = ConstHash("screenshot_test");
+constexpr int kMaxFrameCount = 30;
+constexpr float kConstantFrameRate = 10.0f;
 
-void ExampleApp::Initialize() {
+void ExampleApp::Initialize(void* native_window) {
   dispatcher_ = new QueuedDispatcher();
   registry_->Create<FunctionBinder>(registry_.get());
   registry_->Register(std::unique_ptr<Dispatcher>(dispatcher_));
-  registry_->Create<AssetLoader>(fplbase::LoadFile);
+  registry_->Create<AssetLoader>(registry_.get());
   registry_->Create<InputManager>();
   registry_->Create<EntityFactory>(registry_.get());
 
+  native_window_ = native_window;
   OnInitialize();
+
+#if LULLABY_ENABLE_EDITOR
+  // Initialize the editor.  By default this will go to port 1235
+  Editor::Initialize(registry_.get());
+#endif
 }
 
 void ExampleApp::Update() {
   registry_->Get<AssetLoader>()->Finalize(1);
+  ++frame_count_;
 
   const auto timestamp = Clock::now();
+  bool should_advance = true;
 
   // Don't advance on the first frame.  last_frame_time_ is uninitialized, and
   // some systems might not like a delta_time of 0.
   if (last_frame_time_ != Clock::time_point()) {
-    const Clock::duration delta_time = timestamp - last_frame_time_;
+    Clock::duration delta_time = timestamp - last_frame_time_;
+    const auto* global_config = registry_->Get<lull::Config>();
+    if (global_config) {
+      if (global_config->Get(kScreenshotTestHash, false)) {
+        // Need to advance frame at constant time for screenshot testing.
+        delta_time = lull::DurationFromMilliseconds(kConstantFrameRate);
+        if (frame_count_ >= kMaxFrameCount) {
+          should_advance = false;
+        }
+      }
+    }
+    if (should_advance) {
+      registry_->Get<InputManager>()->AdvanceFrame(delta_time);
 
-    registry_->Get<InputManager>()->AdvanceFrame(delta_time);
+      ProcessEventsForDevice(registry_.get(), InputManager::kController);
 
-    dispatcher_->Dispatch();
+      dispatcher_->Dispatch();
 
-    OnAdvanceFrame(delta_time);
-
-    RenderView views[2];
-    const size_t num_views = config_.stereo ? 2 : 1;
-    PopulateRenderViews(registry_.get(), views, num_views);
+      OnAdvanceFrame(delta_time);
+    }
+    static const size_t kMaxViews = 2;
+    RenderView views[kMaxViews];
+    const size_t num_views =
+        registry_->Get<lull::InputManager>()->GetNumEyes(InputManager::kHmd);
+    PopulateRenderViews(registry_.get(), views, num_views,
+                        config_.near_clip_plane, config_.far_clip_plane);
 
     OnRender({views, num_views});
+
+#if LULLABY_ENABLE_EDITOR
+    auto* editor = registry_->Get<Editor>();
+    if (editor) {
+      editor->AdvanceFrame(delta_time);
+    }
+#endif
   } else {
     dispatcher_->Dispatch();
   }

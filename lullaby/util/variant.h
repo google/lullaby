@@ -33,6 +33,14 @@ class Variant;
 using VariantArray = std::vector<Variant>;
 using VariantMap = std::unordered_map<HashValue, Variant>;
 
+}  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::Variant);
+LULLABY_SETUP_TYPEID(lull::VariantArray);
+LULLABY_SETUP_TYPEID(lull::VariantMap);
+
+namespace lull {
+
 // Used to store an instance of any type that has a TypeId.
 //
 // This class is similar to C++17 std::any, but differs in the following ways:
@@ -75,14 +83,14 @@ class Variant {
   // Copy constructor, copies variant value stored in |rhs|.
   Variant(const Variant& rhs) : type_(rhs.type_), handler_(rhs.handler_) {
     if (!rhs.Empty()) {
-      rhs.handler_(kCopy, Data(), rhs.Data(), nullptr);
+      DoOp(kCopy, Data(), rhs.Data(), nullptr);
     }
   }
 
   // Move constructor, copies variant value stored in |rhs|.
   Variant(Variant&& rhs) : type_(rhs.type_), handler_(rhs.handler_) {
     if (!rhs.Empty()) {
-      rhs.handler_(kMove, Data(), nullptr, rhs.Data());
+      DoOp(kMove, Data(), nullptr, rhs.Data());
       rhs.Clear();
     }
   }
@@ -104,7 +112,7 @@ class Variant {
       if (!rhs.Empty()) {
         type_ = rhs.type_;
         handler_ = rhs.handler_;
-        handler_(kCopy, Data(), rhs.Data(), nullptr);
+        DoOp(kCopy, Data(), rhs.Data(), nullptr);
       }
     }
     return *this;
@@ -117,7 +125,7 @@ class Variant {
       if (!rhs.Empty()) {
         type_ = rhs.type_;
         handler_ = rhs.handler_;
-        handler_(kMove, Data(), nullptr, rhs.Data());
+        DoOp(kMove, Data(), nullptr, rhs.Data());
         rhs.Clear();
       }
     }
@@ -132,12 +140,12 @@ class Variant {
   }
 
   // Returns true if no value is set, false otherwise.
-  bool Empty() const { return type_ == 0 && handler_ == nullptr; }
+  bool Empty() const { return type_ == 0; }
 
   // Resets the Variant back to an unset state, destroying any stored value.
   void Clear() {
     if (!Empty()) {
-      handler_(kDestroy, nullptr, nullptr, Data());
+      DoOp(kDestroy, nullptr, nullptr, Data());
       type_ = 0;
       handler_ = nullptr;
     }
@@ -166,62 +174,70 @@ class Variant {
   }
 
   // Returns the TypeId of the value currently being stored.
-  TypeId GetTypeId() const {
-    return (handler_) ? handler_(kNone, nullptr, nullptr, nullptr) : 0;
-  }
+  TypeId GetTypeId() const { return type_; }
 
   // Serializes the variant using the given Archive.
   template <typename Archive>
   void Serialize(Archive archive) {
-    // Supported serialization types:
-    #define TYPE_SWITCH           \
-        CASE(bool)                \
-        CASE(int8_t)              \
-        CASE(uint8_t)             \
-        CASE(int16_t)             \
-        CASE(uint16_t)            \
-        CASE(int32_t)             \
-        CASE(uint32_t)            \
-        CASE(int64_t)             \
-        CASE(uint64_t)            \
-        CASE(float)               \
-        CASE(double)              \
-        CASE(std::string)         \
-        CASE(mathfu::vec2)        \
-        CASE(mathfu::vec2i)       \
-        CASE(mathfu::vec3)        \
-        CASE(mathfu::vec3i)       \
-        CASE(mathfu::vec4)        \
-        CASE(mathfu::vec4i)       \
-        CASE(mathfu::quat)        \
-        CASE(mathfu::mat4)        \
-        CASE(mathfu::mat4)        \
-        CASE(lull::VariantArray)  \
-        CASE(lull::VariantMap)
-
-    TypeId id = GetTypeId();
-    archive(&id, Hash("type"));
-    #define CASE(T)                           \
-        if (id == lull::GetTypeId<T>()) {     \
-          if (archive.IsDestructive()) {      \
-            T t;                              \
-            archive(&t, Hash("data"));        \
-            operator=(std::move(t));          \
-          } else {                            \
-            archive(Get<T>(), Hash("data"));  \
-          }                                   \
-          return;                             \
-        }
-    TYPE_SWITCH;
-    #undef CASE
-    if (id == 0) {
+    archive(&type_, ConstHash("type"));
+    if (type_ == 0) {
       if (archive.IsDestructive()) {
         Clear();
       }
       return;
     }
-    LOG(ERROR) << "Unsupported TypeId in Variant serialization: " << id;
-    #undef TYPE_SWITCH
+
+// Supported serialization types:
+#define TYPE_SWITCH        \
+  CASE(bool)               \
+  CASE(int8_t)             \
+  CASE(uint8_t)            \
+  CASE(int16_t)            \
+  CASE(uint16_t)           \
+  CASE(int32_t)            \
+  CASE(uint32_t)           \
+  CASE(int64_t)            \
+  CASE(uint64_t)           \
+  CASE(float)              \
+  CASE(double)             \
+  CASE(std::string)        \
+  CASE(mathfu::vec2)       \
+  CASE(mathfu::vec2i)      \
+  CASE(mathfu::vec3)       \
+  CASE(mathfu::vec3i)      \
+  CASE(mathfu::vec4)       \
+  CASE(mathfu::vec4i)      \
+  CASE(mathfu::quat)       \
+  CASE(mathfu::mat4)       \
+  CASE(lull::VariantArray) \
+  CASE(lull::VariantMap)
+
+#define CASE(T)                             \
+  if (type_ == lull::GetTypeId<T>()) {      \
+    if (archive.IsDestructive()) {          \
+      T t;                                  \
+      archive(&t, ConstHash("data"));       \
+      operator=(std::move(t));              \
+    } else {                                \
+      archive(Get<T>(), ConstHash("data")); \
+    }                                       \
+    return;                                 \
+  }
+    TYPE_SWITCH;
+#undef CASE
+#undef TYPE_SWITCH
+
+    bool is_enum = (handler_ == nullptr);
+    archive(&is_enum, ConstHash("is_enum"));
+    if (is_enum) {
+      handler_ = nullptr;
+      EnumType* ptr = reinterpret_cast<EnumType*>(Data());
+      archive(ptr, 0);
+      return;
+    }
+
+    LOG(DFATAL) << "Unsupported TypeId in Variant serialization: " << type_;
+    Clear();
   }
 
   // Utility type to enable/disable the NumericCast function below.
@@ -253,35 +269,32 @@ class Variant {
     kStoreAlign = 16,  // Aligned for mathfu types.
   };
 
+  // Enum types are assumed to be no larger than a uint64_t.
+  using EnumType = uint64_t;
+
   // Type of operations that may be performed on the variant value.
   enum Operation {
-    kNone,
     kCopy,
     kMove,
     kDestroy,
   };
 
-  using InternalTypeId = uintptr_t;
   using Buffer = std::aligned_storage<kStoreSize, kStoreAlign>::type;
-  using HandlerFn = TypeId (*)(Operation, void*, const void*, void*);
+  using HandlerFn = void (*)(Operation, void*, const void*, void*);
 
   // Performs the specified operation (copy, move, etc.) on the provided
   // pointers.  Using a single function to handle all the various operations
   // that can be performed on the variant type reduces the size of this class.
-  // Returns the lull::TypeId of the provided |Type|.
   // The parameters are dependent on the type of operation.  Specifically:
-  //   kNone: all parameters are ignored.
   //   kCopy: Object of |Type| is copied from |from| pointer to |to| pointer
   //          using copy constructor.
   //   kMove: Object of |Type| is moved from |victim| pointer to |to| pointer
   //          using move constructor.
-  //   kMove: Object of |Type| in |victim| is destroyed using destructor.
+  //   kDestroy: Object of |Type| in |victim| is destroyed using destructor.
   template <typename Type>
-  static TypeId HandlerImpl(Operation op, void* to, const void* from,
-                            void* victim) {
+  static void HandlerImpl(Operation op, void* to, const void* from,
+                          void* victim) {
     switch (op) {
-      case kNone:
-        break;
       case kCopy:
         new (to) Type(*static_cast<const Type*>(from));
         break;
@@ -292,29 +305,34 @@ class Variant {
         static_cast<Type*>(victim)->~Type();
         break;
     }
-    return lull::GetTypeId<Type>();
   }
 
-  // Returns a unique value for a given |Type|.
-  template <typename Type>
-  static InternalTypeId GetInternalTypeId() {
-    // This static variable isn't actually used, only its address, so there are
-    // no concurrency issues.
-    static char dummy_var;
-    return reinterpret_cast<InternalTypeId>(&dummy_var);
-  }
+  template <typename T>
+  struct HasTypeId {
+    static constexpr bool value =
+        TypeIdTraits<typename std::decay<T>::type>::kHasTypeId;
+  };
 
   // Returns a pointer to the value stored in the |variant| if it is of type
   // |Ret|, otherwise returns nullptr.  This function is used to provide a
   // single implementation for both the const and non-cost versions of the
   // public Get() function.
   template <typename Ret, typename Self>
-  static Ret* GetImpl(Self* variant) {
+  static auto GetImpl(Self* variant) ->
+      typename std::enable_if<HasTypeId<Ret>::value, Ret*>::type {
     using RetType = typename std::decay<Ret>::type;
-    const InternalTypeId type = GetInternalTypeId<RetType>();
+    const TypeId type = lull::GetTypeId<RetType>();
     if (type == variant->type_) {
       return static_cast<Ret*>(variant->Data());
     }
+    return nullptr;
+  }
+
+  // Overload for when Ret does not have a TypeId. In this case, the type could
+  // never be stored in a Variant, so we always return nullptr.
+  template <typename Ret, typename Self>
+  static auto GetImpl(Self* variant) ->
+      typename std::enable_if<!HasTypeId<Ret>::value, Ret*>::type {
     return nullptr;
   }
 
@@ -326,17 +344,46 @@ class Variant {
     SetImpl(std::forward<T>(value));
   }
 
+  // Sets the variant to the specified |value| if it has a TypeId.
   template <typename T>
-  void SetImpl(T&& value) {
+  auto SetImpl(T&& value) ->
+      typename std::enable_if<HasTypeId<T>::value, void>::type {
     static_assert(sizeof(value) <= kStoreSize, "Variant size too small.");
     static_assert(alignof(T) <= kStoreAlign, "Variant aligment too small.");
     using Type = typename std::decay<T>::type;
 
     Clear();
 
-    new (Data()) Type(std::forward<T>(value));
-    type_ = GetInternalTypeId<Type>();
-    handler_ = &HandlerImpl<Type>;
+    type_ = lull::GetTypeId<Type>();
+
+    if (std::is_enum<Type>::value) {
+      assert(sizeof(value) <= sizeof(EnumType));
+      memcpy(Data(), &value, sizeof(value));
+      handler_ = nullptr;
+    } else {
+      new (Data()) Type(std::forward<T>(value));
+      handler_ = &HandlerImpl<Type>;
+    }
+  }
+
+  // Overload for SetImpl for when T does not have a TypeId.  In this case, do
+  // nothing.
+  template <typename T>
+  auto SetImpl(T&& value) ->
+      typename std::enable_if<!HasTypeId<T>::value, void>::type {
+    Clear();
+  }
+
+  void DoOp(Operation op, void* to, const void* from, void* victim) {
+    if (type_ == 0) {
+      return;
+    } else if (handler_) {
+      handler_(op, to, from, victim);
+    } else if (op == kCopy) {
+      memcpy(to, from, sizeof(EnumType));
+    } else if (op == kMove) {
+      memcpy(to, victim, sizeof(EnumType));
+    }
   }
 
   // Sets the variant to the *value inside the Optional |value|
@@ -358,7 +405,8 @@ class Variant {
     }
   }
 
-  // Sets the variant to the specified vector |value|, stored as a VariantArray.
+  // Sets the variant to the specified vector |value|, stored as a
+  // VariantArray.
   template <typename T, typename U = EnableIfNotVariant<T>>
   void Set(const std::vector<T>& value) {
     SetVector(value);
@@ -366,6 +414,9 @@ class Variant {
   template <typename T, typename U = EnableIfNotVariant<T>>
   void Set(std::vector<T>&& value) {
     SetVector(std::move(value));
+  }
+  void Set(ByteArray value) {
+    SetImpl(std::move(value));
   }
 
   template <typename T>
@@ -411,15 +462,11 @@ class Variant {
   // Returns a pointer to the internal buffer storage.
   const void* Data() const { return &buffer_; }
 
-  InternalTypeId type_;  // TypeId of the stored value, or 0 if no value stored.
-  HandlerFn handler_;    // Function that will perform operations variant value.
-  Buffer buffer_;        // Memory buffer to hold variant value.
+  TypeId type_ = 0;    // TypeId of the stored value, or 0 if no value stored.
+  HandlerFn handler_;  // Used to perform type-specific operations on the value.
+  Buffer buffer_;      // Memory buffer to hold variant value.
 };
 
 }  // namespace lull
-
-LULLABY_SETUP_TYPEID(lull::Variant);
-LULLABY_SETUP_TYPEID(lull::VariantArray);
-LULLABY_SETUP_TYPEID(lull::VariantMap);
 
 #endif  // LULLABY_BASE_VARIANT_H_

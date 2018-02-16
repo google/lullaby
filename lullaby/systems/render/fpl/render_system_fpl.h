@@ -22,24 +22,21 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
-#include "lullaby/generated/render_def_generated.h"
 #include "lullaby/events/entity_events.h"
 #include "lullaby/modules/ecs/system.h"
-#include "lullaby/modules/render/mesh_data.h"
-#include "lullaby/modules/render/triangle_mesh.h"
-#include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/render/detail/display_list.h"
 #include "lullaby/systems/render/detail/render_pool_map.h"
 #include "lullaby/systems/render/detail/sort_order.h"
 #include "lullaby/systems/render/fpl/mesh.h"
+#include "lullaby/util/async_processor.h"
+#include "lullaby/generated/render_def_generated.h"
+#include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/render/fpl/render_component.h"
 #include "lullaby/systems/render/fpl/render_factory.h"
 #include "lullaby/systems/render/render_system.h"
-#include "lullaby/systems/render/uniform.h"
-#include "lullaby/systems/text/html_tags.h"
 #include "lullaby/systems/text/text_system.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/async_processor.h"
 
 namespace lull {
 
@@ -47,16 +44,20 @@ namespace lull {
 // functions, refer to the RenderSystem class declaration.
 class RenderSystemFpl : public System {
  public:
-  using CullMode = RenderSystem::CullMode;
-  using Deformation = RenderSystem::Deformation;
-  using PrimitiveType = RenderSystem::PrimitiveType;
-  using Quad = RenderSystem::Quad;
-  using SortMode = RenderSystem::SortMode;
-  using SortOrder = RenderSystem::SortOrder;
-  using SortOrderOffset = RenderSystem::SortOrderOffset;
-  using View = RenderSystem::View;
+  using CullMode = RenderCullMode;
+  using FrontFace = RenderFrontFace;
+  using StencilMode = RenderStencilMode;
+  using Deformation = RenderSystem::DeformationFn;
+  using CalculateClipFromModelMatrixFunc = RenderSystem::ClipFromModelMatrixFn;
+  using PrimitiveType = MeshData::PrimitiveType;
+  using Quad = RenderQuad;
+  using SortOrder = RenderSortOrder;
+  using SortOrderOffset = RenderSortOrderOffset;
+  using View = RenderView;
+  using ClearParams = RenderClearParams;
 
-  explicit RenderSystemFpl(Registry* registry);
+  explicit RenderSystemFpl(Registry* registry,
+                           const RenderSystem::InitParams& init_params);
   ~RenderSystemFpl() override;
 
   void SetStereoMultiviewEnabled(bool enabled);
@@ -73,21 +74,21 @@ class RenderSystemFpl : public System {
   TexturePtr LoadTexture(const std::string& filename, bool create_mips);
   void LoadTextureAtlas(const std::string& filename);
   MeshPtr LoadMesh(const std::string& filename);
-
+  TexturePtr CreateTexture(const ImageData& image, bool create_mips);
 
   ShaderPtr LoadShader(const std::string& filename);
 
   void Create(Entity e, HashValue type, const Def* def) override;
-  void Create(Entity e, RenderPass pass);
-  void Create(Entity e, HashValue component_id, RenderPass pass);
+  void Create(Entity e, HashValue pass);
+  void Create(Entity e, HashValue pass, HashValue pass_enum);
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
   void Destroy(Entity e) override;
-  void Destroy(Entity e, HashValue component_id);
+  void Destroy(Entity e, HashValue pass);
 
   void ProcessTasks();
   void WaitForAssetsToLoad();
 
-  RenderPass GetRenderPass(Entity entity) const;
+  HashValue GetRenderPass(Entity entity) const;
 
   const mathfu::vec4& GetDefaultColor(Entity entity) const;
   void SetDefaultColor(Entity entity, const mathfu::vec4& color);
@@ -97,12 +98,12 @@ class RenderSystemFpl : public System {
 
   void SetUniform(Entity e, const char* name, const float* data, int dimension,
                   int count);
-  void SetUniform(Entity e, HashValue component_id, const char* name,
-                  const float* data, int dimension, int count);
+  void SetUniform(Entity e, HashValue pass, const char* name, const float* data,
+                  int dimension, int count);
   bool GetUniform(Entity e, const char* name, size_t length,
                   float* data_out) const;
-  bool GetUniform(Entity e, HashValue component_id, const char* name,
-                  size_t length, float* data_out) const;
+  bool GetUniform(Entity e, HashValue pass, const char* name, size_t length,
+                  float* data_out) const;
   void CopyUniforms(Entity entity, Entity source);
 
   int GetNumBones(Entity entity) const;
@@ -115,7 +116,7 @@ class RenderSystemFpl : public System {
                          int num_transforms);
 
   void SetTexture(Entity e, int unit, const TexturePtr& texture);
-  void SetTexture(Entity e, HashValue component_id, int unit,
+  void SetTexture(Entity e, HashValue pass, int unit,
                   const TexturePtr& texture);
 
   TexturePtr CreateProcessedTexture(const TexturePtr& source_texture,
@@ -129,46 +130,39 @@ class RenderSystemFpl : public System {
 
   void SetTextureId(Entity e, int unit, uint32_t texture_target,
                     uint32_t texture_id);
-  void SetTextureId(Entity e, HashValue component_id, int unit,
-                    uint32_t texture_target, uint32_t texture_id);
+  void SetTextureId(Entity e, HashValue pass, int unit, uint32_t texture_target,
+                    uint32_t texture_id);
 
   TexturePtr GetTexture(Entity entity, int unit) const;
 
 
   void SetText(Entity e, const std::string& text);
-  const std::vector<LinkTag>* GetLinkTags(Entity e) const;
 
   bool GetQuad(Entity e, Quad* quad) const;
   void SetQuad(Entity e, const Quad& quad);
-  void SetQuad(Entity e, HashValue component_id, const Quad& quad);
-
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
-  void SetMesh(Entity e, HashValue component_id,
-               const TriangleMesh<VertexPT>& mesh);
-  void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
-  void SetAndDeformMesh(Entity entity, HashValue component_id,
-                        const TriangleMesh<VertexPT>& mesh);
+  void SetQuad(Entity e, HashValue pass, const Quad& quad);
 
   void SetMesh(Entity e, const MeshData& mesh);
   void SetAndDeformMesh(Entity entity, const MeshData& mesh);
 
   void SetMesh(Entity e, const std::string& file);
-  void SetMesh(Entity e, HashValue component_id, const MeshPtr& mesh);
-  MeshPtr GetMesh(Entity e, HashValue component_id);
+  void SetMesh(Entity e, HashValue pass, const MeshPtr& mesh);
+  MeshPtr GetMesh(Entity e, HashValue pass);
 
   ShaderPtr GetShader(Entity entity) const;
-  ShaderPtr GetShader(Entity entity, HashValue component_id) const;
+  ShaderPtr GetShader(Entity entity, HashValue pass) const;
   void SetShader(Entity e, const ShaderPtr& shader);
-  void SetShader(Entity e, HashValue component_id, const ShaderPtr& shader);
+  void SetShader(Entity e, HashValue pass, const ShaderPtr& shader);
+
+  void SetMaterial(Entity e, int submesh_index, const MaterialInfo& material);
 
   void SetFont(Entity entity, const FontPtr& font);
   void SetTextSize(Entity entity, int size);
 
+  SortOrder GetSortOrder(Entity e) const;
   SortOrderOffset GetSortOrderOffset(Entity e) const;
   void SetSortOrderOffset(Entity e, SortOrderOffset sort_order_offset);
-  void SetSortOrderOffset(Entity e, HashValue component_id,
-                          SortOrderOffset offset);
+  void SetSortOrderOffset(Entity e, HashValue pass, SortOrderOffset offset);
 
   void SetStencilMode(Entity e, StencilMode mode, int value);
 
@@ -187,16 +181,18 @@ class RenderSystemFpl : public System {
   void Hide(Entity e);
   void Show(Entity e);
 
-  void SetRenderPass(Entity e, RenderPass pass);
+  void SetRenderPass(Entity e, HashValue pass);
 
   void SetRenderState(HashValue pass, const fplbase::RenderState& render_state);
 
-  SortMode GetSortMode(RenderPass pass) const;
-  void SetSortMode(RenderPass pass, SortMode mode);
+  SortMode GetSortMode(HashValue pass) const;
+  void SetSortMode(HashValue pass, SortMode mode);
 
   void SetClearParams(HashValue pass, const ClearParams& clear_params);
 
-  void SetCullMode(RenderPass pass, CullMode mode);
+  void SetCullMode(HashValue pass, CullMode mode);
+
+  void SetDefaultFrontFace(FrontFace face);
 
   void SetRenderTarget(HashValue pass, HashValue render_target_name);
 
@@ -218,7 +214,7 @@ class RenderSystemFpl : public System {
   void EndFrame();
 
   void Render(const View* views, size_t num_views);
-  void Render(const View* views, size_t num_views, RenderPass pass);
+  void Render(const View* views, size_t num_views, HashValue pass);
 
   // Resets the GL state to default.  It's not necessary to call this for any
   // predefined render passes, but this can be useful for any custom ones.
@@ -238,16 +234,7 @@ class RenderSystemFpl : public System {
 
   void BindUniform(const char* name, const float* data, int dimension);
 
-  void DrawPrimitives(PrimitiveType primitive_type,
-                      const VertexFormat& vertex_format,
-                      const void* vertex_data, size_t num_vertices);
-
-  void DrawIndexedPrimitives(PrimitiveType primitive_type,
-                             const VertexFormat& vertex_format,
-                             const void* vertex_data, size_t num_vertices,
-                             const uint16_t* indices, size_t num_indices);
-
-  const std::vector<mathfu::vec3>* GetCaretPositions(Entity e) const;
+  void DrawMesh(const MeshData& mesh);
 
   /// Returns the render state cached by the FPL renderer.
   const fplbase::RenderState& GetCachedRenderState() const;
@@ -258,9 +245,7 @@ class RenderSystemFpl : public System {
   void UpdateCachedRenderState(const fplbase::RenderState& render_state);
 
   void CreateRenderTarget(HashValue render_target_name,
-                          const mathfu::vec2i& dimensions,
-                          TextureFormat texture_format,
-                          DepthStencilFormat depth_stencil_format);
+                          const RenderTargetCreateParams& create_params);
 
   void BindUniform(const Uniform& uniform);
 
@@ -285,7 +270,7 @@ class RenderSystemFpl : public System {
                          const mathfu::mat4& world_from_entity_matrix,
                          const View* views);
   void RenderComponentsInPass(const View* views, size_t num_views,
-                              RenderPass pass);
+                              HashValue pass);
   void RenderDisplayList(const View& view, const DisplayList& display_list);
   void RenderDisplayListMultiview(const View* views,
                                   const DisplayList& display_list);
@@ -303,7 +288,7 @@ class RenderSystemFpl : public System {
   void UpdateUniformLocations(RenderComponent* component);
 
   void RenderDebugStats(const View* views, size_t num_views);
-  void OnParentChanged(const ParentChangedEvent& event);
+  void UpdateSortOrder(Entity entity);
   void OnTextureLoaded(const RenderComponent& component, int unit,
                        const TexturePtr& texture);
   bool IsReadyToRenderImpl(const RenderComponent& component) const;
@@ -348,6 +333,9 @@ class RenderSystemFpl : public System {
   // The function used to calculate the clip_from_model_matrix just before
   // setting the associated uniform.
   CalculateClipFromModelMatrixFunc clip_from_model_matrix_func_;
+
+  // The winding order / GL front face to use by default.
+  FrontFace default_front_face_ = FrontFace::kCounterClockwise;
 
   RenderSystemFpl(const RenderSystemFpl&) = delete;
   RenderSystemFpl& operator=(const RenderSystemFpl&) = delete;

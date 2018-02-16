@@ -22,7 +22,12 @@ limitations under the License.
 #include "tests/portable_test_macros.h"
 
 namespace lull {
-namespace {
+
+enum VariantTestEnum {
+  Foo,
+  Bar,
+  Baz,
+};
 
 struct VariantTestClass {
   VariantTestClass() {}
@@ -83,6 +88,35 @@ struct MoveOnlyVariantTestClass {
 
   std::string value;
 };
+
+struct CopyCounter {
+  static int copies;
+  static int moves;
+  CopyCounter() {}
+  CopyCounter(const CopyCounter&) { ++copies; }
+  CopyCounter& operator=(const CopyCounter&) {
+    ++copies;
+    return *this;
+  }
+  CopyCounter(CopyCounter&&) { ++moves; }
+  CopyCounter& operator=(CopyCounter&&) {
+    ++moves;
+    return *this;
+  }
+};
+
+int CopyCounter::copies;
+int CopyCounter::moves;
+
+}  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::VariantTestClass);
+LULLABY_SETUP_TYPEID(lull::MoveOnlyVariantTestClass);
+LULLABY_SETUP_TYPEID(lull::CopyCounter);
+LULLABY_SETUP_TYPEID(lull::VariantTestEnum);
+
+namespace lull {
+namespace {
 
 TEST(Variant, Basics) {
   lull::Variant var;
@@ -149,6 +183,35 @@ TEST(Variant, Move) {
 
   var1 = std::move(var2);
   EXPECT_EQ("hello", var1.Get<MoveOnlyVariantTestClass>()->value);
+}
+
+TEST(Variant, Enum) {
+  Variant v1 = Bar;
+  EXPECT_EQ(v1.GetTypeId(), GetTypeId<VariantTestEnum>());
+
+  Variant v2 = v1;
+  EXPECT_EQ(v2.GetTypeId(), GetTypeId<VariantTestEnum>());
+
+  // Test lvalue instead of rvalue.
+  VariantTestEnum e = Baz;
+  Variant v3 = e;
+  EXPECT_EQ(v3.GetTypeId(), GetTypeId<VariantTestEnum>());
+  Variant v4;
+
+  v2 = 0;
+  EXPECT_EQ(v2.GetTypeId(), GetTypeId<int>());
+
+  lull::VariantMap map;
+  lull::SaveToVariant save(&map);
+  lull::Serialize(&save, &v1, 0);
+  lull::Serialize(&save, &v3, 1);
+
+  lull::LoadFromVariant load(&map);
+  lull::Serialize(&load, &v2, 0);
+  lull::Serialize(&load, &v4, 1);
+
+  EXPECT_EQ(v2.GetTypeId(), GetTypeId<VariantTestEnum>());
+  EXPECT_EQ(v4.GetTypeId(), GetTypeId<VariantTestEnum>());
 }
 
 TEST(Variant, VariantSerializer) {
@@ -315,25 +378,6 @@ TEST(Variant, Optionals) {
   EXPECT_EQ(true, v2.Empty());
 }
 
-struct CopyCounter {
-  static int copies;
-  static int moves;
-  CopyCounter() {}
-  CopyCounter(const CopyCounter&) { ++copies; }
-  CopyCounter& operator=(const CopyCounter&) {
-    ++copies;
-    return *this;
-  }
-  CopyCounter(CopyCounter&&) { ++moves; }
-  CopyCounter& operator=(CopyCounter&&) {
-    ++moves;
-    return *this;
-  }
-};
-
-int CopyCounter::copies;
-int CopyCounter::moves;
-
 TEST(Variant, CopyCountOptional) {
   Optional<CopyCounter> optional = CopyCounter();
   CopyCounter::copies = 0;
@@ -435,7 +479,3 @@ TEST(Variant, CopyCountOrderedMapOfVariants) {
 
 }  // namespace
 }  // namespace lull
-
-LULLABY_SETUP_TYPEID(VariantTestClass);
-LULLABY_SETUP_TYPEID(MoveOnlyVariantTestClass);
-LULLABY_SETUP_TYPEID(CopyCounter);

@@ -16,11 +16,14 @@ limitations under the License.
 
 #include "lullaby/systems/audio/sound_asset_manager.h"
 
+#include <utility>
+
 #include "lullaby/events/audio_events.h"
-#include "lullaby/modules/file/file.h"
 #include "lullaby/modules/file/tagged_file_loader.h"
+#include "lullaby/systems/audio/audio_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
-#include "lullaby/util/make_unique.h"
+#include "lullaby/util/filename.h"
+
 
 namespace lull {
 
@@ -64,21 +67,13 @@ SoundAssetPtr SoundAssetManager::GetSoundAsset(HashValue sound_hash) {
 }
 
 void SoundAssetManager::CreateSoundAsset(const std::string& filename,
-                                         AudioPlaybackType type,
-                                         Entity entity) {
-  if (type == AudioPlaybackType::AudioPlaybackType_External) {
-    LOG(DFATAL) << "AudioPlaybackType::External is reserved exclusively for "
-                   "Track(), and cannot be used for normal assets.";
-    return;
-  }
-
+                                         AudioLoadType type, Entity entity) {
   const HashValue sound_hash = Hash(filename.c_str());
 
   auto existing_asset = assets_.Find(sound_hash);
   if (existing_asset) {
     // Another entity has already queued the loading of this file.
-    if (existing_asset->GetLoadStatus() == SoundAsset::LoadStatus::kLoaded ||
-        type == AudioPlaybackType::AudioPlaybackType_Stream) {
+    if (existing_asset->GetLoadStatus() == SoundAsset::LoadStatus::kLoaded) {
       SendAudioLoadedEvent(entity);
     } else {
       existing_asset->AddLoadedListener(entity);
@@ -88,8 +83,8 @@ void SoundAssetManager::CreateSoundAsset(const std::string& filename,
 
   // Correct the file since GVR Audio's asset manager doesn't handle tags.
   std::string corrected_filename;
-  TaggedFileLoader::ApplySettingsToTaggedFilename(
-      filename.c_str(), &corrected_filename);
+  TaggedFileLoader::ApplySettingsToTaggedFilename(filename.c_str(),
+                                                  &corrected_filename);
 
   // Create an empty asset that will be properly finalized asynchronously.
   auto asset = assets_.Create(sound_hash, [&]() {
@@ -107,10 +102,11 @@ void SoundAssetManager::CreateSoundAsset(const std::string& filename,
   }
 #endif
 
-  if (type == AudioPlaybackType::AudioPlaybackType_Stream) {
+  if (type == AudioLoadType::AudioLoadType_Stream) {
     // Streamed assets are handled differently than preloaded ones. GVR Audio
-    // will automatically create an audio streamer and begin playback.
-    asset->SetLoadStatus(SoundAsset::LoadStatus::kStreaming);
+    // will automatically create an audio streamer and begin playback. Treat
+    // them the same as loaded sounds.
+    asset->SetLoadStatus(SoundAsset::LoadStatus::kLoaded);
     SendAudioLoadedEvent(entity);
   } else {
     // Asynchronously request the loading of audio through GVR Audio, then
@@ -142,7 +138,6 @@ void SoundAssetManager::ReleaseSoundAsset(HashValue sound_hash) {
       assets_to_unload_.insert(sound_hash);
       break;
     case SoundAsset::LoadStatus::kLoaded:
-    case SoundAsset::LoadStatus::kStreaming:
     case SoundAsset::LoadStatus::kFailed: {
       // Loaded sounds, regardless of how, can be unloaded and released.
       auto audio = audio_handle_.lock();

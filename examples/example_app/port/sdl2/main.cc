@@ -14,20 +14,63 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
-extern "C"
-{
-    #include "SDL.h"
-}
-
 #include <functional>
 
-#include "fplbase/utilities.h"
+#include "SDL.h"
+#include "SDL_syswm.h"
 #include "examples/example_app/example_app.h"
 #include "examples/example_app/port/sdl2/software_controller.h"
 #include "examples/example_app/port/sdl2/software_hmd.h"
+#if defined(__APPLE__)
+#include "examples/example_app/port/sdl2/get_native_window.h"
+#endif
 
 namespace lull {
+
+
+// Attempts to change the working dir to |target|.  Continuously scans up the
+// current working dir one folder at a time until the target is found.
+static bool ChangeWorkingDir(const char* const target) {
+  static constexpr int kMaxPathLength = 1024;
+  static constexpr int kMaxTreeDepth = 64;
+
+  char curr_dir[kMaxPathLength] = ".";
+
+#if defined(__APPLE__)
+  // Get the root of the target directory from the Bundle instead of using the
+  // directory specified by the client.
+  CFBundleRef main_bundle = CFBundleGetMainBundle();
+  CFURLRef resources_url = CFBundleCopyResourcesDirectoryURL(main_bundle);
+  if (!CFURLGetFileSystemRepresentation(resources_url, true,
+                                        reinterpret_cast<UInt8*>(curr_dir),
+                                        sizeof(curr_dir))) {
+    LOG(ERROR) << "Could not get the bundle directory";
+    return false;
+  }
+  CFRelease(resources_url);
+  if (chdir(curr_dir) != 0) {
+    return false;
+  }
+#else
+  getcwd(curr_dir, sizeof(curr_dir));
+#endif
+
+  for (int i = 0; i < kMaxTreeDepth; ++i) {
+    const int retval = chdir(target);
+    if (retval == 0) {
+      return true;
+    }
+    // Scan "up" the directory structure until we find the first path that
+    // contains our target directory.
+    chdir("..");
+  }
+  return false;
+}
+
+// SDL's relative mouse mode doesn't work while chromoting, so disable it for
+// now. If we wanted to get fancy, we could detect chromote sessions via
+// $DISPLAY or $DESKTOP_SESSION or something.
+constexpr bool kEnableRelativeMouseMode = false;
 
 // Manages the SDL platform objects and updates the ExampleApp instance.
 class MainWindow {
@@ -77,6 +120,7 @@ class MainWindow {
   };
 
   SDL_Window* window_ = nullptr;
+  void* native_window_ = nullptr;
   SDL_GLContext gl_context_ = nullptr;
   std::unique_ptr<ExampleApp> app_;
   std::unique_ptr<SoftwareHmd> hmd_;
@@ -115,11 +159,27 @@ bool MainWindow::Init() {
   window_ = SDL_CreateWindow(config.title.c_str(), SDL_WINDOWPOS_UNDEFINED,
                              SDL_WINDOWPOS_UNDEFINED, config.width,
                              config.height, SDL_WINDOW_OPENGL);
+
+  SDL_SysWMinfo wmi;
+  SDL_VERSION(&wmi.version);
+  SDL_GetWindowWMInfo(window_, &wmi);
+#if defined(__linux__)
+  native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
+#elif defined(__APPLE__)
+  native_window_ =
+      GetNativeWindow(reinterpret_cast<void*>(wmi.info.cocoa.window));
+#elif defined(MSC_VER)
+  native_window_ = reinterpret_cast<void*>(wmi.info.win.window);
+#endif
+
   gl_context_ = SDL_GL_CreateContext(window_);
   SDL_AddEventWatch(HandleEvent, this);
 
-  fplbase::ChangeToUpstreamDir("./", "data/assets");
-  app_->Initialize();
+  if (!ChangeWorkingDir("data/assets")) {
+    Exit(1, "Could not change working directory.");
+    return false;
+  }
+  app_->Initialize(native_window_);
 
   std::shared_ptr<Registry> registry = app_->GetRegistry();
   if (config.enable_hmd) {
@@ -174,10 +234,14 @@ void MainWindow::OnMouseDown(const mathfu::vec2i& position, int button) {
   if (mouse_mode_ == kNone) {
     if (button == SDL_BUTTON_LEFT) {
       mouse_mode_ = kHmd;
-      SDL_SetRelativeMouseMode(SDL_TRUE);
+      if (kEnableRelativeMouseMode) {
+        SDL_SetRelativeMouseMode(SDL_TRUE);
+      }
     } else if (button == SDL_BUTTON_RIGHT) {
       mouse_mode_ = kController;
-      SDL_SetRelativeMouseMode(SDL_TRUE);
+      if (kEnableRelativeMouseMode) {
+        SDL_SetRelativeMouseMode(SDL_TRUE);
+      }
     }
   }
 }
@@ -218,6 +282,10 @@ void MainWindow::OnKeyDown(const SDL_Keysym& keysym) {
     if (controller_) {
       controller_->OnButtonDown();
     }
+  } else if (keysym.sym == SDLK_TAB) {
+    if (controller_) {
+      controller_->OnSecondaryButtonDown();
+    }
   }
 }
 
@@ -227,6 +295,10 @@ void MainWindow::OnKeyUp(const SDL_Keysym& keysym) {
   } else if (keysym.sym == SDLK_SPACE) {
     if (controller_) {
       controller_->OnButtonUp();
+    }
+  } else if (keysym.sym == SDLK_TAB) {
+    if (controller_) {
+      controller_->OnSecondaryButtonUp();
     }
   }
 }

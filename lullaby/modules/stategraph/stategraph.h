@@ -53,6 +53,9 @@ class Stategraph {
   using Path = std::deque<StategraphTransition>;
   Path FindPath(HashValue from_state_id, HashValue to_state_id) const;
 
+  // Returns the Graphviz representation of the graph.
+  std::string GetGraphDebugString() const;
+
  private:
   Path FindPathHelper(const StategraphState* node, const StategraphState* dest,
                       std::set<HashValue> visited) const;

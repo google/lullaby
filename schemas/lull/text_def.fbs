@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 include "lull/render_def.fbs";
 
 /// The text system is responsible for rendering i18n text strings.
@@ -111,6 +111,10 @@ table TextDef {
   /// Optional.  Each HTML link underline is created as a separate entity
   /// using this blueprint.
   link_underline_blueprint: string;
+
+  /// If set, the mesh generated for the underline will be margined so that
+  /// antialiasing shaders can be used.
+  underline_padding: Vec2 (defaults_to_null);
 
   // TODO(b/33705812) Add blueprint for suggestion / highlight underline.
   // TODO(b/33705315) Add caret_blueprint.

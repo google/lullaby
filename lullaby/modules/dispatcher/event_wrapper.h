@@ -29,6 +29,7 @@ limitations under the License.
 #include "lullaby/util/variant.h"
 
 // If the editor is active, we need to track event names.
+#define LULLABY_TRACK_EVENT_NAMES 0
 #ifndef LULLABY_TRACK_EVENT_NAMES
 #if LULLABY_ENABLE_EDITOR
 #define LULLABY_TRACK_EVENT_NAMES 1
@@ -109,6 +110,9 @@ class EventWrapper {
   /// |value| is stored as a Variant.
   template <typename T>
   void SetValue(HashValue key, const T& value);
+
+  /// Sets the Runtime Event value from a Variant.
+  void SetValue(HashValue key, const Variant& value);
 
   /// Sets the Runtime Event values directly from a VariantMap.
   void SetValues(const VariantMap& values);

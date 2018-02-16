@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_MODULES_ECS_COMPONENT_H_
 #define LULLABY_MODULES_ECS_COMPONENT_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/unordered_vector_map.h"
 
 namespace lull {

@@ -59,6 +59,9 @@ class TransformSystemTest : public ::testing::Test {
     dispatcher->Connect(this, [this](const ChildRemovedEvent& event) {
       OnChildRemoved(event);
     });
+    dispatcher->Connect(this, [this](const ChildIndexChangedEvent& event) {
+      OnChildIndexChangedEvent(event);
+    });
     DisallowAllEvents();
   }
 
@@ -86,6 +89,7 @@ class TransformSystemTest : public ::testing::Test {
   void ClearParentChangedEventsReceived();
   void ClearChildAddedEventsReceived();
   void ClearChildRemovedEventsReceived();
+  void ClearChildIndexChangedEventsReceived();
 
   // Enforces whether or not an event callback is expected for the given events.
   void AllowAllEvents(bool allow = true);
@@ -99,6 +103,11 @@ class TransformSystemTest : public ::testing::Test {
 
   void AllowChildRemovedEvents(bool allow = true);
   void DisallowChildRemovedEvents() { AllowChildRemovedEvents(false); }
+
+  void AllowChildIndexChangedEvents(bool allow = true);
+  void DisallowChildIndexChangedEvents() {
+    AllowChildIndexChangedEvents(false);
+  }
 
   // Enforces that only a single pair of ParentChanged[Immediate]Event with the
   // given |target|, |old_parent|, and |new_parent| was received. This is
@@ -142,6 +151,21 @@ class TransformSystemTest : public ::testing::Test {
   void ExpectChildRemovedEventSequence(
       const std::deque<ChildRemovedEvent>& expected_sequence);
 
+  // Enforces that only a single ChildIndexChangedEvent with the given
+  // |target|, |child|, |old_index|, and |new_index| was received. This is
+  // equivalent to calling ExpectChildIndexChangedEventSequence with an
+  // expected_sequence containing only one event. This should be called
+  // immediately after the function expected to trigger the event.
+  void ExpectChildIndexChangedEvent(Entity target, Entity child,
+                                    size_t old_index, size_t new_index);
+
+  // Enforces that all ChildIndexChangedEvents in the |expected_sequence|
+  // were received in order and that no additional events were received. This
+  // should be called immediately after the function(s) expected to trigger the
+  // events.
+  void ExpectChildIndexChangedEventSequence(
+      const std::deque<ChildIndexChangedEvent>& expected_sequence);
+
   // Enforces that exactly |n| entities currently have transforms.
   void ExpectTransformsCount(int n);
 
@@ -149,17 +173,20 @@ class TransformSystemTest : public ::testing::Test {
   void OnParentChangedImmediate(const ParentChangedImmediateEvent& e);
   void OnChildAdded(const ChildAddedEvent& e);
   void OnChildRemoved(const ChildRemovedEvent& e);
+  void OnChildIndexChangedEvent(const ChildIndexChangedEvent& e);
 
   Registry registry_;
 
   bool expect_parent_changed_event_ = false;
   bool expect_child_added_event_ = false;
   bool expect_child_removed_event_ = false;
+  bool expect_child_index_changed_event_ = false;
   std::deque<ParentChangedEvent> parent_changed_events_received_;
   std::deque<ParentChangedImmediateEvent>
       parent_changed_immediate_events_received_;
   std::deque<ChildAddedEvent> child_added_events_received_;
   std::deque<ChildRemovedEvent> child_removed_events_received_;
+  std::deque<ChildIndexChangedEvent> child_index_changed_events_received_;
 };
 
 using TransformSystemDeathTest = TransformSystemTest;
@@ -516,7 +543,7 @@ TEST_F(TransformSystemTest, GetChildIndex) {
   // Index of entity without a TransformDef component should be 0, DFATAL on
   // debug builds.
   PORT_EXPECT_DEBUG_DEATH(transform_system->GetChildIndex(5), "");
-#if !ION_DEBUG
+#ifdef NDEBUG
   EXPECT_THAT(transform_system->GetChildIndex(5), Eq(0ul));
 #endif
 }
@@ -547,12 +574,14 @@ TEST_F(TransformSystemTest, InsertChild) {
   ClearAllEventsReceived();
   AllowParentChangedEvents();
   AllowChildAddedEvents();
+  AllowChildIndexChangedEvents();
 
   CreateDefaultTransform(4);
   transform_system->InsertChild(1, 4, 1);
 
   ExpectParentChangedEvent(4, kNullEntity, 1);
   ExpectChildAddedEvent(4, 1);
+  ExpectChildIndexChangedEvent(1, 4, 2, 1);  // Inserted at end then moved.
   DisallowAllEvents();
 
   EXPECT_THAT(transform_system->GetChildCount(1), Eq(3ul));
@@ -564,8 +593,11 @@ TEST_F(TransformSystemTest, InsertChild) {
   // Inserting an existing child should just move the child to the new index.
   ClearAllEventsReceived();
   DisallowAllEvents();
+  AllowChildIndexChangedEvents();
 
   transform_system->InsertChild(1, 4, 2);
+
+  ExpectChildIndexChangedEvent(1, 4, 1, 2);
 
   // Total child count should not change.
   EXPECT_THAT(transform_system->GetChildCount(1), Eq(3ul));
@@ -585,11 +617,13 @@ TEST_F(TransformSystemTest, InsertChild) {
   ClearAllEventsReceived();
   AllowParentChangedEvents();
   AllowChildAddedEvents();
+  AllowChildIndexChangedEvents();
 
   transform_system->InsertChild(1, 6, 3);
 
   ExpectParentChangedEvent(6, 5, 1);
   ExpectChildAddedEvent(6, 1);
+  ExpectChildIndexChangedEvent(1, 6, 3, 3);
   DisallowAllEvents();
 
   EXPECT_THAT(transform_system->GetChildCount(1), Eq(4ul));
@@ -612,6 +646,7 @@ TEST_F(TransformSystemTest, MoveChild) {
   transform_system->AddChild(1, 3);
   transform_system->AddChild(1, 4);
   DisallowAllEvents();
+  AllowChildIndexChangedEvents();
 
   // Move to new location in the list.
   // Move '4' to the beginning of the list.
@@ -621,6 +656,8 @@ TEST_F(TransformSystemTest, MoveChild) {
   EXPECT_THAT(transform_system->GetChildIndex(2), Eq(1ul));
   EXPECT_THAT(transform_system->GetChildIndex(3), Eq(2ul));
   EXPECT_THAT(transform_system->GetChildIndex(4), Eq(0ul));
+  ExpectChildIndexChangedEvent(1, 4, 2, 0);
+  ClearAllEventsReceived();
 
   // Move past the end of the list.
   transform_system->MoveChild(4, 6);
@@ -629,6 +666,8 @@ TEST_F(TransformSystemTest, MoveChild) {
   EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
   EXPECT_THAT(transform_system->GetChildIndex(3), Eq(1ul));
   EXPECT_THAT(transform_system->GetChildIndex(4), Eq(2ul));
+  ExpectChildIndexChangedEvent(1, 4, 0, 2);
+  ClearAllEventsReceived();
 
   // Move with negative index where '-1' = last element in the list.
   transform_system->MoveChild(4, -2);
@@ -637,6 +676,8 @@ TEST_F(TransformSystemTest, MoveChild) {
   EXPECT_THAT(transform_system->GetChildIndex(2), Eq(0ul));
   EXPECT_THAT(transform_system->GetChildIndex(3), Eq(2ul));
   EXPECT_THAT(transform_system->GetChildIndex(4), Eq(1ul));
+  ExpectChildIndexChangedEvent(1, 4, 2, 1);
+  ClearAllEventsReceived();
 
   // Move '2' to the back of the list.
   transform_system->MoveChild(2, -1);
@@ -645,6 +686,8 @@ TEST_F(TransformSystemTest, MoveChild) {
   EXPECT_THAT(transform_system->GetChildIndex(2), Eq(2ul));
   EXPECT_THAT(transform_system->GetChildIndex(3), Eq(1ul));
   EXPECT_THAT(transform_system->GetChildIndex(4), Eq(0ul));
+  ExpectChildIndexChangedEvent(1, 2, 0, 2);
+  ClearAllEventsReceived();
 
   // Move with negative index past the beginning of the list. This should clamp
   // to the size of the list.
@@ -654,10 +697,41 @@ TEST_F(TransformSystemTest, MoveChild) {
   EXPECT_THAT(transform_system->GetChildIndex(2), Eq(2ul));
   EXPECT_THAT(transform_system->GetChildIndex(3), Eq(0ul));
   EXPECT_THAT(transform_system->GetChildIndex(4), Eq(1ul));
+  ExpectChildIndexChangedEvent(1, 3, 1, 0);
+  ClearAllEventsReceived();
+  DisallowAllEvents();
 
   // Move a child with no parent.
   transform_system->MoveChild(1, 2);
   EXPECT_THAT(transform_system->GetChildIndex(1), Eq(0ul));
+}
+
+TEST_F(TransformSystemTest, GetParentGetRoot) {
+  auto* transform_system = registry_.Get<TransformSystem>();
+
+  // Build a chain.
+  //
+  //   1
+  //   |
+  //   2
+  //   |
+  //   3
+  CreateDefaultTransform(1);
+  CreateDefaultTransform(2);
+  CreateDefaultTransform(3);
+  transform_system->AddChild(1, 2);
+  transform_system->AddChild(2, 3);
+
+  EXPECT_THAT(transform_system->GetParent(3), Eq(2ul));
+  EXPECT_THAT(transform_system->GetParent(2), Eq(1ul));
+  EXPECT_THAT(transform_system->GetParent(1), Eq(kNullEntity));
+  EXPECT_THAT(transform_system->GetParent(kNullEntity), Eq(kNullEntity));
+
+  EXPECT_THAT(transform_system->GetRoot(3), Eq(1ul));
+  EXPECT_THAT(transform_system->GetRoot(2), Eq(1ul));
+  EXPECT_THAT(transform_system->GetRoot(1), Eq(1ul));
+  EXPECT_THAT(transform_system->GetRoot(kNullEntity), Eq(kNullEntity));
+  EXPECT_THAT(transform_system->GetRoot(4), Eq(kNullEntity));
 }
 
 TEST_F(TransformSystemTest, EnableDisable) {
@@ -1096,6 +1170,7 @@ void TransformSystemTest::ClearAllEventsReceived() {
   ClearParentChangedEventsReceived();
   ClearChildAddedEventsReceived();
   ClearChildRemovedEventsReceived();
+  ClearChildIndexChangedEventsReceived();
 }
 
 void TransformSystemTest::ClearParentChangedEventsReceived() {
@@ -1111,10 +1186,15 @@ void TransformSystemTest::ClearChildRemovedEventsReceived() {
   child_removed_events_received_.clear();
 }
 
+void TransformSystemTest::ClearChildIndexChangedEventsReceived() {
+  child_index_changed_events_received_.clear();
+}
+
 void TransformSystemTest::AllowAllEvents(bool allow) {
   AllowParentChangedEvents(allow);
   AllowChildAddedEvents(allow);
   AllowChildRemovedEvents(allow);
+  AllowChildIndexChangedEvents(allow);
 }
 
 void TransformSystemTest::AllowParentChangedEvents(bool allow) {
@@ -1127,6 +1207,10 @@ void TransformSystemTest::AllowChildAddedEvents(bool allow) {
 
 void TransformSystemTest::AllowChildRemovedEvents(bool allow) {
   expect_child_removed_event_ = allow;
+}
+
+void TransformSystemTest::AllowChildIndexChangedEvents(bool allow) {
+  expect_child_index_changed_event_ = allow;
 }
 
 // Enforces that two ordered sequences of events match. That is, they should
@@ -1220,6 +1304,28 @@ void TransformSystemTest::ExpectChildRemovedEventSequence(
       });
 }
 
+void TransformSystemTest::ExpectChildIndexChangedEvent(Entity target,
+                                                       Entity child,
+                                                       size_t old_index,
+                                                       size_t new_index) {
+  const std::deque<ChildIndexChangedEvent> expected_sequence = {
+      {target, child, old_index, new_index}};
+  ExpectChildIndexChangedEventSequence(expected_sequence);
+}
+
+void TransformSystemTest::ExpectChildIndexChangedEventSequence(
+    const std::deque<ChildIndexChangedEvent>& expected_sequence) {
+  ExpectEventSequencesMatch<ChildIndexChangedEvent>(
+      expected_sequence, child_index_changed_events_received_,
+      [](const ChildIndexChangedEvent& expected_event,
+         const ChildIndexChangedEvent& actual_event) {
+        EXPECT_THAT(actual_event.target, Eq(expected_event.target));
+        EXPECT_THAT(actual_event.child, Eq(expected_event.child));
+        EXPECT_THAT(actual_event.old_index, Eq(expected_event.old_index));
+        EXPECT_THAT(actual_event.new_index, Eq(expected_event.new_index));
+      });
+}
+
 void TransformSystemTest::OnParentChanged(const ParentChangedEvent& e) {
   EXPECT_TRUE(expect_parent_changed_event_);
   parent_changed_events_received_.push_back(e);
@@ -1239,6 +1345,12 @@ void TransformSystemTest::OnChildAdded(const ChildAddedEvent& e) {
 void TransformSystemTest::OnChildRemoved(const ChildRemovedEvent& e) {
   EXPECT_TRUE(expect_child_removed_event_);
   child_removed_events_received_.push_back(e);
+}
+
+void TransformSystemTest::OnChildIndexChangedEvent(
+    const ChildIndexChangedEvent& e) {
+  EXPECT_TRUE(expect_child_index_changed_event_);
+  child_index_changed_events_received_.push_back(e);
 }
 
 void TransformSystemTest::ExpectTransformsCount(int n) {

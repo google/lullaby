@@ -17,17 +17,26 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_H_
 
+#include <functional>
 #include <memory>
-#include "fplbase/asset_manager.h"
-#include "fplbase/texture.h"
+#include <string>
+#include <vector>
+#include "lullaby/systems/render/next/render_handle.h"
 #include "lullaby/systems/render/texture.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
-// Wraps an fplbase::Texture.
+// Represents a texture object used for rendering.
 class Texture {
  public:
+  // Wraps the GLenum for texture targets, eg. GL_TEXTURE_2D.  We use uint32_t
+  // so that we do not have to depend on a GL header file.
+  using Target = uint32_t;
+
   Texture() {}
+  ~Texture();
+
   Texture(const Texture& rhs) = delete;
   Texture& operator=(const Texture& rhs) = delete;
 
@@ -44,8 +53,14 @@ class Texture {
   // Gets the dimensions of the underlying texture.
   mathfu::vec2i GetDimensions() const;
 
+  // Sets the name for the texture.
+  void SetName(const std::string& name);
+
   // Returns the name of the texture.
   std::string GetName() const;
+
+  // Returns the target for this texture.
+  Target GetTarget() const;
 
   // Returns true if the Texture is referencing a subtexture in a texture atlas.
   bool IsSubtexture() const;
@@ -60,17 +75,29 @@ class Texture {
   bool HasMips() const;
 
   // Returns the GL resource id.
-  fplbase::TextureHandle GetResourceId() const;
+  TextureHnd GetResourceId() const;
 
  private:
-  friend class TextureFactory;
-  void Init(std::unique_ptr<fplbase::Texture> texture_impl);
+  enum Flags {
+    kIsExternal = 0x01 << 0,
+    kHasMipMaps = 0x01 << 1,
+  };
+
+  friend class TextureFactoryImpl;
+  void Init(TextureHnd texture, Target texture_target,
+            const mathfu::vec2i& size, uint32_t flags);
   void Init(std::shared_ptr<Texture> containing_texture,
             const mathfu::vec4& uv_bounds);
 
-  std::unique_ptr<fplbase::Texture> impl_;
+  TextureHnd hnd_;
+  Target target_ = 0;
+  mathfu::vec2i size_ = {0, 0};
+  uint32_t flags_ = 0;
+
   std::shared_ptr<Texture> containing_texture_;
   mathfu::vec4 uv_bounds_ = mathfu::vec4(0, 0, 1, 1);
+
+  std::string name_;
   std::vector<std::function<void()>> on_load_callbacks_;
 };
 

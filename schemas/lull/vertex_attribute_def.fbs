@@ -1,0 +1,35 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Defines how data in a vertex is interpreted by the shader.
+enum VertexAttributeUsage : int {
+  Invalid,
+  Position,
+  Color,
+  TexCoord,
+  Normal,
+  Tangent,
+  Orientation,
+  BoneIndices,
+  BoneWeights,
+}
+
+/// Defines the data structure of a single attribute in a vertex. Each type is
+/// assumed to be 4-byte aligned.
+enum VertexAttributeType : int {
+  Empty,
+  Scalar1f,
+  Vec2f,
+  Vec3f,
+  Vec4f,
+  Vec2us,
+  Vec4us,
+  Vec4ub,
+}
+
+/// Describes a single attribute in vertex format.
+struct VertexAttribute {
+  usage: VertexAttributeUsage = Invalid;
+  type: VertexAttributeType = Empty;
+}

@@ -19,10 +19,10 @@ limitations under the License.
 
 #include "lullaby/generated/script_def_generated.h"
 #include "lullaby/modules/ecs/component.h"
-#include "lullaby/modules/ecs/entity.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/script/script_engine.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/hash.h"
 
 namespace lull {
@@ -42,18 +42,22 @@ class ScriptSystem : public System {
   void AdvanceFrame(Clock::duration delta_time);
 
  private:
-  struct Script : Component {
-    Script(Entity e, ScriptId id) : Component(e), id(id) {}
-    ScriptId id;
+  struct Scripts : Component {
+    Scripts(Entity e, ScriptId id) : Component(e), ids{id} {}
+    std::vector<ScriptId> ids;
   };
+
+  static void AddScript(ComponentPool<Scripts>* pool, Entity entity,
+                        ScriptId id);
 
   ScriptId LoadScriptDef(const ScriptDef* data, Entity entity);
 
   ScriptId LoadScriptDef(const ScriptDef* data);
 
   ScriptEngine* engine_;
-  ComponentPool<Script> every_frame_scripts_;
-  ComponentPool<Script> on_destroy_scripts_;
+  ComponentPool<Scripts> every_frame_scripts_;
+  ComponentPool<Scripts> on_destroy_scripts_;
+  ComponentPool<Scripts> event_scripts_;
 };
 
 }  // namespace lull

@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef LULLABY_MODULES_DEBUG_RENDER_DRAW_INTERFACE_H_
 #define LULLABY_MODULES_DEBUG_RENDER_DRAW_INTERFACE_H_
 
+#include "lullaby/systems/render/shader.h"
+#include "lullaby/systems/render/texture.h"
 #include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 
@@ -34,10 +36,13 @@ class DebugRenderDrawInterface {
   virtual void DrawText3D(const mathfu::vec3& pos, const Color4ub color,
                           const char* text) = 0;
 
-  virtual void DrawText2D( const Color4ub color, const char* text) = 0;
+  virtual void DrawText2D(const Color4ub color, const char* text) = 0;
 
   virtual void DrawBox3D(const mathfu::mat4& world_from_object_matrix,
                          const Aabb& box, Color4ub color) = 0;
+
+  virtual void DrawQuad2D(const Color4ub color, float x, float y, float w,
+                          float h, const TexturePtr& texture) = 0;
 };
 
 }  // namespace debug

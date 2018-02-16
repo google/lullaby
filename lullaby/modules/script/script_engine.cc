@@ -49,21 +49,28 @@ ScriptId::ScriptId(Language lang, uint64_t id) : lang_(lang), id_(id) {}
 
 bool ScriptId::IsValid() const { return lang_ != Language_Unknown; }
 
-ScriptEngine::ScriptEngine(Registry* registry) : registry_(registry) {
+ScriptEngine::ScriptEngine(Registry* registry)
+    : ScriptEngine(registry, nullptr) {}
+
+ScriptEngine::ScriptEngine(Registry* registry, FunctionCall::Handler handler)
+    : registry_(registry) {
+  lull_engine_.SetFunctionCallHandler(std::move(handler));
 #ifdef LULLABY_SCRIPT_LUA
-  AssetLoader* assetLoader = registry->Get<AssetLoader>();
-  CHECK(assetLoader) << "No asset loader";
-  lua_engine_.SetLoadFileFunction(assetLoader->GetLoadFunction());
+  AssetLoader* asset_loader = registry->Get<AssetLoader>();
+  CHECK(asset_loader) << "No asset loader";
+  lua_engine_.SetLoadFileFunction(asset_loader->GetLoadFunction());
 #endif
 #ifdef LULLABY_SCRIPT_JS
-  AssetLoader* assetLoader = registry->Get<AssetLoader>();
-  CHECK(assetLoader) << "No asset loader";
-  js_engine_.SetLoadFileFunction(assetLoader->GetLoadFunction());
+  AssetLoader* asset_loader = registry->Get<AssetLoader>();
+  CHECK(asset_loader) << "No asset loader";
+  js_engine_.SetLoadFileFunction(asset_loader->GetLoadFunction());
 #endif
 }
 
 void ScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {
-  lull_engine_.SetFunctionCallHandler(std::move(handler));
+  if (handler) {
+    lull_engine_.SetFunctionCallHandler(std::move(handler));
+  }
 }
 
 ScriptId ScriptEngine::LoadScript(const std::string& filename) {
@@ -147,6 +154,26 @@ void ScriptEngine::RunScript(ScriptId id) {
   }
 }
 
+void ScriptEngine::UnloadScript(ScriptId id) {
+  switch (id.lang_) {
+    case Language_LullScript:
+      lull_engine_.UnloadScript(id.id_);
+      return;
+#ifdef LULLABY_SCRIPT_LUA
+    case Language_Lua5_2:
+      lua_engine_.UnloadScript(id.id_);
+      return;
+#endif
+#ifdef LULLABY_SCRIPT_JS
+    case Language_JavaScript:
+      js_engine_.UnloadScript(id.id_);
+      return;
+#endif
+    default:
+      LOG(ERROR) << "Unsupported language enum: " << static_cast<int>(id.lang_);
+  }
+}
+
 void ScriptEngine::UnregisterFunction(const std::string& name) {
 #ifdef LULLABY_SCRIPT_LUA
   lua_engine_.UnregisterFunction(name);
@@ -154,6 +181,17 @@ void ScriptEngine::UnregisterFunction(const std::string& name) {
 #ifdef LULLABY_SCRIPT_JS
   js_engine_.UnregisterFunction(name);
 #endif
+}
+
+size_t ScriptEngine::GetTotalScripts() const {
+  size_t total = lull_engine_.GetTotalScripts();
+#ifdef LULLABY_SCRIPT_LUA
+  total += lua_engine_.GetTotalScripts();
+#endif
+#ifdef LULLABY_SCRIPT_JS
+  total += js_engine_.GetTotalScripts();
+#endif
+  return total;
 }
 
 }  // namespace lull

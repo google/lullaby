@@ -1,5 +1,24 @@
+load(
+    "@//third_party/dev:flatbuffer_cc_library.bzl",
+    "flatbuffer_cc_library",
+)
+
 package(
     default_visibility = ["//visibility:public"],
+)
+
+flatbuffer_cc_library(
+    name = "fbs",
+    srcs = [
+        "schemas/common.fbs",
+        "schemas/materials.fbs",
+        "schemas/mesh.fbs",
+        "schemas/shader.fbs",
+        "schemas/texture_atlas.fbs",
+    ],
+    include_paths = [
+        "schemas",
+    ],
 )
 
 cc_library(
@@ -8,9 +27,13 @@ cc_library(
         "src/asset_manager.cpp",
         "src/async_loader_stdlib.cpp",
         "src/environment_stdlib.cpp",
+        "src/file_utilities.cpp",
+        "src/file_utilities_stdlib.cpp",
         "src/gpu_debug_gl.cpp",
         "src/input.cpp",
         "src/input_stdlib.cpp",
+        "src/logging.cpp",
+        "src/logging_stdlib.cpp",
         "src/material.cpp",
         "src/mesh_common.cpp",
         "src/mesh_gl.cpp",
@@ -39,6 +62,7 @@ cc_library(
         "include/fplbase/config.h",
         "include/fplbase/debug_markers.h",
         "include/fplbase/environment.h",
+        "include/fplbase/file_utilities.h",
         "include/fplbase/flatbuffer_utils.h",
         "include/fplbase/fpl_common.h",
         "include/fplbase/glplatform.h",
@@ -49,6 +73,7 @@ cc_library(
         "include/fplbase/internal/type_conversions_gl.h",
         "include/fplbase/keyboard_keycodes.h",
         "include/fplbase/keyboard_scancodes.h",
+        "include/fplbase/logging.h",
         "include/fplbase/material.h",
         "include/fplbase/mesh.h",
         "include/fplbase/preprocessor.h",
@@ -57,13 +82,13 @@ cc_library(
         "include/fplbase/render_utils.h",
         "include/fplbase/renderer.h",
         "include/fplbase/renderer_android.h",
-        "include/fplbase/renderer_common.h",
         "include/fplbase/renderer_hmd.h",
         "include/fplbase/shader.h",
         "include/fplbase/texture.h",
         "include/fplbase/texture_atlas.h",
         "include/fplbase/utilities.h",
         "include/fplbase/version.h",
+        "include/fplbase/viewport.h",
     ],
     defines = [
         "FPLBASE_DISABLE_NEW_DELETE_OPERATORS",
@@ -75,12 +100,13 @@ cc_library(
         "include",
     ],
     deps = [
-        "@//third_party/fplbase:fplbase_fbs",
+        ":fbs",
+        "@//third_party/gl",
         "@flatbuffers//:flatbuffers",
         "@fplutil//:fplutil",
         "@libwebp//:webp_decode",
         "@mathfu//:mathfu",
         "@stb//:stb",
-        "@//third_party/stb:stb_image_resize",
+        "@//third_party/stb_image_resize:stb_image_resize",
     ],
 )

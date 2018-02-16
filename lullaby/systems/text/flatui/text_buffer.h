@@ -22,7 +22,8 @@ limitations under the License.
 #include <vector>
 
 #include "flatui/font_manager.h"
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
+#include "lullaby/util/optional.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/text/flatui/font.h"
@@ -44,6 +45,7 @@ struct TextBufferParams {
   TextDirection direction = TextDirection_LeftToRight;
   TextHtmlMode html_mode = TextHtmlMode_Ignore;
   TextWrapMode wrap_mode = TextWrapMode_None;
+  Optional<mathfu::vec2> underline_padding;
 };
 
 // A TextBuffer holds the data necessary to render a text string: vertices,
@@ -103,6 +105,7 @@ class TextBuffer {
   std::vector<mathfu::vec3> caret_positions_;
   std::vector<LinkTag> links_;
   std::vector<VertexPT> underline_vertices_;
+  std::vector<uint16_t> underline_indices_;
 };
 
 using TextBufferPtr = std::shared_ptr<TextBuffer>;

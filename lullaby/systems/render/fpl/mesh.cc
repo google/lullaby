@@ -22,22 +22,6 @@ namespace lull {
 
 namespace {
 
-template <typename Vertex>
-Mesh::MeshImplPtr CreateMesh(const TriangleMesh<Vertex>& src,
-                             const fplbase::Attribute* attributes) {
-  Mesh::MeshImplPtr mesh(
-      new fplbase::Mesh(src.GetVertices().data(),
-                        static_cast<int>(src.GetVertices().size()),
-                        sizeof(Vertex), attributes, nullptr /* max_position */,
-                        nullptr /* min_position */),
-      [](const fplbase::Mesh* mesh) { delete mesh; });
-  fplbase::Material* mat = nullptr;
-  mesh->AddIndices(src.GetIndices().data(),
-                   static_cast<int>(src.GetIndices().size()), mat);
-
-  return mesh;
-}
-
 Mesh::MeshImplPtr CreateMesh(const MeshData& src,
                              const fplbase::Attribute* attributes) {
   Mesh::MeshImplPtr mesh(
@@ -47,8 +31,8 @@ Mesh::MeshImplPtr CreateMesh(const MeshData& src,
                         Mesh::GetFplPrimitiveType(src.GetPrimitiveType())),
       [](const fplbase::Mesh* mesh) { delete mesh; });
   fplbase::Material* mat = nullptr;
-  const bool is_32_bit = false;
-  mesh->AddIndices(src.GetIndexData(), static_cast<int>(src.GetNumIndices()),
+  const bool is_32_bit = src.GetIndexSize() == 4;
+  mesh->AddIndices(src.GetIndexBytes(), static_cast<int>(src.GetNumIndices()),
                    mat, is_32_bit);
   return mesh;
 }
@@ -58,24 +42,6 @@ Mesh::MeshImplPtr CreateMesh(const MeshData& src,
 Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)) {
   num_triangles_ =
       impl_ ? static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3) : 0;
-}
-
-// TODO(b/31523782): Remove once pipeline for MeshData is in-place.
-Mesh::Mesh(const TriangleMesh<VertexP>& mesh) {
-  static const fplbase::Attribute kAttributes[] = {
-      fplbase::kPosition3f, fplbase::kEND,
-  };
-  impl_ = CreateMesh(mesh, kAttributes);
-  num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
-}
-
-// TODO(b/31523782): Remove once pipeline for MeshData is in-place.
-Mesh::Mesh(const TriangleMesh<VertexPT>& mesh) {
-  static const fplbase::Attribute kAttributes[] = {
-      fplbase::kPosition3f, fplbase::kTexCoord2f, fplbase::kEND,
-  };
-  impl_ = CreateMesh(mesh, kAttributes);
-  num_triangles_ = static_cast<int>(mesh.GetIndices().size() / 3);
 }
 
 Mesh::Mesh(const MeshData& mesh) {
@@ -172,63 +138,75 @@ void Mesh::GetFplAttributes(
   CHECK_LT(format.GetNumAttributes() + 1,
            static_cast<int>(kMaxFplAttributeArraySize));
 
+  size_t offset = 0;
+  int texture_index = 0;
   for (size_t i = 0; i < format.GetNumAttributes(); ++i) {
-    const VertexAttribute& src = format.GetAttributeAt(i);
-    switch (src.usage) {
-      case VertexAttribute::kPosition:
-        DCHECK_EQ(src.index, 0);
-        if (src.type == VertexAttribute::kFloat32 && src.count == 3) {
+    const VertexAttribute* src = format.GetAttributeAt(i);
+    switch (src->usage()) {
+      case VertexAttributeUsage_Position:
+        if (src->type() == VertexAttributeType_Vec3f) {
           attributes[i] = fplbase::kPosition3f;
-        } else if (src.type == VertexAttribute::kFloat32 && src.count == 2) {
+        } else if (src->type() == VertexAttributeType_Vec2f) {
           attributes[i] = fplbase::kPosition2f;
         } else {
-          LOG(DFATAL)
-              << "kPosition must be a kFloat32 with 2 or 3 elements.";
+          LOG(DFATAL) << "kPosition must be a Vec2f or Vec3f.";
           attributes[i] = fplbase::kEND;
         }
         break;
-      case VertexAttribute::kTexCoord:
-        if (src.type == VertexAttribute::kFloat32 && src.count == 2) {
-          if (src.index == 0) {
+      case VertexAttributeUsage_TexCoord:
+        if (src->type() == VertexAttributeType_Vec2f) {
+          if (texture_index == 0) {
             attributes[i] = fplbase::kTexCoord2f;
-          } else if (src.index == 1) {
+          } else if (texture_index == 1) {
             attributes[i] = fplbase::kTexCoordAlt2f;
           } else {
             LOG(DFATAL) << "Only UV index of 0 or 1 supported.";
           }
-        } else if (src.type == VertexAttribute::kUnsignedInt16 &&
-                   src.count == 2) {
+          ++texture_index;
+        } else if (src->type() == VertexAttributeType_Vec2us) {
           attributes[i] = fplbase::kTexCoord2us;
         } else {
-          LOG(DFATAL) << "Unsupported UV format: type " << src.type
-                      << ", count " << src.count;
+          LOG(DFATAL) << "Unsupported UV format: type " << src->type();
           attributes[i] = fplbase::kEND;
         }
         break;
-      case VertexAttribute::kColor:
-        DCHECK_EQ(src.index, 0);
-        if (src.type == VertexAttribute::kUnsignedInt8 && src.count == 4) {
+      case VertexAttributeUsage_Color:
+        if (src->type() == VertexAttributeType_Vec4ub) {
           attributes[i] = fplbase::kColor4ub;
         } else {
-          LOG(DFATAL) << "kColor must be a kUnsignedInt8 with 4 elements.";
+          LOG(DFATAL) << "kColor must be a Vec4ub.";
           attributes[i] = fplbase::kEND;
         }
         break;
-      case VertexAttribute::kIndex:
-        DCHECK_EQ(src.index, 0);
-        if (src.type == VertexAttribute::kUnsignedInt8 && src.count == 4) {
+      case VertexAttributeUsage_BoneIndices:
+        if (src->type() == VertexAttributeType_Vec4ub) {
           attributes[i] = fplbase::kBoneIndices4ub;
         } else {
-          LOG(DFATAL) << "kIndex must be a kUnsignedInt8 with 4 elements.";
+          LOG(DFATAL) << "kIndex must be a Vec4ub.";
           attributes[i] = fplbase::kEND;
         }
         break;
-      case VertexAttribute::kNormal:
-        DCHECK_EQ(src.index, 0);
-        if (src.type == VertexAttribute::kFloat32 && src.count == 3) {
+      case VertexAttributeUsage_BoneWeights:
+        if (src->type() == VertexAttributeType_Vec4ub) {
+          attributes[i] = fplbase::kBoneWeights4ub;
+        } else {
+          LOG(DFATAL) << "kWeight must be a Vec4ub.";
+          attributes[i] = fplbase::kEND;
+        }
+        break;
+      case VertexAttributeUsage_Normal:
+        if (src->type() == VertexAttributeType_Vec3f) {
           attributes[i] = fplbase::kNormal3f;
         } else {
-          LOG(DFATAL) << "kNormal must be a kFloat32 with 3 elements.";
+          LOG(DFATAL) << "kNormal must be a Vec3f.";
+          attributes[i] = fplbase::kEND;
+        }
+        break;
+      case VertexAttributeUsage_Tangent:
+        if (src->type() == VertexAttributeType_Vec4f) {
+          attributes[i] = fplbase::kTangent4f;
+        } else {
+          LOG(DFATAL) << "kTangent must be a Vec4f.";
           attributes[i] = fplbase::kEND;
         }
         break;
@@ -236,12 +214,12 @@ void Mesh::GetFplAttributes(
         LOG(DFATAL) << "Unsupported vertex attribute";
         break;
     }
-    // The Mesh::VertexSize function calculates offset when used in this way.
-    // This function also requires that the attributes be terminated, so we need
+    // This function requires that the attributes be terminated, so we need
     // to ensure that kEND is appended before this DCHECK.
     attributes[i+1] = fplbase::kEND;
-    DCHECK_EQ(static_cast<size_t>(src.offset),
+    DCHECK_EQ(offset,
               fplbase::Mesh::AttributeOffset(attributes, attributes[i]));
+    offset += VertexFormat::GetAttributeSize(*src);
   }
 }
 

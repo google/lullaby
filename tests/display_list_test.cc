@@ -72,7 +72,6 @@ class DisplayListTest : public ::testing::Test {
 
   using DisplayList = detail::DisplayList<RenderComponent>;
   using RenderPool = detail::RenderPool<RenderComponent>;
-  using SortMode = RenderSystem::SortMode;
 
   uint32_t SortaRandomUint(size_t index, uint32_t min, uint32_t max) {
     CHECK_GT(max, min);
@@ -129,7 +128,7 @@ class DisplayListTest : public ::testing::Test {
 };
 
 TEST_F(DisplayListTest, SortOrderDecreasing) {
-  pool_->SetSortMode(SortMode::kSortOrderDecreasing);
+  pool_->SetSortMode(SortMode_SortOrderDecreasing);
 
   DisplayList list(registry_.get());
   list.Populate(*pool_, nullptr, 0);
@@ -143,7 +142,7 @@ TEST_F(DisplayListTest, SortOrderDecreasing) {
 }
 
 TEST_F(DisplayListTest, SortOrderIncreasing) {
-  pool_->SetSortMode(SortMode::kSortOrderIncreasing);
+  pool_->SetSortMode(SortMode_SortOrderIncreasing);
 
   DisplayList list(registry_.get());
   list.Populate(*pool_, nullptr, 0);
@@ -157,7 +156,7 @@ TEST_F(DisplayListTest, SortOrderIncreasing) {
 }
 
 TEST_F(DisplayListTest, AverageSpaceOriginFrontToBack) {
-  pool_->SetSortMode(SortMode::kAverageSpaceOriginFrontToBack);
+  pool_->SetSortMode(SortMode_AverageSpaceOriginFrontToBack);
 
   const RenderSystem::View view = GetDefaultView();
 
@@ -179,7 +178,7 @@ TEST_F(DisplayListTest, AverageSpaceOriginFrontToBack) {
 }
 
 TEST_F(DisplayListTest, AverageSpaceOriginBackToFront) {
-  pool_->SetSortMode(SortMode::kAverageSpaceOriginBackToFront);
+  pool_->SetSortMode(SortMode_AverageSpaceOriginBackToFront);
 
   const RenderSystem::View view = GetDefaultView();
 

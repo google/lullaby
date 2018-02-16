@@ -1,0 +1,24 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Any entity can be handed off to the snap system to be animated to the
+/// nearest snap target. However, a SnappableDef component can optionally be
+/// added to an entity to further configure the snapping behavior of a given
+table SnappableDef {
+  /// Time (in milliseconds) taken to animate to snap position.
+  time_ms: int = -1;
+
+  /// Name of the target group to snap to. The closest snap target in the group
+  /// will be chosen at runtime.
+  target_group: string;
+}
+
+/// Marks an entity as a snap target. Other entities can be animated to this
+/// entity's position.
+table SnapTargetDef {
+  /// Name of the group this target belongs to.
+  group: string;
+}
+
+root_type SnapTargetDef;

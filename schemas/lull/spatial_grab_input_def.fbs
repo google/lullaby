@@ -1,0 +1,26 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Transform the grabbed entity with a device, with a fixed sqt offset from the
+/// device's sqt.
+table SpatialGrabInputDef {
+  /// Angle in degrees that the controller can diverge from the actual entity
+  /// before the grab is canceled.
+  break_angle: float = 30;
+
+  /// Indicates whether the sqt offset between the device and the entity should
+  /// be set to the actual sqt offset on grab start, i.e. so that the grabbed
+  /// entity does not jump when grabbed.
+  set_grab_offset_on_start: bool = true;
+
+  /// The sqt offset of the entity from the device during grab. Overridden on
+  /// grab start unless |set_grab_offset_on_start| set to false. See
+  /// TransformDef for mathematical definitions of these fields.
+  position: Vec3;
+  rotation: Vec3;
+  scale: Vec3 (native_default:"{1.f, 1.f, 1.f}");
+
+}
+
+root_type SpatialGrabInputDef;

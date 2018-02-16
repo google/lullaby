@@ -166,6 +166,10 @@ class TransformSystem : public System {
   /// Returns the parent Entity, if it exists.
   Entity GetParent(Entity child) const;
 
+  /// Returns the Entity at the root of the hierarchy including the provided
+  /// entity, or kNullEntity if the entity does not have a valid transform.
+  Entity GetRoot(Entity entity) const;
+
   /// Establish a parent/child relationship between two Entities
   void AddChild(
       Entity parent, Entity child,
@@ -271,6 +275,15 @@ class TransformSystem : public System {
     }
   }
 
+  // Returns the Graphviz representation of the entity tree.
+  // Protip: These trees tend to be shallow and wide, so try other layout
+  // engines than the default, like fdp.
+  std::string GetEntityTreeDebugString(bool enabled_only = true) const;
+
+  // Recalculates the WorldFromEntityMatrix function for the given entity and
+  // all of its children. Potentially expensive, so should be called sparingly.
+  void RecalculateWorldFromEntityMatrix(Entity child);
+
  private:
   struct GraphNode : Component {
     explicit GraphNode(Entity e)
@@ -301,7 +314,6 @@ class TransformSystem : public System {
       const Sqt& local_sqt, const mathfu::mat4* world_from_parent_mat);
   static Sqt CalculateLocalSqt(const mathfu::mat4& world_from_entity_mat,
                                const mathfu::mat4* world_from_parent_mat);
-  void UpdateTransforms(Entity child);
   void SetEnabled(Entity e, bool enabled);
   void UpdateEnabled(Entity e, bool parent_enabled);
   const WorldTransform* GetWorldTransform(Entity e) const;

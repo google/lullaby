@@ -55,6 +55,9 @@ void HelloWorld::OnRender(lull::Span<lull::RenderView> views) {
   auto* render_system = registry_->Get<lull::RenderSystem>();
   render_system->BeginFrame();
   render_system->BeginRendering();
+  render_system->Render(
+      views.data(), views.size(),
+      static_cast<lull::RenderPass>(lull::ConstHash("ClearDisplay")));
   render_system->Render(views.data(), views.size());
   render_system->EndRendering();
   render_system->EndFrame();

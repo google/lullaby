@@ -18,40 +18,61 @@ limitations under the License.
 #define LULLABY_SYSTEMS_RENDER_NEXT_SHADER_H_
 
 #include <memory>
-#include "fplbase/renderer.h"
-#include "fplbase/shader.h"
+#include <unordered_map>
+#include <vector>
+
+#include "lullaby/systems/render/next/render_handle.h"
 #include "lullaby/systems/render/shader.h"
+#include "lullaby/util/span.h"
+#include "lullaby/generated/shader_def_generated.h"
+#include "lullaby/generated/shader_uniform_def_generated.h"
 
 namespace lull {
 
-// Owns fplbase::Shader and provides access to functionality needed for
-// rendering.
+// Represents a shader program used for rendering.
 class Shader {
  public:
+  /// Description containing shader data included in the shader.
+  struct Description {
+    std::vector<ShaderUniformDefT> uniforms;
+    std::vector<ShaderVertexAttributeDefT> attributes;
+  };
+
+  explicit Shader(Description description)
+      : description_(std::move(description)) {}
   Shader() {}
+  ~Shader();
+
   Shader(const Shader& rhs) = delete;
   Shader& operator=(const Shader& rhs) = delete;
 
-  // Simple typedef of FPL's UniformHandle type to minimize fpl namespace usage.
-  using UniformHnd = fplbase::UniformHandle;
-
   // Locates the uniform in the shader with the specified |name|.
-  UniformHnd FindUniform(const char* name) const;
+  UniformHnd FindUniform(const char* name);
+  UniformHnd FindUniform(HashValue hash) const;
+
+  // Sets the uniform defs.
+  void SetUniformsDefs(Span<ShaderUniformDefT> uniform_defs);
 
   // Sets the data for the uniform specified by |id| to the given |value|.
-  void SetUniform(UniformHnd id, const float* value, size_t len);
+  void SetUniform(UniformHnd id, const float* value, size_t len, int count = 1);
 
-  // Binds the shader (ie. glUseProgram) for rendering.  Common uniform values
-  // are automatically updated from the FPL Renderer instance.
+  // Binds the shader (ie. glUseProgram) for rendering.
   void Bind();
+
+  // Returns the shader description structure.
+  const Description& GetDescription() const;
 
  private:
   friend class ShaderFactory;
-  void Init(fplbase::Renderer* renderer,
-            std::unique_ptr<fplbase::Shader> shader_impl);
+  void Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs);
 
-  fplbase::Renderer* renderer_ = nullptr;
-  std::unique_ptr<fplbase::Shader> impl_;
+  ProgramHnd program_;
+  ShaderHnd vs_;
+  ShaderHnd fs_;
+
+  Description description_;
+
+  std::unordered_map<HashValue, UniformHnd> uniforms_;
 };
 
 }  // namespace lull

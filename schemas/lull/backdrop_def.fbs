@@ -1,0 +1,54 @@
+include "lull/lull_common.fbs";
+
+include "lull/render_def.fbs";
+
+namespace lull;
+
+/// How the axis-aligned bounding box of the entity with this component should
+/// be modified after the backdrop has been calculated.
+enum BackdropAabbBehavior : int {
+  /// Do not modify the axis-aligned bounding box of the entity.
+  None,
+  /// Set the axis-aligned bounding box to cover the bounds of this entity's
+  /// children excluding the backdrop itself. If the margin is set to zero in
+  /// both the x and y dimensions then this is equivalent to Backdrop, excluding
+  /// offset.
+  Content,
+  /// Set the axis-aligned bounding box to cover the bounds of all of this
+  /// entity's children including the backdrop. This option will take into
+  /// account any margin specified above.
+  Backdrop,
+}
+
+/// The BackdropDef component provides a renderable quad to cover the
+/// axis-aligned bounding box of an entity's children.
+table BackdropDef {
+  /// The z offset of the backdrop relative to the back of the axis-aligned
+  /// bounding box of the entity's children.
+  offset: float;
+  /// The additional margin to add to the backdrop on each side.
+  margin: Vec2;
+  /// The blueprint of the entity to use as a backdrop. This should minimally
+  /// contain a TransformDef and RenderDef. The RenderDef should set the shader,
+  /// color, etc, while the quad will be set by the BackdropSystem. Similarly
+  /// the position of the entity will also be controlled by the transform
+  /// system. Alternatively, the blueprint should contain a NinePatchDef and
+  /// leave |quad| below null.
+  blueprint: string;
+  /// The quad that represents the backdrop. The size of the quad will be
+  /// actively managed by the BackdropSystem, but the other values will remain
+  /// untouched. Alternatively, this can be left null and instead the backdrop
+  /// will assume there is a nine patch in |blueprint| and manage its size.
+  quad: lull.QuadDef (defaults_to_null);
+  /// How the axis-aligned bounding box of the entity with this component should
+  /// be modified after the backdrop has been calculated.
+  aabb_behavior: BackdropAabbBehavior = Backdrop;
+  /// If non-zero, animate the aabb changing with this duration in milliseconds
+  /// instead of setting it immediately.
+  /// Using this will require the AnimationSystem.
+  animate_aabb_duration_ms: int = 0;
+  /// If specified, this is applied to the right and top edges, and |margin| is
+  /// applied to only left and bottom edges. Otherwise by default |margin| is
+  /// applied to all edges.
+  top_right_margin: Vec2 (defaults_to_null);
+}

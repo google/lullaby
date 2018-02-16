@@ -14,7 +14,7 @@ cc_library(
         "config.h",
     ],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
         "//lullaby/util:registry",

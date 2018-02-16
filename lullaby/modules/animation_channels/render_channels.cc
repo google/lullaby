@@ -16,7 +16,6 @@ limitations under the License.
 
 #include "lullaby/modules/animation_channels/render_channels.h"
 
-#include "motive/init.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/render/render_helpers.h"
 #include "lullaby/systems/render/render_system.h"
@@ -24,7 +23,7 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue RigChannel::kChannelName = Hash("render-rig");
+const HashValue RenderRigChannel::kChannelName = Hash("render-rig");
 const HashValue UniformChannel::kColorChannelName = Hash("render-color");
 const HashValue RgbChannel::kChannelName = Hash("render-color-rgb");
 const HashValue AlphaChannel::kChannelName = Hash("render-color-alpha");
@@ -53,7 +52,7 @@ void UniformChannel::Setup(Registry* registry, size_t pool_size,
         registry, pool_size, uniform_name, uniform_dimension));
     animation_system->AddChannel(channel_id, std::move(ptr));
   } else {
-    LOG(DFATAL) << "Failed to setup UniformChannel.";
+    LOG(DFATAL) << "Failed to setup UniformChannel for " << uniform_name;
   }
 }
 
@@ -66,28 +65,29 @@ void UniformChannel::Set(Entity e, const float* values, size_t len) {
                              static_cast<int>(len));
 }
 
-RigChannel::RigChannel(Registry* registry, size_t pool_size)
+RenderRigChannel::RenderRigChannel(Registry* registry, size_t pool_size)
     : AnimationChannel(registry, 0, pool_size) {
   render_system_ = registry->Get<RenderSystem>();
 }
 
-void RigChannel::Setup(Registry* registry, size_t pool_size) {
+void RenderRigChannel::Setup(Registry* registry, size_t pool_size) {
   auto* animation_system = registry->Get<AnimationSystem>();
   auto* render_system = registry->Get<RenderSystem>();
   if (animation_system && render_system) {
-    AnimationChannelPtr ptr(new RigChannel(registry, pool_size));
+    AnimationChannelPtr ptr(new RenderRigChannel(registry, pool_size));
     animation_system->AddChannel(kChannelName, std::move(ptr));
   } else {
-    LOG(DFATAL) << "Failed to setup RigChannel.";
+    LOG(DFATAL) << "Failed to setup RenderRigChannel.";
   }
 }
 
-void RigChannel::Set(Entity e, const float* values, size_t len) {
+void RenderRigChannel::Set(Entity e, const float* values, size_t len) {
   LOG(DFATAL) << "SetRig should be called for rig channels.";
 }
 
-void RigChannel::SetRig(Entity entity, const mathfu::AffineTransform* values,
-                        size_t len) {
+void RenderRigChannel::SetRig(Entity entity,
+                              const mathfu::AffineTransform* values,
+                              size_t len) {
   render_system_->SetBoneTransforms(entity, values, static_cast<int>(len));
 }
 

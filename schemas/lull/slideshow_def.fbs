@@ -1,0 +1,17 @@
+include "lull/lull_common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// A slideshow entity holds onto multiple children that it will take turns
+/// showing one at a time. It will animate its Aabb to match the size of the
+/// shown child. The first child will automatically be shown at the start.
+table SlideshowDef {
+  /// Events that will cause a "ShowSlideshow" event to be sent to the next
+  /// child and a "HideSlideshow" event to be send to the current shown child.
+  show_next_events: [EventDef];
+  /// Time to play the Aabb transition animation in milliseconds.
+  show_next_transition_ms: int;
+}
+
+root_type SlideshowDef;

@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "lullaby/modules/render/mesh_util.h"
 
+#include <array>
+
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
 #include "mathfu/glsl_mappings.h"
@@ -200,27 +202,11 @@ std::vector<uint16_t> CalculateTesselatedQuadIndices(int num_verts_x,
   return indices;
 }
 
-// TODO(b/38379841) Reduce complexity of deformations.
-void ApplyDeformation(float* vertices, size_t len, size_t stride,
-                      const PositionDeformation& deform) {
-  for (size_t i = 0; i < len; i += stride) {
-    const mathfu::vec3 original_position(vertices[i], vertices[i + 1],
-                                         vertices[i + 2]);
-    const mathfu::vec3 deformed_position = deform(original_position);
-    vertices[i] = deformed_position.x;
-    vertices[i + 1] = deformed_position.y;
-    vertices[i + 2] = deformed_position.z;
-  }
-}
-
-// TODO(b/38379841) Reduce complexity of deformations.
-void ApplyDeformationToMesh(MeshData* mesh,
-                            const VertexListDeformation& deform) {
+void ApplyDeformation(MeshData* mesh, const PositionDeformation& deform) {
   const VertexFormat& format = mesh->GetVertexFormat();
   const VertexAttribute* position =
-      format.GetAttributeWithUsage(VertexAttribute::kPosition);
-  if (!position || position->count != 3 ||
-      position->type != VertexAttribute::kFloat32) {
+      format.GetAttributeWithUsage(VertexAttributeUsage_Position);
+  if (!position || position->type() != VertexAttributeType_Vec3f) {
     LOG(DFATAL) << "Vertex format doesn't have pos3f";
     return;
   }
@@ -235,7 +221,18 @@ void ApplyDeformationToMesh(MeshData* mesh,
   DCHECK_EQ(format.GetVertexSize() % sizeof(float), 0);
   const size_t stride_in_floats = format.GetVertexSize() / sizeof(float);
   const size_t length_in_floats = mesh->GetNumVertices() * stride_in_floats;
-  deform(vertex_data, length_in_floats, stride_in_floats);
+
+  DCHECK_EQ(format.GetAttributeOffset(position) % sizeof(float), 0);
+  vertex_data += format.GetAttributeOffset(position) / sizeof(float);
+
+  for (size_t i = 0; i < length_in_floats; i += stride_in_floats) {
+    const mathfu::vec3 original_position(vertex_data[i], vertex_data[i + 1],
+                                         vertex_data[i + 2]);
+    const mathfu::vec3 deformed_position = deform(original_position);
+    vertex_data[i] = deformed_position.x;
+    vertex_data[i + 1] = deformed_position.y;
+    vertex_data[i + 2] = deformed_position.z;
+  }
 }
 
 MeshData CreateLatLonSphere(float radius, int num_parallels,
@@ -245,31 +242,35 @@ MeshData CreateLatLonSphere(float radius, int num_parallels,
 
   const float kPhiStep = kPi / static_cast<float>(num_parallels + 1);
   const float kThetaStep = 2.0f * kPi / static_cast<float>(num_meridians);
-  const size_t num_vertices = num_parallels * num_meridians + 2;
+  const size_t num_vertices = num_parallels * (num_meridians + 1) + 2;
   const size_t num_triangles =
       2 * num_meridians + 2 * num_meridians * (num_parallels - 1);
   const size_t num_indices = 3 * num_triangles;
 
-  if (num_vertices > MeshData::kMaxValidIndex) {
+  if (num_vertices > MeshData::kMaxValidIndexU32) {
     LOG(DFATAL) << "Exceeded vertex limit";
     return MeshData();
   }
 
+  const bool flip_winding = radius < 0.0f;
+  radius = std::abs(radius);
+
   DataContainer vertex_data =
       DataContainer::CreateHeapDataContainer(num_vertices * sizeof(VertexPT));
-  DataContainer index_data = DataContainer::CreateHeapDataContainer(
-      num_indices * sizeof(MeshData::Index));
-  MeshData mesh = MeshData(MeshData::kTriangles, VertexPT::kFormat,
-                           std::move(vertex_data), std::move(index_data));
+  DataContainer index_data =
+      DataContainer::CreateHeapDataContainer(num_indices * sizeof(uint32_t));
+  MeshData mesh =
+      MeshData(MeshData::kTriangles, VertexPT::kFormat, std::move(vertex_data),
+               MeshData::kIndexU32, std::move(index_data));
 
-  // Pole vertices
-  const MeshData::Index north_pole =
-      mesh.AddVertex<VertexPT>(0.0f, radius, 0.0f, .5f, 0.0f);
-  const MeshData::Index south_pole =
-      mesh.AddVertex<VertexPT>(0.0f, -radius, 0.0f, .5f, 1.0f);
+  // Pole vertices.
+  const uint32_t north_pole =
+      *mesh.AddVertex<VertexPT>(0.0f, radius, 0.0f, .5f, 0.0f);
+  const uint32_t south_pole =
+      *mesh.AddVertex<VertexPT>(0.0f, -radius, 0.0f, .5f, 1.0f);
 
   // Vertices by latitude.
-  std::vector<MeshData::Index> row_indices(num_parallels);
+  std::vector<uint32_t> row_indices(num_parallels);
   float phi = kPhiStep;
   for (int lat = 0; lat < num_parallels; ++lat, phi += kPhiStep) {
     const float cos_phi = std::cos(phi);
@@ -283,57 +284,115 @@ MeshData CreateLatLonSphere(float radius, int num_parallels,
     for (int lon = 0; lon < num_meridians; ++lon, theta += kThetaStep) {
       const float cos_theta = std::cos(theta);
       const float sin_theta = std::sin(theta);
-      const float u = theta / (2.0f * kPi);
       const float x = rad_sin_phi * cos_theta;
       const float z = rad_sin_phi * sin_theta;
+      const float u = theta / (2.0f * kPi);
       mesh.AddVertex<VertexPT>(x, y, z, u, v);
     }
+
+    // Add a u = 1.0 vertex, otherwise the final longitudinal strip will blend
+    // from u=(num_meridians-1/num_meridians) to u=0.0... back across almost all
+    // of the texture.
+    mesh.AddVertex<VertexPT>(rad_sin_phi, y, 0.0f, 1.0f, v);
   }
 
   // North polar cap.
   for (int lon = 0; lon < num_meridians; ++lon) {
-    const MeshData::Index row_start = row_indices[0];
-    const MeshData::Index v1 = static_cast<MeshData::Index>(row_start + lon);
-    const MeshData::Index v2 =
-        static_cast<MeshData::Index>(row_start + ((lon + 1) % num_meridians));
-    mesh.AddIndices({north_pole, v2, v1});
+    const uint32_t row_start = row_indices[0];
+    const uint32_t v1 = static_cast<uint32_t>(row_start + lon);
+    const uint32_t v2 = static_cast<uint32_t>(row_start + lon + 1);
+    std::array<uint32_t, 3> triangle = {{north_pole, v2, v1}};
+    if (flip_winding) {
+      std::swap(triangle[1], triangle[2]);
+    }
+    mesh.AddIndices(triangle.data(), triangle.size());
   }
 
   // Latitudinal triangle strips.
   for (int lat = 0; lat < num_parallels - 1; lat++) {
-    const MeshData::Index north_start = row_indices[lat];
-    const MeshData::Index south_start = row_indices[lat + 1];
+    const uint32_t north_start = row_indices[lat];
+    const uint32_t south_start = row_indices[lat + 1];
 
     for (int lon = 0; lon < num_meridians; ++lon) {
-      const MeshData::Index next_lon =
-          static_cast<MeshData::Index>((lon + 1) % num_meridians);
-      const MeshData::Index north_v0 =
-          static_cast<MeshData::Index>(north_start + lon);
-      const MeshData::Index north_v1 =
-          static_cast<MeshData::Index>(north_start + next_lon);
-      const MeshData::Index south_v0 =
-          static_cast<MeshData::Index>(south_start + lon);
-      const MeshData::Index south_v1 =
-          static_cast<MeshData::Index>(south_start + next_lon);
+      const uint32_t next_lon = static_cast<uint32_t>(lon + 1);
+      const uint32_t north_v0 = static_cast<uint32_t>(north_start + lon);
+      const uint32_t north_v1 = static_cast<uint32_t>(north_start + next_lon);
+      const uint32_t south_v0 = static_cast<uint32_t>(south_start + lon);
+      const uint32_t south_v1 = static_cast<uint32_t>(south_start + next_lon);
 
-      mesh.AddIndices(
-          {north_v0, north_v1, south_v0, north_v1, south_v1, south_v0});
+      std::array<uint32_t, 6> tris = {{north_v0, north_v1, south_v0,
+                                       north_v1, south_v1, south_v0}};
+
+      if (flip_winding) {
+        std::swap(tris[1], tris[2]);
+        std::swap(tris[4], tris[5]);
+      }
+      mesh.AddIndices(tris.data(), tris.size());
     }
   }
 
   // South polar cap.
   for (int lon = 0; lon < num_meridians; ++lon) {
-    const MeshData::Index row_start = row_indices[row_indices.size() - 1];
-    const MeshData::Index v1 = static_cast<MeshData::Index>(row_start + lon);
-    const MeshData::Index v2 =
-        static_cast<MeshData::Index>(row_start + ((lon + 1) % num_meridians));
-    mesh.AddIndices({south_pole, v1, v2});
+    const uint32_t row_start = row_indices[row_indices.size() - 1];
+    const uint32_t v1 = static_cast<uint32_t>(row_start + lon);
+    const uint32_t v2 = static_cast<uint32_t>(row_start + lon + 1);
+    std::array<uint32_t, 3> triangle = {{south_pole, v1, v2}};
+    if (flip_winding) {
+      std::swap(triangle[1], triangle[2]);
+    }
+    mesh.AddIndices(triangle.data(), triangle.size());
   }
 
   DCHECK_EQ(mesh.GetNumVertices(), num_vertices);
   DCHECK_EQ(mesh.GetNumIndices(), num_indices);
 
   return mesh;
+}
+
+Aabb GetBoundingBox(const MeshData& mesh) {
+  if (mesh.GetNumVertices() == 0) {
+    return {};
+  }
+
+  const VertexFormat& format = mesh.GetVertexFormat();
+  const VertexAttribute* position =
+      format.GetAttributeWithUsage(VertexAttributeUsage_Position);
+  if (!position || position->type() != VertexAttributeType_Vec3f) {
+    LOG(DFATAL) << "Vertex format doesn't have pos3f";
+    return {};
+  }
+
+  const auto* vertex_data =
+      reinterpret_cast<const float*>(mesh.GetVertexBytes());
+  if (!vertex_data) {
+    LOG(DFATAL) << "Can't get bounding box without read access.";
+    return {};
+  }
+
+  // Formats are always padded out to 4 bytes, so this is safe.
+  DCHECK_EQ(format.GetVertexSize() % sizeof(float), 0);
+  const size_t stride_in_floats =
+      mesh.GetVertexFormat().GetVertexSize() / sizeof(float);
+  const size_t length_in_floats = mesh.GetNumVertices() * stride_in_floats;
+
+  DCHECK_EQ(format.GetAttributeOffset(position) % sizeof(float), 0);
+  vertex_data += format.GetAttributeOffset(position) / sizeof(float);
+
+  Aabb box;
+  // Use the first vertex as the min and max.
+  box.min = mathfu::vec3(vertex_data[0], vertex_data[1], vertex_data[2]);
+  box.max = box.min;
+
+  // Skip the first vertex, then advance by stride.
+  for (size_t i = stride_in_floats; i < length_in_floats;
+       i += stride_in_floats) {
+    const mathfu::vec3 p(vertex_data[i], vertex_data[i + 1],
+                         vertex_data[i + 2]);
+    box.min = mathfu::vec3::Min(box.min, p);
+    box.max = mathfu::vec3::Max(box.max, p);
+  }
+
+  return box;
 }
 
 }  // namespace lull

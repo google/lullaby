@@ -61,7 +61,7 @@ TEST(Hash, StringView) {
 }
 
 TEST(Hash, Hasher) {
-  EXPECT_THAT(Hasher<string_view>()("Hello"), Eq(Hash("Hello")));
+  EXPECT_THAT(Hasher()("Hello"), Eq(Hash("Hello")));
 }
 
 TEST(Hash, Basis) {

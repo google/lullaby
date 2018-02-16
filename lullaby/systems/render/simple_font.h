@@ -17,12 +17,32 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_SIMPLE_FONT_H_
 #define LULLABY_SYSTEMS_RENDER_SIMPLE_FONT_H_
 
+#include <vector>
+
+#include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
-#include "lullaby/modules/render/triangle_mesh.h"
-#include "lullaby/modules/render/vertex.h"
 
 namespace lull {
+
+// SimpleFontMesh provides an expandable, heap-allocated wrapper around MeshData
+// using VertexPT.
+class SimpleFontMesh {
+ public:
+  // Returns a read-only mesh which wraps the currently buffered glyph quads.
+  MeshData GetMesh() const;
+
+  // Creates an independent read-write mesh using the currently buffered glyphs.
+  MeshData CreateHeapCopyMesh() const;
+
+  // Adds a glyph quad for |c|, returning the position of the next character.
+  mathfu::vec3 AddGlyph(char c, const mathfu::vec3& pos, float size);
+
+ private:
+  std::vector<VertexPT> vertices_;
+  std::vector<uint16_t> indices_;
+};
 
 // SimpleFont provides a very simple, limited ASCII font solution.  Its texture
 // is expected to a grid of monospace ascii characters from 32 ' ' to 96 '`'.
@@ -43,16 +63,16 @@ class SimpleFont {
   // Sets the vertical size of a character to |size|.
   void SetSize(float size);
 
-  // Adds the geometry to render |str| to |mesh| at |pos|.  Out-of-range
+  // Adds the geometry to render |str| to |mesh| at |pos|. Out-of-range
   // characters are ignored.  |pos| is updated as glyphs are drawn.
-  void AddStringToMesh(const char* str, TriangleMesh<VertexPT>* mesh,
+  void AddStringToMesh(const char* str, SimpleFontMesh* mesh,
                        mathfu::vec3* pos) const;
 
-  // Creates and returns a mesh for the string |str|.  Out-of-range characters
-  // are ignored.
-  TriangleMesh<VertexPT> GetMeshForString(const char* str) const;
-  TriangleMesh<VertexPT> GetMeshForString(const char* str,
-                                          const mathfu::vec3& pos) const;
+  // Creates and returns a VertexPT mesh for the string |str|. Out-of-range
+  // characters are ignored. This is the least efficient but most convenient
+  // way to draw a string.
+  MeshData CreateMeshForString(const char* str) const;
+  MeshData CreateMeshForString(const char* str, const mathfu::vec3& pos) const;
 
  private:
   ShaderPtr shader_;
@@ -66,7 +86,9 @@ class SimpleFontRenderer {
  public:
   explicit SimpleFontRenderer(SimpleFont* font);
 
-  const TriangleMesh<VertexPT>& GetMesh() const { return mesh_; }
+  // Returns a mesh containing the current set of glyphs. This mesh is only
+  // valid during the lifetime of its SimpleFontRenderer.
+  MeshData GetMesh() const { return mesh_.GetMesh(); }
 
   void SetCursor(const mathfu::vec3& pos) { cursor_ = pos; }
 
@@ -77,7 +99,7 @@ class SimpleFontRenderer {
 
  private:
   SimpleFont* font_;
-  TriangleMesh<VertexPT> mesh_;
+  SimpleFontMesh mesh_;
   mathfu::vec3 cursor_;
 };
 

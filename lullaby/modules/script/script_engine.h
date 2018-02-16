@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_SCRIPT_SCRIPT_ENGINE_H_
-#define LULLABY_SCRIPT_SCRIPT_ENGINE_H_
+#ifndef LULLABY_MODULES_SCRIPT_SCRIPT_ENGINE_H_
+#define LULLABY_MODULES_SCRIPT_SCRIPT_ENGINE_H_
 
 #include <string>
 
@@ -24,11 +24,11 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 
 #ifdef LULLABY_SCRIPT_LUA
-#include "lullaby/modules/script/lua/engine.h"
+#include "lullaby/modules/lua/engine.h"
 #endif
-#include "lullaby/modules/script/lull/lull_script_engine.h"
+#include "lullaby/modules/lullscript/lull_script_engine.h"
 #ifdef LULLABY_SCRIPT_JS
-#include "lullaby/modules/script/javascript/engine.h"
+#include "lullaby/modules/javascript/engine.h"
 #endif
 
 namespace lull {
@@ -55,6 +55,8 @@ class ScriptId {
 class ScriptEngine {
  public:
   explicit ScriptEngine(Registry* registry);
+
+  ScriptEngine(Registry* registry, FunctionCall::Handler handler);
 
   // Sets the function that will allow LullScript to invoke native functions via
   // a FunctionCall object.
@@ -84,6 +86,9 @@ class ScriptEngine {
   // Runs a loaded script.
   void RunScript(ScriptId id);
 
+  // Unloads a loaded script.
+  void UnloadScript(ScriptId id);
+
   // Register a function with all language specific engines.
   template <typename Fn>
   void RegisterFunction(const std::string& name, const Fn& function);
@@ -98,6 +103,10 @@ class ScriptEngine {
   // Get a value from the script's environment.
   template <typename T>
   bool GetValue(ScriptId id, const std::string& name, T* t);
+
+  // Returns the number of scripts managed by all the language engines, for
+  // testing and debugging.
+  size_t GetTotalScripts() const;
 
  private:
   Registry* registry_;
@@ -167,4 +176,4 @@ bool ScriptEngine::GetValue(ScriptId id, const std::string& name, T* t) {
 
 LULLABY_SETUP_TYPEID(lull::ScriptEngine);
 
-#endif  // LULLABY_SCRIPT_SCRIPT_ENGINE_H_
+#endif  // LULLABY_MODULES_SCRIPT_SCRIPT_ENGINE_H_

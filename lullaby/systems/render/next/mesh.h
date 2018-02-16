@@ -17,30 +17,36 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_MESH_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_MESH_H_
 
-#include "fplbase/mesh.h"
-#include "fplbase/renderer.h"
+#include <functional>
+#include <vector>
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/systems/render/mesh.h"
+#include "lullaby/systems/render/next/render_handle.h"
 #include "lullaby/systems/rig/rig_system.h"
 #include "lullaby/util/math.h"
 #include "lullaby/generated/render_def_generated.h"
+#include "lullaby/generated/shader_def_generated.h"
 
 namespace lull {
 
-// Owns fplbase::Mesh and provides access to functionality needed for rendering.
+// Represents a mesh used for rendering.
 class Mesh {
  public:
-  // A unique_ptr to the underlying fplbase::Mesh.
-  typedef std::unique_ptr<fplbase::Mesh,
-                          std::function<void(const fplbase::Mesh*)>>
-      MeshImplPtr;
+  // Deprecated. Use RigSystem instead for storing skeletal data.
+  struct SkeletonData {
+    RigSystem::BoneIndices parent_indices;
+    RigSystem::Pose inverse_bind_pose;
+    RigSystem::BoneIndices shader_indices;
+    Span<string_view> bone_names;
+  };
 
-  // Wraps/owns the provided fplbase::Mesh directly.
-  explicit Mesh(MeshImplPtr mesh);
+  Mesh();
+  ~Mesh();
 
-  // Creates a mesh from the provided MeshData.
-  explicit Mesh(const MeshData& mesh);
+  // Creates the actual mesh from the provided MeshData.
+  void Init(const MeshData& mesh,
+            const SkeletonData& skeleton = SkeletonData());
 
   // Returns if this mesh has been loaded into OpenGL.
   bool IsLoaded() const;
@@ -51,59 +57,49 @@ class Mesh {
   // Returns the number of triangles contained in the mesh.
   int GetNumTriangles() const;
 
+  // Returns the number of submeshes in the mesh.
+  size_t GetNumSubmeshes() const;
+
   // Gets the axis-aligned bounding box for the mesh.
   Aabb GetAabb() const;
 
-  // Returns the number of bones.
-  int GetNumBones() const;
-
-  // Returns the number of bones in the shader.
-  int GetNumShaderBones() const;
-
-  // Returns the array of bone indices contained in the mesh.
-  const uint8_t* GetBoneParents(int* num) const;
-
-  // Returns the array of bone names.  The length of the array is GetNumBones(),
-  // and 'num' will be set to this if non-null.
-  const std::string* GetBoneNames(int* num) const;
-
-  // Returns the array of default bone transform inverses (AKA inverse bind-pose
-  // matrices).  The length of the array is GetNumBones(), and 'num' will be set
-  // to this if non-null.
-  const mathfu::AffineTransform* GetDefaultBoneTransformInverses(
-      int* num) const;
-
-  // From the mesh's |bone_transforms| (length: GetNumBones()), calculates and
-  // fills the |shader_transforms| (length: GetNumShaderBones()).
-  void GatherShaderTransforms(const mathfu::AffineTransform* bone_transforms,
-                              mathfu::AffineTransform* shader_transforms) const;
-
   // Updates the RigSystem with the skeleton information in mesh.
-  void UpdateRig(RigSystem* rig_system, Entity entity);
+  size_t TryUpdateRig(RigSystem* rig_system, Entity entity);
 
   // Draws the mesh.
-  void Render(fplbase::Renderer* renderer);
+  void Render();
+
+  // Draws a portion of the mesh.
+  void RenderSubmesh(size_t submesh);
 
   // If the mesh is still loading, this adds a function that will be called when
   // it finishes loading. If the mesh is already loaded, |callback| is
   // immediately invoked.
-  void AddOrInvokeOnLoadCallback(
-      const fplbase::AsyncAsset::AssetFinalizedCallback& callback);
-
-  // The FPL vertex attributes are terminated with kEND, so increase the array
-  // size accordingly.
-  static const int kMaxFplAttributeArraySize = VertexFormat::kMaxAttributes + 1;
-
-  static void GetFplAttributes(
-      const VertexFormat& format,
-      fplbase::Attribute attributes[kMaxFplAttributeArraySize]);
-
-  static fplbase::Mesh::Primitive GetFplPrimitiveType(
-      MeshData::PrimitiveType type);
+  void AddOrInvokeOnLoadCallback(const std::function<void()>& callback);
 
  private:
-  MeshImplPtr impl_;
-  int num_triangles_;
+  void DrawArrays();
+  void DrawElements(size_t index);
+  void BindAttributes();
+  void UnbindAttributes();
+
+  BufferHnd vbo_;
+  BufferHnd vao_;
+  BufferHnd ibo_;
+  Aabb aabb_;
+  size_t num_vertices_ = 0;
+  size_t num_indices_ = 0;
+  std::vector<MeshData::IndexRange> submeshes_;
+  VertexFormat vertex_format_;
+  MeshData::PrimitiveType primitive_type_ = MeshData::kTriangles;
+  MeshData::IndexType index_type_ = MeshData::kIndexU16;
+  std::vector<std::function<void()>> on_load_callbacks_;
+
+  // Deprecated. Store locally for now until RigSystem migration is complete.
+  std::vector<uint8_t> bone_parents_;
+  std::vector<uint8_t> shader_bone_indices_;
+  std::vector<std::string> bone_names_;
+  std::vector<mathfu::AffineTransform> bone_transform_inverses_;
 };
 
 }  // namespace lull

@@ -17,8 +17,8 @@ table AudioResponseDef {
   /// Only used if the 'sound' field is not present.
   random_sounds: [string];
 
-  /// How this sound should be loaded and played. By default, response sounds
-  /// are preloaded, and will skip playing if they are not done loading.
+  /// What to do if playback is requested before preloading is complete. By
+  /// default, skip playing the sound if not ready.
   playback_type: AudioPlaybackType = PlayIfReady;
 
   /// The volume level, in the range [0,+inf], where values higher than 1.0
@@ -26,7 +26,7 @@ table AudioResponseDef {
   volume: float = 1.0;
 
   /// The type of audio source.
-  source_type: AudioSourceType = Spatialized;
+  source_type: AudioSourceType = SoundObject;
 
   /// The directivity constant "alpha". This value is a weighting balance
   /// between a figure 8 pattern and omnidirectional pattern for source
@@ -44,5 +44,8 @@ table AudioResponseDef {
   /// is not in the range [1, inf), it will be ignored and directivity will not
   /// be set for this sound.
   spatial_directivity_order: float = -1.0;
-}
 
+  /// How to load the sound for playback. By default, fully preload the sound
+  /// before playback.
+  load_type: AudioLoadType = Preload;
+}

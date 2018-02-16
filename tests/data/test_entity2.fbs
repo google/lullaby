@@ -1,0 +1,8 @@
+include "test_def.fbs";
+
+namespace lull.testing2;
+
+union ComponentDefType {
+  lull.testing.ComplexDef,
+  lull.testing.ValueDef,
+}

@@ -438,7 +438,7 @@ inline void SetColor<VertexPTTN>(VertexPTTN* vertex, Color4ub color) {}
 template <typename Functor>
 void ForEachVertexPosition(const uint8_t* vertex_data, size_t vertex_count,
                            const VertexFormat& format, const Functor& fn) {
-  if (format.GetAttributeAt(0).usage != VertexAttribute::kPosition) {
+  if (format.GetAttributeAt(0)->usage() != VertexAttributeUsage_Position) {
     LOG(DFATAL) << "Vertex format missing position attribute";
     return;
   }

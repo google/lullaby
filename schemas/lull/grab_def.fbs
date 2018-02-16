@@ -1,0 +1,34 @@
+include "lull/lull_common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// Declares a Grab component.  Something must register a GrabInputHandler with
+/// a name that matches the one declared in the GrabDef, and may register
+/// any number of GrabConstraints.  This is usually done by including a
+/// GrabInput___Def and GrabConstraint___Defs.
+table GrabDef {
+  /// Hash of the name of the group of SqtMutators to apply after processing
+  /// input.
+  group: uint = 0 (hashvalue);
+
+  /// If true, grabbed object will snap to a valid position when released.
+  /// Defaults to true.  If set to false, GrabReleasedEvent should be listened
+  /// to, and the |final_sqt| in that event should be used to animate the target
+  /// to a valid position.
+  snap_to_final: bool = true;
+
+  /// Events which cause the Grab to activate.  If the entity is already grabbed
+  /// this will force it on the mutation group specified in this def and restart
+  /// the input handler.
+  grab_events: [EventDef];
+
+  /// Events which cause the Grab to be released.  Will only work if the entity
+  /// is currently being grabbed.
+  release_events: [EventDef];
+
+  /// What device will be used for grabs that are started by |grab_events|.
+  default_device: DeviceType = Controller;
+}
+
+root_type GrabDef;

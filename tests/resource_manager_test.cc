@@ -74,6 +74,51 @@ TEST(ResourceManagerTest, Release) {
   EXPECT_EQ(nullptr, res);
 }
 
+TEST(ResourceManagerTest, GroupAttachRelease) {
+  ResourceManager<TestResource> manager;
+  manager.PushNewResourceGroup();
+  manager.Create(123, []() {
+    return std::shared_ptr<TestResource>(new TestResource(456));
+  });
+
+  {
+    auto res = manager.Find(123);
+    EXPECT_EQ(456, res->value);
+  }
+
+  auto* group = manager.PopResourceGroup();
+  manager.ReleaseResourceGroup(group);
+
+  {
+    auto res = manager.Find(123);
+    EXPECT_EQ(nullptr, res);
+  }
+}
+
+TEST(ResourceManagerTest, GroupAttachDetachRelease) {
+  ResourceManager<TestResource> manager;
+  manager.PushNewResourceGroup();
+  manager.Create(123, []() {
+    return std::shared_ptr<TestResource>(new TestResource(456));
+  });
+  auto* group = manager.PopResourceGroup();
+  manager.Create(456, []() {
+    return std::shared_ptr<TestResource>(new TestResource(789));
+  });
+
+  manager.ReleaseResourceGroup(group);
+
+  {
+    auto res = manager.Find(123);
+    EXPECT_EQ(nullptr, res);
+  }
+
+  {
+    auto res = manager.Find(456);
+    EXPECT_EQ(789, res->value);
+  }
+}
+
 TEST(ResourceManagerTest, ReleaseAlive) {
   ResourceManager<TestResource> manager;
   manager.Create(123, []() {
@@ -116,6 +161,70 @@ TEST(ResourceManagerTest, RecreateAlive) {
 
   auto res2 = manager.Find(123);
   EXPECT_EQ(res, res2);
+}
+
+TEST(ResourceManagerTest, ExplicitCache) {
+  ResourceManager<TestResource> manager(
+      ResourceManager<TestResource>::kCacheExplicitly);
+
+  auto obj1 = manager.Create(123, []() {
+    return std::shared_ptr<TestResource>(new TestResource(456));
+  });
+  EXPECT_EQ(456, obj1->value);
+
+  auto obj2 = manager.Find(123);
+  EXPECT_EQ(nullptr, obj2);
+
+  manager.Register(123, obj1);
+
+  obj2 = manager.Find(123);
+  EXPECT_EQ(obj1.get(), obj2.get());
+}
+
+TEST(ResourceManagerTest, WeakCache) {
+  ResourceManager<TestResource> manager(
+      ResourceManager<TestResource>::kWeakCachingOnly);
+
+  auto obj1 = manager.Create(123, []() {
+    return std::shared_ptr<TestResource>(new TestResource(456));
+  });
+  EXPECT_EQ(456, obj1->value);
+
+  auto obj2 = manager.Find(123);
+  EXPECT_EQ(obj1.get(), obj2.get());
+
+  obj1.reset();
+
+  obj2 = manager.Find(123);
+  EXPECT_EQ(456, obj2->value);
+
+  obj2.reset();
+
+  obj2 = manager.Find(123);
+  EXPECT_EQ(nullptr, obj2);
+}
+
+TEST(ResourceManagerTest, StrongCache) {
+  ResourceManager<TestResource> manager(
+      ResourceManager<TestResource>::kCacheFullyOnCreate);
+
+  auto obj1 = manager.Create(123, []() {
+    return std::shared_ptr<TestResource>(new TestResource(456));
+  });
+  EXPECT_EQ(456, obj1->value);
+
+  auto obj2 = manager.Find(123);
+  EXPECT_EQ(obj1.get(), obj2.get());
+
+  obj1.reset();
+
+  obj2 = manager.Find(123);
+  EXPECT_EQ(456, obj2->value);
+
+  obj2.reset();
+
+  obj2 = manager.Find(123);
+  EXPECT_EQ(456, obj2->value);
 }
 
 TEST(ResourceManagerTest, TrackNewInstances) {

@@ -75,18 +75,27 @@ TypeId GetTypeId() {
   return T::TYPEID_NOT_SETUP;
 }
 
+template <typename T>
+struct TypeIdTraits {
+  static constexpr bool kHasTypeId = false;
+};
+
 }  // namespace lull
 
-#define LULLABY_SETUP_TYPEID(Type)         \
-  namespace lull {                         \
-  template <>                              \
-  inline const char* GetTypeName<Type>() { \
-    return #Type;                          \
-  }                                        \
-  template <>                              \
-  inline TypeId GetTypeId<Type>() {        \
-    return lull::ConstHash(#Type);         \
-  }                                        \
+#define LULLABY_SETUP_TYPEID(Type)           \
+  namespace lull {                           \
+  template <>                                \
+  struct TypeIdTraits<Type> {                \
+    static constexpr bool kHasTypeId = true; \
+  };                                         \
+  template <>                                \
+  inline const char* GetTypeName<Type>() {   \
+    return #Type;                            \
+  }                                          \
+  template <>                                \
+  inline TypeId GetTypeId<Type>() {          \
+    return lull::ConstHash(#Type);           \
+  }                                          \
   }  // namespace lull
 
 #endif  // LULLABY_UTIL_TYPEID_H_

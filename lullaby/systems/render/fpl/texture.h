@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_FPL_TEXTURE_H_
 #define LULLABY_SYSTEMS_RENDER_FPL_TEXTURE_H_
 
+#include <string>
+
 #include <memory>
 #include "fplbase/asset_manager.h"
 #include "fplbase/texture.h"
@@ -51,7 +53,8 @@ class Texture {
   // texture atlas).
   // Note: Because the actual texture is owned by the atlas, "ownership" in this
   // case is normally a unique_ptr with a no-op deleter.
-  Texture(TextureImplPtr texture, const mathfu::vec4& uv_bounds);
+  Texture(TextureImplPtr texture, const mathfu::vec4& uv_bounds,
+          const std::string& file_name);
 
   // Binds the texture to the specified texture unit for rendering.
   void Bind(int unit);
@@ -90,6 +93,7 @@ class Texture {
   AtlasImplPtr atlas_impl_;
   mathfu::vec4 uv_bounds_;
   bool is_subtexture_;
+  std::string name_;
 
   Texture(const Texture& rhs) = delete;
   Texture& operator=(const Texture& rhs) = delete;

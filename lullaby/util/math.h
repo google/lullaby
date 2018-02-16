@@ -286,7 +286,11 @@ float ProjectPointOntoRay(const Ray& ray, const mathfu::vec3 point);
 
 float CheckRayTriangleCollision(const Ray& ray, const Triangle& triangle);
 
-// Transforms a point in unwrapped 2.5d space to wrapped world space.
+// Transforms a point in unwrapped 2.5d space to wrapped world space. This
+// means that each constant-z plane in the original space is wrapped onto the
+// vertical cylinder centered on the space's origin with radius z. |radius|
+// indicates how "tightly" the wrapping should compact the planes onto the
+// cylinders.
 mathfu::vec3 DeformPoint(const mathfu::vec3& point, float radius);
 
 // Inverts the DeformPoint function.
@@ -322,6 +326,11 @@ mathfu::vec3 ProjectPointOntoPlane(const Plane& plane,
 // Compute the ray-plane collision in world space.
 bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
                               mathfu::vec3* out);
+
+// Compute the first ray-sphere collision.
+bool ComputeRaySphereCollision(const Ray& ray, const mathfu::vec3& center,
+                              const float radius, mathfu::vec3* out);
+
 
 // Project |point| onto |line| and return the position.
 mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point);
@@ -392,6 +401,11 @@ bool AreNearlyEqual(const mathfu::quat& one, const mathfu::quat& two,
 bool AreNearlyEqual(const mathfu::vec4& one, const mathfu::vec4& two,
                     float epsilon = kDefaultEpsilon);
 
+// Returns true if every element of |one| is within the |epsilon| of the
+// counterpart of |two|.
+bool AreNearlyEqual(const mathfu::vec3& one, const mathfu::vec3& two,
+                    float epsilon = kDefaultEpsilon);
+
 // Returns the |index|th 3D column vector of |mat|.
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index);
 
@@ -405,14 +419,6 @@ inline void GetTransformedBoxCorners(const Aabb& box, const Sqt& sqt,
 
 // Returns the 3D box that contains all the |points|.
 Aabb GetBoundingBox(const mathfu::vec3* points, int num_points);
-
-// Returns the 3D box that contains all of the points represented by the
-// vertex_data.
-// |vertex_data| points to the coordinate data for the points.
-// |len| is the size of the array (NOT the number of vertices).
-// |stride| is the number of floats representing each vertex (the first 3 are
-// interpreted as the xyz coordinates.
-Aabb GetBoundingBox(const float* vertex_data, size_t len, size_t stride);
 
 // Transforms an Aabb and recalculates a new Aabb around the transformed
 // corners.
@@ -449,6 +455,21 @@ template <typename T, int Dimension>
 inline float DistanceBetween(const mathfu::Vector<T, Dimension>& a,
                              const mathfu::Vector<T, Dimension>& b) {
   return (a - b).Length();
+}
+
+// Returns the angle between |a| and |b| in radians.
+template <typename T, int Dimension>
+inline T AngleBetween(const mathfu::Vector<T, Dimension>& a,
+                      const mathfu::Vector<T, Dimension>& b) {
+  // Applying law of cosines.
+  // https://stackoverflow.com/questions/10507620/finding-the-angle-between-vectors
+  const T divisor = a.Length() * b.Length();
+  if (divisor == T(0)) {
+    return T(0);
+  }
+  const T cos_val = mathfu::Vector<T, Dimension>::DotProduct(a, b) / divisor;
+  // If floating point error makes cos_val > 1, then acos will return nan.
+  return cos_val <= T(1) ? std::acos(cos_val) : T(0);
 }
 
 // Given a line of startPosition to endPosition, return the % of the line

@@ -129,6 +129,7 @@ class FixedString {
   }
 
   const char* data() const { return str_; }
+  const char* c_str() const { return str_; }
   std::string to_string() const { return std::string(str_, len_); }
   string_view to_string_view() const { return string_view(str_, len_); }
   explicit operator std::string() const { return to_string(); }

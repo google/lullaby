@@ -1,0 +1,46 @@
+include "lull/lull_common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+/// Configures the controller and laser. Apps should consider reusing
+/// third_party/lullaby/data/blueprints/controller.json and
+/// third_party/lullaby/data/blueprints/laser.json
+
+/// ControllerType designates which DeviceType this controller is. Controller1
+/// corresponds to InputManager's kController type and Controller2 corresponds
+/// to InputManager's kController2 type.
+
+enum ControllerType : int {
+  Controller1,
+  Controller2,
+}
+
+table ControllerDef {
+  controller_type: ControllerType = Controller1;
+
+  enable_events: [EventDef];
+  disable_events: [EventDef];
+
+  // The number of frames to let device data stabilize to avoid eye strain from
+  // the controller / laser models jumping around. This many frames are ignored
+  // before enabling the controller entity. Frames are used instead of a unit of
+  // time like milliseconds because frames are typically much longer when an app
+  // is started up or resumed, and this is typically when device data is
+  // unstable. The counter will be reset when the device disconnects.
+  stabilization_frames: int = 20;
+}
+
+table LaserDef {
+  controller_type: ControllerType = Controller1 (deprecated);
+
+  // The number of frames to let device data stabilize to avoid eye strain from
+  // the controller / laser models jumping around. This many frames are ignored
+  // before enabling the laser entity. Frames are used instead of a unit of
+  // time like milliseconds because frames are typically much longer when an app
+  // is started up or resumed, and this is typically when device data is
+  // unstable. The counter will be reset when the device disconnects.
+  stabilization_frames: int = 20;
+}
+
+root_type ControllerDef;

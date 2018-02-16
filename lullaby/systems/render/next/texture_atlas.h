@@ -18,9 +18,8 @@ limitations under the License.
 #define LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_ATLAS_H_
 
 #include <memory>
-#include <unordered_map>
-#include "fplbase/asset_manager.h"
-#include "fplbase/texture.h"
+#include <string>
+#include <vector>
 #include "lullaby/systems/render/texture.h"
 
 namespace lull {

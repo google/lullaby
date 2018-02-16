@@ -32,8 +32,10 @@ struct RenderView {
   mathfu::vec2i viewport;
   /// The size of the viewport in pixels.
   mathfu::vec2i dimensions;
-  /// The camera's world position. The inverse of this is the view matrix.
+  /// The camera's world matrix. The inverse of this is the view matrix.
   mathfu::mat4 world_from_eye_matrix;
+  /// The camera's view matrix. The inverse of this is the world matrix.
+  mathfu::mat4 eye_from_world_matrix;
   /// The projection matrix.
   mathfu::mat4 clip_from_eye_matrix;
   /// The combined view projection matrix.

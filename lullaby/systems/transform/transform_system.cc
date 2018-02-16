@@ -225,7 +225,7 @@ void TransformSystem::Create(Entity e, HashValue type, const Def* def) {
     AddChildNoEvent(iter->second, e,
                     AddChildMode::kPreserveParentToEntityTransform);
   } else {
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
     UpdateEnabled(e, IsEnabled(node->parent));
   }
 }
@@ -240,7 +240,7 @@ void TransformSystem::Create(Entity e, const Sqt& sqt) {
   }
 
   node->local_sqt = sqt;
-  UpdateTransforms(e);
+  RecalculateWorldFromEntityMatrix(e);
 }
 
 void TransformSystem::PostCreateInit(Entity e, HashValue type, const Def* def) {
@@ -368,8 +368,7 @@ void TransformSystem::Disable(Entity e) { SetEnabled(e, false); }
 bool TransformSystem::IsEnabled(Entity e) const {
   // We want to return true if the entity is enabled OR if it doesn't exist.
   // Thus, we only need to check if the entity exists in the disabled pool.
-  const auto transform = disabled_transforms_.Get(e);
-  return transform == nullptr;
+  return !disabled_transforms_.Contains(e);
 }
 
 bool TransformSystem::IsLocallyEnabled(Entity e) const {
@@ -381,7 +380,7 @@ void TransformSystem::SetSqt(Entity e, const Sqt& sqt) {
   auto node = nodes_.Get(e);
   if (node) {
     node->local_sqt = sqt;
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
   }
 }
 
@@ -396,7 +395,7 @@ void TransformSystem::ApplySqt(Entity e, const Sqt& modifier) {
     node->local_sqt.translation += modifier.translation;
     node->local_sqt.rotation = node->local_sqt.rotation * modifier.rotation;
     node->local_sqt.scale *= modifier.scale;
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
   }
 }
 
@@ -405,7 +404,7 @@ void TransformSystem::SetLocalTranslation(Entity e,
   auto node = nodes_.Get(e);
   if (node) {
     node->local_sqt.translation = translation;
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
   }
 }
 
@@ -418,7 +417,7 @@ void TransformSystem::SetLocalRotation(Entity e, const mathfu::quat& rotation) {
   auto node = nodes_.Get(e);
   if (node) {
     node->local_sqt.rotation = rotation;
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
   }
 }
 
@@ -431,7 +430,7 @@ void TransformSystem::SetLocalScale(Entity e, const mathfu::vec3& scale) {
   auto node = nodes_.Get(e);
   if (node) {
     node->local_sqt.scale = scale;
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
   }
 }
 
@@ -455,7 +454,7 @@ void TransformSystem::SetWorldFromEntityMatrix(
   node->local_sqt =
       node->local_sqt_function(world_from_entity_mat, world_from_parent_mat);
 
-  UpdateTransforms(e);
+  RecalculateWorldFromEntityMatrix(e);
 }
 
 const mathfu::mat4* TransformSystem::GetWorldFromEntityMatrix(Entity e) const {
@@ -489,13 +488,27 @@ void TransformSystem::SetWorldFromEntityMatrixFunction(
           };
     }
 #endif
-    UpdateTransforms(e);
+    RecalculateWorldFromEntityMatrix(e);
   }
 }
 
 Entity TransformSystem::GetParent(Entity child) const {
   const auto* node = nodes_.Get(child);
   return node ? node->parent : kNullEntity;
+}
+
+Entity TransformSystem::GetRoot(Entity entity) const {
+  const auto* node = nodes_.Get(entity);
+  if (!node) {
+    return kNullEntity;
+  }
+
+  Entity root = entity;
+  while (node && node->parent != lull::kNullEntity) {
+    root = node->parent;
+    node = nodes_.Get(node->parent);
+  }
+  return root;
 }
 
 bool TransformSystem::AddChildNoEvent(Entity parent, Entity child,
@@ -541,10 +554,10 @@ bool TransformSystem::AddChildNoEvent(Entity parent, Entity child,
   parent_node->children.emplace_back(child);
   child_node->parent = parent;
   if (mode == AddChildMode::kPreserveWorldToEntityTransform) {
-    // This will call UpdateTransforms().
+    // This will call RecalculateWorldFromEntityMatrix().
     SetWorldFromEntityMatrix(child, *matrix_ptr);
   } else {
-    UpdateTransforms(child);
+    RecalculateWorldFromEntityMatrix(child);
   }
   const bool parent_enabled = IsEnabled(parent);
   UpdateEnabled(child, parent_enabled);
@@ -604,15 +617,15 @@ Entity TransformSystem::CreateChildWithEntity(Entity parent, Entity child,
 }
 
 void TransformSystem::InsertChild(Entity parent, Entity child, int index) {
-  if (!IsAncestorOf(parent, child)) {
+  if (GetParent(child) != parent) {
     AddChild(parent, child);
   }
   MoveChild(child, index);
 }
 
 void TransformSystem::MoveChild(Entity child, int index) {
-  auto child_node = nodes_.Get(child);
-  if (!child_node || !child_node->parent) {
+  const auto child_node = nodes_.Get(child);
+  if (!child_node || child_node->parent == kNullEntity) {
     return;
   }
   auto parent_node = nodes_.Get(child_node->parent);
@@ -630,6 +643,7 @@ void TransformSystem::MoveChild(Entity child, int index) {
     return;
   }
 
+  const size_t old_index = static_cast<size_t>(source - children.begin());
   const size_t new_index = RoundAndClampIndex(index, num_children);
   const auto destination = children.begin() + new_index;
   if (source >= destination) {
@@ -637,6 +651,9 @@ void TransformSystem::MoveChild(Entity child, int index) {
   } else {
     std::rotate(source, source + 1, destination + 1);
   }
+  SendEvent(
+      registry_, child_node->parent,
+      ChildIndexChangedEvent(child_node->parent, child, old_index, new_index));
 }
 
 void TransformSystem::RemoveParentNoEvent(Entity child) {
@@ -750,7 +767,7 @@ Sqt TransformSystem::CalculateLocalSqt(
   return CalculateSqtFromMatrix(parent_from_local_mat);
 }
 
-void TransformSystem::UpdateTransforms(Entity child) {
+void TransformSystem::RecalculateWorldFromEntityMatrix(Entity child) {
   auto node = nodes_.Get(child);
   auto world_transform = GetWorldTransform(child);
 
@@ -758,7 +775,7 @@ void TransformSystem::UpdateTransforms(Entity child) {
       node->world_from_entity_matrix_function(
           node->local_sqt, GetWorldFromEntityMatrix(node->parent));
   for (auto& grand_child : node->children) {
-    UpdateTransforms(grand_child);
+    RecalculateWorldFromEntityMatrix(grand_child);
   }
 }
 
@@ -842,6 +859,32 @@ void TransformSystem::ReleaseFlag(TransformFlags flag) {
     return;
   }
   reserved_flags_ = ClearBit(reserved_flags_, flag);
+}
+
+std::string TransformSystem::GetEntityTreeDebugString(bool enabled_only) const {
+  const auto& blueprints =
+      registry_->Get<EntityFactory>()->GetEntityToBlueprintMap();
+  const auto get_blueprint_fn = [&blueprints](Entity e) {
+    const auto r = blueprints.find(e);
+    return r == blueprints.end() ? "anonymous entity" : r->second;
+  };
+  std::stringstream str;
+  str << "digraph {\n";
+  for (const auto& node : nodes_) {
+    const Entity parent = node.GetEntity();
+    if (enabled_only && !IsEnabled(parent)) {
+      continue;
+    }
+    for (const auto& child : node.children) {
+      if (enabled_only && !IsEnabled(child)) {
+        continue;
+      }
+      str << "\"[" << parent << "] " << get_blueprint_fn(parent) << "\"->\"["
+          << child << "] " << get_blueprint_fn(child) << "\";\n";
+    }
+  }
+  str << "}";
+  return str.str();
 }
 
 }  // namespace lull

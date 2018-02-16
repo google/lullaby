@@ -29,10 +29,7 @@ namespace detail {
 template <typename Component>
 class RenderPool {
  public:
-  using SortMode = RenderSystem::SortMode;
-  using CullMode = RenderSystem::CullMode;
-
-  RenderPool(Registry* registry, size_t initial_size);
+  RenderPool(Registry* registry, size_t page_size);
 
   RenderPool(const RenderPool& rhs) = delete;
   RenderPool& operator=(const RenderPool& rhs) = delete;
@@ -84,7 +81,7 @@ class RenderPool {
   }
 
   // Returns the pool's cull mode.
-  CullMode GetCullMode() const { return cull_mode_; }
+  RenderCullMode GetCullMode() const { return cull_mode_; }
 
   // Returns the transform flag, or TransformSystem::kInvalidFlag if not used.
   TransformSystem::TransformFlags GetTransformFlag() const {
@@ -93,11 +90,11 @@ class RenderPool {
   }
 
   // Sets the pool's cull mode to |cull_mode|.
-  void SetCullMode(CullMode cull_mode);
+  void SetCullMode(RenderCullMode mode);
 
   // Sets the pool's sort mode to |sort_mode|, and updates the transform flag
   // accordingly.
-  void SetSortMode(SortMode sort_mode);
+  void SetSortMode(SortMode mode);
 
   // Returns the pool's sort mode.
   SortMode GetSortMode() const { return sort_mode_; }
@@ -108,16 +105,16 @@ class RenderPool {
   Registry* registry_;
   ComponentPool<Component> components_;
   SortMode sort_mode_;
-  CullMode cull_mode_;
+  RenderCullMode cull_mode_;
   mutable TransformSystem::TransformFlags transform_flag_;
 };
 
 template <typename Component>
-RenderPool<Component>::RenderPool(Registry* registry, size_t initial_size)
+RenderPool<Component>::RenderPool(Registry* registry, size_t page_size)
     : registry_(registry),
-      components_(initial_size),
-      sort_mode_(SortMode::kNone),
-      cull_mode_(CullMode::kNone),
+      components_(page_size),
+      sort_mode_(SortMode_None),
+      cull_mode_(RenderCullMode::kNone),
       transform_flag_(TransformSystem::kInvalidFlag) {}
 
 template <typename Component>
@@ -137,7 +134,7 @@ void RenderPool<Component>::SetSortMode(SortMode mode) {
 }
 
 template <typename Component>
-void RenderPool<Component>::SetCullMode(CullMode mode) {
+void RenderPool<Component>::SetCullMode(RenderCullMode mode) {
   cull_mode_ = mode;
 }
 

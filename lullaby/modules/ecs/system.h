@@ -19,7 +19,7 @@ limitations under the License.
 
 #include "flatbuffers/flatbuffers.h"
 #include "lullaby/modules/ecs/blueprint.h"
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/typeid.h"
 

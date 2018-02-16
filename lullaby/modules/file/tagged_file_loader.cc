@@ -19,8 +19,8 @@ limitations under the License.
 #include <cstring>
 #include <utility>
 
-#include "lullaby/modules/file/file.h"
 #include "lullaby/modules/file/file_loader.h"
+#include "lullaby/util/filename.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {

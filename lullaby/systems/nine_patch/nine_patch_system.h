@@ -34,15 +34,29 @@ class NinePatchSystem : public System {
 
   ~NinePatchSystem() override;
 
-  // Adds a nine patch mesh to |entity| using the specified NinePatchDef.
+  // Create the component for |entity| using the specified NinePatchDef.
+  void Create(Entity entity, DefType type, const Def* def) override;
+
+  // Adds a nine patch mesh to |entity| from the component.
   void PostCreateInit(Entity entity, DefType type, const Def* def) override;
 
   // Removes the nine patch mesh from |entity|.
   void Destroy(Entity entity) override;
 
+  // Sets the size of the nine patch if it exists.
+  void SetSize(Entity entity, const mathfu::vec2& size);
+
   // Returns the size of the nine patch geometry or an empty optional if the
   // entity does not have a nine-patch component.
   Optional<mathfu::vec2> GetSize(Entity entity) const;
+
+  // Sets the original size of the nine patch if it exists.  This alters the
+  // pixels-per-unit and requires recalculating vertex positions.
+  void SetOriginalSize(Entity entity, const mathfu::vec2& size);
+
+  // Returns the original size of the nine patch or an empty optional if the
+  // entity does not have a nine-patch component.
+  Optional<mathfu::vec2> GetOriginalSize(Entity entity) const;
 
  private:
   // Recomputes the mesh for |entity| given the component data in |nine_patch|.

@@ -1,36 +1,29 @@
 new_git_repository(
-  name = "gvr",
-  remote = "https://github.com/googlevr/gvr-android-sdk",
-  build_file = "third_party/BUILD.gvr",
-  commit = "ee5cb1c",
-)
-
-new_git_repository(
   name = "bullet",
   remote = "https://github.com/bulletphysics/bullet3",
   build_file = "third_party/BUILD.bullet",
   commit = "0e893d4",
 )
 
-new_git_repository(
+new_http_archive(
   name = "flatbuffers",
-  remote = "https://github.com/google/flatbuffers.git",
+  urls = ["https://github.com/google/flatbuffers/archive/9de086110411.tar.gz"],
   build_file = "third_party/BUILD.flatbuffers",
-  commit = "971a681",
+  strip_prefix = "flatbuffers-9de08611041111f2c200185b8a2e51cc7a9c747e",
 )
 
 new_git_repository(
   name = "flatui",
   remote = "https://github.com/google/flatui.git",
   build_file = "third_party/BUILD.flatui",
-  commit = "55f54c3",
+  commit = "2e363fa18228664a06d8279ab07e514f3a3f51af",
 )
 
 new_git_repository(
   name = "fplbase",
   remote = "https://github.com/google/fplbase.git",
   build_file = "third_party/BUILD.fplbase",
-  commit = "b6ae2ba",
+  commit = "79d701a85e21eb77f3572cd06705c6994f52c1a1",
 )
 
 new_git_repository(
@@ -42,7 +35,7 @@ new_git_repository(
 
 new_http_archive(
   name = "freetype2",
-  url = "https://downloads.sourceforge.net/project/freetype/freetype2/2.6.1/freetype-2.6.1.tar.gz",
+  url = "https://downloads.sourceforge.net/project/freetype/freetype2/2.8.1/freetype-2.8.1.tar.gz",
   build_file = "third_party/BUILD.freetype2",
 )
 
@@ -59,6 +52,13 @@ new_git_repository(
   commit = "aa91b27",
 )
 
+new_http_archive(
+  name = "gvr",
+  urls = ["https://github.com/googlevr/gvr-android-sdk/archive/3bd22d73.tar.gz"],
+  build_file = "third_party/BUILD.gvr",
+  strip_prefix = "gvr-android-sdk-3bd22d73c3d68b760b99957bb557c8ab6b1755b3",
+)
+
 new_git_repository(
   name = "harfbuzz",
   remote = "https://github.com/behdad/harfbuzz.git",
@@ -66,18 +66,18 @@ new_git_repository(
   commit = "60e2586",
 )
 
-new_git_repository(
+new_http_archive(
    name = "libpng",
-   remote = "https://github.com/glennrp/libpng.git",
+   urls = ["https://github.com/glennrp/libpng/archive/4ddac468.tar.gz"],
    build_file = "third_party/BUILD.libpng",
-   commit = "4ddac468",
+   strip_prefix = "libpng-4ddac468c41ab68091e0efa353ec8cabf27beb89",
 )
 
-new_git_repository(
+new_http_archive(
   name = "libunibreak",
-  remote = "https://github.com/adah1972/libunibreak.git",
+  urls = ["https://github.com/adah1972/libunibreak/archive/0e8e32d.tar.gz"],
   build_file = "third_party/BUILD.libunibreak",
-  commit = "0e8e32d",
+  strip_prefix = "libunibreak-0e8e32dcd0d8f9d2744026bef591b16af1ddd0ff",
 )
 
 new_git_repository(
@@ -87,18 +87,18 @@ new_git_repository(
   commit = "fb3daad",
 )
 
-new_git_repository(
+new_http_archive(
   name = "mathfu",
-  remote = "https://github.com/google/mathfu.git",
+  urls = ["https://github.com/google/mathfu/archive/87e6a3b.tar.gz"],
   build_file = "third_party/BUILD.mathfu",
-  commit = "87e6a3b",
+  strip_prefix = "mathfu-87e6a3bbc2d2d1c0f71b301804c18efc7174a702",
 )
 
 new_git_repository(
   name = "motive",
   remote = "https://github.com/google/motive.git",
   build_file = "third_party/BUILD.motive",
-  commit = "2a40b9b",
+  commit = "42b3a383788c1112f0795aa470a87be71a1a9779",
 )
 
 new_http_archive(
@@ -108,23 +108,23 @@ new_http_archive(
   strip_prefix = "SDL2-2.0.6",
 )
 
-new_git_repository(
+new_http_archive(
   name = "stb",
-  remote = "https://github.com/nothings/stb.git",
+  urls = ["https://github.com/nothings/stb/archive/9d9f75e.tar.gz"],
   build_file = "third_party/BUILD.stb",
-  commit = "9d9f75e",
+  strip_prefix = "stb-9d9f75eb682dd98b34de08bb5c489c6c561c9fa6",
 )
 
-new_git_repository(
+new_http_archive(
   name = "vectorial",
-  remote = "https://github.com/scoopr/vectorial.git",
+  urls = ["https://github.com/scoopr/vectorial/archive/ae7dc88.tar.gz"],
   build_file = "third_party/BUILD.vectorial",
-  commit = "ae7dc88",
+  strip_prefix = "vectorial-ae7dc88215e14c812786dc7a1f214610ae8540f5",
 )
 
-new_git_repository(
+new_http_archive(
   name = "zlib",
-  remote = "https://github.com/madler/zlib.git",
+  urls = ["https://github.com/madler/zlib/archive/cacf7f1.tar.gz"],
   build_file = "third_party/BUILD.zlib",
-  commit = "cacf7f1",
+  strip_prefix = "zlib-cacf7f1d4e3d44d871b605da3b647f07d718623f",
 )

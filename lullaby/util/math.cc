@@ -424,7 +424,12 @@ float CheckRayTriangleCollision(const Ray& ray, const Triangle& triangle) {
 }
 
 mathfu::vec3 DeformPoint(const mathfu::vec3& point, float radius) {
+  // The farther a point is from the yz-plane, the more it will be wrapped
+  // around. Calculate the number of revolutions (in radians) the line of length
+  // |point.x| would reach around a circle of radius |radius|.
   const float angle = point.x / radius;
+  // Wrap the point by that number of revolutions onto the vertical cylinder
+  // about the space's origin with radius |point.z|.
   return mathfu::vec3(-point.z * sinf(angle), point.y, point.z * cosf(angle));
 }
 
@@ -447,7 +452,13 @@ bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
                                  const Aabb& aabb, bool collision_on_exit,
                                  mathfu::vec3* out) {
   // First transform the ray into the OBB's space.
-  const Ray local = TransformRay(world_mat.Inverse(), ray);
+  mathfu::mat4 inverse_world_mat;
+  bool invertible_world_mat =
+      world_mat.InverseWithDeterminantCheck(&inverse_world_mat);
+  if (!invertible_world_mat) {
+    return false;
+  }
+  const Ray local = TransformRay(inverse_world_mat, ray);
 
   float tmin = -1 * std::numeric_limits<float>::infinity();
   float tmax = std::numeric_limits<float>::infinity();
@@ -562,6 +573,56 @@ bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
     *out = ray.origin + t * ray.direction.Normalized();
   }
   return true;
+}
+
+bool ComputeRaySphereCollision(const Ray& ray, const mathfu::vec3& center,
+                               const float radius, mathfu::vec3* out) {
+  // Using algorithm adapted from:
+  // http://www.lighthouse3d.com/tutorials/maths/ray-sphere-intersection/
+  // First check the distance between the sphere and the line defined by the
+  // ray.
+  const mathfu::vec3 ray_to_sphere = center - ray.origin;
+  const float rts_len_squared = ray_to_sphere.LengthSquared();
+  const float rad_squared = radius * radius;
+  const float dot_product = mathfu::dot(ray.direction, ray_to_sphere);
+  if (dot_product < 0) {
+    // Center of sphere is behind the ray.
+    if (rts_len_squared > rad_squared) {
+      // No intersection
+      return false;
+    } else if (rts_len_squared == rad_squared) {
+      // Start of ray is on surface of sphere.
+      *out = ray.origin;
+      return true;
+    } else {
+      // Ray is inside sphere.
+      const mathfu::vec3 closest_point = ProjectPointOntoLine(ray, center);
+      const mathfu::vec3 center_to_closest = center - closest_point;
+      const float dist_from_closest =
+          std::sqrt(rad_squared - center_to_closest.LengthSquared());
+      *out = closest_point + ray.direction * dist_from_closest;
+      return true;
+    }
+  } else {
+    // Center of sphere is in front of the ray origin.
+    const mathfu::vec3 closest_point = ProjectPointOntoLine(ray, center);
+    const mathfu::vec3 center_to_closest = center - closest_point;
+    if (center_to_closest.LengthSquared() > rad_squared) {
+      // Center of Sphere is more than radius away from the ray.
+      return false;
+    } else {
+      const float dist_from_closest =
+          std::sqrt(rad_squared - center_to_closest.LengthSquared());
+      if (rts_len_squared > rad_squared) {
+        // Origin of ray is outside sphere, take the first intersection.
+        *out = closest_point - dist_from_closest * ray.direction;
+      } else {
+        // Origin is inside sphere, take the second intersection.
+        *out = closest_point + dist_from_closest * ray.direction;
+      }
+      return true;
+    }
+  }
 }
 
 mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point) {
@@ -725,6 +786,16 @@ bool AreNearlyEqual(const mathfu::vec4& one, const mathfu::vec4& two,
   return true;
 }
 
+bool AreNearlyEqual(const mathfu::vec3& one, const mathfu::vec3& two,
+                    float epsilon) {
+  for (int i = 0; i < 3; i++) {
+    if (!AreNearlyEqual(one[i], two[i], epsilon)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index) {
   DCHECK(index >= 0 && index < 4);
   return mathfu::vec3(mat(0, index), mat(1, index), mat(2, index));
@@ -760,29 +831,6 @@ Aabb GetBoundingBox(const mathfu::vec3* points, int num_points) {
   for (int i = 1; i < num_points; ++i) {
     box.min = mathfu::vec3::Min(box.min, points[i]);
     box.max = mathfu::vec3::Max(box.max, points[i]);
-  }
-
-  return box;
-}
-
-Aabb GetBoundingBox(const float* vertex_data, size_t len, size_t stride) {
-  if (len < 3) {
-    return Aabb();
-  }
-
-  CHECK(vertex_data != nullptr);
-  CHECK_GE(stride, 3);
-  CHECK(len % stride == 0) << "array size must be a multiple of stride";
-  Aabb box;
-  // Use the first vertex as the min and max.
-  box.min = box.max =
-      mathfu::vec3(vertex_data[0], vertex_data[1], vertex_data[2]);
-
-  // Skip the first vertex, then advance by stride.
-  for (size_t i = stride; i < len; i += stride) {
-    mathfu::vec3 p(vertex_data[i], vertex_data[i + 1], vertex_data[i + 2]);
-    box.min = mathfu::vec3::Min(box.min, p);
-    box.max = mathfu::vec3::Max(box.max, p);
   }
 
   return box;

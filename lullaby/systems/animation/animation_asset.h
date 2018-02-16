@@ -18,9 +18,9 @@ limitations under the License.
 #define LULLABY_SYSTEMS_ANIMATION_ANIMATION_ASSET_H_
 
 #include "motive/anim_generated.h"
-#include "motive/anim.h"
 #include "motive/anim_table.h"
 #include "motive/math/compact_spline.h"
+#include "motive/rig_anim.h"
 #include "motive/spline_anim_generated.h"
 #include "lullaby/modules/file/asset.h"
 

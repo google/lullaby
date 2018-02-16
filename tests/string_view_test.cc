@@ -123,7 +123,7 @@ TEST(StringViewTest, Ostream) {
 TEST(StringViewTest, Hash) {
   const char* test1 = "IAmAClass";
   string_view test2 = "IAmAClass";
-  std::unordered_map<string_view, int, Hasher<string_view>> map;
+  std::unordered_map<string_view, int, Hasher> map;
   map[test2] = 5;
   EXPECT_EQ(map[test2], 5);
   EXPECT_EQ(map[test1], 5);

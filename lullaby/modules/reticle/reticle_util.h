@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_MODULES_RETICLE_RETICLE_UTIL_H_
 #define LULLABY_MODULES_RETICLE_RETICLE_UTIL_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/registry.h"
@@ -44,10 +44,10 @@ bool ComputeRayAabbXyIntersectionPoint(const Ray& ray, const Aabb& aabb,
 bool GetReticleIntersectionPoint(Registry* registry, Entity entity,
                                  mathfu::vec2* intersection_point);
 
-
 /// Computes the relative mathfu::vec3 that was touched by the reticle on the
 /// passed in Entity.  Returns true if the registry contains a TransformSystem
 /// and is passed non-null Entities for the reticle and target.
+// TODO(b/71361065) Remove this function when slider_system is refactored.
 bool GetReticleRelativeHitPoint(Registry* registry,
                                 Entity reticle,
                                 Entity entity,

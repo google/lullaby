@@ -92,6 +92,23 @@ class TextInputSystem : public System {
   // input field.
   void SetCaretPosition(size_t index);
 
+  // Gets the selection start and end index.
+  void GetSelectionIndices(
+      Entity e, size_t* start_index, size_t* end_index) const;
+
+  // Gets selection region of current active input field. No-op if no active
+  // input field.
+  void GetSelectionIndices(size_t* start_index, size_t* end_index) const;
+
+  // Sets the start and end indices for a range of text being selected.
+  // The characters selected will include start_index through end_index - 1,
+  // so that if start_index and end_index match, nothing will be selected.
+  void SetSelectionIndices(Entity e, size_t start_index, size_t end_index);
+
+  // Sets selection region for current active input field. No-op if no active
+  // input field.
+  void SetSelectionIndices(size_t start_index, size_t end_index);
+
   // Gets the highlight start and end index.
   void GetComposingIndices(
       Entity e, size_t* start_index, size_t* end_index) const;
@@ -109,6 +126,15 @@ class TextInputSystem : public System {
   // Sets composing region for current active input field. No-op if no active
   // input field.
   void SetComposingIndices(size_t start_index, size_t end_index);
+
+  // Sets composing text, and moves the cursor to the end of the newly composing
+  // text.
+  // Replaces previously composing text if exists, otherwise deletes selected
+  // text first and sets composing text.
+  void SetComposingText(const std::string& text);
+
+  // Whether there is currently composing text.
+  bool HasCompositionRegion();
 
   // Clear the composing region and suggestions. Text that was in composing
   // region remains intact.

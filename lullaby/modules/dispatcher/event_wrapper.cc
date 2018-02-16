@@ -96,6 +96,17 @@ EventWrapper::~EventWrapper() {
   }
 }
 
+void EventWrapper::SetValue(HashValue key, const Variant& value) {
+  if (ptr_) {
+    LOG(ERROR) << "Cannot set value on a concrete event.";
+    return;
+  }
+
+  if (data_) {
+    data_->emplace(key, value);
+  }
+}
+
 void EventWrapper::SetValues(const VariantMap& values) {
   if (ptr_) {
     LOG(ERROR) << "Cannot set value on a concrete event.";

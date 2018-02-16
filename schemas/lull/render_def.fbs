@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 /// The render system is responsible for the drawing entities to the screen.  It
 /// uses vertex and fragment shaders (in fplshader format) to control the final
@@ -10,7 +10,7 @@ namespace lull;
 /// Render passes define the render state and high-level render order of
 /// entities. Please keep these in sync with
 /// //java/com/google/third_party/lullaby/Constants.java
-enum RenderPass : int {
+enum RenderPass : uint {
   /// Drawn first, so behind everything.
   Pano,
   /// Zwrite on, ztest on, blending off.
@@ -172,7 +172,7 @@ table RenderDef {
 
   /// A [QuadDef](#quaddef) defines the mesh for the entity based on a simple
   /// quadrilateral.
-  quad: QuadDef;
+  quad: QuadDef (defaults_to_null);
 
   /// An fpl shader used to render the entity (fpl shaders are built from glslv
   /// and glslf vertex and fragment shader programs).

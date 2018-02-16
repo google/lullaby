@@ -22,7 +22,8 @@ limitations under the License.
 
 namespace lull {
 
-// Emulates the Daydream Controller using the mouse.
+// Emulates the Daydream Controller using the mouse, keyboard, or any other
+// client code that can drive these events.
 class SoftwareController {
  public:
   explicit SoftwareController(Registry* registry);
@@ -40,10 +41,17 @@ class SoftwareController {
   // Updates the button state of the controller based on button release.
   void OnButtonUp();
 
+  // Updates the 2nd button state of the controller based on button click.
+  void OnSecondaryButtonDown();
+
+  // Updates the 2nd button state of the controller based on button click.
+  void OnSecondaryButtonUp();
+
  private:
   Registry* registry_ = nullptr;  // Registry for accessing the InputManager.
   mathfu::vec3 rotation_;         // Euler angles of controller rotation.
   bool pressed_ = false;          // Indicates if the primary button is pressed.
+  bool secondary_button_pressed_ = false;
 };
 
 }  // namespace lull

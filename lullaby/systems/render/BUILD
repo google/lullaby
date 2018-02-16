@@ -6,13 +6,16 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 common_headers = [
-    "material.h",
     "mesh.h",
+    "mesh_factory.h",
     "render_stats.h",
     "render_system.h",
+    "render_target.h",
+    "render_types.h",
     "shader.h",
     "simple_font.h",
     "texture.h",
+    "texture_factory.h",
     "uniform.h",
 ]
 
@@ -24,6 +27,7 @@ private_headers = [
 ]
 
 fpl_headers = [
+    "fpl/material.h",
     "fpl/mesh.h",
     "fpl/render_component.h",
     "fpl/render_factory.h",
@@ -36,19 +40,21 @@ common_deps = [
     "@fplbase//:fplbase",
     "//lullaby/modules/config",
     "//lullaby/modules/ecs",
-    "//lullaby/modules/ecs:entity",
     "//lullaby/modules/render",
-    "//lullaby/systems/text",
     "//lullaby/systems/transform",
+    "//lullaby/util:entity",
+    "//lullaby/util:android_context",
     "//lullaby/util:bits",
     "//lullaby/util:hash",
     "//lullaby/util:logging",
     "//lullaby/util:make_unique",
     "//lullaby/util:math",
     "//lullaby/util:registry",
+    "//lullaby/util:optional",
     "//lullaby/util:string_preprocessor",
     "//lullaby/util:trace",
-    "//lullaby/generated",
+    "//lullaby/util:typeid",
+    "//:fbs",
     "@mathfu//:mathfu",
 ]
 
@@ -59,11 +65,10 @@ common_deps = [
 cc_library(
     name = "render",
     srcs = [
-        "material.cc",
         "simple_font.cc",
         "uniform.cc",
     ],
-    hdrs = common_headers,
+    hdrs = common_headers + private_headers,
     deps = common_deps,
 )
 
@@ -75,6 +80,7 @@ cc_library(
     srcs = [
         "detail/render_stats.cc",
         "detail/sort_order.cc",
+        "fpl/material.cc",
         "fpl/mesh.cc",
         "fpl/render_factory.cc",
         "fpl/render_system_fpl.cc",
@@ -94,9 +100,10 @@ cc_library(
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/script",
         "//lullaby/systems/dispatcher",
+        "//lullaby/systems/text",
         "//lullaby/util:async_processor",
+        "//lullaby/util:filename",
         "//lullaby/util:resource_manager",
-        "//lullaby/util:typeid",
     ],
 )
 
@@ -117,9 +124,10 @@ cc_library(
         ":fpl_render_system",
         "//lullaby/events",
         "//lullaby/modules/file",
+        "//lullaby/systems/text",
         "//lullaby/util:async_processor",
+        "//lullaby/util:filename",
         "//lullaby/util:resource_manager",
-        "//lullaby/util:typeid",
     ],
     alwayslink = 1,
 )
@@ -147,12 +155,14 @@ cc_library(
     srcs = [
         "detail/render_stats.cc",
         "detail/sort_order.cc",
+        "next/gl_helpers.cc",
+        "next/material.cc",
         "next/mesh.cc",
         "next/mesh_factory.cc",
-        "next/render_factory.cc",
         "next/render_state.cc",
         "next/render_system_impl.cc",
         "next/render_system_next.cc",
+        "next/render_target.cc",
         "next/shader.cc",
         "next/shader_factory.cc",
         "next/texture.cc",
@@ -161,18 +171,22 @@ cc_library(
         "next/texture_factory.cc",
     ],
     hdrs = common_headers + private_headers + [
+        "next/detail/glplatform.h",
+        "next/material.h",
         "next/mesh.h",
         "next/mesh_factory.h",
         "next/render_component.h",
-        "next/render_factory.h",
+        "next/render_handle.h",
         "next/render_state.h",
         "next/render_system_next.h",
+        "next/render_target.h",
         "next/shader.h",
         "next/shader_factory.h",
         "next/texture.h",
         "next/texture_atlas.h",
         "next/texture_factory.h",
         "next/texture_atlas_factory.h",
+        "next/gl_helpers.h",
     ],
     copts = [
         "-Ithird_party/GL/gl/include/",
@@ -194,14 +208,16 @@ cc_library(
         "//lullaby/util:async_processor",
         "//lullaby/util:buffered_data",
         "//lullaby/util:color",
+        "//lullaby/util:filename",
         "//lullaby/util:resource_manager",
         "//lullaby/util:string_view",
+        "//lullaby/util:span",
         "//lullaby/util:time",
-        "//lullaby/util:typeid",
         "//lullaby/util:unordered_vector_map",
     ],
     alwayslink = 1,
 )
+
 
 cc_library(
     name = "render_system_mock",
@@ -221,7 +237,7 @@ cc_library(
         ":binding_impl",
         ":profiler",
         ":render",
-        "@gtest//:gtest_main",
+        "@gtest//:gtest",
         "//lullaby/util:time",
     ],
     alwayslink = 1,
@@ -233,8 +249,8 @@ cc_library(
     hdrs = ["render_helpers.h"],
     deps = [
         ":render",
-        "//lullaby/modules/ecs:entity",
         "//lullaby/systems/transform",
+        "//lullaby/util:entity",
         "@mathfu//:mathfu",
     ],
 )
@@ -259,4 +275,15 @@ cc_library(
     ] + select({
         "//conditions:default": [],
     }),
+)
+
+cc_library(
+    name = "image_texture",
+    srcs = ["image_texture.cc"],
+    hdrs = ["image_texture.h"],
+    deps = [
+        ":render",
+        "//lullaby/modules/render",
+        "//lullaby/util:registry",
+    ],
 )

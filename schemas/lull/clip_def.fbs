@@ -1,0 +1,25 @@
+include "lull/lull_common.fbs";
+
+/// The clip system allows an entity's children to be clipped in screen space
+/// using a stencil test.  When an entity has both a ClipDef and a RenderDef,
+/// it sets its stencil value while drawing its mesh (as defined in its
+/// RenderDef).  When its children are being drawn, they will perform a stencil
+/// test and render only where they overlap their clip region.  To function
+/// properly, the children must be configured to draw after their clip region.
+///
+/// NOTE: The clip system requires a stencil buffer to function.  Normally this
+/// is done by overriding GetDepthFormat() in your app's header file.
+
+namespace lull;
+
+/// When *ClipDef* is specified, all of the entity's descendents will render
+/// only where they overlap with the entity's mesh (as defined in its
+/// RenderDef).
+table ClipDef {
+  /// The stencil reference value for the clip region.
+  /// Default (= 0) is automatically incremented from [81 to 255].
+  /// User defined values are from [1 to 80] inclusive.
+  stencil_reference_value: int = 0;
+}
+
+root_type ClipDef;

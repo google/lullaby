@@ -1,0 +1,11 @@
+{
+  "components": [{
+    "def_type": "~RenderDef",
+    "def": {
+    }
+  }, {
+    "def_type": "~AnimationResponseDef",
+    "def": {
+    }
+  }]
+}

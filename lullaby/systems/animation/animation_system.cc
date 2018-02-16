@@ -24,7 +24,9 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 #include "lullaby/util/time.h"
 #include "lullaby/util/trace.h"
-#include "motive/init.h"
+#include "motive/matrix_init.h"
+#include "motive/rig_init.h"
+#include "motive/spline_init.h"
 #include "motive/spline_anim_generated.h"
 
 namespace lull {

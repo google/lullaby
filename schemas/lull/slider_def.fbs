@@ -1,0 +1,31 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Describes a slider of the Entity with a string that describes the blueprint
+/// to be used for the optional knob.  The min and max positions are used to map
+/// the reticle to an intended value of the slider.
+table SliderDef {
+  /// Optional blueprint for a knob entity which will be used to represent the
+  /// current value of the slider.
+  knob_blueprint: string;
+  /// Optional blueprint for a gutter entity which will be added as a child. It
+  /// will be centered on the slider with the same rotation.
+  gutter_blueprint: string;
+  /// Optional uniform name used on the gutter for a shader to use the % value
+  /// to modify the coloring and look of the gutter.
+  gutter_uniform_name: string;
+  /// Arbitrary values to link the respective min_position and max_positions.
+  /// First value is the start value, second value is the end value.
+  value_range: Vec2 (native_default:"{0.0f, 1.0f}");
+  /// Default value to assign the slider. It will be clamped to the value_range.
+  default_value: float = 0.0;
+  /// Start position relative to the Entity that will allow the reticle to be
+  /// compared to.  This comparisson will yield the current value of the slider.
+  min_position: Vec3;
+  /// End position relative to the Entity that will allow the reticle to be
+  /// compared to.  This comparisson will yield the current value of the slider.
+  max_position: Vec3;
+}
+
+root_type SliderDef;

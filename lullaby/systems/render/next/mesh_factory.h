@@ -17,8 +17,7 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_MESH_FACTORY_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_MESH_FACTORY_H_
 
-#include "fplbase/asset_manager.h"
-#include "fplbase/renderer.h"
+#include "lullaby/systems/render/mesh_factory.h"
 #include "lullaby/systems/render/next/mesh.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/resource_manager.h"
@@ -28,42 +27,43 @@ namespace lull {
 // Creates and manages Mesh objects.
 //
 // Meshes will be automatically released along with the last external reference.
-class MeshFactory {
+class MeshFactoryImpl : public MeshFactory {
  public:
-  MeshFactory(Registry* registry, fplbase::Renderer* renderer,
-              std::shared_ptr<fplbase::AssetManager> asset_manager);
-  MeshFactory(const MeshFactory&) = delete;
-  MeshFactory& operator=(const MeshFactory&) = delete;
+  explicit MeshFactoryImpl(Registry* registry);
 
-  // Loads the mesh with the given |filename|.
-  MeshPtr LoadMesh(const std::string& filename);
+  MeshFactoryImpl(const MeshFactoryImpl&) = delete;
+  MeshFactoryImpl& operator=(const MeshFactoryImpl&) = delete;
+
+  // Returns the mesh in the cache associated with |name|, else nullptr.
+  MeshPtr GetMesh(HashValue name) const override;
+
+  // Attempts to add |mesh| to the cache using |name|.
+  void CacheMesh(HashValue name, const MeshPtr& mesh) override;
+
+  // Releases the cached mesh associated with |name|.
+  void ReleaseMesh(HashValue name) override;
 
   // Creates a mesh using the specified data.
-  MeshPtr CreateMesh(const MeshData& mesh);
+  MeshPtr CreateMesh(MeshData mesh_data) override;
 
   // Creates a named mesh using the specified data.
-  MeshPtr CreateMesh(HashValue key, const MeshData& mesh);
+  MeshPtr CreateMesh(HashValue name, MeshData mesh_data) override;
 
-  // Returns the mesh in the cache associated with |key|, else nullptr.
-  MeshPtr GetCachedMesh(HashValue key) const;
+  // DEPRECATED. Loads the fplmesh with the given |filename|.
+  MeshPtr LoadMesh(const std::string& filename);
 
-  // Attempts to add |mesh| to the cache using |key|.
-  void CacheMesh(HashValue key, const MeshPtr& mesh);
-
-  // Releases the cached mesh associated with |key|.
-  void ReleaseMeshFromCache(HashValue key);
+  // DEPRECATED. Old RenderSystem API passes MeshData by const reference which
+  // can be redirected here.
+  MeshPtr CreateMesh(const MeshData* mesh_data);
+  MeshPtr CreateMesh(HashValue name, const MeshData* mesh_data);
 
  private:
-  Mesh::MeshImplPtr LoadFplMesh(const std::string& name);
-
   Registry* registry_;
-  fplbase::Renderer* fpl_renderer_;
-  std::shared_ptr<fplbase::AssetManager> fpl_asset_manager_;
   ResourceManager<Mesh> meshes_;
 };
 
 }  // namespace lull
 
-LULLABY_SETUP_TYPEID(lull::MeshFactory);
+LULLABY_SETUP_TYPEID(lull::MeshFactoryImpl);
 
 #endif  // LULLABY_SYSTEMS_RENDER_NEXT_MESH_FACTORY_H_

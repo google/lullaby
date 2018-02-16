@@ -23,6 +23,7 @@ limitations under the License.
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"
+#include "lullaby/systems/text/text_system.h"
 #include "lullaby/systems/text_input/text_input_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
@@ -41,6 +42,7 @@ class TextInputSystemTest : public ::testing::Test {
     entity_factory_ = registry_->Create<EntityFactory>(registry_.get());
     entity_factory_->CreateSystem<DispatcherSystem>();
     entity_factory_->CreateSystem<TransformSystem>();
+    entity_factory_->CreateSystem<TextSystem>();
     render_system_ = entity_factory_->CreateSystem<RenderSystem>();
     text_input_system_ = entity_factory_->CreateSystem<TextInputSystem>();
     entity_factory_->Initialize();

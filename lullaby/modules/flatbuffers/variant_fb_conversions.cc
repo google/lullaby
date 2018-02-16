@@ -80,6 +80,13 @@ bool VariantFromFbVariant(VariantDef type, const void* in, Variant* out) {
       *out = mathfu_value;
       return true;
     }
+    case VariantDef_DataBytes: {
+      const auto* data = static_cast<const DataBytes*>(in);
+      ByteArray bytes(data->value()->data(),
+                      data->value()->data() + data->value()->size());
+      *out = std::move(bytes);
+      return true;
+    }
     default: {
       const char* label = EnumNameVariantDef(type);
       LOG(ERROR) << "Unknown data variant type: " << label;

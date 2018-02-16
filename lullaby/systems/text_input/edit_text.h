@@ -69,6 +69,12 @@ class EditText {
   //      region.
   void SetComposingRegion(size_t start, size_t end);
 
+  // Sets composing text, and moves the cursor to the end of the newly composing
+  // text.
+  // Replaces previously composing text if exists, otherwise deletes selected
+  // text first and sets composing text.
+  void SetComposingText(const std::string& text);
+
   // Cancels composing. This will set composing region to empty. Text that
   // was in composing region remains intact.
   void ClearComposingRegion();
@@ -106,8 +112,10 @@ class EditText {
   // When selection exists, entire selection will be replaced with given text.
   //
   // Otherwise text will be appended at where caret is.
-  void Insert(const char* utf8_cstr);
-  void Insert(const std::string& utf8_str);
+  //
+  // Returns true if text has changed.
+  bool Insert(const char* utf8_cstr);
+  bool Insert(const std::string& utf8_str);
 
   const std::string& str() const;
   const char* c_str() const;

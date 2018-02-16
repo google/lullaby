@@ -1,0 +1,21 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Defines a stereo panorama to render.
+table PanoDef {
+  /// DEPRECATED. Use the filename field instead.
+  panos: [string];
+  /// The radius to the sphere that the pano is rendered on. This only applies
+  /// to the Ion render system backend.
+  radius: float;
+  /// An optional adjustment to the viewer's starting orientation. Corresponds
+  /// to a right-handed rotation of the pano about the viewer's up axis.
+  heading_offset_deg: float;
+  /// A pano file represented as over-under stereo images. Webp is supported for
+  /// both the Ion and FPL render system backends. When using FPL however, a
+  /// non-progressive JPEG will provide better performance.
+  filename: string;
+}
+
+root_type PanoDef;

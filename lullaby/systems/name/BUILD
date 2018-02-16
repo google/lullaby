@@ -10,8 +10,9 @@ cc_library(
     srcs = ["name_system.cc"],
     hdrs = ["name_system.h"],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/ecs",
+        "//lullaby/modules/script",
         "//lullaby/systems/transform",
         "//lullaby/util:hash",
         "//lullaby/util:logging",

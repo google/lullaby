@@ -17,12 +17,99 @@ limitations under the License.
 #ifndef LULLABY_EVENTS_INPUT_EVENTS_H_
 #define LULLABY_EVENTS_INPUT_EVENTS_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/typeid.h"
 #include "mathfu/constants.h"
 
 namespace lull {
+
+/// The list of input events that are not associated with any particular button.
+/// InputProcessor will use macros to expand this list into an enum statement
+/// and name function.
+/// All events in this list will include following parameters:
+///   "Entity"
+///   "Target"
+///   "Device"
+#define LULLABY_DEVICE_EVENT_LIST(FUNC) \
+  FUNC(kFocusStart, FocusStartEvent)    \
+  FUNC(kFocusStop, FocusStopEvent)
+
+/// The list of input events that are associated with any particular button.
+/// InputProcessor will use macros to expand this list into an enum statement
+/// and name function.
+/// All events in this list will include following parameters:
+///   "Entity"
+///   "Target"
+///   "Device"
+///   "Button"
+#define LULLABY_BUTTON_EVENT_LIST(FUNC) \
+  FUNC(kPress, PressEvent)              \
+  FUNC(kRelease, ReleaseEvent)          \
+  FUNC(kClick, ClickEvent)              \
+  FUNC(kLongPress, LongPressEvent)      \
+  FUNC(kCancel, CancelEvent)            \
+  FUNC(kDragStart, DragStartEvent)      \
+  FUNC(kDragStop, DragStopEvent)
+
+/// Hashes of commonly used event names for convenience:
+/// Input Events with no prefix.  Generally sent out by Controller 1's button 0.
+/// Sent the first frame an entity is focused by a specific device.
+constexpr HashValue kFocusStartEventHash = ConstHash("FocusStartEvent");
+/// Sent when an entity is no longer focused by a specific device.
+constexpr HashValue kFocusStopEventHash = ConstHash("FocusStopEvent");
+/// Sent when a button is pressed down.
+constexpr HashValue kPressEventHash = ConstHash("PressEvent");
+/// Sent when a button is released
+constexpr HashValue kReleaseEventHash = ConstHash("ReleaseEvent");
+/// Sent when a button is pressed an released in less than 0.5 seconds and the
+/// device's collision ray hasn't left a threshold.
+constexpr HashValue kClickEventHash = ConstHash("ClickEvent");
+/// Sent when a button is held down for more than 0.5 seconds and the device's
+/// collision ray hasn't left a threshold.
+constexpr HashValue kLongPressEventHash = ConstHash("LongPressEvent");
+/// Sent when a button is held down until the device's collision ray leaves the
+/// cancellation threshold.
+constexpr HashValue kCancelEventHash = ConstHash("CancelEvent");
+/// Sent when a button is held down until the device's collision ray leaves the
+/// drag threshold.
+constexpr HashValue kDragStartEventHash = ConstHash("DragStartEvent");
+/// Sent when a release or cancel event is sent to an entity that received a
+/// DragStartEvent.
+constexpr HashValue kDragStopEventHash = ConstHash("DragStopEvent");
+
+/// Input Events with the "Any" prefix.  Sent out by every device being updated
+/// by InputProcessor, and for every button on those devices.
+constexpr HashValue kAnyFocusStartEventHash = ConstHash("AnyFocusStartEvent");
+constexpr HashValue kAnyFocusStopEventHash = ConstHash("AnyFocusStopEvent");
+constexpr HashValue kAnyPressEventHash = ConstHash("AnyPressEvent");
+constexpr HashValue kAnyReleaseEventHash = ConstHash("AnyReleaseEvent");
+constexpr HashValue kAnyClickEventHash = ConstHash("AnyClickEvent");
+constexpr HashValue kAnyLongPressEventHash = ConstHash("AnyLongPressEvent");
+constexpr HashValue kAnyCancelEventHash = ConstHash("AnyCancelEvent");
+constexpr HashValue kAnyDragStartEventHash = ConstHash("AnyDragStartEvent");
+constexpr HashValue kAnyDragStopEventHash = ConstHash("AnyDragStopEvent");
+
+/// Standard fields to be included in Input Events sent by the InputProcessor:
+/// The entity the device is focused on, if any.
+constexpr HashValue kEntityHash = ConstHash("entity");
+constexpr HashValue kTargetHash = ConstHash("target");
+/// The InputManager::DeviceType that caused the event.
+constexpr HashValue kDeviceHash = ConstHash("device");
+/// The InputManager::ButtonId that caused the event.
+constexpr HashValue kButtonHash = ConstHash("button");
+
+/// A mathfu::vec3 that is the local position of the cursor on the frame the
+/// button was pressed, in the space of the pressed entity. Only set for
+/// ClickEvent.
+constexpr HashValue kLocationHash = ConstHash("location");
+/// The originally pressed entity. Only set for ReleaseEvent.
+constexpr HashValue kPressedEntityHash = ConstHash("pressed_entity");
+/// A duration of time in milliseconds.
+constexpr HashValue kDurationHash = ConstHash("duration");
+
+// The below events are deprecated, and are only used if the reticle_system is
+// still used by the application.
 
 struct StartHoverEvent {
   StartHoverEvent() {}
@@ -31,7 +118,7 @@ struct StartHoverEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, kTargetHash);
   }
 };
 
@@ -42,7 +129,7 @@ struct StopHoverEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, kTargetHash);
   }
 };
 
@@ -56,14 +143,15 @@ struct ClickEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, kTargetHash);
+    archive(&location, kLocationHash);
   }
 };
 
 struct ClickReleasedEvent {
   ClickReleasedEvent() {}
-  explicit ClickReleasedEvent(Entity pressed_entity, Entity released_entity)
-      : pressed_entity(pressed_entity), released_entity(released_entity) {}
+  explicit ClickReleasedEvent(Entity pressed_entity, Entity target)
+      : pressed_entity(pressed_entity), target(target) {}
 
   // The original entity targeted by the input controller, as the user
   // initiates the button press.
@@ -71,12 +159,12 @@ struct ClickReleasedEvent {
 
   // The current entity targeted by the input controller, as the user
   // releases the input button press.
-  Entity released_entity = kNullEntity;
+  Entity target = kNullEntity;
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&pressed_entity, Hash("pressed_entity"));
-    archive(&released_entity, Hash("released_entity"));
+    archive(&pressed_entity, kPressedEntityHash);
+    archive(&target, kTargetHash);
   }
 };
 
@@ -90,8 +178,8 @@ struct ClickPressedAndReleasedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&duration, Hash("duration"));
+    archive(&target, kTargetHash);
+    archive(&duration, kDurationHash);
   }
 };
 
@@ -102,7 +190,7 @@ struct CollisionExitEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, kTargetHash);
   }
 };
 
@@ -160,7 +248,6 @@ struct SecondaryButtonLongClick {
   void Serialize(Archive archive) {}
 };
 
-
 // Sent when Secondary button is released.
 struct SecondaryButtonRelease {
   template <typename Archive>
@@ -190,7 +277,6 @@ struct SystemButtonLongClick {
   template <typename Archive>
   void Serialize(Archive archive) {}
 };
-
 
 // Sent when System button is released.
 struct SystemButtonRelease {

@@ -50,6 +50,10 @@ class DebugRender {
                 const mathfu::mat4& world_from_object_matrix, const Aabb& box,
                 Color4ub color);
 
+  // Adds a 2D screen space quad to the debug render queue.
+  void AddQuad2D(const string_view tag, Color4ub color, float x, float y,
+                 float w, float h, const TexturePtr& texture);
+
   // Swaps write and read buffers.
   void Swap();
 
@@ -66,6 +70,7 @@ class DebugRender {
     kText3D,
     kLine,
     kText2D,
+    kQuad2D,
   };
 
   struct DrawElement {
@@ -75,6 +80,7 @@ class DebugRender {
     mathfu::vec3 pos2;
     Aabb box;
     Color4ub color;
+    TexturePtr texture;
     char text[kMaxTextLength];
     Type type;
   };
@@ -177,6 +183,23 @@ void DebugRender::AddBox3D(const string_view tag,
   buffers_[write_index].emplace_back(element);
 }
 
+void DebugRender::AddQuad2D(const string_view tag, Color4ub color, float x,
+                            float y, float w, float h,
+                            const TexturePtr& texture) {
+  IsEnabled(tag);
+  DebugRender::DrawElement element;
+  element.tag = tag;
+  element.pos1 = mathfu::vec3(x, y, 0);
+  element.pos2 = mathfu::vec3(w, h, 0);
+  element.color = color;
+  element.texture = texture;
+  element.type = DebugRender::Type::kQuad2D;
+
+  Lock lock(mutex_);
+  const int write_index = 1 - read_index_;
+  buffers_[write_index].emplace_back(element);
+}
+
 void DebugRender::Swap() {
   Lock lock(mutex_);
   read_index_ = 1 - read_index_;
@@ -201,6 +224,10 @@ void DebugRender::Submit() {
           break;
         case DebugRender::Type::kText2D:
           draw_->DrawText2D(element.color, element.text);
+          break;
+        case DebugRender::Type::kQuad2D:
+          draw_->DrawQuad2D(element.color, element.pos1.x, element.pos1.y,
+                            element.pos2.x, element.pos2.y, element.texture);
           break;
       }
     }
@@ -262,6 +289,13 @@ void DrawBox3D(const char* tag_name,
                Color4ub color) {
   if (gDebugRender) {
     gDebugRender->AddBox3D(tag_name, world_from_object_matrix, box, color);
+  }
+}
+
+void DrawQuad2D(const char* tag_name, Color4ub color, float x, float y, float w,
+                float h, const TexturePtr& texture) {
+  if (gDebugRender) {
+    gDebugRender->AddQuad2D(tag_name, color, x, y, w, h, texture);
   }
 }
 

@@ -14,7 +14,7 @@ cc_library(
         "collision_system.h",
     ],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/ecs",
         "//lullaby/modules/flatbuffers",

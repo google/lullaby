@@ -1,0 +1,10 @@
+{
+  "components": [{
+    "def_type": "ReticleDef",
+    "def": {
+      "diameter": 0.9,
+      "thickness": 0.1,
+      "weight": 0.5
+    }
+  }]
+}

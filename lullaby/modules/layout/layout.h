@@ -20,7 +20,7 @@ limitations under the License.
 #include <vector>
 
 #include "lullaby/generated/common_generated.h"
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/registry.h"

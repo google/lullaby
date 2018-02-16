@@ -25,8 +25,11 @@ limitations under the License.
 #include "lullaby/util/clock.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/registry.h"
-#include "motive/init.h"
+#include "motive/matrix_op.h"
 #include "motive/motivator.h"
+#include "motive/rig_anim.h"
+#include "motive/rig_init.h"
+#include "motive/rig_motivator.h"
 #include "motive/util.h"
 
 namespace lull {

@@ -75,12 +75,12 @@ class RenderPoolMap {
   // Returns the render pool for |pass|. If the pool has not already been
   // created then this function will do so.
   ComponentPool& GetPool(RenderPass pass) {
-    static const int kInitialPoolSize = 16;
+    static const int kPageSize = 32;
     auto existing = map_.find(pass);
     if (existing != map_.end()) {
       return existing->second;
     }
-    return map_.emplace(pass, ComponentPool(registry_, kInitialPoolSize))
+    return map_.emplace(pass, ComponentPool(registry_, kPageSize))
         .first->second;
   }
 

@@ -1,0 +1,69 @@
+include "lull/lull_common.fbs";
+include "lull/vertex_attribute_def.fbs";
+include "lull/material_def.fbs";
+include "lull/texture_def.fbs";
+include "lull/skeleton_def.fbs";
+
+namespace lull;
+
+/// The range of indices associated with a single draw call.
+struct ModelIndexRange {
+  start: uint32;
+  end: uint32;
+}
+
+/// A single instance of model data used to render an object at a given LOD.
+table ModelInstanceDef {
+  /// The "raw" vertex data stored as a byte array.
+  vertex_data: [uint8];
+
+  /// Indices into the vertex data. Will either be an array of 16-bit or 32-bit
+  /// values.
+  indices16: [uint16];
+  indices32: [uint32];
+
+  /// The range of indices for each submesh.
+  ranges: [ModelIndexRange];
+
+  /// The material describing the "look" of each submesh.
+  materials: [MaterialDef];
+
+  /// Describes the structure of the vertex data, effectively the VertexFormat.
+  vertex_attributes: [VertexAttribute];
+
+  /// The total number of vertices stored in the vertex data.
+  num_vertices: uint32;
+
+  /// Whether or not the attributes in the vertex data are interleaved.
+  interleaved: bool = true;
+
+  /// Maps the skeleton bone index to the shader bone index. The shader bones
+  /// are only the bones that have at least one vertex weighted to them and, as
+  /// such, are a subset of all the bones in the skeleton.
+  shader_to_mesh_bones: [ubyte];
+}
+
+/// Contains all the information stored in a lullmodel file. This information
+/// will be used to initialize various Systems from the same asset file. For
+/// example, the skeleton data will be used by the RigSystem, while the vertex
+/// data will be used by the RenderSystem.
+table ModelDef {
+  /// Version number to help decide how to interpret the flatbuffer data.
+  version: int = 1;
+
+  /// Model data for different LODs.
+  lods: [ModelInstanceDef];
+
+  /// The skeletal information used by the RigSystem to support skinned
+  /// animations.
+  skeleton: SkeletonDef;
+
+  /// The minimum and maximum bounds contained in the vertex data.
+  bounding_box: AabbDef;
+
+  /// A collection of embedded textures associated with this model.
+  textures: [TextureDef];
+}
+
+root_type ModelDef;
+file_extension "lullmodel";

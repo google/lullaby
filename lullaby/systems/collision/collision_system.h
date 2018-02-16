@@ -48,7 +48,7 @@ class CollisionSystem : public System {
 
   // Cast the specified |ray| and return the closest Entity that is hit (if any)
   // and the distance to the hit point from the ray's origin.
-  CollisionResult CheckForCollision(const Ray& ray);
+  CollisionResult CheckForCollision(const Ray& ray) const;
 
   // Returns a vector of entities that a point lies within
   std::vector<Entity> CheckForPointCollisions(const mathfu::vec3& point);

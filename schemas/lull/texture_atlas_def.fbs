@@ -1,0 +1,14 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+table TextureAtlasDef {
+  /// Textures in different groups won't be atlased together.  Required.
+  group: string;
+  /// Filename of texture to load.  Optional.
+  texture: string;
+  /// Atlas size.  Must match size across all defs in group.  Required.
+  size: Vec2i;
+  /// Max number of textures.  Must match across all defs in group.  Optional.
+  max_slices: int = 1;
+}

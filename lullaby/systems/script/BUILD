@@ -10,15 +10,15 @@ cc_library(
     srcs = ["script_system.cc"],
     hdrs = ["script_system.h"],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
-        "//lullaby/modules/ecs:entity",
         "//lullaby/modules/file",
         "//lullaby/modules/script",
         "//lullaby/systems/dispatcher",
         "//lullaby/systems/transform",
         "//lullaby/util:clock",
+        "//lullaby/util:entity",
         "//lullaby/util:hash",
     ],
 )

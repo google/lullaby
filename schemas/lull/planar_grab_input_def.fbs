@@ -1,0 +1,17 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Collide the reticle ray with the provided plane and place the grabbed
+/// entity at the collision point.
+table PlanarGrabInputDef {
+  /// Orientation of the plane. Position will be defined at runtime by where
+  /// the object is grabbed.
+  normal: Vec3 (native_default:"{0.0f, 0.0f, -1.0f}");
+
+  /// Angle in degrees that the controller can diverge from the actual entity
+  /// before the grab is canceled
+  break_angle: float = 30;
+}
+
+root_type PlanarGrabInputDef;

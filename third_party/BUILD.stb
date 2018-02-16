@@ -9,5 +9,6 @@ cc_library(
         "deprecated/*.c"
     ]),
     hdrs = glob(["*.h"]),
+    includes = [".", ".."],
     copts = ["-Wno-unused-value"],
 )

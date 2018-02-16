@@ -12,6 +12,7 @@ cc_library(
     hdrs = [
         "include/flatbuffers/base.h",
         "include/flatbuffers/flatbuffers.h",
+        "include/flatbuffers/flexbuffers.h",
         "include/flatbuffers/stl_emulation.h",
         "include/flatbuffers/util.h",
     ],
@@ -53,16 +54,22 @@ cc_library(
         "grpc/",
         "include/",
     ],
+    deps = [
+        ":flatbuffers",
+    ],
 )
 
 # Public flatc compiler.
 cc_binary(
     name = "flatc",
     srcs = [
+        "grpc/src/compiler/config.h",
         "grpc/src/compiler/cpp_generator.cc",
         "grpc/src/compiler/cpp_generator.h",
         "grpc/src/compiler/go_generator.cc",
         "grpc/src/compiler/go_generator.h",
+        "grpc/src/compiler/java_generator.cc",
+        "grpc/src/compiler/java_generator.h",
         "grpc/src/compiler/schema_interface.h",
         "src/flatc_main.cpp",
         "src/idl_gen_cpp.cpp",
@@ -79,6 +86,7 @@ cc_binary(
     includes = [
         "grpc/",
         "include/",
+
     ],
     deps = [
         ":flatc_library",

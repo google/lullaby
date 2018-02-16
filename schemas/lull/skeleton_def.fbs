@@ -1,0 +1,17 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Describes the skeleton used by the RigSystem to handle skinned animations.
+table SkeletonDef {
+  /// The names of each bone in the skeleton. Each bone in the skeleton can
+  /// be uniquely identified by an index into this array.
+  bone_names: [string];
+
+  /// Effectively a map of a bone to its parent bone.
+  bone_parents: [ubyte];
+
+  /// The local transformation of a bone's "pivot" from its parent.
+  bone_transforms: [Mat4x3];
+
+}

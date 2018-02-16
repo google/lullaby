@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 include "lull/render_def.fbs";
 include "lull/text_def.fbs";

@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -47,6 +47,11 @@ table DataQuat {
   value: Quat (native_inline);
 }
 
+/// Data type for arbitrary binary data to be stored in a VariantDef.
+table DataBytes {
+  value: [uint8];
+}
+
 /// A variant type that can be converted into a lull::Variant.
 union VariantDef {
   DataBool,
@@ -58,6 +63,7 @@ union VariantDef {
   DataVec3,
   DataVec4,
   DataQuat,
+  DataBytes,
 }
 
 /// Internal table for VariantMapDef that associates a hash-value key with a

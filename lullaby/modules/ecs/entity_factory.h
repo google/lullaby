@@ -28,7 +28,7 @@ limitations under the License.
 #include "flatbuffers/flatbuffers.h"
 #include "lullaby/modules/ecs/blueprint.h"
 #include "lullaby/modules/ecs/blueprint_tree.h"
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/util/dependency_checker.h"
@@ -184,8 +184,10 @@ class EntityFactory {
   // Creates a new Entity from raw blueprint data.  This data should not be
   // confused with the Blueprint class.  Instead, it is raw binary data from
   // operations such as loading off disk.
-  Entity CreateFromBlueprint(const void* data, const std::string& name);
-
+  Entity CreateFromBlueprint(const void* blueprint, const std::string& name);
+  // Similar to the above, but uses a specified Entity id.
+  void CreateFromBlueprint(Entity entity, const void* blueprint,
+                           const std::string& name);
   // Finalizes a Blueprint into a flatbuffer for serialization.
   Span<uint8_t> Finalize(Blueprint* blueprint);
 

@@ -31,10 +31,12 @@ Texture::Texture(AtlasImplPtr atlas)
       uv_bounds_(0.f, 0.f, 1.f, 1.f),
       is_subtexture_(false) {}
 
-Texture::Texture(TextureImplPtr texture, const mathfu::vec4& uv_bounds)
+Texture::Texture(TextureImplPtr texture, const mathfu::vec4& uv_bounds,
+                 const std::string& name)
     : texture_impl_(std::move(texture)),
       uv_bounds_(uv_bounds),
-      is_subtexture_(true) {}
+      is_subtexture_(true),
+      name_(name) {}
 
 Texture::Texture(uint32_t texture_target, uint32_t texture_id)
     : texture_impl_(new fplbase::Texture(),
@@ -68,13 +70,17 @@ void Texture::AddOnLoadCallback(
 mathfu::vec2i Texture::GetDimensions() const { return texture_impl_->size(); }
 
 std::string Texture::GetName() const {
-  if (texture_impl_) {
-    std::string name = texture_impl_->filename();
-    if (!name.empty()) {
-      return name;
+  if (!name_.empty()) {
+    return name_;
+  } else {
+    if (texture_impl_) {
+      std::string name = texture_impl_->filename();
+      if (!name.empty()) {
+        return name;
+      }
     }
+    return "anonymous texture";
   }
-  return "anonymous texture";
 }
 
 const bool Texture::IsSubtexture() const { return is_subtexture_; }

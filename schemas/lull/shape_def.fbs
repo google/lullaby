@@ -1,0 +1,10 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Specifies the parameters of a generated sphere mesh for an entity
+table SphereDef {
+  radius: float;
+  num_parallels: int;
+  num_meridians: int;
+}

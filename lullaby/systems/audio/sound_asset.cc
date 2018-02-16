@@ -39,8 +39,6 @@ void SoundAsset::AddLoadedListener(Entity entity) {
   }
 }
 
-std::vector<Entity>& SoundAsset::GetListeningEntities() {
-  return entities_;
-}
+std::vector<Entity>& SoundAsset::GetListeningEntities() { return entities_; }
 
 }  // namespace lull

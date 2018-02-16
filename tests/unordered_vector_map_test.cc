@@ -55,6 +55,17 @@ TEST(UnorderedVectorMap, Add) {
   EXPECT_EQ(static_cast<int>(map.Size()), 1);
 }
 
+TEST(UnorderedVectorMap, Contains) {
+  TestUnorderedVectorMap map(32);
+
+  auto obj = map.Contains(1);
+  EXPECT_EQ(obj, false);
+
+  map.Emplace(1, 10);
+  obj = map.Contains(1);
+  EXPECT_EQ(obj, true);
+}
+
 TEST(UnorderedVectorMap, Get) {
   TestUnorderedVectorMap map(32);
 
@@ -163,6 +174,15 @@ TEST(UnorderedVectorMap, AddRemove) {
   EXPECT_EQ(sum1, check);
   EXPECT_EQ(sum2, check);
   EXPECT_EQ(static_cast<int>(map.Size()), 128 - 101 + 55);
+}
+
+TEST(UnorderedVectorMap, Clear) {
+  TestUnorderedVectorMap map(32);
+
+  map.Emplace(0, 0);
+  map.Clear();
+
+  EXPECT_EQ(static_cast<int>(map.Size()), 0);
 }
 
 TEST(UnorderedVectorMap, IteratorTraits) {

@@ -1,0 +1,104 @@
+include "lull/material_def.fbs";
+include "lull/vertex_attribute_def.fbs";
+
+namespace lull;
+
+/// List of different ways to interpret the orientation axis of an asset when
+/// importing it.
+enum AxisSystem : int {
+  Unspecified = -1,
+
+  XUp_YFront_ZLeft,
+  XUp_YFront_ZRight,
+  XUp_YBack_ZLeft,
+  XUp_YBack_ZRight,
+  XUp_ZFront_YLeft,
+  XUp_ZFront_YRight,
+  XUp_ZBack_YLeft,
+  XUp_ZBack_YRight,
+
+  YUp_XFront_ZLeft,
+  YUp_XFront_ZRight,
+  YUp_XBack_ZLeft,
+  YUp_XBack_ZRight,
+  YUp_ZFront_XLeft,
+  YUp_ZFront_XRight,
+  YUp_ZBack_XLeft,
+  YUp_ZBack_XRight,
+
+  ZUp_XFront_YLeft,
+  ZUp_XFront_YRight,
+  ZUp_XBack_YLeft,
+  ZUp_XBack_YRight,
+  ZUp_YFront_XLeft,
+  ZUp_YFront_XRight,
+  ZUp_YBack_XLeft,
+  ZUp_YBack_XRight,
+}
+
+/// Information about how to import an asset into the model_pipeline.
+table ModelPipelineImportDef {
+  /// The short name of the asset that is referenced by the individual model
+  /// components (eg. renderables, collidables, etc.) below.
+  name: string;
+
+  /// The location of disk of the asset.
+  file: string;
+
+  /// Inserts an extra node into the asset hierarchy so that the resulting model
+  /// is centered around the origin.
+  recenter: bool = false;
+
+  /// Multiplier applied to the model to change its scale.
+  scale: float = 1.0;
+
+  /// The axis system used by the model asset.
+  axis_system: AxisSystem = Unspecified;
+}
+
+/// Information about a renderable model.
+table ModelPipelineRenderableDef {
+  /// The name of ModelPipelineImportDef defining this model.
+  source: string;
+
+  /// The material properties for the model. Each index in the array corresponds
+  /// to a submesh in the model.
+  materials: [MaterialDef];
+
+  /// Specific vertex attributes to export. For multiple attributes with the
+  /// same usage (eg. two uv-coords for textures), simply list the attribute
+  /// twice, regardless of order.
+  attributes: [VertexAttributeUsage];
+}
+
+/// Information about a collidable model.
+table ModelPipelineCollidableDef {
+  /// The name of ModelPipelineImportDef defining this model.
+  source: string;
+}
+
+/// Information about an animatable model.
+table ModelPipelineSkeletonDef {
+  /// The name of ModelPipelineImportDef defining this model.
+  source: string;
+}
+
+/// An optional configuration file that can be provided to the model pipeline
+/// to control behaviour.
+table ModelPipelineDef {
+  /// The list of assets to import.
+  sources: [ModelPipelineImportDef];
+
+  /// The list of models used for rendering. Each index in the list specifies
+  /// an LOD level.
+  renderables: [ModelPipelineRenderableDef];
+
+  /// The model used for collision.
+  collidable: ModelPipelineCollidableDef;
+
+  /// The model used for skeletal animations.
+  skeleton: ModelPipelineSkeletonDef;
+
+  /// The textures to be used by the renderables.
+  textures: [TextureDef];
+}

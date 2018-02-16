@@ -10,7 +10,7 @@ cc_library(
     srcs = ["deform_system.cc"],
     hdrs = ["deform_system.h"],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",

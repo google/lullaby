@@ -1,0 +1,42 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// When TrackHmdDef is present, the TrackHmdSystem updates the transform of
+/// associated entities based on the HMD transform.
+table TrackHmdDef {
+  /// If set to true, only the headset's rotation around the y axis will be used.
+  only_track_yaw: bool = false;
+
+  /// If not zero, entity's rotation will not jump to headset's rotation,
+  /// but will slowly move towards it.
+  /// Recommended range (0, 10] (from very slow to medium), 0 to turn off.
+  convergence_rot_rate: float = 0;
+
+  /// If not zero, entity's translation will not jump to headset's translation,
+  /// but will slowly move towards it.
+  /// Recommended range (0, 10] (from very slow to medium), 0 to turn off.
+  convergence_trans_rate: float = 0;
+
+  /// If convergence_rot_rate is used, entity's rotation will not fall behind
+  /// more than this value.
+  convergence_max_rot_deg: float = 90.;
+
+  /// If convergence_trans_rate is used, entity's translation will not fall
+  /// behind more than this value.
+  convergence_max_trans: float = 1.;
+
+  /// If set to true, the headset's pose will be set as a local transform
+  /// rather than as a world transform.
+  local_transform: bool = false;
+
+  /// If set to true, the headset's pose will be mirrored.  Specifically, yaw
+  /// and roll will be inverted, but not pitch.
+  mirror: bool = false;
+
+  /// Apply scale to Euler rotation (x: pitch, y: yaw, z: roll).  This is useful
+  /// for mirroring (-1) or fixing (0) individual axes of rotation.
+  euler_scale: Vec3 (native_default:"{1.0f, 1.0f, 1.0f}");
+}
+
+root_type TrackHmdDef;

@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 include "lull/dispatcher_def.fbs";
 
 namespace lull;
@@ -37,3 +37,9 @@ table MapEventsToGroupDef {
   events: EventMapDef;
   include_self : bool = false;
 }
+
+/// Send events to all entity’s descendants.
+table MapEventsToDescendantsDef {
+  events: EventMapDef;
+}
+

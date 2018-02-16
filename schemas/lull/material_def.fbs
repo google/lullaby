@@ -1,0 +1,42 @@
+include "lull/variant_def.fbs";
+include "lull/texture_def.fbs";
+
+namespace lull;
+
+// The different usages for a texture.
+enum MaterialTextureUsage : int {
+  Diffuse,
+  Gloss,
+  Normal,
+  Bump,
+  Height,
+  Specular,
+  Ambient,
+  Emissive,
+  Light,
+  Shadow,
+  Reflection,
+  Opacity,
+}
+
+// Information about a texture associated with a material.
+table MaterialTextureDef {
+  name: string;
+  usage: MaterialTextureUsage = Diffuse;
+}
+
+/// A description of the Material to be used by the RenderSystem when drawing
+/// an Entity.  A Material describes the "look" applied to a single surface
+/// of a mesh.
+table MaterialDef {
+  /// The name of the material.
+  name: string;
+
+  /// A dictionary of all material properties extracted from the source file.
+  /// These properties are interpretted by the RenderSystem to create the
+  /// appropriate Material.
+  properties: VariantMapDef;
+
+  /// The list of textures associated with the Material.
+  textures: [MaterialTextureDef];
+}

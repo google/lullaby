@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -30,4 +30,13 @@ table NinePatchDef {
   // (Optional) The number of horizontal and vertical subdivisions in the
   // nine patch mesh.  This is provided to allow for smooth looking deformation.
   subdivisions:  Vec2i (defaults_to_null);
+
+  // Nine patch also sets the alternate uv1 coordinates scaled evenly from |min|
+  // to |max| (ignoring the slices), accessible in the shader as texCoordAlt.
+  // Here we treat |min| as bottom left with default (0,0) and |max| as top
+  // right with default (1,1) to match lullaby coordinates for convenience.
+  // The v1 coordinate is remapped in the shader with 0 as the default top and 1
+  // as the default bottom.
+  texture_alt_min: Vec2 (native_default:"{0.f, 0.f}");
+  texture_alt_max: Vec2 (native_default:"{1.f, 1.f}");
 }

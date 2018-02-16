@@ -16,14 +16,13 @@ limitations under the License.
 
 #include "lullaby/systems/nine_patch/nine_patch_system.h"
 
-#include "lullaby/generated/nine_patch_def_generated.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
-#include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/systems/layout/layout_box_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/generated/nine_patch_def_generated.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
@@ -46,8 +45,7 @@ NinePatchSystem::~NinePatchSystem() {
   dispatcher->DisconnectAll(this);
 }
 
-void NinePatchSystem::PostCreateInit(Entity entity, DefType type,
-                                     const Def* def) {
+void NinePatchSystem::Create(Entity entity, DefType type, const Def* def) {
   if (type != kNinePatchDefHash) {
     LOG(DFATAL) << "NinePatchSystem::Create() received invalid DefType";
     return;
@@ -57,22 +55,37 @@ void NinePatchSystem::PostCreateInit(Entity entity, DefType type,
 
   NinePatch& nine_patch = nine_patches_[entity];
 
-  MathfuVec2FromFbVec2(data->size(), &nine_patch.size);
-  nine_patch.left_slice = data->left_slice();
-  nine_patch.right_slice = data->right_slice();
-  nine_patch.bottom_slice = data->bottom_slice();
-  nine_patch.top_slice = data->top_slice();
-  MathfuVec2FromFbVec2(data->original_size(), &nine_patch.original_size);
-  if (data->subdivisions()) {
-    MathfuVec2iFromFbVec2i(data->subdivisions(), &nine_patch.subdivisions);
-    DCHECK_GE(nine_patch.subdivisions.x, 1);
-    DCHECK_GE(nine_patch.subdivisions.y, 1);
+  NinePatchFromDef(data, &nine_patch);
+}
+
+void NinePatchSystem::PostCreateInit(Entity entity, DefType type,
+                                     const Def* /*def*/) {
+  if (type != kNinePatchDefHash) {
+    LOG(DFATAL) << "NinePatchSystem::PostCreateInit() received invalid DefType";
+    return;
   }
 
-  UpdateNinePatchMesh(entity, kNullEntity, &nine_patch);
+  auto iter = nine_patches_.find(entity);
+  if (iter == nine_patches_.end()) {
+    LOG(WARNING) << "Entity is not registered with the NinePatchSystem: "
+                 << entity;
+    return;
+  }
+  UpdateNinePatchMesh(entity, kNullEntity, &iter->second);
 }
 
 void NinePatchSystem::Destroy(Entity entity) { nine_patches_.erase(entity); }
+
+void NinePatchSystem::SetSize(Entity entity, const mathfu::vec2& size) {
+  auto iter = nine_patches_.find(entity);
+  if (iter == nine_patches_.end()) {
+    LOG(WARNING) << "Entity is not registered with the NinePatchSystem: "
+                 << entity;
+    return;
+  }
+  iter->second.size = size;
+  UpdateNinePatchMesh(entity, kNullEntity, &iter->second);
+}
 
 Optional<mathfu::vec2> NinePatchSystem::GetSize(Entity entity) const {
   auto iter = nine_patches_.find(entity);
@@ -80,6 +93,25 @@ Optional<mathfu::vec2> NinePatchSystem::GetSize(Entity entity) const {
     return Optional<mathfu::vec2>();
   }
   return iter->second.size;
+}
+
+void NinePatchSystem::SetOriginalSize(Entity entity, const mathfu::vec2& size) {
+  auto iter = nine_patches_.find(entity);
+  if (iter == nine_patches_.end()) {
+    LOG(WARNING) << "Entity is not registered with the NinePatchSystem: "
+                 << entity;
+    return;
+  }
+  iter->second.original_size = size;
+  UpdateNinePatchMesh(entity, kNullEntity, &iter->second);
+}
+
+Optional<mathfu::vec2> NinePatchSystem::GetOriginalSize(Entity entity) const {
+  auto iter = nine_patches_.find(entity);
+  if (iter == nine_patches_.end()) {
+    return Optional<mathfu::vec2>();
+  }
+  return iter->second.original_size;
 }
 
 void NinePatchSystem::UpdateNinePatchMesh(Entity entity, Entity source,

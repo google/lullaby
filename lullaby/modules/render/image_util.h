@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <stdint.h>
 
+#include "lullaby/modules/render/image_data.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
@@ -27,6 +28,9 @@ namespace lull {
 // pixels at |out_rgba_ptr|.  The alpha values are set to 255.
 void ConvertRgb888ToRgba8888(const uint8_t* rgb_ptr, const mathfu::vec2i& size,
                              uint8_t* out_rgba_ptr);
+
+// Multiplies the RGB-components of an RGBA image with its Alpha component.
+void MultiplyRgbByAlpha(uint8_t* data, const mathfu::vec2i& size);
 
 }  // namespace lull
 

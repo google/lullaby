@@ -19,6 +19,8 @@ limitations under the License.
 
 #include <vector>
 
+#include "lullaby/systems/render/shader.h"
+#include "lullaby/systems/render/texture.h"
 #include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 
@@ -60,6 +62,11 @@ void DrawText2D(const char* tag_name, Color4ub color, const char* text);
 void DrawBox3D(const char* tag_name,
                const mathfu::mat4& world_from_object_matrix, const Aabb& box,
                Color4ub color);
+
+// Adds a 2D screen space quad to the debug render queue.
+// Origin is at screen center and 1.0 is approximately screen height.
+void DrawQuad2D(const char* tag_name, Color4ub color, float x, float y, float w,
+                float h, const TexturePtr& texture);
 
 // Calls drawing for all enabled elements in element buffer. Must be callled in
 // between Begin() and End() after main render_system->Render().

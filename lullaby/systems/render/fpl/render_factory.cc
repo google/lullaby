@@ -21,9 +21,10 @@ limitations under the License.
 #include "fplbase/render_utils.h"
 #include "fplbase/utilities.h"
 #include "lullaby/modules/file/asset_loader.h"
-#include "lullaby/modules/file/file.h"
 #include "lullaby/systems/render/fpl/shader.h"
 #include "lullaby/systems/render/fpl/texture.h"
+#include "lullaby/util/android_context.h"
+#include "lullaby/util/filename.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/trace.h"
 
@@ -86,13 +87,20 @@ fplbase::Texture* CreateWatermelonTexture() {
       data, mathfu::vec2i(kTextureSize, kTextureSize), fplbase::kFormat8888,
       fplbase::kTextureFlagsNone);
 }
-
 }  // namespace
 
 RenderFactory::RenderFactory(Registry* registry, fplbase::Renderer* renderer)
-    : registry_(registry),
-      fpl_renderer_(renderer),
-      fpl_asset_manager_(std::make_shared<fplbase::AssetManager>(*renderer)) {
+    : registry_(registry), fpl_renderer_(renderer) {
+#ifdef __ANDROID__
+  if (fplbase::GetAAssetManager() == nullptr) {
+    auto* context = registry->Get<AndroidContext>();
+    if (context) {
+      fplbase::SetAAssetManager(context->GetAndroidAssetManager());
+    }
+  }
+#endif
+
+  fpl_asset_manager_ = std::make_shared<fplbase::AssetManager>(*renderer);
   fpl_asset_manager_->StartLoadingTextures();
 
   fplbase::Texture* white_fpl_texture = CreateWhiteTexture();
@@ -147,6 +155,36 @@ void RenderFactory::LoadTextureAtlas(const std::string& filename,
   });
 }
 
+TexturePtr RenderFactory::CreateTexture(const ImageData& image,
+                                        bool create_mips) {
+  fplbase::TextureFormat format = fplbase::kFormatCount;
+  switch (image.GetFormat()) {
+    case ImageData::kLuminance:
+      format = fplbase::kFormatLuminance;
+      break;
+    case ImageData::kLuminanceAlpha:
+      format = fplbase::kFormatLuminanceAlpha;
+      break;
+    case ImageData::kRgb888:
+      format = fplbase::kFormat888;
+      break;
+    case ImageData::kRgba8888:
+      format = fplbase::kFormat8888;
+      break;
+    case ImageData::kRgb565:
+      format = fplbase::kFormat565;
+      break;
+    case ImageData::kRgba5551:
+      format = fplbase::kFormat5551;
+      break;
+    default:
+      LOG(DFATAL) << "Unsupported format: " << image.GetFormat();
+      return nullptr;
+  }
+  return CreateTextureFromMemory(image.GetBytes(), image.GetSize(), format,
+                                 create_mips);
+}
+
 TexturePtr RenderFactory::CreateTextureFromMemory(const void* data,
                                                   const mathfu::vec2i size,
                                                   fplbase::TextureFormat format,
@@ -159,7 +197,6 @@ TexturePtr RenderFactory::CreateTextureFromMemory(const void* data,
   return TexturePtr(new Texture(Texture::TextureImplPtr(
       texture, [](const fplbase::Texture* texture) { delete texture; })));
 }
-
 
 TexturePtr RenderFactory::CreateProcessedTexture(
     const TexturePtr& texture, bool create_mips,
@@ -214,7 +251,7 @@ TexturePtr RenderFactory::CreateProcessedTexture(
   TexturePtr out_ptr;
   if (target_is_subtexture) {
     const mathfu::vec4 bounds(0.f, 0.f, texture_u_bound, texture_v_bound);
-    out_ptr = TexturePtr(new Texture(std::move(out), bounds));
+    out_ptr = TexturePtr(new Texture(std::move(out), bounds, ""));
   } else {
     out_ptr = TexturePtr(new Texture(std::move(out)));
   }
@@ -297,8 +334,15 @@ Mesh::MeshImplPtr RenderFactory::LoadFplMesh(const std::string& name) {
 
   std::weak_ptr<fplbase::AssetManager> asset_manager_weak = fpl_asset_manager_;
   return Mesh::MeshImplPtr(
-      mesh, [asset_manager_weak, name](const fplbase::Mesh*) {
+      mesh, [asset_manager_weak, name](const fplbase::Mesh* mesh) {
         if (auto asset_manager = asset_manager_weak.lock()) {
+          const size_t num_mats = mesh->GetNumIndexBufferObjects();
+          for (int i = 0; i < static_cast<int>(num_mats); ++i) {
+            const std::string& filename = mesh->GetMaterial(i)->filename();
+            if (!filename.empty()) {
+              asset_manager->UnloadMaterial(filename.c_str());
+            }
+          }
           asset_manager->UnloadMesh(name.c_str());
         }
       });
@@ -366,7 +410,7 @@ Texture::AtlasImplPtr RenderFactory::LoadFplTextureAtlas(
       Texture::TextureImplPtr ptr(fpl_texture, [](const fplbase::Texture*) {
         // Do nothing.  The texture is owned by the atlas.
       });
-      return TexturePtr(new Texture(std::move(ptr), uvs));
+      return TexturePtr(new Texture(std::move(ptr), uvs, iter.first));
     });
   }
 
@@ -428,4 +472,31 @@ void RenderFactory::ReleaseTextureFromCache(HashValue key) {
   textures_.Release(key);
 }
 
+void RenderFactory::PushNewResourceGroup() {
+  textures_.PushNewResourceGroup();
+  meshes_.PushNewResourceGroup();
+  shaders_.PushNewResourceGroup();
+}
+
+void RenderFactory::ReleaseResourceGroup(RenderFactory::ResourceGroup group) {
+  auto group_impl = reinterpret_cast<ResourceGroupImpl*>(group);
+  auto it = std::find_if(
+      detached_resource_groups_.begin(), detached_resource_groups_.end(),
+      [&](ResourceGroupImpl& query) { return &query == group_impl; });
+  if (it != detached_resource_groups_.end()) {
+    textures_.ReleaseResourceGroup(group_impl->texture_group);
+    meshes_.ReleaseResourceGroup(group_impl->mesh_group);
+    shaders_.ReleaseResourceGroup(group_impl->shader_group);
+    detached_resource_groups_.erase(it);
+  }
+}
+
+RenderFactory::ResourceGroup RenderFactory::PopResourceGroup() {
+  detached_resource_groups_.emplace_back();
+  auto result = &detached_resource_groups_.back();
+  result->texture_group = textures_.PopResourceGroup();
+  result->mesh_group = meshes_.PopResourceGroup();
+  result->shader_group = shaders_.PopResourceGroup();
+  return reinterpret_cast<ResourceGroupStub*>(result);
+}
 }  // namespace lull

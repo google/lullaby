@@ -16,7 +16,7 @@ cc_library(
     ],
     hdrs = public_headers,
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",

@@ -20,7 +20,7 @@ cc_library(
         "spline_modifiers.h",
     ],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",

@@ -34,6 +34,8 @@ class NameSystem : public System {
   NameSystem(Registry* registry, bool allow_duplicate_names);
   explicit NameSystem(Registry* registry) : NameSystem(registry, false) {}
 
+  ~NameSystem() override;
+
   // Associates |entity| with a name. Removes any existing name associated
   // with this entity.
   void Create(Entity entity, HashValue type, const Def* def) override;

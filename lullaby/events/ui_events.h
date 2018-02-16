@@ -19,7 +19,7 @@ limitations under the License.
 
 #include <string>
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {

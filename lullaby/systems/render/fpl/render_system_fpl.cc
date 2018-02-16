@@ -26,10 +26,8 @@ limitations under the License.
 #include "lullaby/modules/config/config.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
-#include "lullaby/modules/file/file.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/render/mesh_util.h"
-#include "lullaby/modules/render/triangle_mesh.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
@@ -38,6 +36,7 @@ limitations under the License.
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/render/simple_font.h"
 #include "lullaby/systems/text/text_system.h"
+#include "lullaby/util/filename.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/trace.h"
@@ -67,25 +66,6 @@ void SetDebugUniform(Shader* shader, const char* name, const float values[4]) {
   }
 }
 
-void DrawDynamicMesh(const MeshData* mesh) {
-  const fplbase::Mesh::Primitive prim =
-      Mesh::GetFplPrimitiveType(mesh->GetPrimitiveType());
-  const VertexFormat& vertex_format = mesh->GetVertexFormat();
-  const uint32_t vertex_size =
-      static_cast<uint32_t>(vertex_format.GetVertexSize());
-  fplbase::Attribute fpl_attribs[Mesh::kMaxFplAttributeArraySize];
-  Mesh::GetFplAttributes(vertex_format, fpl_attribs);
-
-  if (mesh->GetNumIndices() > 0) {
-    fplbase::RenderArray(prim, static_cast<int>(mesh->GetNumIndices()),
-                         fpl_attribs, vertex_size, mesh->GetVertexBytes(),
-                         mesh->GetIndexData());
-  } else {
-    fplbase::RenderArray(prim, mesh->GetNumVertices(), fpl_attribs, vertex_size,
-                         mesh->GetVertexBytes());
-  }
-}
-
 void UpdateUniformBinding(Uniform::Description* desc, const ShaderPtr& shader) {
   if (!desc) {
     return;
@@ -105,23 +85,29 @@ void UpdateUniformBinding(Uniform::Description* desc, const ShaderPtr& shader) {
 
 }  // namespace
 
-RenderSystemFpl::RenderSystemFpl(Registry* registry)
+RenderSystemFpl::RenderSystemFpl(Registry* registry,
+                                 const RenderSystem::InitParams& init_params)
     : System(registry),
       render_component_pools_(registry),
       sort_order_manager_(registry_),
+      multiview_enabled_(init_params.enable_stereo_multiview),
       clip_from_model_matrix_func_(CalculateClipFromModelMatrix) {
   renderer_.Initialize(mathfu::kZeros2i, "lull::RenderSystem");
 
   factory_ = registry->Create<RenderFactory>(registry, &renderer_);
 
-  SetSortMode(RenderPass_Opaque, SortMode::kAverageSpaceOriginFrontToBack);
+  SetSortMode(RenderPass_Opaque, SortMode_AverageSpaceOriginFrontToBack);
 
-  SetSortMode(RenderPass_Main, SortMode::kSortOrderIncreasing);
+  SetSortMode(RenderPass_Main, SortMode_SortOrderIncreasing);
   SetCullMode(RenderPass_Main, CullMode::kNone);
 
-  registry_->Get<Dispatcher>()->Connect(
-      this,
-      [this](const ParentChangedEvent& event) { OnParentChanged(event); });
+  auto* dispatcher = registry->Get<Dispatcher>();
+  dispatcher->Connect(this, [this](const ParentChangedEvent& event) {
+    UpdateSortOrder(event.target);
+  });
+  dispatcher->Connect(this, [this](const ChildIndexChangedEvent& event) {
+    UpdateSortOrder(event.target);
+  });
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
@@ -197,6 +183,10 @@ MeshPtr RenderSystemFpl::LoadMesh(const std::string& filename) {
   return factory_->LoadMesh(filename);
 }
 
+TexturePtr RenderSystemFpl::CreateTexture(const ImageData& image,
+                                          bool create_mips) {
+  return factory_->CreateTexture(image, create_mips);
+}
 
 ShaderPtr RenderSystemFpl::LoadShader(const std::string& filename) {
   return factory_->LoadShader(filename);
@@ -210,28 +200,31 @@ void RenderSystemFpl::Create(Entity e, HashValue type, const Def* def) {
   }
 }
 
-void RenderSystemFpl::Create(Entity e, RenderPass pass) {
-  RenderComponent& component =
-      render_component_pools_.EmplaceComponent(e, pass);
-  component.pass = pass;
+void RenderSystemFpl::Create(Entity e, HashValue pass) {
+  pass = FixRenderPass(pass);
+  RenderComponent& component = render_component_pools_.EmplaceComponent(
+      e, static_cast<RenderPass>(pass));
+  component.pass = static_cast<RenderPass>(pass);
 
-  sort_order_manager_.UpdateSortOrder(e, [this](EntityIdPair entity_id_pair) {
-    return render_component_pools_.GetComponent(entity_id_pair.entity);
-  });
+  sort_order_manager_.UpdateSortOrder(
+      e, [this](detail::EntityIdPair entity_id_pair) {
+        return render_component_pools_.GetComponent(entity_id_pair.entity);
+      });
 }
 
 
 void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
                                                    const RenderDef& data) {
+  HashValue pass = FixRenderPass(data.pass());
   RenderComponent* component;
   if (data.hidden()) {
     component = &render_component_pools_.GetPool(RenderPass_Invisible)
                      .EmplaceComponent(e);
   } else {
-    component =
-        &render_component_pools_.GetPool(data.pass()).EmplaceComponent(e);
+    component = &render_component_pools_.GetPool(static_cast<RenderPass>(pass))
+                     .EmplaceComponent(e);
   }
-  component->pass = data.pass();
+  component->pass = static_cast<RenderPass>(pass);
   component->hidden = data.hidden();
 
   // If the def has been generated from a RenderDefT, its members will always
@@ -352,7 +345,7 @@ void RenderSystemFpl::Destroy(Entity e) {
   sort_order_manager_.Destroy(e);
 }
 
-RenderPass RenderSystemFpl::GetRenderPass(Entity entity) const {
+HashValue RenderSystemFpl::GetRenderPass(Entity entity) const {
   const RenderComponent* component =
       render_component_pools_.GetComponent(entity);
   return component ? component->pass : RenderPass_Invalid;
@@ -551,7 +544,9 @@ void RenderSystemFpl::SetBoneTransforms(
   shader_transforms_.resize(num_shader_bones);
 
   if (num_transforms != component->mesh->GetNumBones()) {
-    LOG(DFATAL) << "Mesh must have " << num_transforms << " bones.";
+    LOG(ERROR) << "Incorrect bone count. Mesh contains "
+        << component->mesh->GetNumBones() << " bones, but was expecting "
+        << num_transforms << " bones.";
     return;
   }
   component->mesh->GatherShaderTransforms(transforms,
@@ -658,13 +653,6 @@ void RenderSystemFpl::SetText(Entity e, const std::string& text) {
   text_system->SetText(e, text);
 }
 
-const std::vector<LinkTag>* RenderSystemFpl::GetLinkTags(Entity e) const {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
-  const TextSystem* text_system = registry_->Get<TextSystem>();
-  CHECK(text_system) << "Missing text system.";
-  return text_system->GetLinkTags(e);
-}
-
 void RenderSystemFpl::SetQuad(Entity e, const Quad& quad) {
   auto* render_component = render_component_pools_.GetComponent(e);
   if (!render_component) {
@@ -705,15 +693,6 @@ bool RenderSystemFpl::GetQuad(Entity e, Quad* quad) const {
   return true;
 }
 
-void RenderSystemFpl::SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh) {
-  SetMesh(e, mesh.CreateMeshData());
-}
-
-void RenderSystemFpl::SetAndDeformMesh(Entity entity,
-                                       const TriangleMesh<VertexPT>& mesh) {
-  SetAndDeformMesh(entity, mesh.CreateMeshData());
-}
-
 void RenderSystemFpl::SetMesh(Entity entity, const MeshData& mesh,
                               HashValue mesh_id) {
   MeshPtr gpu_mesh;
@@ -752,6 +731,14 @@ void RenderSystemFpl::SetMesh(Entity e, const std::string& file) {
   SetMesh(e, factory_->LoadMesh(file));
 }
 
+RenderSystemFpl::SortOrder RenderSystemFpl::GetSortOrder(Entity e) const {
+  const auto* render_component = render_component_pools_.GetComponent(e);
+  if (!render_component) {
+    return 0;
+  }
+  return render_component->sort_order;
+}
+
 RenderSystemFpl::SortOrderOffset RenderSystemFpl::GetSortOrderOffset(
     Entity entity) const {
   return sort_order_manager_.GetOffset(entity);
@@ -759,9 +746,10 @@ RenderSystemFpl::SortOrderOffset RenderSystemFpl::GetSortOrderOffset(
 
 void RenderSystemFpl::SetSortOrderOffset(Entity e, SortOrderOffset offset) {
   sort_order_manager_.SetOffset(e, offset);
-  sort_order_manager_.UpdateSortOrder(e, [this](EntityIdPair entity_id_pair) {
-    return render_component_pools_.GetComponent(entity_id_pair.entity);
-  });
+  sort_order_manager_.UpdateSortOrder(
+      e, [this](detail::EntityIdPair entity_id_pair) {
+        return render_component_pools_.GetComponent(entity_id_pair.entity);
+      });
 }
 
 bool RenderSystemFpl::IsTextureSet(Entity e, int unit) const {
@@ -837,6 +825,11 @@ void RenderSystemFpl::SetShader(Entity e, const ShaderPtr& shader) {
   UpdateUniformLocations(render_component);
 }
 
+void RenderSystemFpl::SetMaterial(Entity e, int submesh_index,
+                                  const MaterialInfo& material) {
+  LOG(FATAL) << "Unimplemented.";
+}
+
 void RenderSystemFpl::SetMesh(Entity e, MeshPtr mesh) {
   auto* render_component = render_component_pools_.GetComponent(e);
   if (!render_component) {
@@ -887,7 +880,7 @@ void RenderSystemFpl::DeformMesh(Entity entity, MeshData* mesh) {
   const Deformation deform =
       iter != deformations_.end() ? iter->second : nullptr;
   if (deform) {
-    ApplyDeformationToMesh(mesh, deform);
+    deform(mesh);
   }
 }
 
@@ -940,34 +933,45 @@ void RenderSystemFpl::Show(Entity e) {
   }
 }
 
-void RenderSystemFpl::SetRenderPass(Entity e, RenderPass pass) {
+void RenderSystemFpl::SetRenderPass(Entity e, HashValue pass) {
+  pass = FixRenderPass(pass);
   RenderComponent* render_component = render_component_pools_.GetComponent(e);
   if (render_component) {
-    render_component->pass = pass;
+    render_component->pass = static_cast<RenderPass>(pass);
     if (!render_component->hidden) {
-      render_component_pools_.MoveToPool(e, pass);
+      render_component_pools_.MoveToPool(e, static_cast<RenderPass>(pass));
     }
   }
 }
 
-RenderSystem::SortMode RenderSystemFpl::GetSortMode(RenderPass pass) const {
-  const RenderPool* pool = render_component_pools_.GetExistingPool(pass);
-  return pool ? pool->GetSortMode() : SortMode::kNone;
+SortMode RenderSystemFpl::GetSortMode(HashValue pass) const {
+  pass = FixRenderPass(pass);
+  const RenderPool* pool =
+      render_component_pools_.GetExistingPool(static_cast<RenderPass>(pass));
+  return pool ? pool->GetSortMode() : SortMode_None;
 }
 
-void RenderSystemFpl::SetSortMode(RenderPass pass, SortMode mode) {
-  RenderPool& pool = render_component_pools_.GetPool(pass);
+void RenderSystemFpl::SetSortMode(HashValue pass, SortMode mode) {
+  pass = FixRenderPass(pass);
+  RenderPool& pool =
+      render_component_pools_.GetPool(static_cast<RenderPass>(pass));
   pool.SetSortMode(mode);
 }
 
-void RenderSystemFpl::SetCullMode(RenderPass pass, CullMode mode) {
-  RenderPool& pool = render_component_pools_.GetPool(pass);
+void RenderSystemFpl::SetCullMode(HashValue pass, CullMode mode) {
+  pass = FixRenderPass(pass);
+  RenderPool& pool =
+      render_component_pools_.GetPool(static_cast<RenderPass>(pass));
   pool.SetCullMode(mode);
+}
+
+void RenderSystemFpl::SetDefaultFrontFace(FrontFace face) {
+  default_front_face_ = face;
 }
 
 void RenderSystemFpl::SetDepthTest(const bool enabled) {
   if (enabled) {
-#if !ION_PRODUCTION && !defined(__ANDROID__)
+#if !defined(NDEBUG) && !defined(__ANDROID__)
     // GL_DEPTH_BITS was deprecated in desktop GL 3.3, so make sure this get
     // succeeds before checking depth_bits.
     GLint depth_bits = 0;
@@ -1196,9 +1200,11 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
   // Bit of magic to determine if the scalar is negative and if so flip the cull
   // face. This possibly be revised (b/38235916).
   if (CalculateDeterminant3x3(world_from_entity_matrix) >= 0.0f) {
-    GL_CALL(glFrontFace(GL_CCW));
+    GL_CALL(glFrontFace(default_front_face_ == FrontFace::kClockwise ? GL_CW
+                                                                     : GL_CCW));
   } else {
-    GL_CALL(glFrontFace(GL_CW));
+    GL_CALL(glFrontFace(default_front_face_ == FrontFace::kClockwise ? GL_CCW
+                                                                     : GL_CW));
   }
 
   BindStencilMode(component->stencil_mode, component->stencil_value);
@@ -1286,14 +1292,6 @@ void RenderSystemFpl::DrawMeshFromComponent(const RenderComponent* component) {
   }
 }
 
-const std::vector<mathfu::vec3>* RenderSystemFpl::GetCaretPositions(
-    Entity e) const {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
-  const TextSystem* text_system = registry_->Get<TextSystem>();
-  CHECK(text_system) << "Missing text system.";
-  return text_system->GetCaretPositions(e);
-}
-
 void RenderSystemFpl::RenderDisplayList(const View& view,
                                         const DisplayList& display_list) {
   LULLABY_CPU_TRACE_CALL();
@@ -1320,9 +1318,10 @@ void RenderSystemFpl::RenderDisplayListMultiview(
 }
 
 void RenderSystemFpl::RenderComponentsInPass(const View* views,
-                                             size_t num_views,
-                                             RenderPass pass) {
-  const RenderPool& pool = render_component_pools_.GetPool(pass);
+                                             size_t num_views, HashValue pass) {
+  pass = FixRenderPass(pass);
+  const RenderPool& pool =
+      render_component_pools_.GetPool(static_cast<RenderPass>(pass));
   DisplayList display_list(registry_);
   display_list.Populate(pool, views, num_views);
 
@@ -1363,7 +1362,8 @@ void RenderSystemFpl::Render(const View* views, size_t num_views) {
 }
 
 void RenderSystemFpl::Render(const View* views, size_t num_views,
-                             RenderPass pass) {
+                             HashValue pass) {
+  pass = FixRenderPass(pass);
   LULLABY_CPU_TRACE_CALL();
 
   if (!known_state_) {
@@ -1507,28 +1507,40 @@ void RenderSystemFpl::BindUniform(const char* name, const float* data,
   }
 }
 
-void RenderSystemFpl::DrawPrimitives(PrimitiveType type,
-                                     const VertexFormat& format,
-                                     const void* vertex_data,
-                                     size_t num_vertices) {
-  const fplbase::Mesh::Primitive fpl_type = Mesh::GetFplPrimitiveType(type);
+void RenderSystemFpl::DrawMesh(const MeshData& mesh) {
+  if (mesh.GetNumVertices() == 0) {
+    return;
+  }
+  if (!mesh.GetVertexBytes()) {
+    LOG(DFATAL) << "Can't draw mesh without vertex read access.";
+    return;
+  }
+
+  const fplbase::Mesh::Primitive fpl_prim =
+      Mesh::GetFplPrimitiveType(mesh.GetPrimitiveType());
+  const auto vertex_size =
+      static_cast<int>(mesh.GetVertexFormat().GetVertexSize());
   fplbase::Attribute attributes[Mesh::kMaxFplAttributeArraySize];
-  Mesh::GetFplAttributes(format, attributes);
+  Mesh::GetFplAttributes(mesh.GetVertexFormat(), attributes);
 
-  fplbase::RenderArray(fpl_type, static_cast<int>(num_vertices), attributes,
-                       static_cast<int>(format.GetVertexSize()), vertex_data);
-}
-
-void RenderSystemFpl::DrawIndexedPrimitives(
-    PrimitiveType type, const VertexFormat& format, const void* vertex_data,
-    size_t num_vertices, const uint16_t* indices, size_t num_indices) {
-  const fplbase::Mesh::Primitive fpl_type = Mesh::GetFplPrimitiveType(type);
-  fplbase::Attribute attributes[Mesh::kMaxFplAttributeArraySize];
-  Mesh::GetFplAttributes(format, attributes);
-
-  fplbase::RenderArray(fpl_type, static_cast<int>(num_indices), attributes,
-                       static_cast<int>(format.GetVertexSize()), vertex_data,
-                       indices);
+  if (mesh.GetNumIndices() > 0) {
+    if (!mesh.GetIndexBytes()) {
+      LOG(DFATAL) << "Can't draw mesh without index read access.";
+      return;
+    }
+    if (mesh.GetIndexType() == MeshData::kIndexU16) {
+      fplbase::RenderArray(fpl_prim, static_cast<int>(mesh.GetNumIndices()),
+                           attributes, vertex_size, mesh.GetVertexBytes(),
+                           mesh.GetIndexData<uint16_t>());
+    } else {
+      fplbase::RenderArray(fpl_prim, static_cast<int>(mesh.GetNumIndices()),
+                           attributes, vertex_size, mesh.GetVertexBytes(),
+                           mesh.GetIndexData<uint32_t>());
+    }
+  } else {
+    fplbase::RenderArray(fpl_prim, static_cast<int>(mesh.GetNumVertices()),
+                         attributes, vertex_size, mesh.GetVertexBytes());
+  }
 }
 
 void RenderSystemFpl::UpdateDynamicMesh(
@@ -1542,12 +1554,13 @@ void RenderSystemFpl::UpdateDynamicMesh(
   }
 
   if (max_vertices > 0) {
+    const MeshData::IndexType index_type = MeshData::kIndexU16;
     DataContainer vertex_data = DataContainer::CreateHeapDataContainer(
         max_vertices * vertex_format.GetVertexSize());
     DataContainer index_data = DataContainer::CreateHeapDataContainer(
-        max_indices * sizeof(MeshData::Index));
+        max_indices * MeshData::GetIndexSize(index_type));
     MeshData data(primitive_type, vertex_format, std::move(vertex_data),
-                  std::move(index_data));
+                  index_type, std::move(index_data));
     update_mesh(&data);
     component->mesh = factory_->CreateMesh(data);
   } else {
@@ -1659,14 +1672,7 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
       text.Print(buf);
     }
 
-    if (!text.GetMesh().IsEmpty()) {
-      const TriangleMesh<VertexPT>& mesh = text.GetMesh();
-      auto vertices = mesh.GetVertices();
-      auto indices = mesh.GetIndices();
-      DrawIndexedPrimitives(MeshData::PrimitiveType::kTriangles,
-                            VertexPT::kFormat, vertices.data(), vertices.size(),
-                            indices.data(), indices.size());
-    }
+    registry_->Get<RenderSystem>()->DrawMesh(text.GetMesh());
   }
 
   // Cleanup render state.
@@ -1674,9 +1680,9 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
   SetDepthWrite(true);
 }
 
-void RenderSystemFpl::OnParentChanged(const ParentChangedEvent& event) {
+void RenderSystemFpl::UpdateSortOrder(Entity entity) {
   sort_order_manager_.UpdateSortOrder(
-      event.target, [this](EntityIdPair entity_id_pair) {
+      entity, [this](detail::EntityIdPair entity_id_pair) {
         return render_component_pools_.GetComponent(entity_id_pair.entity);
       });
 }
@@ -1691,8 +1697,8 @@ void RenderSystemFpl::UpdateCachedRenderState(
 }
 
 void RenderSystemFpl::CreateRenderTarget(
-    HashValue render_target_name, const mathfu::vec2i& dimensions,
-    TextureFormat texture_format, DepthStencilFormat depth_stencil_format) {
+    HashValue /*render_target_name*/,
+    const RenderTargetCreateParams& /*create_params*/) {
   LOG(DFATAL) << "CreateRenderTarget is not supported with Render System Fpl.";
 }
 
@@ -1769,64 +1775,52 @@ void RenderSystemFpl::BindUniform(const Uniform& uniform) {
   }
 }
 
-void RenderSystemFpl::Create(Entity /*e*/, HashValue component_id,
-                             RenderPass pass) {
+void RenderSystemFpl::Create(Entity /*e*/, HashValue pass,
+                             HashValue /*pass_enum*/) {
+  LOG(WARNING) << "DEPRECATED: use Create(entity, pass) instead!";
+}
+void RenderSystemFpl::Destroy(Entity /*e*/, HashValue pass) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::Destroy(Entity /*e*/, HashValue component_id) {
+void RenderSystemFpl::SetUniform(Entity /*e*/, HashValue pass, const char* name,
+                                 const float* data, int dimension,
+                                 int /*count*/) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::SetUniform(Entity /*e*/, HashValue component_id,
-                                 const char* name, const float* data,
-                                 int dimension, int /*count*/) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-}
-bool RenderSystemFpl::GetUniform(Entity /*e*/, HashValue component_id,
-                                 const char* name, size_t length,
-                                 float* data_out) const {
+bool RenderSystemFpl::GetUniform(Entity /*e*/, HashValue pass, const char* name,
+                                 size_t length, float* data_out) const {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
   return false;
 }
-void RenderSystemFpl::SetMesh(Entity /*e*/, HashValue component_id,
+void RenderSystemFpl::SetMesh(Entity e, HashValue /*pass*/,
                               const MeshPtr& mesh) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  SetMesh(e, mesh);
 }
-MeshPtr RenderSystemFpl::GetMesh(Entity /*e*/, HashValue component_id) {
+MeshPtr RenderSystemFpl::GetMesh(Entity e, HashValue /*pass*/) {
+  RenderComponent* component = render_component_pools_.GetComponent(e);
+  return component ? component->mesh : nullptr;
+}
+ShaderPtr RenderSystemFpl::GetShader(Entity /*entity*/, HashValue pass) const {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
   return nullptr;
 }
-ShaderPtr RenderSystemFpl::GetShader(Entity /*entity*/,
-                                     HashValue component_id) const {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-  return nullptr;
-}
-void RenderSystemFpl::SetShader(Entity /*e*/, HashValue component_id,
+void RenderSystemFpl::SetShader(Entity /*e*/, HashValue pass,
                                 const ShaderPtr& shader) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::SetTexture(Entity /*e*/, HashValue component_id, int unit,
+void RenderSystemFpl::SetTexture(Entity /*e*/, HashValue pass, int unit,
                                  const TexturePtr& texture) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::SetTextureId(Entity /*e*/, HashValue component_id,
-                                   int unit, uint32_t texture_target,
+void RenderSystemFpl::SetTextureId(Entity /*e*/, HashValue pass, int unit,
+                                   uint32_t texture_target,
                                    uint32_t texture_id) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::SetQuad(Entity /*e*/, HashValue component_id,
-                              const Quad& quad) {
+void RenderSystemFpl::SetQuad(Entity /*e*/, HashValue pass, const Quad& quad) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::SetMesh(Entity /*e*/, HashValue component_id,
-                              const TriangleMesh<VertexPT>& mesh) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-}
-void RenderSystemFpl::SetAndDeformMesh(Entity /*entity*/,
-                                       HashValue component_id,
-                                       const TriangleMesh<VertexPT>& mesh) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-}
-void RenderSystemFpl::SetSortOrderOffset(Entity /*e*/, HashValue component_id,
+void RenderSystemFpl::SetSortOrderOffset(Entity /*e*/, HashValue pass,
                                          SortOrderOffset offset) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }

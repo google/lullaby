@@ -1,0 +1,146 @@
+namespace lull;
+
+attribute "defaults_to_null";
+attribute "dynamic";
+attribute "hashvalue";
+
+struct Vec2 (native_type: "mathfu::vec2", native_default: "{0.f, 0.f}") {
+  x: float;
+  y: float;
+}
+
+struct Vec2i (native_type: "mathfu::vec2i", native_default: "{0, 0}") {
+  x: int;
+  y: int;
+}
+
+struct Vec3 (native_type: "mathfu::vec3", native_default: "{0.f, 0.f, 0.f}") {
+  x: float;
+  y: float;
+  z: float;
+}
+
+struct Vec4 (native_type: "mathfu::vec4", native_default: "{0.f, 0.f, 0.f, 0.f}") {
+  x: float;
+  y: float;
+  z: float;
+  w: float;
+}
+
+struct Quat (native_type: "mathfu::quat", native_default: "{0.f, 0.f, 0.f, 1.f}") {
+  x: float;
+  y: float;
+  z: float;
+  w: float;
+}
+
+struct Rect (native_type: "mathfu::rectf") {
+  x: float;
+  y: float;
+  w: float;
+  h: float;
+}
+
+struct Color (native_type: "lull::Color4ub") {
+  r: float;
+  g: float;
+  b: float;
+  a: float;
+}
+
+struct AabbDef (native_type: "lull::Aabb") {
+  min: Vec3;
+  max: Vec3;
+}
+
+struct Mat4x3 (native_type: "mathfu::AffineTransform", native_default: "{1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f}") {
+  c0: Vec4;
+  c1: Vec4;
+  c2: Vec4;
+}
+
+/// ArcDef defines a portion of a circulur annulus.
+struct ArcDef {
+  /// The angle (in radians) in which the start of the arc should be poised at.
+  /// 0 = vertical [0,1]. PI = [0,-1], PI/2 = [1,0].
+  start_angle: float;
+
+  /// Size of the arc measured in radians. PI = half circle, 2 PI = full circle.
+  angle_size: float;
+
+  /// Inner radius of the arc.
+  inner_radius: float;
+
+  /// Outer radius of the arc.
+  outer_radius: float;
+
+  /// Number of samples used for drawing the arc.
+  num_samples: int;
+}
+
+/// The directions a layout will grow in.
+/// This controls the ordering of elements within wrapping rows, but not the
+/// horizontal alignment of those rows as a whole (which is controlled by
+/// LayoutHorizontalAlignment).
+enum LayoutFillOrder : int {
+  /// The first entity is added leftmost, and subsequent entities go to the
+  /// right (and then down if wrapping is enabled).
+  RightDown,
+  /// The first entity is added rightmost, and subsequent entities go to the
+  /// left (and then down if wrapping is enabled).
+  LeftDown,
+  /// The first entity is added leftmost, and subsequent entities go down
+  /// (and then right if wrapping is enabled).
+  DownRight,
+  /// The first entity is added rightmost, and subsequent entities go down
+  /// (and then left if wrapping is enabled).
+  DownLeft,
+  /// The first entity is added leftmost, and subsequent entities go to the
+  /// right (and then up if wrapping is enabled).
+  RightUp,
+  /// The first entity is added rightmost, and subsequent entities go to the
+  /// left (and then up if wrapping is enabled).
+  LeftUp,
+  /// The first entity is added leftmost, and subsequent entities go up
+  /// (and then right if wrapping is enabled).
+  UpRight,
+  /// The first entity is added rightmost, and subsequent entities go up
+  /// (and then left if wrapping is enabled).
+  UpLeft,
+}
+
+/// The anchor at which the entities will be aligned relative to the canvas.
+enum LayoutHorizontalAlignment : int {
+  /// The left border of the leftmost element will align to the left side of the
+  /// canvas.
+  Left,
+  /// The layout will be centered horizontally on the canvas.
+  Center,
+  /// The right border of the rightmost element will align to the right side of
+  /// the canvas.
+  Right,
+}
+
+/// The anchor at which the entities will be aligned *within* each row.
+/// Note that rows collectively are still top aligned relative to the canvas.
+/// To center align within the canvas, add a placeholder child entity with the
+/// same height as the canvas.
+enum LayoutVerticalAlignment : int {
+  /// Each entity will align to the top of its row in the layout.
+  Top,
+  /// Each entity will be centered within its row.
+  Center,
+  /// Each entity will align to the bottom of its row.
+  Bottom,
+}
+
+/// Potential Input Devices (matches enum in
+/// vr/internal/lullaby/src/base/input_manager.h)
+enum DeviceType : int {
+  Hmd,
+  Mouse,
+  Keyboard,
+  Controller,
+  Controller2,
+  Hand,
+}

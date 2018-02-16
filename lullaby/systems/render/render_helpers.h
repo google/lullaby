@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_RENDER_HELPERS_H_
 #define LULLABY_SYSTEMS_RENDER_RENDER_HELPERS_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 
@@ -29,9 +29,17 @@ void SetAlphaMultiplierDescendants(Entity entity, float alpha_multiplier,
                                    const TransformSystem* transform_system,
                                    RenderSystem* render_system);
 
+// Updates the render passes for an entity and its descendants.
+void SetRenderPassDescendants(Entity entity, RenderPass pass,
+                              const TransformSystem* transform_system,
+                              RenderSystem* render_system);
+
 // The default function for calculating the clip_from_model_matrix.
 mathfu::mat4 CalculateClipFromModelMatrix(const mathfu::mat4& model,
                                           const mathfu::mat4& projection_view);
+
+/// Attempts to ensure the RenderPass value is valid and fixes it for rendering.
+HashValue FixRenderPass(HashValue pass);
 
 }  // namespace lull
 

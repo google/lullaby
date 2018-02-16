@@ -17,9 +17,6 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_ATLAS_FACTORY_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_TEXTURE_ATLAS_FACTORY_H_
 
-#include "fplbase/asset_manager.h"
-#include "fplbase/renderer.h"
-#include "fplbase/texture_atlas.h"
 #include "lullaby/systems/render/next/texture_atlas.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/util/registry.h"
@@ -33,7 +30,7 @@ namespace lull {
 // must be explicitly released.
 class TextureAtlasFactory {
  public:
-  TextureAtlasFactory(Registry* registry, fplbase::Renderer* renderer);
+  explicit TextureAtlasFactory(Registry* registry);
   TextureAtlasFactory(const TextureAtlasFactory&) = delete;
   TextureAtlasFactory& operator=(const TextureAtlasFactory&) = delete;
 
@@ -46,7 +43,6 @@ class TextureAtlasFactory {
 
  private:
   Registry* registry_;
-  fplbase::Renderer* fpl_renderer_;
   ResourceManager<TextureAtlas> atlases_;
 };
 

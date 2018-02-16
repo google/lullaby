@@ -14,30 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "gtest/gtest.h"
-#include "mathfu/constants.h"
-#include "mathfu/glsl_mappings.h"
 #include "lullaby/modules/render/mesh_util.h"
+#include "gtest/gtest.h"
 #include "lullaby/modules/render/vertex.h"
 #include "tests/mathfu_matchers.h"
 #include "tests/portable_test_macros.h"
+#include "mathfu/constants.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 namespace {
 
 constexpr float kEpsilon = 1.0E-5f;
 
-using DeformFn = std::function<mathfu::vec3(const mathfu::vec3&)>;
-
 using testing::NearMathfu;
-
-template <typename T>
-void ApplyDeformationToList(DeformFn deform, std::vector<T>* list) {
-  CHECK_EQ(sizeof(T) % sizeof(float), 0);
-  const size_t stride = sizeof(T) / sizeof(float);
-  ApplyDeformation(reinterpret_cast<float*>(list->data()),
-                   stride * list->size(), stride, deform);
-}
 
 TEST(TesselatedQuadDeathTest, SanityChecks) {
   constexpr const char* kNotEnoughVertsMessage = "Failed to reserve";
@@ -360,36 +350,14 @@ TEST(TessellatedQuad, CreateQuadMesh) {
     EXPECT_EQ(vertex_data[i].v0, vertices[i].v0);
   }
 
-  const MeshData::Index* index_data = mesh.GetIndexData();
+  const uint16_t* index_data = mesh.GetIndexData<uint16_t>();
   ASSERT_TRUE(index_data != nullptr);
   for (size_t i = 0; i < indices.size(); ++i) {
     EXPECT_EQ(index_data[i], indices[i]);
   }
 }
 
-TEST(Deformation, Basic) {
-  auto deform = [](const mathfu::vec3& pos) { return -2.0f * pos; };
-
-  std::vector<mathfu::vec3> list;
-  list.emplace_back(1.0f, 2.0f, 3.0f);
-  list.emplace_back(4.0f, 5.0f, 6.0f);
-  ApplyDeformationToList(deform, &list);
-  EXPECT_EQ(list[0], mathfu::vec3(-2, -4, -6));
-  EXPECT_EQ(list[1], mathfu::vec3(-8, -10, -12));
-}
-
-TEST(Deformation, ExtraDataUntouched) {
-  auto deform = [](const mathfu::vec3& pos) { return -2.0f * pos; };
-
-  std::vector<mathfu::vec4> list;
-  list.emplace_back(1.0f, 2.0f, 3.0f, 4.0f);
-  list.emplace_back(5.0f, 6.0f, 7.0f, 8.0f);
-  ApplyDeformationToList(deform, &list);
-  EXPECT_EQ(list[0], mathfu::vec4(-2, -4, -6, 4));
-  EXPECT_EQ(list[1], mathfu::vec4(-10, -12, -14, 8));
-}
-
-TEST(ApplyDeformation, MeshData) {
+TEST(ApplyDeformation, IsAppliedAsExpectedToMesh) {
   VertexPT vertices[] = {
       VertexPT(1.0f, 2.0f, 3.0f, 0.1f, 0.2f),
       VertexPT(4.0f, 5.0f, 6.0f, 0.3f, 0.4f),
@@ -400,15 +368,9 @@ TEST(ApplyDeformation, MeshData) {
                              [](const uint8_t*) {}),
       sizeof(vertices), sizeof(vertices), DataContainer::kAll);
 
-  MeshData mesh(MeshData::kPoints, VertexPT::kFormat, std::move(vertex_data),
-                DataContainer());
+  MeshData mesh(MeshData::kPoints, VertexPT::kFormat, std::move(vertex_data));
 
-  auto list_deform = [](float* data, size_t count, size_t stride) {
-    auto pos_deform = [](const mathfu::vec3& pos) { return -2.0f * pos; };
-    ApplyDeformation(data, count, stride, pos_deform);
-  };
-
-  ApplyDeformationToMesh(&mesh, list_deform);
+  ApplyDeformation(&mesh, [](const mathfu::vec3& pos) { return -2.0f * pos; });
   EXPECT_THAT(GetPosition(vertices[0]),
               NearMathfu(mathfu::vec3(-2.0f, -4.0f, -6.0f), kEpsilon));
   EXPECT_THAT(GetPosition(vertices[1]),
@@ -424,24 +386,26 @@ TEST(ApplyDeformation, MeshData) {
   EXPECT_EQ(vertices[2].v0, 0.6f);
 }
 
-TEST(ApplyDeformationDeathTest, MeshDataWithInsufficientAccess) {
-  auto deform = [](float* data, size_t count, size_t stride) { LOG(FATAL); };
+TEST(ApplyDeformationDeathTest, FailsWithInsufficientAccess) {
+  auto deform = [](const mathfu::vec3& pos) {
+    LOG(FATAL);
+    return pos;
+  };
 
   uint8_t data_buf[8] = {0};
   DataContainer unreadable_data(
       DataContainer::DataPtr(data_buf, [](const uint8_t*) {}), sizeof(data_buf),
       sizeof(data_buf), DataContainer::kWrite);
   MeshData unreadable_mesh(MeshData::kPoints, VertexP::kFormat,
-                           std::move(unreadable_data), DataContainer());
-  PORT_EXPECT_DEBUG_DEATH(ApplyDeformationToMesh(&unreadable_mesh, deform), "");
+                           std::move(unreadable_data));
+  PORT_EXPECT_DEBUG_DEATH(ApplyDeformation(&unreadable_mesh, deform), "");
 
   DataContainer unwriteable_data(
       DataContainer::DataPtr(data_buf, [](const uint8_t*) {}), sizeof(data_buf),
       sizeof(data_buf), DataContainer::kRead);
   MeshData unwriteable_mesh(MeshData::kPoints, VertexP::kFormat,
-                            std::move(unwriteable_data), DataContainer());
-  PORT_EXPECT_DEBUG_DEATH(ApplyDeformationToMesh(&unwriteable_mesh, deform),
-                          "");
+                            std::move(unwriteable_data));
+  PORT_EXPECT_DEBUG_DEATH(ApplyDeformation(&unwriteable_mesh, deform), "");
 }
 
 TEST(CreateLatLonSphereDeathTest, CatchesBadArguments) {
@@ -452,9 +416,6 @@ TEST(CreateLatLonSphereDeathTest, CatchesBadArguments) {
   PORT_EXPECT_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1,
                                        /* num_meridians = */ 2),
                     "");
-  PORT_EXPECT_DEBUG_DEATH(CreateLatLonSphere(radius, /* num_parallels = */ 1000,
-                                             /* num_meridians = */ 1000),
-                          "Exceeded vertex limit");
 }
 
 TEST(CreateLatLonSphereTest, GeneratesCorrectNumbersOfVerticesAndIndices) {
@@ -462,19 +423,19 @@ TEST(CreateLatLonSphereTest, GeneratesCorrectNumbersOfVerticesAndIndices) {
   MeshData mesh = CreateLatLonSphere(radius, /* num_parallels = */ 1,
                                      /* num_meridians = */ 3);
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
-  EXPECT_EQ(mesh.GetNumVertices(), 5U);
+  EXPECT_EQ(mesh.GetNumVertices(), 6U);
   EXPECT_EQ(mesh.GetNumIndices(), 3U * 6U);
 
   mesh = CreateLatLonSphere(radius, /* num_parallels = */ 1,
                             /* num_meridians = */ 7);
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
-  EXPECT_EQ(mesh.GetNumVertices(), 9U);
+  EXPECT_EQ(mesh.GetNumVertices(), 10U);
   EXPECT_EQ(mesh.GetNumIndices(), 3U * 14U);
 
   mesh = CreateLatLonSphere(radius, /* num_parallels = */ 5,
                             /* num_meridians = */ 3);
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
-  EXPECT_EQ(mesh.GetNumVertices(), 17U);
+  EXPECT_EQ(mesh.GetNumVertices(), 22U);
   EXPECT_EQ(mesh.GetNumIndices(), 3U * (6U + 24U));
 }
 
@@ -482,7 +443,7 @@ TEST(CreateLatLonSphereTest, GeneratesPositionsThatHaveRadiusLength) {
   float radius = 2.5f;
   MeshData mesh = CreateLatLonSphere(radius, /* num_parallels = */ 3,
                                      /* num_meridians = */ 5);
-  for (int i = 0; i < mesh.GetNumVertices(); ++i) {
+  for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
     const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
     EXPECT_NEAR(GetPosition(v).Length(), radius, kDefaultEpsilon);
   }
@@ -490,7 +451,7 @@ TEST(CreateLatLonSphereTest, GeneratesPositionsThatHaveRadiusLength) {
   radius = 8.3f;
   mesh = CreateLatLonSphere(radius, /* num_parallels = */ 4,
                             /* num_meridians = */ 4);
-  for (int i = 0; i < mesh.GetNumVertices(); ++i) {
+  for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
     const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
     EXPECT_NEAR(GetPosition(v).Length(), radius, kDefaultEpsilon);
   }
@@ -501,12 +462,13 @@ TEST(CreateLatLonSphereTest,
   MeshData mesh =
       CreateLatLonSphere(/* radius = */ 1.0f, /* num_parallels = */ 1,
                          /* num_meridians = */ 3);
+  const auto* indices = mesh.GetIndexData<uint32_t>();
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
   for (size_t i = 0; i < mesh.GetNumIndices(); i += 3) {
     const VertexPT* vertices = mesh.GetVertexData<VertexPT>();
-    const mathfu::vec3 p0 = GetPosition(vertices[mesh.GetIndexData()[i + 0]]);
-    const mathfu::vec3 p1 = GetPosition(vertices[mesh.GetIndexData()[i + 1]]);
-    const mathfu::vec3 p2 = GetPosition(vertices[mesh.GetIndexData()[i + 2]]);
+    const mathfu::vec3 p0 = GetPosition(vertices[indices[i + 0]]);
+    const mathfu::vec3 p1 = GetPosition(vertices[indices[i + 1]]);
+    const mathfu::vec3 p2 = GetPosition(vertices[indices[i + 2]]);
     const mathfu::vec3 d1 = p1 - p0;
     const mathfu::vec3 d2 = p2 - p0;
     EXPECT_THAT(d1, Not(NearMathfu(d2, kEpsilon)));
@@ -522,12 +484,13 @@ TEST(CreateLatLonSphereTest,
   MeshData mesh =
       CreateLatLonSphere(/* radius = */ -1.0f, /* num_parallels = */ 1,
                          /* num_meridians = */ 3);
+  const auto* indices = mesh.GetIndexData<uint32_t>();
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
   for (size_t i = 0; i < mesh.GetNumIndices(); i += 3) {
     const VertexPT* vertices = mesh.GetVertexData<VertexPT>();
-    const mathfu::vec3 p0 = GetPosition(vertices[mesh.GetIndexData()[i + 0]]);
-    const mathfu::vec3 p1 = GetPosition(vertices[mesh.GetIndexData()[i + 1]]);
-    const mathfu::vec3 p2 = GetPosition(vertices[mesh.GetIndexData()[i + 2]]);
+    const mathfu::vec3 p0 = GetPosition(vertices[indices[i + 0]]);
+    const mathfu::vec3 p1 = GetPosition(vertices[indices[i + 1]]);
+    const mathfu::vec3 p2 = GetPosition(vertices[indices[i + 2]]);
     const mathfu::vec3 d1 = p1 - p0;
     const mathfu::vec3 d2 = p2 - p0;
     EXPECT_THAT(d1, Not(NearMathfu(d2, kEpsilon)));
@@ -536,6 +499,125 @@ TEST(CreateLatLonSphereTest,
     EXPECT_LT(mathfu::vec3::DotProduct(p1, normal), 0.0f);
     EXPECT_LT(mathfu::vec3::DotProduct(p2, normal), 0.0f);
   }
+}
+
+TEST(CreateLatLonSphereTest, GeneratesUniqueVerticesExceptForWhenUWraps) {
+  MeshData mesh =
+      CreateLatLonSphere(/* radius = */ 2.5f, /* num_parallels = */ 3,
+                         /* num_meridians = */ 5);
+  float min_wrap_v = 1.0f;
+  float max_wrap_v = 0.0f;
+  for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
+    const VertexPT& v1 = mesh.GetVertexData<VertexPT>()[i];
+
+    for (size_t k = i + 1; k < mesh.GetNumVertices(); ++k) {
+      const VertexPT& v2 = mesh.GetVertexData<VertexPT>()[k];
+      const mathfu::vec3 pos_delta = GetPosition(v1) - GetPosition(v2);
+      if (pos_delta.Length() < kDefaultEpsilon) {
+        EXPECT_EQ(v1.v0, v2.v0);
+        EXPECT_TRUE((v1.u0 == 0.0f && v2.u0 == 1.0f) ||
+                    (v1.u0 == 1.0f && v2.u0 == 0.0f));
+        max_wrap_v = std::max(v1.v0, max_wrap_v);
+        min_wrap_v = std::min(v1.v0, min_wrap_v);
+      } else {
+        EXPECT_TRUE(v1.u0 != v2.u0 || v1.v0 != v2.v0);
+      }
+    }
+  }
+
+  EXPECT_LT(min_wrap_v, max_wrap_v);
+}
+
+static void TestThatMeshUvsFollowLatLon(const MeshData& mesh) {
+  for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
+    const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
+    const mathfu::vec3 pos = GetPosition(v);
+    const mathfu::vec2 uv = GetUv0(v);
+    const float lat = std::acos(pos.y / pos.Length());
+    const float expected_v = lat / kPi;
+    EXPECT_NEAR(uv.y, expected_v, kEpsilon);
+
+    // Pole U values are expected to be .5, otherwise they should follow
+    // longitude except for the seam vertices which have u=1.0 at lon=0.
+    if (pos.x == 0.0f && pos.z == 0.0f) {
+      EXPECT_EQ(uv.x, .5f);
+    } else if (uv.x == 1.0f) {
+      EXPECT_EQ(pos.z, 0.0f);
+    } else {
+      float lon = std::atan2(pos.z, pos.x);
+      if (lon < 0.0f) {
+        lon += 2.0f * kPi;
+      }
+      const float expected_u = lon / (2.0f * kPi);
+      EXPECT_NEAR(uv.x, expected_u, kEpsilon);
+    }
+  }
+}
+
+TEST(CreateLatLonSphereTest, GeneratesUvsAccordingToLatLonRegardlessOfFacing) {
+  constexpr float radius = 2.5f;
+  constexpr int num_parallels = 3;
+  constexpr int num_meridians = 5;
+
+  MeshData external = CreateLatLonSphere(radius, num_parallels, num_meridians);
+  MeshData internal = CreateLatLonSphere(-radius, num_parallels, num_meridians);
+
+  TestThatMeshUvsFollowLatLon(external);
+  TestThatMeshUvsFollowLatLon(internal);
+}
+
+TEST(GetBoundingBoxDeathTest, CatchesBadArguments) {
+  VertexP vertices[] = {
+      VertexP(0, 0, 0),
+      VertexP(1, 1, 1),
+  };
+
+  VertexFormat invalid_vertex_format(
+      {{VertexAttributeUsage_Position, VertexAttributeType_Scalar1f}});
+  MeshData invalid_format_mesh(
+      MeshData::kTriangles, invalid_vertex_format,
+      DataContainer(DataContainer::DataPtr(reinterpret_cast<uint8_t*>(vertices),
+                                           [](const uint8_t*) {}),
+                    sizeof(vertices), sizeof(vertices), DataContainer::kWrite));
+
+  PORT_EXPECT_DEBUG_DEATH(GetBoundingBox(invalid_format_mesh),
+                          "Vertex format doesn't have pos3f");
+
+  MeshData write_only_mesh(
+      MeshData::kTriangles, VertexP::kFormat,
+      DataContainer(DataContainer::DataPtr(reinterpret_cast<uint8_t*>(vertices),
+                                           [](const uint8_t*) {}),
+                    sizeof(vertices), sizeof(vertices), DataContainer::kWrite));
+  PORT_EXPECT_DEBUG_DEATH(GetBoundingBox(write_only_mesh),
+                          "without read access");
+}
+
+TEST(GetBoundingBox, BoundsOfAnEmptyMeshIsEmpty) {
+  MeshData empty_mesh(MeshData::kTriangles, VertexP::kFormat, DataContainer());
+  const Aabb box = GetBoundingBox(empty_mesh);
+  EXPECT_EQ(box.min, mathfu::kZeros3f);
+  EXPECT_EQ(box.max, mathfu::kZeros3f);
+}
+
+TEST(GetBoundingBox, MatchesExpectedOutput) {
+  const VertexPT vertices[] = {
+      VertexPT(0, 0, 5, 100, 200), VertexPT(1, 2, 0, 300, 400),
+      VertexPT(0, 8, 2, 500, 600), VertexPT(-4, 3, -1, -100, -200),
+      VertexPT(2, -9, -13, -300, -400)};
+
+  MeshData mesh(
+      MeshData::kTriangles, VertexPT::kFormat,
+      DataContainer::WrapDataAsReadOnly(
+          reinterpret_cast<const uint8_t*>(vertices), sizeof(vertices)));
+
+  const Aabb box = GetBoundingBox(mesh);
+
+  EXPECT_NEAR(box.min.x, -4, kEpsilon);
+  EXPECT_NEAR(box.min.y, -9, kEpsilon);
+  EXPECT_NEAR(box.min.z, -13, kEpsilon);
+  EXPECT_NEAR(box.max.x, 2, kEpsilon);
+  EXPECT_NEAR(box.max.y, 8, kEpsilon);
+  EXPECT_NEAR(box.max.z, 5, kEpsilon);
 }
 
 }  // namespace

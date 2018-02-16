@@ -56,6 +56,53 @@ TEST(ComposingRegionTest, ComposingRegionTest) {
   EXPECT_EQ(3UL, end);
 }
 
+TEST(SetComposingTextTest, SetComposingTextTest) {
+  EditText edit_text;
+  edit_text.SetText("0123456789");
+  size_t composition_start, composition_end, selection_start, selection_end;
+
+  // With previous composition and caret selection.
+  edit_text.SetComposingRegion(1, 3);
+  edit_text.SetComposingText("abc");
+  edit_text.GetComposingRegion(&composition_start, &composition_end);
+  edit_text.GetSelectionRegion(&selection_start, &selection_end);
+  EXPECT_EQ(1UL, composition_start);
+  EXPECT_EQ(4UL, composition_end);
+  EXPECT_EQ(4UL, selection_start);
+  EXPECT_EQ(4UL, selection_end);
+
+  // With previous composition and range selection.
+  edit_text.SetSelectionRegion(4, 6);
+  edit_text.SetComposingText("12");
+  edit_text.GetComposingRegion(&composition_start, &composition_end);
+  edit_text.GetSelectionRegion(&selection_start, &selection_end);
+  EXPECT_EQ(1UL, composition_start);
+  EXPECT_EQ(3UL, composition_end);
+  EXPECT_EQ(3UL, selection_start);
+  EXPECT_EQ(3UL, selection_end);
+
+  // Without previous composition and with caret selection.
+  edit_text.Commit("12");
+  edit_text.SetComposingText("abc");
+  edit_text.GetComposingRegion(&composition_start, &composition_end);
+  edit_text.GetSelectionRegion(&selection_start, &selection_end);
+  EXPECT_EQ(3UL, composition_start);
+  EXPECT_EQ(6UL, composition_end);
+  EXPECT_EQ(6UL, selection_start);
+  EXPECT_EQ(6UL, selection_end);
+
+  // Without previous composition and with range selection.
+  edit_text.Commit("abc");
+  edit_text.SetSelectionRegion(3, 6);
+  edit_text.SetComposingText("de");
+  edit_text.GetComposingRegion(&composition_start, &composition_end);
+  edit_text.GetSelectionRegion(&selection_start, &selection_end);
+  EXPECT_EQ(3UL, composition_start);
+  EXPECT_EQ(5UL, composition_end);
+  EXPECT_EQ(5UL, selection_start);
+  EXPECT_EQ(5UL, selection_end);
+}
+
 TEST(CommitTest, CommitTest) {
   EditText edit_text;
   edit_text.SetText("0123456789");

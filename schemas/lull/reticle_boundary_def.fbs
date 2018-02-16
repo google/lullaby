@@ -1,0 +1,18 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// The reticle boundary is defined in vertical and horizontal direction
+/// separately. The bounded reticle movement will not exceed
+/// [horizontal.x, horizontal.y] in x axis, and [vertical.x, vertical.y]
+/// in y axis. If the vertical boundary is not defined, then the vertical
+/// movement will not be bounded and use absolution pitch orientation.
+/// Otherwise, both horizontal and vertical movement will be relatvie and
+/// bounded. The horizontal boundary should always be defined. Note this
+/// boundary is defined on z = 0 plane, and any transformation on the entity
+/// will be applied and might affect the actual boundary in world space.
+table ReticleBoundaryDef {
+  /// Define the boundary (min, max) with (vec2.x, vec2.y).
+  vertical: Vec2;
+  horizontal: Vec2;
+}

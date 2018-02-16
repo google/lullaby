@@ -17,11 +17,11 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_SHADER_FACTORY_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_SHADER_FACTORY_H_
 
-#include "fplbase/asset_manager.h"
-#include "fplbase/renderer.h"
 #include "lullaby/systems/render/next/shader.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/resource_manager.h"
+#include "lullaby/util/span.h"
+#include "lullaby/generated/shader_def_generated.h"
 
 namespace lull {
 
@@ -31,12 +31,15 @@ namespace lull {
 // reference unless they are explicitly cached.
 class ShaderFactory {
  public:
-  ShaderFactory(Registry* registry, fplbase::Renderer* renderer);
+  explicit ShaderFactory(Registry* registry);
   ShaderFactory(const ShaderFactory&) = delete;
   ShaderFactory& operator=(const ShaderFactory&) = delete;
 
   // Loads the shader with the given |filename|.
   ShaderPtr LoadShader(const std::string& filename);
+
+  // Loads the shader from a ShaderDef.
+  ShaderPtr LoadShaderFromDef(const ShaderDefT& shader_def);
 
   // Returns the shader in the cache associated with |key|, else nullptr.
   ShaderPtr GetCachedShader(HashValue key) const;
@@ -48,10 +51,13 @@ class ShaderFactory {
   void ReleaseShaderFromCache(HashValue key);
 
  private:
-  std::unique_ptr<fplbase::Shader> LoadImpl(const std::string& filename);
+  ShaderPtr LoadImpl(const std::string& filename);
+  ShaderPtr CompileAndLink(const char* vs_source, const char* fs_source);
+  ShaderHnd CompileShader(const char* source, ShaderStageType stage);
+  ProgramHnd LinkProgram(ShaderHnd vs, ShaderHnd fs,
+                         Span<ShaderVertexAttributeDefT> attributes = {});
 
   Registry* registry_;
-  fplbase::Renderer* fpl_renderer_;
   ResourceManager<Shader> shaders_;
 };
 

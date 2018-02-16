@@ -1,0 +1,37 @@
+include "lull/lull_common.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+enum VisibilityContentState : int {
+  Unknown,
+  Outside,
+  Inside
+}
+
+// The axes of the AABB to check for collision within the bounds. Defaults to
+// XY for historical reasons.
+enum CollisionAxes : int {
+  XY,
+  XYZ,
+}
+
+table VisibilityWindowDef {
+  bounds: AabbDef;
+  on_enter_events: [EventDef];
+  on_exit_events: [EventDef];
+  collision_axes: CollisionAxes = XY;
+}
+
+table VisibilityWindowGroupDef {
+  windows: [VisibilityWindowDef];
+}
+
+table VisibilityContentDef {
+  /// The assumed starting state of a content entity.  On creation, an event
+  /// will only be sent to the entity if its actual visibility state does not
+  /// match the starting_state.
+  starting_state: VisibilityContentState = Unknown;
+  on_enter_events: [EventDef];
+  on_exit_events: [EventDef];
+}

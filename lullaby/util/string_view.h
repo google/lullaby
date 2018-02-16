@@ -63,6 +63,19 @@ class string_view {
   // be null-terminated.
   const char* data() const { return str_; }
 
+  // Get the null-terminated c-string of the string_view. Note: If the
+  // string_view is a substring view that isn't null-terminated, then this
+  // function will return null.
+  const char* c_str() const {
+    if (str_ == nullptr) {
+      return "";
+    } else if (len_ > 0 && str_[len_] == 0) {
+      return str_;
+    } else {
+      return "";
+    }
+  }
+
   // Iteration methods.
   const char* begin() const { return str_; }
   const char* end() const { return str_ + len_; }
@@ -132,7 +145,7 @@ inline bool operator>=(string_view str1, string_view str2) {
 }
 
 inline std::ostream& operator<<(std::ostream& o, const string_view& str) {
-  return o.write(str.data(), str.size());
+  return o.write(str.data(), static_cast<std::streamsize>(str.size()));
 }
 
 }  // namespace lull

@@ -167,7 +167,7 @@ struct SurfaceBuilder {
   void add_material_info(flatbuffers::Offset<matdef::Material> material_info) {
     fbb_.AddOffset(Surface::VT_MATERIAL_INFO, material_info);
   }
-  explicit SurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  SurfaceBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
@@ -390,7 +390,7 @@ struct MeshBuilder {
   void add_orientations(flatbuffers::Offset<flatbuffers::Vector<const fplbase::Vec4 *>> orientations) {
     fbb_.AddOffset(Mesh::VT_ORIENTATIONS, orientations);
   }
-  explicit MeshBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  MeshBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }

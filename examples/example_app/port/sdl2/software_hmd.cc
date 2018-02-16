@@ -58,8 +58,8 @@ SoftwareHmd::~SoftwareHmd() {
 void SoftwareHmd::Update() {
   InputManager* input_manager = registry_->Get<InputManager>();
   input_manager->UpdatePosition(InputManager::kHmd, -translation_);
-  input_manager->UpdateRotation(
-      InputManager::kHmd, mathfu::quat::FromEulerAngles(rotation_));
+  input_manager->UpdateRotation(InputManager::kHmd,
+                                lull::FromEulerAnglesYXZ(rotation_));
 
   for (int i = 0; i < num_eyes_; ++i) {
     const float offset = (i == 0) ? -eye_offset_ : eye_offset_;
@@ -87,16 +87,18 @@ void SoftwareHmd::OnMouseMotion(const mathfu::vec2i& delta, ControlMode mode) {
     case kTranslateXY: {
       const mathfu::vec3 delta_xy(static_cast<float>(delta.x),
                                   -static_cast<float>(delta.y), 0.0f);
-      const mathfu::mat4 yaw = mathfu::quat::FromAngleAxis(
-          -rotation_.y, mathfu::kAxisY3f).ToMatrix4();
+      const mathfu::mat4 yaw =
+          mathfu::quat::FromAngleAxis(rotation_.y, mathfu::kAxisY3f)
+              .ToMatrix4();
       translation_ += yaw * delta_xy * kTranslationSensitivity;
       break;
     }
     case kTranslateXZ: {
       const mathfu::vec3 delta_xz(static_cast<float>(delta.x), 0.0f,
                                   static_cast<float>(delta.y));
-      const mathfu::mat4 yaw = mathfu::quat::FromAngleAxis(
-          -rotation_.y, mathfu::kAxisY3f).ToMatrix4();
+      const mathfu::mat4 yaw =
+          mathfu::quat::FromAngleAxis(rotation_.y, mathfu::kAxisY3f)
+              .ToMatrix4();
       translation_ += yaw * delta_xz * kTranslationSensitivity;
       break;
     }

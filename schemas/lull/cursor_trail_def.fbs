@@ -1,9 +1,9 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
 /// Configures the cursor trail.
-/// In case of changing any of these values, please update reticle_template.fbs.
+/// In case of changing any of these values, please update cursor_template.fbs.
 table CursorTrailDef {
 
   /// The number of cursors to draw in the trail by default

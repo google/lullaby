@@ -153,6 +153,16 @@ TEST(CheckRayOBBCollision, Hit) {
   EXPECT_NEAR(dist, 1.f, kEpsilon);
 }
 
+TEST(CheckRayOBBCollision, ScaledToZero) {
+  Ray ray(mathfu::kZeros3f, mathfu::kAxisZ3f);
+  Sqt sqt(mathfu::kZeros3f, mathfu::quat::identity, mathfu::kZeros3f);
+  auto mat4 =
+      CalculateTransformMatrix(sqt.translation, sqt.rotation, sqt.scale);
+  Aabb aabb(-1.f * mathfu::kOnes3f, mathfu::kOnes3f);
+  float dist = CheckRayOBBCollision(ray, mat4, aabb, false);
+  EXPECT_EQ(dist, kNoHitDistance);
+}
+
 TEST(CheckRayOBBCollision, Thorough) {
   const float kDegreesToRadians = M_PI_float / 180.0f;
 
@@ -547,6 +557,65 @@ TEST(ComputeRayPlaneCollision, Parallel) {
   Ray r(mathfu::vec3(0.0f, 4.0f, 0.0f), mathfu::vec3(1.0f, 0.0f, 0.0f));
   mathfu::vec3 out;
   EXPECT_FALSE(ComputeRayPlaneCollision(r, p, &out));
+}
+
+TEST(ComputeRaySphereCollision, TooFarBehind) {
+  mathfu::vec3 center(0.0f, 0.0f, 1.01f);
+  float radius = 1.0f;
+  Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
+  mathfu::vec3 out;
+  EXPECT_FALSE(ComputeRaySphereCollision(r, center, radius, &out));
+}
+
+TEST(ComputeRaySphereCollision, TooFarFromRay) {
+  mathfu::vec3 center(0.0f, 2.0f, -1.0f);
+  float radius = 1.0f;
+  Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
+  mathfu::vec3 out;
+  EXPECT_FALSE(ComputeRaySphereCollision(r, center, radius, &out));
+}
+
+TEST(ComputeRaySphereCollision, RayInsideSphereFront) {
+  mathfu::vec3 center(0.0f, 0.25f, 0.25f);
+  float radius = std::sqrt(0.25f*0.25f + 0.75f*0.75f);
+  Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
+  mathfu::vec3 out;
+  EXPECT_TRUE(ComputeRaySphereCollision(r, center, radius, &out));
+  EXPECT_NEAR(out.x, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.y, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.z, -0.5f, kEpsilon);
+}
+
+TEST(ComputeRaySphereCollision, RayInsideSphereBack) {
+  mathfu::vec3 center(0.0f, 0.25f, -0.25f);
+  float radius = std::sqrt(0.25f*0.25f + 0.75f*0.75f);
+  Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
+  mathfu::vec3 out;
+  EXPECT_TRUE(ComputeRaySphereCollision(r, center, radius, &out));
+  EXPECT_NEAR(out.x, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.y, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.z, -1.0f, kEpsilon);
+}
+
+TEST(ComputeRaySphereCollision, RayIntersectsOnce) {
+  mathfu::vec3 center(0.0f, 1.0f, -2.0f);
+  float radius = 1.0f;
+  Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
+  mathfu::vec3 out;
+  EXPECT_TRUE(ComputeRaySphereCollision(r, center, radius, &out));
+  EXPECT_NEAR(out.x, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.y, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.z, -2.0f, kEpsilon);
+}
+TEST(ComputeRaySphereCollision, RayIntersectsTwice) {
+  mathfu::vec3 center(0.0f, 0.0f, -1.0f);
+  float radius = 0.5f;
+  Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
+  mathfu::vec3 out;
+  EXPECT_TRUE(ComputeRaySphereCollision(r, center, radius, &out));
+  EXPECT_NEAR(out.x, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.y, 0.0f, kEpsilon);
+  EXPECT_NEAR(out.z, -0.5f, kEpsilon);
 }
 
 TEST(ProjectPointOntoLine, OnLine) {
@@ -1024,23 +1093,25 @@ TEST(CalculatePerspectiveMatrixFromView, Rect) {
 TEST(DeformPoint, Simple) {
   const float kRadius = 2;
 
-  // Everything along the xy-plane should map to the y-axis. The value along the
-  // y-axis should remain unchanged.
+  // Everything along the xy-plane should map to the y-axis, i.e. the cylinder
+  // of radius 0. The value along the y-axis should remain unchanged.
   for (int i = -3; i <= 3; ++i) {
     float x = static_cast<float>(i);
     EXPECT_THAT(DeformPoint(mathfu::vec3(x, 2 * x, 0.0f), kRadius),
                 NearMathfu(mathfu::vec3(0.0f, 2 * x, 0.0f), kEpsilon));
   }
 
-  // Everything along the yz-plane axis should map to itself.
+  // Every point wrapped by 0 degrees, i.e. the points with x = 0, should map
+  // to itself.
   for (int i = -3; i <= 3; ++i) {
     float x = static_cast<float>(i);
     EXPECT_THAT(DeformPoint(mathfu::vec3(0.0f, x, 2 * x), kRadius),
                 NearMathfu(mathfu::vec3(0.0f, x, 2 * x), kEpsilon));
   }
 
-  // Everything on the plane at x = +/- radius * pi / 2 should be mapped to the
-  // xy-plane at a distance equal to the distance the point was down the z-axis.
+  // Every point wrapped by +/-90 degrees, i.e. the points with x = +/- radius
+  // * pi / 2, should map to the xy-plane, with the absolute value of its new
+  // x value equal to the absolute value of its old z value.
   for (int i = -3; i <= 3; ++i) {
     float x = static_cast<float>(i);
     EXPECT_THAT(
@@ -1050,6 +1121,33 @@ TEST(DeformPoint, Simple) {
         DeformPoint(mathfu::vec3(-kRadius * M_PI_float / 2, x, 2 * x), kRadius),
         NearMathfu(mathfu::vec3(2 * x, x, 0), kEpsilon));
   }
+
+  // Every point wrapped by +/-180 degrees, i.e. the points with x = +/- radius
+  // * pi, should map to the yz-plane, with the opposite-sign z.
+  for (int i = -3; i <= 3; ++i) {
+    float x = static_cast<float>(i);
+    EXPECT_THAT(
+        DeformPoint(mathfu::vec3(kRadius * M_PI_float, x, 2 * x), kRadius),
+        NearMathfu(mathfu::vec3(0, x, -2 * x), kEpsilon));
+    EXPECT_THAT(
+        DeformPoint(mathfu::vec3(-kRadius * M_PI_float, x, 2 * x), kRadius),
+        NearMathfu(mathfu::vec3(0, x, -2 * x), kEpsilon));
+  }
+
+  // Every point wrapped by +/-360 degrees, i.e. the points with x = +/- radius
+  // * pi * 2, should map to the yz-plane, with the same-sign z.
+  for (int i = -3; i <= 3; ++i) {
+    float x = static_cast<float>(i);
+    EXPECT_THAT(
+        DeformPoint(mathfu::vec3(kRadius * M_PI_float * 2, x, 2 * x), kRadius),
+        NearMathfu(mathfu::vec3(0, x, 2 * x), kEpsilon));
+    EXPECT_THAT(
+        DeformPoint(mathfu::vec3(-kRadius * M_PI_float * 2, x, 2 * x), kRadius),
+        NearMathfu(mathfu::vec3(0, x, 2 * x), kEpsilon));
+  }
+
+  // These tests cover up to a 2 * pi rotation angle, but the same logic holds
+  // for larger-angle rotations; they simply wrap onto the same points.
 }
 
 TEST(UndeformPoint, Simple) {
@@ -1200,39 +1298,6 @@ TEST(GetBoundingBox, SimpleVec3) {
   EXPECT_NEAR(box.max.z, 5, kEpsilon);
 }
 
-TEST(GetBoundingBoxDeathTest, NoDataFloats) {
-  const float kData[] = {0};
-  PORT_EXPECT_DEATH(GetBoundingBox(nullptr, /* len = */ 3, /* stride = */ 3),
-                    "");
-  PORT_EXPECT_DEATH(GetBoundingBox(kData, /* len = */ 4, /* stride = */ 3),
-                    "array size must be a multiple of stride");
-  PORT_EXPECT_DEATH(GetBoundingBox(kData, /* len = */ 3, /* stride = */ 1), "");
-}
-
-TEST(GetBoundingBox, NotEnoughDataFloats) {
-  const float kData[] = {0};
-  const Aabb box = GetBoundingBox(kData, /* len = */ 1, /* stride = */ 3);
-  EXPECT_EQ(box.min, mathfu::kZeros3f);
-  EXPECT_EQ(box.max, mathfu::kZeros3f);
-}
-
-TEST(GetBoundingBox, SimpleFloats) {
-  const size_t kStride = 5;
-  const float kData[] = {0,    0,    5, 100, 200, 1,    2,   0, 300,
-                         400,  0,    8, 2,   500, 600,  -4,  3, -1,
-                         -100, -200, 2, -9,  -13, -300, -400};
-  const size_t kLen = sizeof(kData) / sizeof(kData[0]);
-
-  const Aabb box = GetBoundingBox(kData, kLen, kStride);
-
-  EXPECT_NEAR(box.min.x, -4, kEpsilon);
-  EXPECT_NEAR(box.min.y, -9, kEpsilon);
-  EXPECT_NEAR(box.min.z, -13, kEpsilon);
-  EXPECT_NEAR(box.max.x, 2, kEpsilon);
-  EXPECT_NEAR(box.max.y, 8, kEpsilon);
-  EXPECT_NEAR(box.max.z, 5, kEpsilon);
-}
-
 TEST(CalculateDeterminant3x3, Simple) {
   const float kValues[] = {0, 7, 1, 8, 2, 6, 3, 9, 4, 0, 5, 1, 13, 5, 17, 11};
   const int kNumValues = sizeof(kValues) / sizeof(kValues[0]);
@@ -1278,6 +1343,30 @@ TEST(Distance, Vec3) {
   const mathfu::vec3 a(0, 10, 3);
   const mathfu::vec3 b(15, 12, -4);
   EXPECT_NEAR(DistanceBetween(a, b), sqrtf(15 * 15 + 2 * 2 + 7 * 7), kEpsilon);
+}
+
+TEST(AngleBetween, Vec2) {
+  mathfu::vec2 a(0, 1);
+  mathfu::vec2 b(1, 0);
+  EXPECT_NEAR(AngleBetween(a, b), kPi / 2.0f, kEpsilon);
+
+  a = mathfu::vec2(1, 1);
+  b = mathfu::vec2(0, -1);
+  EXPECT_NEAR(AngleBetween(a, b), 3.0f * kPi / 4.0f, kEpsilon);
+}
+
+TEST(AngleBetween, Vec3) {
+  mathfu::vec3 a(0, 0, 1);
+  mathfu::vec3 b(0, 1, 0);
+  EXPECT_NEAR(AngleBetween(a, b), kPi / 2.0f, kEpsilon);
+
+  a = mathfu::vec3(1, 2, 3);
+  b = mathfu::vec3(-10, 3, -1);
+  EXPECT_NEAR(AngleBetween(a, b), 1.75013259f, kEpsilon);
+
+  a = mathfu::vec3(1, 2, 3);
+  b = mathfu::vec3(-1, -2, -3);
+  EXPECT_NEAR(AngleBetween(a, b), kPi, kEpsilon * 1000.f);
 }
 
 TEST(GetPitchRadians, Simple) {

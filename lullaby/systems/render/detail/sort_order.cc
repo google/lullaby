@@ -22,21 +22,18 @@ namespace lull {
 namespace detail {
 namespace {
 
-using SortOrder = SortOrderManager::SortOrder;
-using SortOrderOffset = SortOrderManager::SortOrderOffset;
-
 // When calculating the sort order, we store the root component IDs in the top
 // 4 bits, and each successive level in additional 4 bit blocks.  Each level is
 // limited to 16 components, so we wrap to prevent overflowing into another
 // depth's bits.
 constexpr int kNumBitsPerGroup = 4;
-constexpr SortOrderOffset kMaxOffset = 1 << kNumBitsPerGroup;
-constexpr int kMaxDepth = 8 * sizeof(SortOrder) / kNumBitsPerGroup;
-constexpr int kRootShift = 8 * sizeof(SortOrder) - kNumBitsPerGroup;
+constexpr RenderSortOrderOffset kMaxOffset = 1 << kNumBitsPerGroup;
+constexpr int kMaxDepth = 8 * sizeof(RenderSortOrder) / kNumBitsPerGroup;
+constexpr int kRootShift = 8 * sizeof(RenderSortOrder) - kNumBitsPerGroup;
 
 // Ensures the offset is within the valid range, logging if it's not.
-SortOrderOffset CheckOffsetBounds(lull::EntityIdPair entity_id_pair,
-                                  SortOrderOffset offset) {
+RenderSortOrderOffset CheckOffsetBounds(EntityIdPair entity_id_pair,
+                                        RenderSortOrderOffset offset) {
   if (offset >= kMaxOffset) {
     LOG(INFO) << "Offset exceeds valid range for entity "
               << entity_id_pair.entity << " with id " << entity_id_pair.id
@@ -55,36 +52,37 @@ SortOrderOffset CheckOffsetBounds(lull::EntityIdPair entity_id_pair,
 }
 
 // Calculates the sort order from an offset and a depth.
-SortOrder SortOrderFromOffset(SortOrderOffset offset, int depth) {
+RenderSortOrder SortOrderFromOffset(RenderSortOrderOffset offset, int depth) {
   const int shift = kRootShift - kNumBitsPerGroup * depth;
-  return (static_cast<SortOrder>(offset) << shift);
+  return (static_cast<RenderSortOrder>(offset) << shift);
 }
 
 }  // namespace
 
-constexpr SortOrderOffset SortOrderManager::kUseDefaultOffset;
+constexpr RenderSortOrderOffset SortOrderManager::kUseDefaultOffset;
 
 void SortOrderManager::Destroy(EntityIdPair entity_id_pair) {
   requested_offset_map_.erase(entity_id_pair);
   root_offset_map_.erase(entity_id_pair);
 }
 
-SortOrderOffset SortOrderManager::GetOffset(EntityIdPair entity_id_pair) const {
+RenderSortOrderOffset SortOrderManager::GetOffset(
+    EntityIdPair entity_id_pair) const {
   const auto iter = requested_offset_map_.find(entity_id_pair);
   return (iter != requested_offset_map_.end() ? iter->second
                                               : kUseDefaultOffset);
 }
 
 void SortOrderManager::SetOffset(EntityIdPair entity_id_pair,
-                                 SortOrderOffset offset) {
+                                 RenderSortOrderOffset offset) {
   requested_offset_map_[entity_id_pair] = offset;
 }
 
-SortOrderOffset SortOrderManager::CalculateSiblingOffset(
+RenderSortOrderOffset SortOrderManager::CalculateSiblingOffset(
     EntityIdPair entity_id_pair, Entity parent) const {
   DCHECK_NE(parent, kNullEntity);
 
-  SortOrderOffset offset = 1;
+  RenderSortOrderOffset offset = 1;
 
   const auto* transform_system = registry_->Get<TransformSystem>();
   const std::vector<Entity>* siblings = transform_system->GetChildren(parent);
@@ -108,10 +106,10 @@ SortOrderOffset SortOrderManager::CalculateSiblingOffset(
   return offset;
 }
 
-SortOrder SortOrderManager::CalculateRootSortOrder(
+RenderSortOrder SortOrderManager::CalculateRootSortOrder(
     EntityIdPair entity_id_pair) {
   auto req = requested_offset_map_.find(entity_id_pair);
-  SortOrderOffset offset;
+  RenderSortOrderOffset offset;
 
   if (req != requested_offset_map_.end() && req->second != kUseDefaultOffset) {
     offset = req->second;
@@ -131,8 +129,8 @@ SortOrder SortOrderManager::CalculateRootSortOrder(
   return SortOrderFromOffset(offset, /* depth = */ 0);
 }
 
-std::pair<SortOrderManager::SortOrder, int>
-SortOrderManager::CalculateSortOrderAndDepth(EntityIdPair entity_id_pair) {
+std::pair<RenderSortOrder, int> SortOrderManager::CalculateSortOrderAndDepth(
+    EntityIdPair entity_id_pair) {
   const auto* transform_system = registry_->Get<TransformSystem>();
   const Entity parent = transform_system->GetParent(entity_id_pair.entity);
 
@@ -141,7 +139,7 @@ SortOrderManager::CalculateSortOrderAndDepth(EntityIdPair entity_id_pair) {
   }
 
   auto iter = requested_offset_map_.find(entity_id_pair);
-  SortOrderOffset offset;
+  RenderSortOrderOffset offset;
   if (iter == requested_offset_map_.end() ||
       iter->second == kUseDefaultOffset) {
     offset = CalculateSiblingOffset(entity_id_pair, parent);
@@ -152,7 +150,7 @@ SortOrderManager::CalculateSortOrderAndDepth(EntityIdPair entity_id_pair) {
   offset = CheckOffsetBounds(entity_id_pair, offset);
 
   const auto parent_order_depth_pair = CalculateSortOrderAndDepth(parent);
-  SortOrder parent_sort_order = parent_order_depth_pair.first;
+  RenderSortOrder parent_sort_order = parent_order_depth_pair.first;
   const int parent_depth = parent_order_depth_pair.second;
 
   const int depth = parent_depth + 1;
@@ -175,7 +173,8 @@ SortOrderManager::CalculateSortOrderAndDepth(EntityIdPair entity_id_pair) {
                         depth);
 }
 
-SortOrder SortOrderManager::CalculateSortOrder(EntityIdPair entity_id_pair) {
+RenderSortOrder SortOrderManager::CalculateSortOrder(
+    EntityIdPair entity_id_pair) {
   const auto order_depth_pair = CalculateSortOrderAndDepth(entity_id_pair);
   return order_depth_pair.first;
 }

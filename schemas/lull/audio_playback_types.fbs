@@ -1,27 +1,50 @@
 namespace lull;
 
-/// How the audio engine should treat an audio source.
+/// How the audio system should render a sound.
 enum AudioSourceType : int {
-  /// A non-spatialized, standard audio source.
-  Standard,
-  /// A spatialized sound object.
-  Spatialized,
+  /// A non-spatialized, stereo audio source.
+  Stereo,
+
+  /// A spatialized sound object with a position and, if directivity constants
+  /// are specified, an orientation.
+  SoundObject,
+
   /// A rotational sound field.
   Soundfield,
 }
 
-/// How a sound should be loaded and played.
+/// How a sound should be treated if playback is requested during preloading.
 enum AudioPlaybackType : int {
-  /// Preload the sound. If something attempts to play the sound before it is
-  /// done loading, skip playing the sound.
+  /// If something attempts to play the sound before it is done loading, skip
+  /// playing the sound.
   PlayIfReady,
-  /// Preload the sound. If something attempts to play the sound before it is
-  /// done loading, queue the sound to be played as soon as it is ready.
+
+  /// If something attempts to play the sound before it is done loading, queue
+  /// the sound to be played as soon as it is ready.
   PlayWhenReady,
-  /// Stream the sound.
-  Stream,
+
+  /// DEPRECATED! Equivalent to PlayWhenReady.
+  /// When specified in a place that also requires an AudioLoadType, this will
+  /// force the AudioLoadType to Stream.
+  StreamDeprecated,
+
   /// Do not manage the playback of the sound. Only manage its other properties,
   /// such as volume and transform.
   /// This type should NEVER be used outside of the AudioSystem.
   External,
+}
+
+/// How a sound should be loaded for playback.
+enum AudioLoadType : int {
+  /// Load and decode the entire sound into memory. Playback cannot begin until
+  /// buffering is done.
+  /// Recommended for short sound effects or sounds played very often.
+  Preload,
+
+  /// Stream the sound into memory and decode it in real time. Repeated or
+  /// looped playback requires fetching and decoding the sound again. Playback
+  /// can begin after a very short pre-buffer.
+  /// Recommended for long background sounds or sounds that require immediate
+  /// playback after loading.
+  Stream,
 }

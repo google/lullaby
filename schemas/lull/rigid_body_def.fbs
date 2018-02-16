@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 include "lull/physics_shapes.fbs";
 
 namespace lull;

@@ -31,7 +31,7 @@ struct TestVertex2f {
 };
 
 const VertexFormat TestVertex2f::kFormat({VertexAttribute(
-    0, VertexAttribute::kPosition, 2, VertexAttribute::kFloat32)});
+    VertexAttributeUsage_Position, VertexAttributeType_Vec2f)});
 
 TEST(VertexFormat, Empty) {
   const VertexFormat empty({});
@@ -52,50 +52,52 @@ TEST(VertexFormat, VertexSize) {
   EXPECT_EQ(VertexPTN::kFormat.GetVertexSize(), 32U);
 }
 
-TEST(VertexFormat, AttributeSorting) {
-  const VertexFormat test_format(
-      {VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                       VertexAttribute::kFloat32),
-       VertexAttribute(0, VertexAttribute::kPosition, 3,
-                       VertexAttribute::kFloat32)});
-  CHECK_EQ(test_format.GetNumAttributes(), 2U);
-  CHECK_EQ(test_format.GetAttributeAt(0).offset, 0U);
-  CHECK_EQ(test_format.GetAttributeAt(1).offset, 12U);
-}
-
 TEST(VertexFormat, GetAttributeWithUsage) {
   // Test some formats for attributes we know they have.
+  /*
   const VertexFormat kFormats[] = {VertexP::kFormat, VertexPTC::kFormat,
                                    VertexPTI::kFormat, VertexPTN::kFormat,
                                    VertexPTT::kFormat};
   const size_t kNumFormats = sizeof(kFormats) / sizeof(kFormats[0]);
-
   for (size_t i = 0; i < kNumFormats; ++i) {
     const VertexFormat& format = kFormats[i];
     for (size_t k = 0; k < format.GetNumAttributes(); ++k) {
-      const VertexAttribute& attribute = format.GetAttributeAt(k);
-      EXPECT_EQ(format.GetAttributeWithUsage(attribute.usage, attribute.index),
-                &attribute);
+      const VertexAttribute* attribute = format.GetAttributeAt(k);
+      EXPECT_EQ(format.GetAttributeWithUsage(attribute->usage()), attribute);
     }
   }
+  */
 
   // Then test for some attributes we know they lack.
-  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kTexCoord),
+  EXPECT_EQ(
+      VertexP::kFormat.GetAttributeWithUsage(VertexAttributeUsage_TexCoord),
+      nullptr);
+  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttributeUsage_Color),
             nullptr);
-  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kColor),
+  EXPECT_EQ(
+      VertexP::kFormat.GetAttributeWithUsage(VertexAttributeUsage_BoneIndices),
+      nullptr);
+  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttributeUsage_Normal),
             nullptr);
-  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kIndex),
+  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(
+                VertexAttributeUsage_BoneIndices),
             nullptr);
-  EXPECT_EQ(VertexP::kFormat.GetAttributeWithUsage(VertexAttribute::kNormal),
-            nullptr);
+  EXPECT_EQ(
+      VertexPTC::kFormat.GetAttributeWithUsage(VertexAttributeUsage_Normal),
+      nullptr);
+}
 
-  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(VertexAttribute::kTexCoord,
-                                                     /* usage_index = */ 1),
-            nullptr);
-  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(VertexAttribute::kIndex),
-            nullptr);
-  EXPECT_EQ(VertexPTC::kFormat.GetAttributeWithUsage(VertexAttribute::kNormal),
-            nullptr);
+TEST(VertexFormat, AttributeOffsetsMatchExpectedValues) {
+  EXPECT_EQ(VertexPT::kFormat.GetAttributeOffsetAt(0), 0U);
+  EXPECT_EQ(VertexPT::kFormat.GetAttributeOffsetAt(1), 12U);
+
+  EXPECT_EQ(VertexPTN::kFormat.GetAttributeOffsetAt(2), 20U);
+
+  const VertexFormat& format = VertexPTT::kFormat;
+  for (size_t i = 0; i < format.GetNumAttributes(); ++i) {
+    EXPECT_EQ(format.GetAttributeOffsetAt(i),
+              format.GetAttributeOffset(format.GetAttributeAt(i)));
+  }
 }
 
 TEST(VertexFormat, VertexMatching) {
@@ -148,15 +150,6 @@ TEST(VertexFormat, EqualityOperator) {
   EXPECT_TRUE(VertexPTC::kFormat == VertexPTC::kFormat);
   EXPECT_TRUE(VertexPTI::kFormat == VertexPTI::kFormat);
   EXPECT_TRUE(VertexPTN::kFormat == VertexPTN::kFormat);
-
-  // Construct a new vertex format that matches an existing one but in a
-  // different declaration order, and test them for equality.
-  const VertexFormat test_pt_format(
-      {VertexAttribute(12, VertexAttribute::kTexCoord, 2,
-                       VertexAttribute::kFloat32),
-       VertexAttribute(0, VertexAttribute::kPosition, 3,
-                       VertexAttribute::kFloat32)});
-  EXPECT_TRUE(test_pt_format == VertexPT::kFormat);
 }
 
 TEST(VertexFormatDeathTest, RangeChecks) {
@@ -171,9 +164,6 @@ TEST(VertexFormatDeathTest, RangeChecks) {
           VertexAttribute(), VertexAttribute(),
       }),
       "Cannot exceed max attributes size");
-
-  const VertexFormat empty({});
-  PORT_EXPECT_DEATH(empty.GetAttributeAt(0), "Index out of bounds!");
 }
 
 }  // namespace

@@ -486,7 +486,7 @@ void LightSystem::AddLightableToShadowPass(RenderSystem* render_system,
     return;
   }
 
-  render_system->Create(entity, pass, static_cast<RenderPass>(pass));
+  render_system->Create(entity, static_cast<RenderPass>(pass));
   // Retrieve the mesh of the default entity.
   // TODO(b/65262474): Currently there is no GetMesh function to return the mesh
   // of the default entity so we cheat by supplying component id of 0.
@@ -513,9 +513,9 @@ void LightSystem::AddLightableToShadowPass(RenderSystem* render_system,
   dispatcher_system->Connect(
       entity, this,
       [render_system, entity, pass](const MeshChangedEvent& event) {
-        if (event.component_id == 0) {
+        if (event.pass != pass) {
           render_system->SetMesh(entity, pass,
-                                 render_system->GetMesh(entity, 0));
+                                 render_system->GetMesh(entity, event.pass));
         }
       });
 }
@@ -530,12 +530,13 @@ void LightSystem::CreateShadowRenderPass(Entity entity,
   // Create the render target.
   const HashValue pass =
       RenderPassNameFromEntityAndLightGroup(entity, data.group);
-  const mathfu::vec2i shadow_map_resolution(shadow_def->shadow_resolution,
-                                            shadow_def->shadow_resolution);
   auto* render_system = registry_->Get<RenderSystem>();
-  render_system->CreateRenderTarget(pass, shadow_map_resolution,
-                                    TextureFormat_Depth16,
-                                    DepthStencilFormat_None);
+  RenderTargetCreateParams create_params;
+  create_params.dimensions = mathfu::vec2i(shadow_def->shadow_resolution,
+                                           shadow_def->shadow_resolution);
+  create_params.texture_format = TextureFormat_Depth16;
+  create_params.depth_stencil_format = DepthStencilFormat_None;
+  render_system->CreateRenderTarget(pass, create_params);
 
   // Set the render target for the pass.
   render_system->SetRenderTarget(pass, pass);
@@ -550,21 +551,19 @@ void LightSystem::CreateShadowRenderPass(Entity entity,
   render_system->SetRenderState(pass, render_state);
 
   // Set the clear params for the pass.
-  ClearParams clear_params;
-  clear_params.clear_options = ClearParams::kDepth;
+  RenderClearParams clear_params;
+  clear_params.clear_options = RenderClearParams::kDepth;
   render_system->SetClearParams(pass, clear_params);
 
   // Set the sort mode for the pass.
-  render_system->SetSortMode(
-      static_cast<RenderPass>(pass),
-      RenderSystem::SortMode::kAverageSpaceOriginFrontToBack);
+  render_system->SetSortMode(pass, SortMode_AverageSpaceOriginFrontToBack);
 
   // Create the viewport for rendering the shadow pass.
   ShadowPassData shadow_pass_data;
   shadow_pass_data.pass = pass;
   shadow_pass_data.view.viewport.x = 0;
   shadow_pass_data.view.viewport.y = 0;
-  shadow_pass_data.view.dimensions = shadow_map_resolution;
+  shadow_pass_data.view.dimensions = create_params.dimensions;
 
   // Construct the view and projection matrices.
   auto* transform_system = registry_->Get<lull::TransformSystem>();

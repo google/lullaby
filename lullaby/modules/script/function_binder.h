@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_FUNCTION_FUNCTION_BINDER_H_
-#define LULLABY_MODULES_FUNCTION_FUNCTION_BINDER_H_
+#ifndef LULLABY_MODULES_SCRIPT_FUNCTION_BINDER_H_
+#define LULLABY_MODULES_SCRIPT_FUNCTION_BINDER_H_
 
 #include <string>
 
@@ -184,4 +184,4 @@ struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...) const> {
 
 LULLABY_SETUP_TYPEID(lull::FunctionBinder);
 
-#endif  // LULLABY_MODULES_FUNCTION_FUNCTION_BINDER_H_
+#endif  // LULLABY_MODULES_SCRIPT_FUNCTION_BINDER_H_

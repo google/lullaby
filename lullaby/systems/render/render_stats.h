@@ -63,7 +63,7 @@ class RenderStats {
 
   // Starts logging (via INFO) performance stats every |interval| frames.
   // These logs can then be parsed into a CSV by piping through
-  // lullaby/scripts/perf_log_to_csv.sh.
+  // lullaby/tools/perf_log_to_csv.sh.
   void EnablePerformanceLogging(int interval);
 
   // Called automatically by RenderSystem.

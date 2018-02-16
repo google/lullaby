@@ -142,7 +142,7 @@ void CursorTrailSystem::UpdateTrailMesh(CursorTrail* cursor_trail, Sqt sqt) {
 
   auto trail_fn = [this, cursor_trail, render_system, cursor_color,
                    camera_position, no_hit_distance, sqt](MeshData* mesh) {
-    uint16_t index_base = 0;
+    uint32_t index_base = 0;
 
     for (int i = 0; i < cursor_trail->trail_length; i++) {
       // Draw a trail of cursors from the last frame to current frame position,
@@ -210,14 +210,14 @@ void CursorTrailSystem::UpdateTrailMesh(CursorTrail* cursor_trail, Sqt sqt) {
       v.z = z + vert[2];
       mesh->AddVertex(v);
 
-      mesh->AddIndex(static_cast<MeshData::Index>(index_base + 0));
-      mesh->AddIndex(static_cast<MeshData::Index>(index_base + 1));
-      mesh->AddIndex(static_cast<MeshData::Index>(index_base + 2));
-      mesh->AddIndex(static_cast<MeshData::Index>(index_base + 2));
-      mesh->AddIndex(static_cast<MeshData::Index>(index_base + 3));
-      mesh->AddIndex(static_cast<MeshData::Index>(index_base + 0));
+      mesh->AddIndex(index_base + 0);
+      mesh->AddIndex(index_base + 1);
+      mesh->AddIndex(index_base + 2);
+      mesh->AddIndex(index_base + 2);
+      mesh->AddIndex(index_base + 3);
+      mesh->AddIndex(index_base + 0);
 
-      index_base = static_cast<MeshData::Index>(index_base + 4);
+      index_base += 4;
     }
   };
 

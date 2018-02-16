@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_FILE_ASSET_LOADER_H_
-#define LULLABY_MODULES_FILE_ASSET_LOADER_H_
+#ifndef LULLABY_BASE_ASSET_LOADER_H_
+#define LULLABY_BASE_ASSET_LOADER_H_
 
 #include <algorithm>
 #include <functional>
@@ -24,6 +24,7 @@ limitations under the License.
 
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/util/async_processor.h"
+#include "lullaby/util/registry.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -43,13 +44,14 @@ class AssetLoader {
   // Note: The function signature is based on fplbase::LoadFile.
   using LoadFileFn = std::function<bool(const char* filename, std::string*)>;
 
+  // Constructs the AssetLoader using the default load function.
+  explicit AssetLoader(Registry* registry);
+
   // Constructs the AssetLoader using the specified load function.
   explicit AssetLoader(LoadFileFn load_fn);
 
   AssetLoader(const AssetLoader& rhs) = delete;
   AssetLoader& operator=(const AssetLoader& rhs) = delete;
-
-  ~AssetLoader();
 
   // Creates an Asset object of type |T| using the specified constructor |Args|
   // and load the data specified by |filename| into the asset.  This call blocks
@@ -90,7 +92,10 @@ class AssetLoader {
   void SetLoadFunction(LoadFileFn load_fn);
 
   // Returns the load function set in |SetLoadFunction|.
-  const LoadFileFn GetLoadFunction();
+  LoadFileFn GetLoadFunction() const;
+
+  // Returns the default load function.
+  LoadFileFn GetDefaultLoadFunction() const;
 
   // Starts loading assets asynchronously. This is done automatically on
   // construction and it only needs to be called explicitly after Stop.
@@ -126,8 +131,9 @@ class AssetLoader {
   // Performs the "finalizing" for both immediate and asynchronous requests.
   void DoFinalize(LoadRequest* req, LoadMode mode) const;
 
+  Registry* registry_ = nullptr;
   LoadFileFn load_fn_;  // Client-provided function for performing actual load.
-  int pending_requests_;  // Number of requests queued for async loading.
+  int pending_requests_ = 0;  // Number of requests queued for async loading.
   AsyncProcessor<LoadRequestPtr> processor_;  // Async processor for loading
                                               // data on a worker thread.
 };
@@ -164,4 +170,4 @@ void AssetLoader::LoadIntoAsync(const std::string& filename,
 
 LULLABY_SETUP_TYPEID(lull::AssetLoader);
 
-#endif  // LULLABY_MODULES_FILE_ASSET_LOADER_H_
+#endif  // LULLABY_BASE_ASSET_LOADER_H_

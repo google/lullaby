@@ -19,10 +19,16 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "lullaby/util/bits.h"
 #include "lullaby/util/clock.h"
+#include "tests/mathfu_matchers.h"
 #include "tests/portable_test_macros.h"
 
 namespace lull {
 namespace {
+
+using testing::NearMathfu;
+
+constexpr float kEpsilon = 1e-5f;
+
 const Clock::duration kDeltaTime = std::chrono::milliseconds(17);
 const Clock::duration kLongPressTime = std::chrono::milliseconds(500);
 
@@ -316,6 +322,50 @@ TEST(InputManagerDeathTest, ButtonState) {
   EXPECT_TRUE(!input.IsConnected(device));
 }
 
+TEST(InputManager, JustLongPressedCornerCase) {
+  // Test a corner case where a JustPressed and JustLongPressed need to both be
+  // true.
+  InputManager input;
+  const auto button = InputManager::kPrimaryButton;
+  const auto device = InputManager::kController;
+
+  PORT_EXPECT_DEBUG_DEATH(input.GetButtonState(device, button), "");
+
+  InputManager::DeviceParams params;
+  params.num_buttons = 1;
+  input.ConnectDevice(device, params);
+  EXPECT_TRUE(input.IsConnected(device));
+
+  PORT_EXPECT_DEBUG_DEATH(input.GetButtonState(device, button + 1), "");
+
+  auto state = input.GetButtonState(device, button);
+  EXPECT_TRUE(CheckBit(state, InputManager::kReleased));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kPressed));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kJustPressed));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kJustReleased));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kRepeat));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kLongPressed));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kJustLongPressed));
+
+  input.UpdateButton(device, button, false, false);
+  input.AdvanceFrame(kLongPressTime);
+
+  input.UpdateButton(device, button, true, false);
+  input.AdvanceFrame(kLongPressTime);
+
+  state = input.GetButtonState(device, button);
+  EXPECT_TRUE(!CheckBit(state, InputManager::kReleased));
+  EXPECT_TRUE(CheckBit(state, InputManager::kPressed));
+  EXPECT_TRUE(CheckBit(state, InputManager::kJustPressed));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kJustReleased));
+  EXPECT_TRUE(!CheckBit(state, InputManager::kRepeat));
+  EXPECT_TRUE(CheckBit(state, InputManager::kLongPressed));
+  EXPECT_TRUE(CheckBit(state, InputManager::kJustLongPressed));
+
+  input.DisconnectDevice(device);
+  EXPECT_TRUE(!input.IsConnected(device));
+}
+
 TEST(InputManagerDeathTest, ButtonPressedDuration) {
   InputManager input;
   const auto button = InputManager::kPrimaryButton;
@@ -587,6 +637,26 @@ TEST(InputManagerDeathTest, Joystick) {
   EXPECT_EQ(input.GetJoystickValue(device, joystick)[0], -1);
   EXPECT_EQ(input.GetJoystickDelta(device, joystick)[0], -2);
 
+  // Check that we are clamping values at (-1.0, 1.0).
+  input.UpdateJoystick(device, joystick, mathfu::vec2(-1.001f, 0));
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetJoystickValue(device, joystick),
+              NearMathfu(mathfu::vec2(-1.0f, 0.0f), kEpsilon));
+
+  input.UpdateJoystick(device, joystick, mathfu::vec2(1.001f, 0));
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetJoystickValue(device, joystick),
+              NearMathfu(mathfu::vec2(1.0f, 0.0f), kEpsilon));
+
+  input.UpdateJoystick(device, joystick, mathfu::vec2(0, -1.001f));
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetJoystickValue(device, joystick),
+              NearMathfu(mathfu::vec2(0.0f, -1.0f), kEpsilon));
+
+  input.UpdateJoystick(device, joystick, mathfu::vec2(0, 1.001f));
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetJoystickValue(device, joystick),
+              NearMathfu(mathfu::vec2(0.0f, 1.0f), kEpsilon));
 
   input.DisconnectDevice(device);
   EXPECT_TRUE(!input.IsConnected(device));
@@ -682,6 +752,26 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
   EXPECT_NE(input.GetTouchState(device) & InputManager::kReleased, 0);
 
+  // Check that we are clamping values at (-1.0, 1.0).
+  input.UpdateTouch(device, mathfu::vec2(-0.001f, 0), true);
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetTouchLocation(device),
+              NearMathfu(mathfu::vec2(0.0f, 0.0f), kEpsilon));
+
+  input.UpdateTouch(device, mathfu::vec2(1.001f, 0), true);
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetTouchLocation(device),
+              NearMathfu(mathfu::vec2(1.0f, 0.0f), kEpsilon));
+
+  input.UpdateTouch(device, mathfu::vec2(0, -0.001f), true);
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetTouchLocation(device),
+              NearMathfu(mathfu::vec2(0.0f, 0.0f), kEpsilon));
+
+  input.UpdateTouch(device, mathfu::vec2(0, 1.001f), true);
+  input.AdvanceFrame(kDeltaTime);
+  EXPECT_THAT(input.GetTouchLocation(device),
+              NearMathfu(mathfu::vec2(0.0f, 1.0f), kEpsilon));
 
   input.DisconnectDevice(device);
   EXPECT_TRUE(!input.IsConnected(device));
@@ -694,6 +784,7 @@ TEST(InputManager, TouchGesture_Implicit) {
   InputManager::DeviceParams params;
   params.has_touchpad = true;
   input.ConnectDevice(device, params);
+  EXPECT_EQ(input.IsTouchGestureAvailable(device), false);
 
   input.AdvanceFrame(kDeltaTime);
 
@@ -779,6 +870,8 @@ TEST(InputManager, TouchGesture_Explicit) {
   EXPECT_EQ(input.GetTouchVelocity(device).y, 0.f);
   EXPECT_EQ(input.GetTouchGestureDirection(device),
             InputManager::GestureDirection::kNone);
+  EXPECT_EQ(input.GetTouchGestureType(device),
+            InputManager::GestureType::kScrollStart);
 
   input.UpdateTouch(device, mathfu::vec2(0, 0), true);
   input.UpdateGesture(device, InputManager::GestureType::kFling,
@@ -790,6 +883,53 @@ TEST(InputManager, TouchGesture_Explicit) {
   EXPECT_EQ(input.GetTouchDelta(device).y, 2.f);
   EXPECT_EQ(input.GetTouchVelocity(device).x, 3.f);
   EXPECT_EQ(input.GetTouchVelocity(device).y, 4.f);
+  EXPECT_EQ(input.GetTouchGestureDirection(device),
+            InputManager::GestureDirection::kUp);
+  EXPECT_EQ(input.GetTouchGestureType(device),
+            InputManager::GestureType::kFling);
+}
+
+TEST(InputManager, TouchGesture_InitialDirection) {
+  InputManager input;
+  const auto device = InputManager::kController;
+
+  InputManager::DeviceParams params;
+  params.has_touchpad = true;
+  params.has_touch_gesture = true;
+  input.ConnectDevice(device, params);
+  EXPECT_EQ(input.IsTouchGestureAvailable(device), true);
+
+  input.AdvanceFrame(kDeltaTime);
+
+  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::GestureType::kNone,
+                      InputManager::GestureDirection::kNone, mathfu::vec2(0, 0),
+                      mathfu::vec2(1, 3));
+  input.AdvanceFrame(kDeltaTime);
+
+  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::GestureType::kScrollStart,
+                      InputManager::GestureDirection::kNone,
+                      mathfu::vec2(0.3f, 0.5f), mathfu::vec2(0, 0));
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetInitialDisplacementAxis(device).x, 0.f);
+  EXPECT_EQ(input.GetInitialDisplacementAxis(device).y, 1.f);
+  EXPECT_EQ(input.GetLockedTouchDelta(device).x, 0.f);
+  EXPECT_EQ(input.GetLockedTouchDelta(device).y, 0.5f);
+  EXPECT_EQ(input.GetTouchGestureDirection(device),
+            InputManager::GestureDirection::kNone);
+
+  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::GestureType::kFling,
+                      InputManager::GestureDirection::kUp, mathfu::vec2(1, 2),
+                      mathfu::vec2(3, 4));
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetInitialDisplacementAxis(device).x, 0.f);
+  EXPECT_EQ(input.GetInitialDisplacementAxis(device).y, 0.f);
+  EXPECT_EQ(input.GetLockedTouchDelta(device).x, 0.f);
+  EXPECT_EQ(input.GetLockedTouchDelta(device).y, 0.f);
   EXPECT_EQ(input.GetTouchGestureDirection(device),
             InputManager::GestureDirection::kUp);
 }

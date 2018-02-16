@@ -22,6 +22,7 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/reticle/reticle_system.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/controller_util.h"
 #include "lullaby/util/math.h"
 
 namespace lull {
@@ -29,6 +30,8 @@ namespace {
 
 static const float kMinFloat = std::numeric_limits<float>::lowest();
 static const float kMaxFloat = std::numeric_limits<float>::max();
+static const float kMinPitch = -kPi / 3;  // -60 degrees in radians.
+static const float kMaxPitch = kPi / 3;   // 60 degrees in randians.
 static const float kDefaultControllerHeight = -0.6f;
 
 const HashValue kReticleBoundedMovementDefHash = Hash("ReticleBoundaryDef");
@@ -132,13 +135,13 @@ void ReticleBoundedMovementSystem::Enable(Entity entity) {
 
   auto* reticle_system = registry_->Get<ReticleSystem>();
   auto fn = [this, entity, reticle_system](
-                const lull::InputManager::DeviceType input_device) -> Sqt {
-    Sqt sqt;
+                const lull::InputManager::DeviceType input_device) -> Ray {
+    Ray result(mathfu::kZeros3f, -mathfu::kAxisZ3f);
     auto iter = reticle_movement_map_.find(entity);
     if (iter == reticle_movement_map_.end()) {
       LOG(WARNING) << "No defined bounded movement for reticle " << entity
                    << " found.";
-      return sqt;
+      return result;
     }
 
     ReticleBoundedMovement* bounded_reticle = &(iter->second);
@@ -191,32 +194,55 @@ void ReticleBoundedMovementSystem::Enable(Entity entity) {
       bounded_reticle->input_orientation_last_frame = input_orientation;
 
       // Calculate collision ray from  controller origin to reticle position.
-      sqt.translation = mathfu::vec3(0, kDefaultControllerHeight, 0);
+      result.origin = mathfu::vec3(0, kDefaultControllerHeight, 0);
       const mathfu::vec3 reticle_position_in_world_space =
           *(transform_system->GetWorldFromEntityMatrix(entity)) *
           mathfu::vec3(reticle_position, 0);
       mathfu::vec3 direction =
-          (reticle_position_in_world_space - sqt.translation).Normalized();
+          (reticle_position_in_world_space - result.origin).Normalized();
 
       if (bounded_reticle->is_horizontal_only) {
         // Abadon the relative movement in vertical direction.
         direction.y = 0.0f;
-        // First rotate around x axis using the absolute pitch value in vertical
+        // When pointing too high or too low with the controller, the horizontal
+        // boundary does not make sense then, and the yaw value is also
+        // very sensitive and unstable. In regular cases there is already an
+        // optimization, but that is not applicable in this case, as we are
+        // using the yaw value to calculate the relative reticle movement.
+        // Therefore, although the boundary is defined in horizontal direction
+        // only, we still clamp the pitch value to [kMinPitch, kMaxPitch] to
+        // avoid reticle misbehavior.
+
+        // Get the device-specific selection ray, and rotate it by the actual
+        // input orientation:
+        const auto variant =
+            input->GetDeviceInfo(input_device, kSelectionRayHash);
+        const Ray selection_ray =
+            variant.ValueOr(Ray(mathfu::kZeros3f, -mathfu::kAxisZ3f));
+        const mathfu::vec3 input_ray =
+            controller_quat * selection_ray.direction;
+
+        // Calculate the resulting pitch.
+        const float actual_pitch = asinf(input_ray.y);
+
+        // Clamp that to the desired range.
+        const float clamped_pitch =
+            mathfu::Clamp(actual_pitch, kMinPitch, kMaxPitch);
+        // First rotate around x axis with |clamped_pitch| in vertical
         // direction, then rotate around y axis using the relative movement in
         // horizontal direction.
-        sqt.rotation = mathfu::quat::RotateFromToWithAxis(
-                           -mathfu::kAxisZ3f, direction, mathfu::kAxisY3f) *
-                       mathfu::quat::FromAngleAxis(
-                           input_orientation.y +
-                               reticle_system->GetReticleErgoAngleOffset(),
-                           mathfu::kAxisX3f);
+        const mathfu::quat rotation =
+            mathfu::quat::RotateFromToWithAxis(-mathfu::kAxisZ3f, direction,
+                                               mathfu::kAxisY3f) *
+            mathfu::quat::FromAngleAxis(clamped_pitch, mathfu::kAxisX3f);
+        result.direction = rotation * -mathfu::kAxisZ3f;
       } else {
-        sqt.rotation = mathfu::quat::RotateFromTo(-mathfu::kAxisZ3f, direction);
+        result.direction = direction;
       }
     } else {
       ResetStabilizationCounter();
     }
-    return sqt;
+    return result;
   };
   reticle_system->SetReticleMovementFn(fn);
 }

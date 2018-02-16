@@ -1,0 +1,51 @@
+include "lull/animation_def.fbs";
+include "lull/dispatcher_def.fbs";
+
+namespace lull;
+
+enum FadeInheritMode : int {
+  /// Animation will only play on a single Entity.
+  SelfOnly,
+  /// Animation will play on Self and all children.
+  SelfAndChildren,
+}
+
+table FadeDef {
+  /// Animation to play on this entity when enabled.  If this is not defined,
+  /// the default "self and all children alpha tween" animation is played.
+  enable_anim: AnimationDef;
+  /// Animation to play when disabled.  If this is not defined, the default
+  /// "self and all children alpha tween" animation is played.
+  disable_anim: AnimationDef;
+
+  /// If enable_anim or disable_anim are not defined, the opacity will be
+  /// animated using this as a duration.  If this is 0, no animation will play.
+  fade_time_ms: int = 250;
+
+  /// If true, the entity will be disabled without animating on creation.
+  start_disabled: bool = false;
+
+  /// If true and |start_disabled| is false, the enable animation will be played
+  /// as soon as the Entity is created.
+  animate_on_create: bool = false;
+
+  /// If true, the enable animation will be played only when state of entity
+  /// changes from disabled to enabled. If false, it playes every time entity
+  /// is enabled.
+  only_animate_on_change: bool = false;
+
+  /// If true, collision will be disabled when the |disable_anim| is started,
+  /// and re-enabled when the entity is actually disabled or when the
+  /// |disable_anim| is interrupted.
+  disable_collision: bool = true;
+
+  /// Enum to control what entities will play the animation.
+  inherit_mode: FadeInheritMode = SelfOnly;
+
+  /// These events will trigger the Entity to enable and animate.
+  enable_input_events: [EventDef];
+  /// These events will trigger the Entity to animate then disable.
+  disable_input_events: [EventDef];
+}
+
+root_type FadeDef;

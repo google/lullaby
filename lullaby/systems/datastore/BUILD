@@ -10,7 +10,7 @@ cc_library(
     srcs = ["datastore_system.cc"],
     hdrs = ["datastore_system.h"],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/ecs",
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/script",

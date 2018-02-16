@@ -37,21 +37,20 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
+        "//:fbs",
         "//lullaby/modules/file",
         "//lullaby/modules/function",
+        "//lullaby/modules/lullscript",
         "//lullaby/util:built_in_functions",
         "//lullaby/util:hash",
         "//lullaby/util:registry",
-        "//lullaby/generated",
-        "//lullaby/modules/script/lull",
         "//lullaby/util:logging",
-        # END-GOOGLE-INTERNAL
     ] + select({
         ":lullaby_script_lua": [
-            "//lullaby/modules/script/lua",
+            "//lullaby/modules/lua",
         ],
         ":lullaby_script_js": [
-            "//lullaby/modules/script/javascript",
+            "//lullaby/modules/javascript",
         ],
         "//conditions:default": [],
     }),

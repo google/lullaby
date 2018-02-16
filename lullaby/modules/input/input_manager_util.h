@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_INPUT_INPUT_MANAGER_UTIL_H_
-#define LULLABY_MODULES_INPUT_INPUT_MANAGER_UTIL_H_
+#ifndef LULLABY_UTIL_INPUT_MANAGER_UTIL_H_
+#define LULLABY_UTIL_INPUT_MANAGER_UTIL_H_
 
 #include "lullaby/util/math.h"
 #include "lullaby/util/registry.h"
@@ -24,7 +24,6 @@ namespace lull {
 
 // Get the head pose of the HMD.
 Sqt GetHmdSqt(Registry* registry);
-
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_INPUT_INPUT_MANAGER_UTIL_H_
+#endif  // LULLABY_UTIL_INPUT_MANAGER_UTIL_H_

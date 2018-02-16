@@ -16,7 +16,7 @@ limitations under the License.
 
 #include "gtest/gtest.h"
 
-#include "lullaby/modules/file/file.h"
+#include "lullaby/util/filename.h"
 
 namespace lull {
 namespace {

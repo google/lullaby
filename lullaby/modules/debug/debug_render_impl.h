@@ -44,6 +44,9 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
   void DrawBox3D(const mathfu::mat4& world_from_object_matrix, const Aabb& box,
                  Color4ub color) override;
 
+  void DrawQuad2D(const Color4ub color, float x, float y, float w, float h,
+                  const TexturePtr& texture) override;
+
  private:
   Registry* registry_;
   RenderSystem* render_system_;
@@ -52,6 +55,7 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
   std::unique_ptr<SimpleFont> font_;
   ShaderPtr font_shader_;
   TexturePtr font_texture_;
+  ShaderPtr texture_shader_;
   ShaderPtr shape_shader_;
   std::vector<VertexPC> verts_;
 

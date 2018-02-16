@@ -119,63 +119,96 @@ static fplbase::StencilOperation::StencilOperations Convert(
   }
 }
 
+void Apply(fplbase::RenderState* target, const AlphaTestStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->alpha_test_state.enabled = state->enabled;
+  target->alpha_test_state.ref = state->ref;
+  target->alpha_test_state.function = Convert(state->function);
+}
+
+void Apply(fplbase::RenderState* target, const BlendStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->blend_state.enabled = state->enabled;
+  target->blend_state.src_alpha = Convert(state->src_alpha);
+  target->blend_state.src_color = Convert(state->src_color);
+  target->blend_state.dst_alpha = Convert(state->dst_alpha);
+  target->blend_state.dst_color = Convert(state->dst_color);
+}
+
+void Apply(fplbase::RenderState* target, const CullStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->cull_state.enabled = state->enabled;
+  target->cull_state.face = Convert(state->face);
+}
+
+void Apply(fplbase::RenderState* target, const DepthStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->depth_state.test_enabled = state->test_enabled;
+  target->depth_state.write_enabled = state->write_enabled;
+  target->depth_state.function = Convert(state->function);
+}
+
+void Apply(fplbase::RenderState* target, const PointStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->point_state.point_sprite_enabled = state->point_sprite_enabled;
+  target->point_state.program_point_size_enabled =
+      state->program_point_size_enabled;
+  target->point_state.point_size = state->point_size;
+}
+
+void Apply(fplbase::RenderState* target, const ScissorStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->scissor_state.enabled = state->enabled;
+}
+
+void Apply(fplbase::RenderState* target, const StencilStateT* state) {
+  if (target == nullptr || state == nullptr) {
+    return;
+  }
+  target->stencil_state.enabled = state->enabled;
+
+  target->stencil_state.back_function.function =
+      Convert(state->back_function.function);
+  target->stencil_state.back_function.ref = state->back_function.ref;
+  target->stencil_state.back_function.mask = state->back_function.mask;
+
+  target->stencil_state.back_op.stencil_fail =
+      Convert(state->back_op.stencil_fail);
+  target->stencil_state.back_op.depth_fail = Convert(state->back_op.depth_fail);
+  target->stencil_state.back_op.pass = Convert(state->back_op.pass);
+
+  target->stencil_state.front_function.function =
+      Convert(state->front_function.function);
+  target->stencil_state.front_function.ref = state->front_function.ref;
+  target->stencil_state.front_function.mask = state->front_function.mask;
+
+  target->stencil_state.front_op.stencil_fail =
+      Convert(state->front_op.stencil_fail);
+  target->stencil_state.front_op.depth_fail =
+      Convert(state->front_op.depth_fail);
+  target->stencil_state.front_op.pass = Convert(state->front_op.pass);
+}
+
 void Apply(fplbase::RenderState* target, const RenderStateT& state) {
-  if (state.alpha_test_state) {
-    target->alpha_test_state.enabled = state.alpha_test_state->enabled;
-    target->alpha_test_state.ref = state.alpha_test_state->ref;
-    target->alpha_test_state.function =
-        Convert(state.alpha_test_state->function);
-  }
-  if (state.blend_state) {
-    target->blend_state.enabled = state.blend_state->enabled;
-    target->blend_state.src_alpha = Convert(state.blend_state->src_alpha);
-    target->blend_state.src_color = Convert(state.blend_state->src_color);
-    target->blend_state.dst_alpha = Convert(state.blend_state->dst_alpha);
-    target->blend_state.dst_color = Convert(state.blend_state->dst_color);
-  }
-  if (state.cull_state) {
-    target->cull_state.enabled = state.cull_state->enabled;
-    target->cull_state.face = Convert(state.cull_state->face);
-  }
-  if (state.depth_state) {
-    target->depth_state.test_enabled = state.depth_state->test_enabled;
-    target->depth_state.write_enabled = state.depth_state->write_enabled;
-    target->depth_state.function = Convert(state.depth_state->function);
-  }
-  if (state.scissor_state) {
-    target->scissor_state.enabled = state.scissor_state->enabled;
-  }
-  if (state.stencil_state) {
-    target->stencil_state.enabled = state.stencil_state->enabled;
-
-    target->stencil_state.back_function.function =
-        Convert(state.stencil_state->back_function.function);
-    target->stencil_state.back_function.ref =
-        state.stencil_state->back_function.ref;
-    target->stencil_state.back_function.mask =
-        state.stencil_state->back_function.mask;
-
-    target->stencil_state.back_op.stencil_fail =
-        Convert(state.stencil_state->back_op.stencil_fail);
-    target->stencil_state.back_op.depth_fail =
-        Convert(state.stencil_state->back_op.depth_fail);
-    target->stencil_state.back_op.pass =
-        Convert(state.stencil_state->back_op.pass);
-
-    target->stencil_state.front_function.function =
-        Convert(state.stencil_state->front_function.function);
-    target->stencil_state.front_function.ref =
-        state.stencil_state->front_function.ref;
-    target->stencil_state.front_function.mask =
-        state.stencil_state->front_function.mask;
-
-    target->stencil_state.front_op.stencil_fail =
-        Convert(state.stencil_state->front_op.stencil_fail);
-    target->stencil_state.front_op.depth_fail =
-        Convert(state.stencil_state->front_op.depth_fail);
-    target->stencil_state.front_op.pass =
-        Convert(state.stencil_state->front_op.pass);
-  }
+  Apply(target, state.alpha_test_state.get());
+  Apply(target, state.blend_state.get());
+  Apply(target, state.cull_state.get());
+  Apply(target, state.depth_state.get());
+  Apply(target, state.point_state.get());
+  Apply(target, state.scissor_state.get());
+  Apply(target, state.stencil_state.get());
   if (state.viewport) {
     target->viewport.pos.x = static_cast<int>(state.viewport->pos.x);
     target->viewport.pos.y = static_cast<int>(state.viewport->pos.y);

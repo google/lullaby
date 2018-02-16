@@ -11,7 +11,9 @@ cc_library(
     hdrs = ["rig_system.h"],
     deps = [
         "//lullaby/modules/ecs",
+        "//lullaby/systems/animation",
         "//lullaby/systems/render",
+        "//lullaby/util:make_unique",
         "//lullaby/util:span",
         "@mathfu//:mathfu",
     ],

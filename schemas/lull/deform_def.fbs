@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -66,6 +66,8 @@ table Waypoint {
   remapped_position: Vec3;
   /// The Euler angle used as the new mapping in Waypoint deformations.
   remapped_rotation: Vec3;
+  /// The new scale in Waypoint deformations. Optional, defaults to 1.
+  remapped_scale: Vec3 (native_default:"{1.f, 1.f, 1.f}");
 
   /// Normalized coordinates representing a point in the Deformed's aabb that
   /// will match with |original_position|. (0,0,0) is the left, bottom, far

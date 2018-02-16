@@ -22,6 +22,7 @@ limitations under the License.
 #include "lullaby/generated/cursor_def_generated.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
+#include "lullaby/modules/input/input_focus.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/math.h"
@@ -31,8 +32,8 @@ namespace lull {
 
 /// The CursorSystem updates the on-screen position and render state of a dot at
 /// the end of an input ray, based on where that ray collides with an entity.
-/// NOTE: this system is currently a sub-system of reticle_system, pending a
-/// a completion of refactoring reticle_system's target storage and event
+/// NOTE: this system is currently a sub-system of reticle_system, pending
+/// completion of refactoring reticle_system's target storage and event
 /// sending into InputProcessor.
 class CursorSystem : public System {
  public:
@@ -46,12 +47,12 @@ class CursorSystem : public System {
 
   void Destroy(Entity entity) override;
 
-  // TODO(b/63343249) Turn this system into a fully independent implementation
-  // when focus has been implemented in InputProcessor.
-  // void AdvanceFrame(const Clock::duration& delta_time);
+  /// Update the cursor rendering.  This should be called after
+  /// StandardInputPipeline::AdvanceFrame() or InputProccessor::UpdateDevice().
+  void AdvanceFrame(const Clock::duration& delta_time);
 
   // DO NOT CALL: This function should only be called by reticle_system, and
-  // will be removed when focus detection has been moved into InputProcessor.
+  // will be removed when reticle_system starts using InputProcessor.
   void DoNotCallUpdateCursor(Entity entity, bool showing, Entity target,
                              bool interactive, const mathfu::vec3& location);
 
@@ -61,8 +62,17 @@ class CursorSystem : public System {
   /// Gets the distance for the cursor when there is no collision.
   float GetNoHitDistance(Entity entity) const;
 
-  /// Gets the cursor entity that matches |device|.
+  /// Gets the cursor entity that matches |device|.  If multiple match, will
+  /// return the first it finds.
   Entity GetCursor(InputManager::DeviceType device) const;
+
+  /// Changes what device the cursor is driven by.
+  void SetDevice(Entity entity, InputManager::DeviceType device);
+
+  /// Calculates where the cursor should be, (ignoring any collisions or other
+  /// target providers).
+  mathfu::vec3 CalculateCursorPosition(InputManager::DeviceType device,
+                                       const Ray& collision_ray) const;
 
  private:
   struct Cursor : Component {

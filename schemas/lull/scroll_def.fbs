@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -29,6 +29,11 @@ table ScrollDef {
 
   /// Same as touch_momentum_ms, but for dragging.  Must be >= 0.
   drag_momentum_ms: int = 50;
+
+  /// Prevent the user from scrolling diagonally by locking each scroll to
+  /// whatever direction they initially scroll in. Only used if
+  /// touch_sensitivity has non-zero values in both dimensions.
+  lock_axis: bool = false;
 }
 
 /// If added to an Entity with a scroll view (see ScrollDef above), this will

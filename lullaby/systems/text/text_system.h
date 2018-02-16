@@ -84,13 +84,15 @@ class TextSystem : public System {
           names);
 
   // Sets |font| on |entity|.
-  // TODO(b/37951300) Doesn't take effect until the next call to SetText.
   void SetFont(Entity entity, FontPtr font);
 
   // Returns |entity|'s current text value, or nullptr if it isn't registered.
   // This is the same value that was passed to SetText, ie it has not been
   // processed by StringProcessor.
   const std::string* GetText(Entity entity) const;
+
+  // Returns the |entity|'s rendered text.
+  const std::string* GetRenderedText(Entity entity) const;
 
   // Updates |entity| to display |text|.  If there is a deformation function set
   // on |entity| in the RenderSystem then the mesh generation will be deferred
@@ -103,8 +105,7 @@ class TextSystem : public System {
                TextSystemPreprocessingModes preprocess =
                    kPreprocessingModeStringPreprocessor);
 
-  // Sets |entity|'s font size to |size|, measured in meters. Takes effect on
-  // the next call to SetText.  Bug to fix: TODO(b/37951300)
+  // Sets |entity|'s font size to |size|, measured in meters.
   void SetFontSize(Entity entity, float size);
 
   // DEPRECATED.  Do not use.
@@ -115,30 +116,28 @@ class TextSystem : public System {
   // single line.
   // If just the height is zero, the text will break to multiple lines based
   // on the TextWrapMode.
-  // TODO(b/37951300) Doesn't take effect until the next call to SetText.
   void SetBounds(Entity entity, const mathfu::vec2& bounds);
 
   // Sets how |entity|'s text will wrap based on the text bounds.
   // See the documentation for TextWrapMode for info on how different values
   // affect the wrapping.
-  // TODO(b/37951300) Doesn't take effect until the next call to SetText.
   void SetWrapMode(Entity entity, TextWrapMode wrap_mode);
 
   // Sets |entity|'s |ellipsis| string, which will be appended to the last of
-  // the visible characters when text does not fit in its bounds rect. Takes
-  // effect on the next call to SetText.  Bug to fix: TODO(b/37951300)
+  // the visible characters when text does not fit in its bounds rect.
   void SetEllipsis(Entity entity, const std::string& ellipsis);
 
-  // Sets |entity|'s |horizontal| alignment. Takes effect on the next call to
-  // SetText.  Bug to fix: TODO(b/37951300)
+  // Sets |entity|'s |horizontal| alignment.
   void SetHorizontalAlignment(Entity entity, HorizontalAlignment horizontal);
 
-  // Sets |entity|'s |vertical| alignment. Takes effect on the next call to
-  // SetText.  Bug to fix: TODO(b/37951300)
+  // Sets |entity|'s |vertical| alignment.
   void SetVerticalAlignment(Entity entity, VerticalAlignment vertical);
 
   // Sets text |direction| to Right to left/Left to right mode.
   void SetTextDirection(TextDirection direction);
+
+  // Sets |entity|'s direction to |direction|.
+  void SetTextDirection(Entity entity, TextDirection direction);
 
   // Returns a vector of tags associated with |entity|. This will only be
   // populated if parse_and_strip_html is set to true in the TextDef. Returns
@@ -194,6 +193,8 @@ class TextSystemImpl : public System {
 
   virtual const std::string* GetText(Entity entity) const = 0;
 
+  virtual const std::string* GetRenderedText(Entity entity) const = 0;
+
   virtual void SetText(Entity entity, const std::string& text) = 0;
 
   virtual void SetFontSize(Entity entity, float size) = 0;
@@ -211,6 +212,8 @@ class TextSystemImpl : public System {
                                     VerticalAlignment vertical) = 0;
 
   virtual void SetTextDirection(TextDirection direction) = 0;
+
+  virtual void SetTextDirection(Entity entity, TextDirection direction) = 0;
 
   virtual const std::vector<LinkTag>* GetLinkTags(Entity entity) const = 0;
 

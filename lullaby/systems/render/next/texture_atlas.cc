@@ -16,9 +16,6 @@ limitations under the License.
 
 #include "lullaby/systems/render/next/texture_atlas.h"
 
-#include "fplbase/glplatform.h"
-#include "fplbase/internal/type_conversions_gl.h"
-
 namespace lull {
 
 void TextureAtlas::Init(std::shared_ptr<Texture> texture,

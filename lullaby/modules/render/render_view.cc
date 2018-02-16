@@ -98,8 +98,9 @@ void PopulateRenderViews(Registry* registry, RenderView* views, size_t num,
     views[i].clip_from_eye_matrix = clip_from_eye_transform;
     views[i].viewport = viewport;
     views[i].dimensions = dimensions;
+    views[i].eye_from_world_matrix = views[i].world_from_eye_matrix.Inverse();
     views[i].clip_from_world_matrix =
-        clip_from_eye_transform * views[i].world_from_eye_matrix.Inverse();
+        clip_from_eye_transform * views[i].eye_from_world_matrix;
     views[i].eye = eye;
   }
 }

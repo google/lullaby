@@ -16,7 +16,7 @@ cc_library(
         "text_input_system.h",
     ],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
@@ -24,6 +24,7 @@ cc_library(
         "//lullaby/modules/input",
         "//lullaby/systems/dispatcher",
         "//lullaby/systems/render",
+        "//lullaby/systems/text",
         "//lullaby/systems/transform",
         "//lullaby/util:clock",
         "//lullaby/util:logging",

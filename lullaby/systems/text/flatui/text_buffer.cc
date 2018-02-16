@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "lullaby/systems/text/flatui/text_buffer.h"
 
+#include <array>
+
 #include "flatui/font_util.h"
 
 namespace lull {
@@ -107,13 +109,31 @@ TextBuffer::TextBuffer(flatui::FontManager* manager,
       links_.push_back({link.link, aabbs});
     }
     const bool is_rtl = params.direction == TextDirection_RightToLeft;
-    std::vector<mathfu::vec3_packed> underline_vertices =
-        flatui::GenerateUnderlineVertices(*font_buffer_, mathfu::kZeros2f,
-            is_rtl);
-    underline_vertices_.reserve(underline_vertices.size());
-    for (const mathfu::vec3_packed& position : underline_vertices) {
-      underline_vertices_.emplace_back(mathfu::vec3(position),
-                                       mathfu::kZeros2f);
+    if (params.underline_padding) {
+      std::vector<mathfu::vec3> underline_positions;
+      std::vector<mathfu::vec2> underline_tex_coords;
+      bool success = flatui::GeneratePaddedUnderlineVertices(*font_buffer_,
+          mathfu::kZeros2f, *params.underline_padding * kPixelsFromMetersScale,
+          &underline_positions, &underline_tex_coords, &underline_indices_,
+          is_rtl);
+      if (success) {
+        underline_vertices_.reserve(underline_positions.size());
+        for (size_t i = 0; i < underline_positions.size(); ++i) {
+          underline_vertices_.emplace_back(underline_positions[i],
+                                           underline_tex_coords[i]);
+        }
+      }
+    } else {
+      std::vector<mathfu::vec3_packed> underline_vertices =
+          flatui::GenerateUnderlineVertices(*font_buffer_, mathfu::kZeros2f,
+              is_rtl);
+      underline_vertices_.reserve(underline_vertices.size());
+      for (const mathfu::vec3_packed& position : underline_vertices) {
+        // To allow underline to show up in aa'ed shaders, set texture
+        // coordinate to (0.5, 0.5).
+        underline_vertices_.emplace_back(mathfu::vec3(position),
+                                         mathfu::vec2(0.5f, 0.5f));
+      }
     }
   }
 
@@ -303,12 +323,12 @@ MeshData TextBuffer::BuildSliceMesh(size_t slice) const {
   DataContainer vertex_data =
       DataContainer::CreateHeapDataContainer(vertex_data_size);
 
-  const size_t index_data_size = indices.size() * sizeof(MeshData::Index);
+  const size_t index_data_size = indices.size() * sizeof(indices[0]);
   DataContainer index_data =
       DataContainer::CreateHeapDataContainer(index_data_size);
 
   MeshData mesh(MeshData::kTriangles, VertexPT::kFormat, std::move(vertex_data),
-                std::move(index_data));
+                MeshData::kIndexU16, std::move(index_data));
 
   mesh.AddVertices(vertices_.data(), vertices_.size());
   mesh.AddIndices(indices.data(), indices.size());
@@ -328,23 +348,32 @@ MeshData TextBuffer::BuildUnderlineMesh() const {
 
   // Underline vertices are arranged in triangle strips.  Convert them into
   // a triangle list.
-  const size_t num_triangles = underline_vertices_.size() - 2;
-  const size_t index_data_size = 3 * num_triangles * sizeof(MeshData::Index);
+  size_t index_data_size;
+  if (params_.underline_padding) {
+    index_data_size = underline_indices_.size() * sizeof(uint16_t);
+  } else {
+    const size_t num_triangles = underline_vertices_.size() - 2;
+    index_data_size = 3 * num_triangles * sizeof(uint16_t);
+  }
   DataContainer index_data =
       DataContainer::CreateHeapDataContainer(index_data_size);
 
   MeshData mesh(MeshData::kTriangles, VertexPT::kFormat, std::move(vertex_data),
-                std::move(index_data));
+                MeshData::kIndexU16, std::move(index_data));
   mesh.AddVertices(underline_vertices_.data(), underline_vertices_.size());
 
-  for (size_t i = 2; i < underline_vertices_.size(); ++i) {
-    const uint16_t index = static_cast<uint16_t>(i);
-    if ((i % 2) == 0) {
-      mesh.AddIndices({static_cast<uint16_t>(index - 2),
-                       static_cast<uint16_t>(index - 1), index});
-    } else {
-      mesh.AddIndices({static_cast<uint16_t>(index - 2), index,
-                       static_cast<uint16_t>(index - 1)});
+  if (params_.underline_padding) {
+    mesh.AddIndices(underline_indices_.data(), underline_indices_.size());
+  } else {
+    for (size_t i = 2; i < underline_vertices_.size(); ++i) {
+      const uint16_t index = static_cast<uint16_t>(i);
+      std::array<uint16_t, 3> triangle = {static_cast<uint16_t>(index - 2),
+                                          static_cast<uint16_t>(index - 1),
+                                          index};
+      if (i % 2) {
+        std::swap(triangle[1], triangle[2]);
+      }
+      mesh.AddIndices(triangle.data(), triangle.size());
     }
   }
 

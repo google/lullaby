@@ -1,5 +1,5 @@
 include "lull/audio_playback_types.fbs";
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -16,11 +16,11 @@ table AudioSourceDef {
   loop: bool;
 
   /// The type of audio source.
-  source_type: AudioSourceType = Spatialized;
+  source_type: AudioSourceType = SoundObject;
 
-  /// How this sound should be loaded and played. Sources stream by default,
-  /// ensuring they can begin playback as quickly as possible.
-  playback_type: AudioPlaybackType = Stream;
+  /// What to do if playback is requested before preloading is complete. By
+  /// default, play the sound as soon as preloading is complete.
+  playback_type: AudioPlaybackType = PlayWhenReady;
 
   /// The directivity constant "alpha". This value is a weighting balance
   /// between a figure 8 pattern and omnidirectional pattern for source
@@ -38,6 +38,9 @@ table AudioSourceDef {
   /// is not in the range [1, inf), it will be ignored and directivity will not
   /// be set for this sound.
   spatial_directivity_order: float = -1.0;
+
+  /// How to load the sound for playback. By default, stream decode the sound.
+  load_type: AudioLoadType = Stream;
 }
 
 root_type AudioSourceDef;

@@ -60,13 +60,16 @@ class LayoutSystemTest : public testing::Test {
     return std::unique_ptr<Dispatcher>(new Dispatcher());
   }
 
-  Entity CreateParent() {
+  Entity CreateParent(LayoutIgnoreMode ignore_mode = LayoutIgnoreMode_None,
+                      const mathfu::vec2& canvas_size = mathfu::vec2(2, 2),
+                      int elements_per_wrap = 2) {
     TransformDefT transform;
     LayoutDefT layout;
-    layout.canvas_size = mathfu::vec2(2, 2);
+    layout.canvas_size = canvas_size;
     layout.shrink_to_fit = false;
-    layout.elements_per_wrap = 2;
+    layout.elements_per_wrap = elements_per_wrap;
     layout.max_elements = 4;
+    layout.ignore_mode = ignore_mode;
 
     Blueprint blueprint;
     blueprint.Write(&transform);
@@ -74,10 +77,11 @@ class LayoutSystemTest : public testing::Test {
     return entity_factory_->Create(&blueprint);
   }
 
-  Entity CreateChild(Entity parent, float weight = 0.f,
-                     bool add_layout = false) {
+  Entity CreateChild(Entity parent, float weight = 0.f, bool add_layout = false,
+                     bool enabled = true) {
     Blueprint blueprint;
     TransformDefT transform;
+    transform.enabled = enabled;
     blueprint.Write(&transform);
     if (weight != 0) {
       LayoutElementDefT layout_element;
@@ -251,6 +255,50 @@ TEST_F(LayoutSystemTest, CreateLayout) {
   }
 }
 
+// Test that LayoutSystem handles setting the sqt of multiple child components
+// when the entities are created via the entity factory and the layout is linear
+// instead of radial, with some that are disabled and not ignored.
+TEST_F(LayoutSystemTest, CreateLayout_IgnoreNone) {
+  const int num_children = 5;
+  const Entity parent = CreateParent();
+  Entity children[num_children];
+  for (int i = 0; i < num_children; ++i) {
+    // Enable all except [2].
+    children[i] = CreateChild(parent, 0.f, false, i != 2);
+  }
+
+  for (int i = 0; i < num_children; ++i) {
+    const Sqt* sqt = transform_system_->GetSqt(children[i]);
+    // Default ignore_mode is none, so all are still affected.
+    EXPECT_NEAR(-1, sqt->translation.x, kEpsilon);
+    EXPECT_NEAR(1, sqt->translation.y, kEpsilon);
+  }
+}
+
+// Test that LayoutSystem handles setting the sqt of multiple child components
+// when the entities are created via the entity factory and the layout is linear
+// instead of radial, with some that are disabled and ignore them.
+TEST_F(LayoutSystemTest, CreateLayout_IgnoreDisabled) {
+  const int num_children = 5;
+  const Entity parent = CreateParent(LayoutIgnoreMode_Disabled);
+  Entity children[num_children];
+  for (int i = 0; i < num_children; ++i) {
+    // Enable all except [2].
+    children[i] = CreateChild(parent, 0.f, false, i != 2);
+  }
+
+  for (int i = 0; i < num_children; ++i) {
+    const Sqt* sqt = transform_system_->GetSqt(children[i]);
+    if (i == 2) {
+      EXPECT_NEAR(0, sqt->translation.x, kEpsilon);
+      EXPECT_NEAR(0, sqt->translation.y, kEpsilon);
+    } else {
+      EXPECT_NEAR(-1, sqt->translation.x, kEpsilon);
+      EXPECT_NEAR(1, sqt->translation.y, kEpsilon);
+    }
+  }
+}
+
 TEST_F(LayoutSystemTest, RadialLayout_Circle) {
   TransformDefT transform;
   RadialLayoutDefT layout;
@@ -339,6 +387,63 @@ TEST_F(LayoutSystemTest, Destroy) {
   EXPECT_THAT(layout_changed, false);
   layout_system_->Layout(parent);
   EXPECT_THAT(layout_changed, false);  // No change, since entity deleted.
+}
+
+// Test that LayoutSystem ignores disabled elements and also updates when the
+// enabled status changes.
+TEST_F(LayoutSystemTest, CreateLayout_WeightedElementsChanging) {
+  // Canvas_size = (3,2) and elements_per_wrap = 3
+  // They should be arranged in the following manner.
+  //  0 1 2
+  //  - - -
+  //
+  //   012   (1 disabled, 0 and 2 grew)
+  //  - - -
+  const mathfu::vec2 expectations[] = {
+      mathfu::vec2(-1.f, 1.f),
+      mathfu::vec2(0.f, 1.f),
+      mathfu::vec2(1.f, 1.f),
+  };
+  const mathfu::vec2 size_expectations[] = {
+      mathfu::vec2(1.f, 0.f),
+      mathfu::vec2(1.f, 0.f),
+      mathfu::vec2(1.f, 0.f),
+  };
+  // [1] is unaffected and keeps its previous state.
+  const mathfu::vec2 disabled_expectations[] = {
+      mathfu::vec2(-0.75f, 1.f),
+      mathfu::vec2(0.f, 1.f),
+      mathfu::vec2(0.75f, 1.f),
+  };
+  const mathfu::vec2 disabled_size_expectations[] = {
+      mathfu::vec2(1.5f, 0.f),
+      mathfu::vec2(1.f, 0.f),
+      mathfu::vec2(1.5f, 0.f),
+  };
+
+  const Entity parent =
+      CreateParent(LayoutIgnoreMode_Disabled, mathfu::vec2(3, 2), 3);
+  const int num_children = 3;
+  Entity children[num_children];
+  for (Entity& child : children) {
+    // Give all children weight.
+    // The LayoutDef will change the child's size.
+    child = CreateChild(parent, 1.0f, true);
+  }
+
+  // Resulting children will be all 1 wide into 3 columns.
+  AssertTranslationsAndSizes(num_children, children, expectations,
+                             size_expectations);
+
+  // Resulting children will be all 1.5 wide into 2 columns.
+  transform_system_->Disable(children[1]);
+  AssertTranslationsAndSizes(num_children, children, disabled_expectations,
+                             disabled_size_expectations);
+
+  // Return to the old layout
+  transform_system_->Enable(children[1]);
+  AssertTranslationsAndSizes(num_children, children, expectations,
+                             size_expectations);
 }
 
 // Test that LayoutSystem will resize weighted elements and does not infinite
@@ -451,17 +556,17 @@ TEST_F(LayoutSystemTest, CreateLayout_WeightedElements_Nested) {
                              size_expectations);
 }
 
-// Test that LayoutSystem will disable weighted elements when there is no space
-// and does not infinite loop.  The disabled child will be a LayoutDef with its
-// own children, which will also be disabled as well.
+// Test that LayoutSystem will shrink weighted elements when there is no space
+// and does not infinite loop.  The shrunk child will be a LayoutDef with its
+// own children, which will also be shrunk as well.
 // Parent canvas_size = (2,2)
 //   Child [0], size = (2,2)
-//   Child [1], weighted, disabled, has a Layout.
-//     Grandchild [2] of [1], weighted, disabled by [1]
+//   Child [1], weighted, shrunk, has a Layout.
+//     Grandchild [2] of [1], weighted, shrunk by [1]
 // They should be arranged in the following manner.
 //   0 0
 //   0 0
-TEST_F(LayoutSystemTest, CreateLayout_WeightedElements_Disabled) {
+TEST_F(LayoutSystemTest, CreateLayout_WeightedElements_Shrunk) {
   const int num_children = 3;
   const Entity parent = CreateParent();
   Entity children[num_children];
@@ -473,11 +578,11 @@ TEST_F(LayoutSystemTest, CreateLayout_WeightedElements_Disabled) {
   aabb.max = mathfu::vec3(1.f, 1.f, 0.f);
   layout_box_system_->SetOriginalBox(children[0], aabb);
 
-  // Child [1], has weight, will be disabled
+  // Child [1], has weight, will be shrunk
   children[1] = CreateChild(parent, 1.0f, true);
 
-  // Grandchild [2] of [1], has weight, will be disabled
-  children[2] = CreateChild(children[1]);
+  // Grandchild [2] of [1], has weight, will be shrunk
+  children[2] = CreateChild(children[1], 1.0f);
 
   // Child [0] didnt move or change size
   const Sqt* sqt = transform_system_->GetSqt(children[0]);
@@ -488,10 +593,15 @@ TEST_F(LayoutSystemTest, CreateLayout_WeightedElements_Disabled) {
   EXPECT_NEAR(2.f, size.x, kEpsilon);
   EXPECT_NEAR(2.f, size.y, kEpsilon);
 
-  // Children [1] and [2] should be disabled
-  EXPECT_EQ(true, transform_system_->IsEnabled(children[0]));
-  EXPECT_EQ(false, transform_system_->IsEnabled(children[1]));
-  EXPECT_EQ(false, transform_system_->IsEnabled(children[2]));
+  // Children [1] and [2] should be shrunk in the x direction.
+  for (int i = 1; i <= 2; ++i) {
+    EXPECT_EQ(Optional<float>(0.f),
+              layout_box_system_->GetDesiredSizeX(children[i]));
+    EXPECT_EQ(Optional<float>(),
+              layout_box_system_->GetDesiredSizeY(children[i]));
+    EXPECT_EQ(Optional<float>(),
+              layout_box_system_->GetDesiredSizeZ(children[i]));
+  }
 }
 
 // Test that LayoutSystem will aggregate events from multiple children and only
@@ -511,6 +621,72 @@ TEST_F(QueuedLayoutSystemTest, AggregateEvents) {
 }
 
 // Test that the LayoutSystem will SetOriginalBox and children SetDesiredSize
+// in response to a OnDisabledEvent if LayoutIgnoreMode_Disabled.
+TEST_F(QueuedLayoutSystemTest, DisabledEvent_IgnoreDisabled) {
+  const Entity parent = CreateParent(LayoutIgnoreMode_Disabled);
+  const Entity child = CreateChild(parent, 1.0f);
+
+  dispatcher_->Dispatch();
+  ClearListeners();
+
+  transform_system_->Disable(child);
+  AssertListenersEmpty();
+  dispatcher_->Dispatch();
+  AssertListenerMatch({{parent, 1}}, original_boxes_);
+  AssertListenerEmpty(desired_sizes_);  // Disabled child is untouched
+  AssertListenerEmpty(actual_boxes_);
+}
+
+// Test that the LayoutSystem will SetOriginalBox and children SetDesiredSize
+// in response to a OnEnabledEvent if LayoutIgnoreMode_Disabled.
+TEST_F(QueuedLayoutSystemTest, EnabledEvent_IgnoreDisabled) {
+  const Entity parent = CreateParent(LayoutIgnoreMode_Disabled);
+  const Entity child = CreateChild(parent, 1.0f);
+  transform_system_->Disable(child);
+
+  dispatcher_->Dispatch();
+  ClearListeners();
+
+  transform_system_->Enable(child);
+  AssertListenersEmpty();
+  dispatcher_->Dispatch();
+  AssertListenerMatch({{parent, 1}}, original_boxes_);
+  AssertListenerMatch({{child, 1}}, desired_sizes_);
+  AssertListenerEmpty(actual_boxes_);
+}
+
+// Test that the LayoutSystem will not respond to a OnDisabledEvent if
+// LayoutIgnoreMode_None.
+TEST_F(QueuedLayoutSystemTest, DisabledEvent_IgnoreNone) {
+  const Entity parent = CreateParent();
+  const Entity child = CreateChild(parent, 1.0f);
+
+  dispatcher_->Dispatch();
+  ClearListeners();
+
+  transform_system_->Disable(child);
+  AssertListenersEmpty();
+  dispatcher_->Dispatch();
+  AssertListenersEmpty();
+}
+
+// Test that the LayoutSystem will not respond to a OnEnabledEvent if
+// LayoutIgnoreMode_None.
+TEST_F(QueuedLayoutSystemTest, EnabledEvent_IgnoreNone) {
+  const Entity parent = CreateParent();
+  const Entity child = CreateChild(parent, 1.0f);
+  transform_system_->Disable(child);
+
+  dispatcher_->Dispatch();
+  ClearListeners();
+
+  transform_system_->Enable(child);
+  AssertListenersEmpty();
+  dispatcher_->Dispatch();
+  AssertListenersEmpty();
+}
+
+// Test that the LayoutSystem will SetOriginalBox and children SetDesiredSize
 // in response to a ParentChangedEvent.
 TEST_F(QueuedLayoutSystemTest, ParentChanged) {
   const Entity parent = CreateParent();
@@ -520,6 +696,24 @@ TEST_F(QueuedLayoutSystemTest, ParentChanged) {
   dispatcher_->Dispatch();
   AssertListenerMatch({ {parent, 1} }, original_boxes_);
   AssertListenerMatch({ {child, 1} }, desired_sizes_);
+  AssertListenerEmpty(actual_boxes_);
+}
+
+// Test that the LayoutSystem will SetOriginalBox and children SetDesiredSize
+// in response to a ChildIndexChangedEvent.
+TEST_F(QueuedLayoutSystemTest, ChildIndexChanged) {
+  const Entity parent = CreateParent();
+  const Entity child_1 = CreateChild(parent, 1.0f);
+  const Entity child_2 = CreateChild(parent, 1.0f);
+
+  dispatcher_->Dispatch();
+  ClearListeners();
+
+  transform_system_->MoveChild(child_1, 1);
+  AssertListenersEmpty();
+  dispatcher_->Dispatch();
+  AssertListenerMatch({{parent, 1}}, original_boxes_);
+  AssertListenerMatch({{child_1, 1}, {child_2, 1}}, desired_sizes_);
   AssertListenerEmpty(actual_boxes_);
 }
 

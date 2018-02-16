@@ -21,39 +21,9 @@ limitations under the License.
 #include <initializer_list>
 
 #include "lullaby/util/math.h"
+#include "lullaby/generated/vertex_attribute_def_generated.h"
 
 namespace lull {
-
-// A VertexAttribute describes the location and format of a single vertex
-// element within the vertex struct.
-struct VertexAttribute {
-  enum Usage {
-    kPosition,
-    kTexCoord,
-    kColor,
-    kNormal,
-    kTangent,
-    kIndex,
-    kWeight,
-  };
-  enum Type {
-    kUnsignedInt8,
-    kUnsignedInt16,
-    kFloat32,
-  };
-
-  VertexAttribute() {}
-  VertexAttribute(int offset, Usage usage, int count, Type type)
-      : offset(offset), usage(usage), count(count), type(type) {}
-  VertexAttribute(int offset, Usage usage, int count, Type type, int index)
-      : offset(offset), usage(usage), count(count), type(type), index(index) {}
-
-  int offset = 0;
-  Usage usage = kPosition;
-  int count = 0;
-  Type type = kFloat32;
-  int index = 0;
-};
 
 // A VertexFormat details all data within a vertex structure.  This is needed to
 // instruct the GL how to interpret the vertex stream and align the attributes
@@ -72,17 +42,29 @@ class VertexFormat {
   VertexFormat(std::initializer_list<VertexAttribute> attributes)
       : VertexFormat(std::begin(attributes), std::end(attributes)) {}
 
+  // Appends the specified attribute to the internal list of attributes.
+  void AppendAttribute(const VertexAttribute& attribute);
+
   size_t GetNumAttributes() const { return num_attributes_; }
 
-  const VertexAttribute& GetAttributeAt(size_t index) const;
+  // Returns the attribute at the specified index if valid, else nullptr.
+  const VertexAttribute* GetAttributeAt(size_t index) const;
 
-  // Returns the attribute which has both |usage| and |usage_index|, else
-  // nullptr.
-  const VertexAttribute* GetAttributeWithUsage(VertexAttribute::Usage usage,
-                                               int usage_index = 0) const;
+  // Returns the n'th attribute which has the specified |usage|, else nullptr.
+  const VertexAttribute* GetAttributeWithUsage(VertexAttributeUsage usage,
+                                               int n = 0) const;
 
-  // Returns the size of a single vertex, padded out to kAlignment.
+  // Returns the size of a single vertex.
   size_t GetVertexSize() const { return vertex_size_; }
+
+  // Returns the offset of the attribute at |index|.
+  size_t GetAttributeOffsetAt(size_t index) const;
+
+  // Returns |attribute|'s offset within the vertex.
+  size_t GetAttributeOffset(const VertexAttribute* attribute) const;
+
+  // Returns the size of a vertex attribute.
+  static size_t GetAttributeSize(const VertexAttribute& attr);
 
   // Queries whether a specific vertex type matches this format.
   template <typename Vertex>
@@ -94,8 +76,6 @@ class VertexFormat {
  private:
   static constexpr uint32_t kAlignment = 4;
 
-  static uint32_t GetSize(VertexAttribute::Type type);
-
   // This class's data must be restricted to POD, as we rely on static const
   // VertexFormats for dynamic rendering.
   VertexAttribute attributes_[kMaxAttributes];
@@ -106,27 +86,7 @@ class VertexFormat {
 template <typename Iterator>
 VertexFormat::VertexFormat(Iterator begin, Iterator end) {
   for (auto attrib = begin; attrib != end; ++attrib) {
-    if (num_attributes_ == kMaxAttributes) {
-      LOG(DFATAL) << "Cannot exceed max attributes size of " << kMaxAttributes;
-      return;
-    }
-
-    DCHECK_EQ(attrib->offset % kAlignment, 0U)
-        << "Misaligned vertex attribute; offset: " << attrib->offset
-        << ", usage: " << attrib->usage;
-    attributes_[num_attributes_] = *attrib;
-    ++num_attributes_;
-  }
-
-  if (num_attributes_ > 0) {
-    std::sort(attributes_, attributes_ + num_attributes_,
-              [](const VertexAttribute& a, const VertexAttribute& b) {
-                return a.offset < b.offset;
-              });
-
-    const VertexAttribute& last = attributes_[num_attributes_ - 1];
-    vertex_size_ = last.offset +
-                   AlignToPowerOf2(last.count * GetSize(last.type), kAlignment);
+    AppendAttribute(*attrib);
   }
 }
 

@@ -54,15 +54,15 @@ basis for LullScript as it allowed for a simple runtime implementation.
 
 ## Comments
 
-Comments are marked by a hash (#) symbol and continue until the end of the line.
-They can appear anywhere inside an expression.
+Comments are marked by a semicolon (;) symbol and continue until the end of the
+line. They can appear anywhere inside an expression.
 
 ```
-(+ 1 1)  # returns the sum of 1 and 1
-(? 'hello')  # prints "hello" to the console
-(+  # add
- 1  # one
- 1  # and one
+(+ 1 1)  ; returns the sum of 1 and 1
+(? 'hello')  ; prints "hello" to the console
+(+  ; add
+ 1  ; one
+ 1  ; and one
 )
 ```
 

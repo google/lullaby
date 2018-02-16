@@ -21,7 +21,6 @@ limitations under the License.
 #include "fplbase/renderer.h"
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/render/mesh_data.h"
-#include "lullaby/modules/render/triangle_mesh.h"
 #include "lullaby/systems/render/mesh.h"
 #include "lullaby/util/math.h"
 #include "lullaby/generated/render_def_generated.h"
@@ -38,12 +37,6 @@ class Mesh {
 
   // Wraps/owns the provided fplbase::Mesh directly.
   explicit Mesh(MeshImplPtr mesh);
-
-  // Creates a mesh from the provided TriangleMesh.
-  explicit Mesh(const TriangleMesh<VertexP>& mesh);
-
-  // Creates a mesh from the provided TriangleMesh.
-  explicit Mesh(const TriangleMesh<VertexPT>& mesh);
 
   // Creates a mesh from the provided MeshData.
   explicit Mesh(const MeshData& mesh);

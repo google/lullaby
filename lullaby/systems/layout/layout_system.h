@@ -20,6 +20,7 @@ limitations under the License.
 #include <queue>
 #include <unordered_set>
 
+#include "lullaby/generated/layout_def_generated.h"
 #include "lullaby/events/entity_events.h"
 #include "lullaby/events/layout_events.h"
 #include "lullaby/modules/ecs/component.h"
@@ -84,6 +85,7 @@ class LayoutSystem : public System {
     std::unique_ptr<RadialLayoutParams> radial_layout = nullptr;
     size_t max_elements = 0;
     std::string empty_blueprint = "";
+    LayoutIgnoreMode ignore_mode = LayoutIgnoreMode_None;
     std::queue<Entity> empty_placeholders;
     SetLayoutPositionFn set_pos_fn;
     CachedPositions cached_positions;
@@ -159,7 +161,9 @@ class LayoutSystem : public System {
 
   // All of these events can trigger passes, which are labeled alongside.
   // Calling Layout() or any SetLayoutParams()            LayoutPass::kOriginal
+  void OnEnabledChanged(Entity entity);                // LayoutPass::kOriginal
   void OnParentChanged(const ParentChangedEvent& ev);  // LayoutPass::kOriginal
+  void OnChildIndexChanged(Entity entity);             // LayoutPass::kOriginal
   void OnOriginalBoxChanged(Entity e);                 // LayoutPass::kOriginal
   void OnDesiredSizeChanged(
       const DesiredSizeChangedEvent& event);           // LayoutPass::kDesired

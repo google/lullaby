@@ -24,6 +24,7 @@ limitations under the License.
 #include "lullaby/modules/flatbuffers/common_fb_conversions.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/input/input_manager.h"
+#include "lullaby/modules/input_processor/input_processor.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/collision/collision_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
@@ -119,22 +120,26 @@ void CursorSystem::CreateCursor(Entity entity, const CursorDef* data) {
 
 void CursorSystem::Destroy(Entity entity) { cursors_.Destroy(entity); }
 
-// TODO(b/63343249) enable this when InputProcessor's focus detection is
-// available.
-// void CursorSystem::AdvanceFrame(const Clock::duration& delta_time) {
-//   LULLABY_CPU_TRACE_CALL();
-//   for (auto& pair : cursors_) {
-//     Cursor* cursor = pair.second;
-//     const Entity entity = cursor.GetEntity();
-//     const bool showing = input_manager->IsConnected(cursor.device);
-//     const InputProcessor::FocusState& focus =
-//         input_processor->GetFocusState(cursor.device);
+void CursorSystem::AdvanceFrame(const Clock::duration&) {
+  LULLABY_CPU_TRACE_CALL();
+  auto* input_manager = registry_->Get<InputManager>();
+  auto* input_processor = registry_->Get<InputProcessor>();
 
-//     UpdateCursor(cursor.GetEntity(), showing, focus.target,
-//     focus.interactive,
-//                  focus.location);
-//   }
-// }
+  for (Cursor& cursor : cursors_) {
+    const Entity entity = cursor.GetEntity();
+    const bool showing =
+        input_manager ? input_manager->IsConnected(cursor.device) : false;
+    const InputFocus* focus =
+        input_processor ? input_processor->GetInputFocus(cursor.device)
+                        : nullptr;
+    if (focus != nullptr) {
+      UpdateCursor(entity, showing, focus->target, focus->interactive,
+                   focus->cursor_position);
+    } else {
+      UpdateCursor(entity, false, kNullEntity, false, mathfu::kZeros3f);
+    }
+  }
+}
 
 void CursorSystem::DoNotCallUpdateCursor(Entity entity, bool showing,
                                          Entity target, bool interactive,
@@ -190,6 +195,17 @@ void CursorSystem::UpdateCursor(Entity entity, bool showing, Entity target,
   }
 }
 
+mathfu::vec3 CursorSystem::CalculateCursorPosition(
+    InputManager::DeviceType device, const Ray& collision_ray) const {
+  Entity entity = GetCursor(device);
+  const Cursor* cursor = cursors_.Get(entity);
+  float no_hit_distance = kDefaultNoHitDistance;
+  if (cursor) {
+    no_hit_distance = cursor->no_hit_distance;
+  }
+  return collision_ray.origin + no_hit_distance * collision_ray.direction;
+}
+
 void CursorSystem::SetCursorTransform(const Cursor& cursor,
                                       const mathfu::vec3& cursor_world_pos,
                                       const mathfu::vec3& camera_world_pos) {
@@ -221,6 +237,11 @@ Entity CursorSystem::GetCursor(InputManager::DeviceType device) const {
     }
   }
   return kNullEntity;
+}
+
+void CursorSystem::SetDevice(Entity entity, InputManager::DeviceType device) {
+  Cursor* cursor = cursors_.Get(entity);
+  cursor->device = device;
 }
 
 void CursorSystem::SetNoHitDistance(Entity entity, float distance) {

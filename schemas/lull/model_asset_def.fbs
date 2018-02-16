@@ -1,0 +1,54 @@
+include "lull/lull_common.fbs";
+include "lull/material_def.fbs";
+include "lull/shader_uniform_def.fbs";
+include "lull/variant_def.fbs";
+
+namespace lull;
+
+/// Additional textures that can be applied to a model asset.
+table ModelAssetTextureDef {
+  /// Information about the texture to be loaded/created.
+  texture: TextureDef;
+
+  /// How the texture is to be used in the material.
+  usage: MaterialTextureUsage;
+}
+
+/// Additional material properties that can be applied to a model asset.
+table ModelAssetMaterialDef {
+  /// The shading model to use for this material.
+  shading_model: string;
+
+  // Temporary hack until new shader pipeline is up and running.  Once this
+  // information is bundled in the shading_model, we should remove this.
+  shading_uniforms: [ShaderUniformDef];
+
+  /// Material properties to use for this texture.
+  properties: VariantMapDef;
+
+  /// Additional textures data that can override the material data in the model
+  /// file.
+  textures: [ModelAssetTextureDef];
+
+  /// The LOD model to which to apply this material. A negative value indicates
+  /// the material should be applied to all LODs.
+  lod: int = -1;
+
+  /// The submesh index to which to apply this material. A negative value
+  /// indicates the material should be applied to all submeshes.
+  submesh: int = -1;
+}
+
+/// Specifies the model of an entity.
+table ModelAssetDef {
+  /// The render pass to use for rendering the model.  A value of 0 uses the
+  /// default render pass.
+  pass: uint = 0 (hashvalue);
+
+  /// The filename/path to the lullaby model file.
+  filename: string;
+
+  /// Additional material data that can override the material data in the model
+  /// file.
+  materials: [ModelAssetMaterialDef];
+}

@@ -20,9 +20,10 @@ limitations under the License.
 #include <unordered_map>
 
 #include "lullaby/generated/deform_def_generated.h"
+#include "lullaby/events/entity_events.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
-#include "lullaby/events/entity_events.h"
+#include "lullaby/modules/render/mesh_data.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/string_view.h"
@@ -78,6 +79,17 @@ class DeformSystem : public System {
   // the entity does not have a deformed component.
   DeformMode GetDeformMode(Entity e) const;
 
+  // Returns the strength of the deformation associated with the given deformed
+  // entity, if it exists. Will return a fraction, with 0 meaning the
+  // deformation is not being applied and 1 meaning that the entity is fully
+  // deformed.
+  Optional<float> GetDeformStrength(Entity e) const;
+
+  // Sets the strength of the deformation for the given deformer and all its
+  // children. Strength should be a fraction, with 0 meaning no deformation
+  // applied and 1 meaning that the deformer's children are all fully deformed.
+  void SetDeformStrength(Entity e, float strength);
+
   // Returns the bounding box of the entity before deformation was applied.
   const Aabb* UndeformedBoundingBox(Entity entity) const;
 
@@ -91,6 +103,8 @@ class DeformSystem : public System {
     mathfu::vec3 remapped_position;
     // The base rotation of the deformed entity at this waypoint.
     mathfu::vec3 remapped_rotation;
+    // The scale of the deformed entity at this waypoint.
+    mathfu::vec3 remapped_scale = mathfu::kOnes3f;
 
     // Normalized coordinates representing a point in the Deformed's aabb that
     // will match with original_position. (0,0,0) is the left, bottom, far
@@ -133,6 +147,7 @@ class DeformSystem : public System {
     DeformMode mode;
     float clamp_angle;
     std::unordered_map<HashValue, WaypointPath> paths;
+    float deform_strength = 1.0f;
   };
 
   struct Deformed : Component {
@@ -167,7 +182,7 @@ class DeformSystem : public System {
   // function will always recalculate the deformer based on the current
   // transform hierarchy. It should not be called more than once for each
   // entity.
-  void DeformMesh(Entity e, float* data, size_t len, size_t stride);
+  void DeformMesh(Entity e, MeshData* mesh);
 
   // Calculates the deformed world from entity transformation matrix for the
   // given entity. We expect this function to be called frequently by the
@@ -193,8 +208,7 @@ class DeformSystem : public System {
   // and position of the given deformer entity. We expect this function to be
   // called whenever someone updates the mesh of the deformed component.
   void CylinderBendDeformMesh(const Deformed& deformed,
-                              const Deformer& deformer, float* data, size_t len,
-                              size_t stride) const;
+                              const Deformer& deformer, MeshData* mesh) const;
 
   void OnParentChanged(const ParentChangedEvent& ev);
 

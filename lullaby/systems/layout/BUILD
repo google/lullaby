@@ -26,7 +26,7 @@ cc_library(
     hdrs = ["layout_system.h"],
     deps = [
         ":layout_box",
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/animation_channels:transform_channels",
         "//lullaby/modules/dispatcher",

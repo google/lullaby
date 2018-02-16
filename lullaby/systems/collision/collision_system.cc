@@ -89,7 +89,7 @@ void CollisionSystem::Destroy(Entity entity) {
 }
 
 CollisionSystem::CollisionResult CollisionSystem::CheckForCollision(
-    const Ray& ray) {
+    const Ray& ray) const {
   CollisionResult result = {kNullEntity, kNoHitDistance};
   std::vector<CollisionResult> clipped_results;
 

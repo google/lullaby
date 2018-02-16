@@ -18,7 +18,7 @@ limitations under the License.
 
 #include "lullaby/generated/animation_stategraph_generated.h"
 #include "lullaby/modules/flatbuffers/variant_fb_conversions.h"
-#include "lullaby/modules/script/lull/script_env.h"
+#include "lullaby/modules/lullscript/script_env.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/util/make_unique.h"
 #include "lullaby/util/random_number_generator.h"
@@ -366,8 +366,8 @@ Clock::duration StategraphAsset::AdjustTime(
   if (anim_track == nullptr) {
     return time;
   }
-  const Clock::rep adjusted_count =
-      static_cast<Clock::rep>(time.count() * anim_track->playback_speed_);
+  const Clock::rep adjusted_count = static_cast<Clock::rep>(
+      static_cast<float>(time.count()) * anim_track->playback_speed_);
   return Clock::duration(adjusted_count);
 }
 
@@ -412,6 +412,10 @@ Optional<HashValue> StategraphAsset::IsTransitionValid(
     }
   }
   return Optional<HashValue>();
+}
+
+std::string StategraphAsset::GetGraphDebugString() const {
+  return stategraph_ ? stategraph_->GetGraphDebugString() : "";
 }
 
 }  // namespace lull

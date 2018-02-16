@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_EVENTS_TEXT_EVENTS_H_
 #define LULLABY_EVENTS_TEXT_EVENTS_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {

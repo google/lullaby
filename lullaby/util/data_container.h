@@ -56,10 +56,20 @@ class DataContainer {
                          capacity, AccessFlags::kAll);
   }
 
+  // Returns a DataContainer of |size| allocated from the heap with a copy of
+  // the |data|.
+  static DataContainer CreateDataCopy(const uint8_t* data, size_t size) {
+    DataContainer container = CreateHeapDataContainer(size);
+    container.Append(data, size);
+    return container;
+  }
+
   // Returns a DataContainer which points to |size| bytes at |ptr| with
   // read-only access. The DataContainer does not assume ownership of the data.
-  static DataContainer WrapDataAsReadOnly(const uint8_t* ptr, size_t size) {
-    return DataContainer(DataContainer::DataPtr(const_cast<uint8_t*>(ptr),
+  template <typename T>
+  static DataContainer WrapDataAsReadOnly(const T* ptr, size_t size) {
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(ptr);
+    return DataContainer(DataContainer::DataPtr(const_cast<uint8_t*>(bytes),
                                                 [](const uint8_t*) {}),
                          size, size, AccessFlags::kRead);
   }

@@ -21,6 +21,38 @@ cc_library(
 )
 
 cc_library(
+    name = "deform_channels",
+    srcs = [
+        "deform_channels.cc",
+    ],
+    hdrs = [
+        "deform_channels.h",
+    ],
+    deps = [
+        "//lullaby/systems/animation",
+        "//lullaby/systems/deform",
+        "//lullaby/util:logging",
+        "//lullaby/util:registry",
+    ],
+)
+
+cc_library(
+    name = "nine_patch_channels",
+    srcs = [
+        "nine_patch_channels.cc",
+    ],
+    hdrs = [
+        "nine_patch_channels.h",
+    ],
+    deps = [
+        "//lullaby/systems/animation",
+        "//lullaby/systems/nine_patch",
+        "//lullaby/util:registry",
+        "@motive//:motive",
+    ],
+)
+
+cc_library(
     name = "render_channels",
     srcs = [
         "render_channels.cc",

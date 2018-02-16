@@ -16,8 +16,9 @@ limitations under the License.
 
 #include "lullaby/systems/name/name_system.h"
 
-#include "lullaby/generated/name_def_generated.h"
+#include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/generated/name_def_generated.h"
 
 namespace lull {
 
@@ -30,6 +31,22 @@ const HashValue kNameDefHash = Hash("NameDef");
 NameSystem::NameSystem(Registry* registry, bool allow_duplicate_names)
     : System(registry), allow_duplicate_names_(allow_duplicate_names) {
   RegisterDef(this, kNameDefHash);
+  FunctionBinder* binder = registry->Get<lull::FunctionBinder>();
+  if (binder) {
+    binder->RegisterMethod("lull.Name.GetName", &NameSystem::GetName);
+    binder->RegisterMethod("lull.Name.FindEntity", &NameSystem::FindEntity);
+    binder->RegisterMethod("lull.Name.FindDescendant",
+                           &NameSystem::FindDescendant);
+  }
+}
+
+NameSystem::~NameSystem() {
+  FunctionBinder* binder = registry_->Get<lull::FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.Name.GetName");
+    binder->UnregisterFunction("lull.Name.FindEntity");
+    binder->UnregisterFunction("lull.Name.FindDescendant");
+  }
 }
 
 void NameSystem::Create(Entity entity, HashValue type, const Def* def) {

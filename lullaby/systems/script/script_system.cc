@@ -35,7 +35,10 @@ const HashValue kScriptOnDestroyDefHash = Hash("ScriptOnDestroyDef");
 }  // namespace
 
 ScriptSystem::ScriptSystem(Registry* registry)
-    : System(registry), every_frame_scripts_(8), on_destroy_scripts_(8) {
+    : System(registry),
+      every_frame_scripts_(8),
+      on_destroy_scripts_(8),
+      event_scripts_(8) {
   RegisterDef(this, kScriptOnEventDefHash);
   RegisterDef(this, kScriptEveryFrameDefHash);
   RegisterDef(this, kScriptOnCreateDefHash);
@@ -57,6 +60,7 @@ void ScriptSystem::Create(Entity entity, HashValue type, const Def* def) {
     auto script_id = LoadScriptDef(data->script(), entity);
     if (script_id.IsValid()) {
       engine_->RunScript(script_id);
+      engine_->UnloadScript(script_id);
     }
   }
 }
@@ -67,6 +71,7 @@ void ScriptSystem::PostCreateInit(Entity entity, HashValue type,
     auto data = ConvertDef<ScriptOnEventDef>(def);
     auto script_id = LoadScriptDef(data->script(), entity);
     if (data->inputs() && script_id.IsValid()) {
+      AddScript(&event_scripts_, entity, script_id);
       ConnectEventDefs(registry_, entity, data->inputs(),
                        [this, script_id](const EventWrapper& event) {
                          engine_->SetValue(script_id, "event", event);
@@ -77,20 +82,31 @@ void ScriptSystem::PostCreateInit(Entity entity, HashValue type,
     auto data = ConvertDef<ScriptEveryFrameDef>(def);
     auto script_id = LoadScriptDef(data->script(), entity);
     if (script_id.IsValid()) {
-      every_frame_scripts_.Emplace(entity, script_id);
+      AddScript(&every_frame_scripts_, entity, script_id);
     }
   } else if (type == kScriptOnPostCreateInitDefHash) {
     auto data = ConvertDef<ScriptOnPostCreateInitDef>(def);
     auto script_id = LoadScriptDef(data->script(), entity);
     if (script_id.IsValid()) {
       engine_->RunScript(script_id);
+      engine_->UnloadScript(script_id);
     }
   } else if (type == kScriptOnDestroyDefHash) {
     auto data = ConvertDef<ScriptOnDestroyDef>(def);
     auto script_id = LoadScriptDef(data->script(), entity);
     if (script_id.IsValid()) {
-      on_destroy_scripts_.Emplace(entity, script_id);
+      AddScript(&on_destroy_scripts_, entity, script_id);
     }
+  }
+}
+
+void ScriptSystem::AddScript(ComponentPool<Scripts>* pool, Entity entity,
+                             ScriptId id) {
+  Scripts* scripts = pool->Get(entity);
+  if (scripts) {
+    scripts->ids.emplace_back(id);
+  } else {
+    pool->Emplace(entity, id);
   }
 }
 
@@ -133,21 +149,39 @@ ScriptId ScriptSystem::LoadScriptDef(const ScriptDef* script) {
 }
 
 void ScriptSystem::Destroy(Entity entity) {
-  Script* on_destroy_script = on_destroy_scripts_.Get(entity);
-  if (on_destroy_script) {
-    engine_->RunScript(on_destroy_script->id);
+  Scripts* on_destroy = on_destroy_scripts_.Get(entity);
+  if (on_destroy) {
+    for (const auto& id : on_destroy->ids) {
+      engine_->RunScript(id);
+      engine_->UnloadScript(id);
+    }
+  }
+  on_destroy_scripts_.Destroy(entity);
+  Scripts* every_frame = every_frame_scripts_.Get(entity);
+  if (every_frame) {
+    for (const auto& id : every_frame->ids) {
+      engine_->UnloadScript(id);
+    }
   }
   every_frame_scripts_.Destroy(entity);
-  on_destroy_scripts_.Destroy(entity);
+  Scripts* event = event_scripts_.Get(entity);
+  if (event) {
+    for (const auto& id : event->ids) {
+      engine_->UnloadScript(id);
+    }
+  }
+  event_scripts_.Destroy(entity);
 }
 
 void ScriptSystem::AdvanceFrame(Clock::duration delta_time) {
   double delta_time_double = std::chrono::duration<double>(delta_time).count();
   auto* transform_system = registry_->Get<TransformSystem>();
-  for (const Script& script : every_frame_scripts_) {
-    if (transform_system->IsEnabled(script.GetEntity())) {
-      engine_->SetValue(script.id, "delta_time", delta_time_double);
-      engine_->RunScript(script.id);
+  for (const Scripts& scripts : every_frame_scripts_) {
+    if (transform_system->IsEnabled(scripts.GetEntity())) {
+      for (const auto& id : scripts.ids) {
+        engine_->SetValue(id, "delta_time", delta_time_double);
+        engine_->RunScript(id);
+      }
     }
   }
 }

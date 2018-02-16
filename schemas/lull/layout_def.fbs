@@ -1,6 +1,14 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
+
+/// This controls if LayoutDef will ignore any children.
+enum LayoutIgnoreMode : int {
+  /// Do not ignore any children, layout all of them.
+  None,
+  /// Ignore children that have been disabled in TransformSystem.
+  Disabled,
+}
 
 /// This component will control all direct children's transforms to place them
 /// in a row-column or column-row layout.
@@ -47,6 +55,9 @@ table LayoutDef {
   /// The anchor at which the entities will be aligned within their column.
   /// Only for vertical-first fill orders, e.g. DownRight
   column_alignment: LayoutHorizontalAlignment = Left;
+
+  /// This controls if LayoutDef will ignore any children.
+  ignore_mode: LayoutIgnoreMode = None;
 }
 
 /// This component is attached to a child of LayoutDef if the child wishes to be

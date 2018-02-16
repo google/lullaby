@@ -48,21 +48,13 @@ TextSystem::TextSystem(Registry* registry, std::unique_ptr<TextSystemImpl> impl)
   if (binder) {
     binder->RegisterFunction(
         "lull.Text.SetText",
-        [this](Entity e, const std::string& text, int preprocess) {
-          SetText(e, text,
-                  static_cast<TextSystemPreprocessingModes>(preprocess));
+        [this](Entity e, const std::string& text) {
+          SetText(e, text, kPreprocessingModeStringPreprocessor);
         });
-
-    // Expose enums for use in scripts.  These are functions you will need to
-    // call (with parentheses)
-    binder->RegisterFunction("lull.Text.PreprocessingMode.None", []() {
-      return static_cast<int>(
-          TextSystemPreprocessingModes::kPreprocessingModeNone);
-    });
     binder->RegisterFunction(
-        "lull.Text.PreprocessingMode.StringPreprocessor", []() {
-          return static_cast<int>(TextSystemPreprocessingModes::
-                                      kPreprocessingModeStringPreprocessor);
+        "lull.Text.SetTextNoPreprocessing",
+        [this](Entity e, const std::string& text) {
+          SetText(e, text, kPreprocessingModeNone);
         });
   }
 }
@@ -71,9 +63,7 @@ TextSystem::~TextSystem() {
   FunctionBinder* binder = registry_->Get<FunctionBinder>();
   if (binder) {
     binder->UnregisterFunction("lull.Text.SetText");
-    binder->UnregisterFunction("lull.Text.PreprocessingMode.None");
-    binder->UnregisterFunction(
-        "lull.Text.PreprocessingMode.StringPreprocessor");
+    binder->UnregisterFunction("lull.Text.SetTextNoPreprocessing");
   }
 }
 
@@ -112,6 +102,10 @@ void TextSystem::SetFont(Entity entity, FontPtr font) {
 
 const std::string* TextSystem::GetText(Entity entity) const {
   return impl_->GetText(entity);
+}
+
+const std::string* TextSystem::GetRenderedText(Entity entity) const {
+  return impl_->GetRenderedText(entity);
 }
 
 void TextSystem::SetText(Entity entity, const std::string& text,
@@ -160,6 +154,10 @@ void TextSystem::SetHorizontalAlignment(Entity entity,
 
 void TextSystem::SetTextDirection(TextDirection direction) {
   impl_->SetTextDirection(direction);
+}
+
+void TextSystem::SetTextDirection(Entity entity, TextDirection direction) {
+  impl_->SetTextDirection(entity, direction);
 }
 
 void TextSystem::SetVerticalAlignment(Entity entity,

@@ -80,17 +80,43 @@ class DeformSystemTest : public ::testing::Test {
                 FloatNear(kDeformRadius, kEpsilon));
 
     ASSERT_THAT(deformation_fns_, Contains(Key(e)));
+    VertexP verts[] = {
+        VertexP(1.0f, 2.0f, 3.0f),
+        VertexP(4.0f, 5.0f, 6.0f),
+        VertexP(7.0f, 8.0f, 9.0f),
+    };
+    DataContainer vertex_data(
+        DataContainer::DataPtr(reinterpret_cast<uint8_t*>(verts),
+                               [](const void*) {}),
+        sizeof(verts), sizeof(verts), DataContainer::kAll);
+    MeshData mesh(MeshData::kTriangles, VertexP::kFormat,
+                  std::move(vertex_data));
+    deformation_fns_[e](&mesh);
+    EXPECT_THAT(GetPosition(verts[0]),
+                NearMathfu(mathfu::vec3(-0.479426f, 2.0f, 2.87758f), kEpsilon));
+    EXPECT_THAT(GetPosition(verts[1]),
+                NearMathfu(mathfu::vec3(-3.63719f, 5.0f, 0.335413f), kEpsilon));
+    EXPECT_THAT(GetPosition(verts[2]),
+                NearMathfu(mathfu::vec3(2.45548f, 8.0f, -4.5552f), kEpsilon));
   }
 
   // Checks that the deform system reports the entity as undeformed and that
   // there is a deformation function set that either is null or reports an error
   // when called.
-  void ExpectUndeformedMesh(Entity e) {
+  void ExpectUndeformedMesh(Entity e, bool check_mesh = true) {
     EXPECT_FALSE(deform_system_->IsDeformed(e));
     EXPECT_THAT(deform_system_->GetDeformMode(e), Eq(DeformMode_None));
     EXPECT_THAT(deform_system_->GetDeformRadius(e), FloatNear(0.0f, kEpsilon));
 
-    ASSERT_THAT(deformation_fns_, Contains(Key(e)));
+    if (check_mesh) {
+      ASSERT_THAT(deformation_fns_, Contains(Key(e)));
+      if (deformation_fns_[e]) {
+        MeshData empty_mesh;
+        deformation_fns_[e](&empty_mesh);
+        EXPECT_THAT(deform_system_->UndeformedBoundingBox(e)->min,
+                    Eq(transform_system_->GetAabb(e)->min));
+      }
+    }
   }
 
   // Checks that the entity is not located at the undeformed offset. This does
@@ -110,12 +136,14 @@ class DeformSystemTest : public ::testing::Test {
 
   // Checks that the entity is located at the given offset.
   void ExpectExactTransform(Entity e, const mathfu::vec3& position,
-                            const mathfu::vec3& rot_euler) {
+                            const mathfu::vec3& rot_euler,
+                            const mathfu::vec3& scale) {
     mathfu::mat3 rotation =
         mathfu::quat::FromEulerAngles(rot_euler * kDegreesToRadians).ToMatrix();
     EXPECT_THAT(*transform_system_->GetWorldFromEntityMatrix(e),
                 NearMathfu(mathfu::mat4::FromTranslationVector(position) *
-                               mathfu::mat4::FromRotationMatrix(rotation),
+                               mathfu::mat4::FromRotationMatrix(rotation) *
+                               mathfu::mat4::FromScaleVector(scale),
                            kEpsilon));
   }
 
@@ -127,12 +155,13 @@ class DeformSystemTest : public ::testing::Test {
 
   // Checks that the given entity is deformed from previous_pos to expect_pos
   // with expect_rot and set as deformed
-  void ExpectWaypointDeformed(Entity deformed, const mathfu::vec3& previous_pos,
-                              const mathfu::vec3& expected_pos,
-                              const mathfu::vec3& expected_rot) {
+  void ExpectWaypointDeformed(
+      Entity deformed, const mathfu::vec3& previous_pos,
+      const mathfu::vec3& expected_pos, const mathfu::vec3& expected_rot,
+      const mathfu::vec3& expected_scale = mathfu::kOnes3f) {
     ExpectDeformedTransform(deformed, previous_pos);
     ExpectIsSetAsDeformed(deformed);
-    ExpectExactTransform(deformed, expected_pos, expected_rot);
+    ExpectExactTransform(deformed, expected_pos, expected_rot, expected_scale);
   }
 
   // Creates an entity for the given deformer with the given translation
@@ -391,10 +420,10 @@ TEST_F(DeformSystemTest, DeletedDeformer) {
   // We are in the process of destruction and the deformer is destroyed in the
   // deform system prior to being destroyed in the transform system.
   deform_system_->Destroy(deformer);
-
-  ExpectUndeformedMesh(deformer);
+  // Since mesh was already deformed, we don't need to check mesh deformation.
+  ExpectUndeformedMesh(deformer, false);
   ExpectUndeformedTransform(deformer, kOrigin);
-  ExpectUndeformedMesh(deformed);
+  ExpectUndeformedMesh(deformed, false);
   ExpectUndeformedTransform(deformed, offset);
   ExpectIsSetAsDeformed(deformed);
 }
@@ -749,6 +778,87 @@ TEST_F(DeformSystemTest, WaypointDeformerUseAabbAnchor) {
       ExpectWaypointDeformed(deformed, original_positions[i],
                              remapped_positions[i], mathfu::kZeros3f);
     }
+  }
+}
+
+TEST_F(DeformSystemTest, WaypointDeformerPercentDeformed) {
+  Blueprint blueprint;
+  DeformerDefT deformer_def;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+
+    deformer_def.deform_mode = DeformMode_Waypoint;
+
+    WaypointPathT waypoint_path;
+    for (float i = 1.f; i < 5; i++) {
+      WaypointT node;
+      node.original_position = mathfu::vec3(i, 0.0f, 0.0f);
+      node.remapped_position = mathfu::vec3(i, i * 2, 0.0f);
+      node.remapped_rotation = mathfu::vec3(0, i * 2, 0.0f);
+      waypoint_path.waypoints.push_back(node);
+    }
+    deformer_def.waypoint_paths.push_back(waypoint_path);
+    blueprint.Write(&deformer_def);
+  }
+  const Entity deformer = entity_factory_->Create(&blueprint);
+
+  const mathfu::vec3 original_positions[] = {
+      {1.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}};
+
+  // All deformations should be at half strength
+  deform_system_->SetDeformStrength(deformer, 0.5f);
+  const mathfu::vec3 remapped_pos[] = {
+      {1.0f, 1.0f, 0.0f}, {2.0f, 2.0f, 0.0f}, {3.0f, 3.0f, 0.0f}};
+  const mathfu::vec3 remapped_rot[] = {
+      {0.0f, 1.0f, 0.0f}, {0.0f, 2.0f, 0.0f}, {0.0f, 3.0f, 0.0f}};
+
+  for (int i = 0; i < 3; ++i) {
+    const Entity deformed = CreateWaypointDeformed(
+        deformer, original_positions[i], /*path_id=*/"", 2.0f);
+    ExpectWaypointDeformed(deformed, original_positions[i], remapped_pos[i],
+                           remapped_rot[i]);
+  }
+}
+
+TEST_F(DeformSystemTest, WaypointDeformerRemapScale) {
+  Blueprint blueprint;
+  DeformerDefT deformer_def;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+
+    deformer_def.deform_mode = DeformMode_Waypoint;
+
+    WaypointPathT waypoint_path;
+    for (float i = 1.f; i < 5; i++) {
+      WaypointT node;
+      node.original_position = mathfu::vec3(i, 0.0f, 0.0f);
+      node.remapped_position = mathfu::vec3(i, i * 2, 0.0f);
+      node.remapped_rotation = mathfu::vec3(0, i * 2, 0.0f);
+      node.remapped_scale = mathfu::vec3(i, i, i);
+      waypoint_path.waypoints.push_back(node);
+    }
+    deformer_def.waypoint_paths.push_back(waypoint_path);
+    blueprint.Write(&deformer_def);
+  }
+  const Entity deformer = entity_factory_->Create(&blueprint);
+
+  const mathfu::vec3 original_positions[] = {
+      {1.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}};
+
+  const mathfu::vec3 remapped_pos[] = {
+      {1.0f, 2.0f, 0.0f}, {2.0f, 4.0f, 0.0f}, {3.0f, 6.0f, 0.0f}};
+  const mathfu::vec3 remapped_rot[] = {
+      {0.0f, 2.0f, 0.0f}, {0.0f, 4.0f, 0.0f}, {0.0f, 6.0f, 0.0f}};
+  const mathfu::vec3 remapped_scale[] = {
+      {1.0f, 1.0f, 1.0f}, {2.0f, 2.0f, 2.0f}, {3.0f, 3.0f, 3.0f}};
+
+  for (int i = 0; i < 3; ++i) {
+    const Entity deformed = CreateWaypointDeformed(
+        deformer, original_positions[i], /*path_id=*/"", 2.0f);
+    ExpectWaypointDeformed(deformed, original_positions[i], remapped_pos[i],
+                           remapped_rot[i], remapped_scale[i]);
   }
 }
 

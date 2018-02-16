@@ -17,15 +17,18 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_AUDIO_SOUND_ASSET_MANAGER_H_
 #define LULLABY_SYSTEMS_AUDIO_SOUND_ASSET_MANAGER_H_
 
+#include <memory>
+#include <string>
 #include <unordered_set>
 
 #include "lullaby/generated/audio_playback_types_generated.h"
-#include "lullaby/systems/audio/sound_asset.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/async_processor.h"
-#include "lullaby/util/hash.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/resource_manager.h"
 #include "vr/gvr/capi/include/gvr_audio.h"
+#include "lullaby/systems/audio/sound_asset.h"
+#include "lullaby/util/hash.h"
 
 namespace lull {
 
@@ -51,7 +54,7 @@ class SoundAssetManager {
   // sound should be retrieved and played. |entity| denotes an entity to
   // send an AudioLoadedEvent to when the sound is finished loading - this
   // event will be sent immediately if the sound is streamed.
-  void CreateSoundAsset(const std::string& filename, AudioPlaybackType type,
+  void CreateSoundAsset(const std::string& filename, AudioLoadType type,
                         Entity entity = kNullEntity);
 
   // Release and unload an existing sound asset for |sound_hash|. If the asset

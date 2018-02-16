@@ -19,8 +19,8 @@ limitations under the License.
 
 #include <memory>
 #include "lullaby/modules/ecs/blueprint_type.h"
-#include "lullaby/modules/flatbuffers/flatbuffer_reader.h"
-#include "lullaby/modules/flatbuffers/flatbuffer_writer.h"
+#include "lullaby/util/flatbuffer_reader.h"
+#include "lullaby/util/flatbuffer_writer.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/span.h"

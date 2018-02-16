@@ -17,56 +17,32 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_RENDER_COMPONENT_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_RENDER_COMPONENT_H_
 
-#include <map>
-#include <memory>
-#include <string>
 #include <vector>
 
 #include "lullaby/modules/ecs/component.h"
-#include "lullaby/systems/render/material.h"
+#include "lullaby/systems/render/next/material.h"
 #include "lullaby/systems/render/next/mesh.h"
 #include "lullaby/systems/render/render_system.h"
-#include "lullaby/systems/render/shader.h"
-#include "lullaby/systems/render/texture.h"
-#include "lullaby/util/unordered_vector_map.h"
-#include "lullaby/generated/render_def_generated.h"
 
 namespace lull {
-namespace detail {
 
-// RenderComponent contains all the data for rendering an Entity using the FPL
-// backend.  This is a private class, and should not be used outside of
-// render/fpl.
+// RenderComponent contains all the data for rendering an Entity.
 struct RenderComponent : Component {
   explicit RenderComponent(Entity e) : Component(e) {}
-  explicit RenderComponent(EntityIdPair entity_id_pair)
-      : Component(entity_id_pair.entity), id(entity_id_pair.id) {}
 
-  Material material;
-  HashValue id = 0;
-  mathfu::vec4 default_color = mathfu::vec4(1, 1, 1, 1);
+  // The mesh (ie. vertex and index buffers) associated with this component.
   MeshPtr mesh = nullptr;
-  HashValue pass = 0;
-  RenderSystem::SortOrder sort_order = 0;
-  StencilMode stencil_mode = StencilMode::kDisabled;
-  int stencil_value = 0;
+
+  // The materials associated with the surfaces of the mesh.  The index of the
+  // material corresponds to the submesh index in the mesh.
+  std::vector<std::shared_ptr<Material>> materials;
+
+  RenderSortOrder sort_order = 0;
+  mathfu::vec4 default_color = {1, 1, 1, 1};
   bool hidden = false;
-  bool need_to_gather_bone_transforms = false;
-  RenderSystem::Quad quad = RenderSystem::Quad();
+  RenderQuad quad = {};
 };
 
-/// Specialized structure used to hash a RenderComponent into an EntityIdPair.
-struct RenderComponentHash {
-  EntityIdPair operator()(const RenderComponent& c) const {
-    EntityIdPair pair(c.GetEntity(), c.id);
-    return pair;
-  }
-};
-using RenderComponentPool =
-    UnorderedVectorMap<EntityIdPair, RenderComponent,
-                       detail::RenderComponentHash, EntityIdPairHash>;
-
-}  // namespace detail
 }  // namespace lull
 
 #endif  // LULLABY_SYSTEMS_RENDER_NEXT_RENDER_COMPONENT_H_

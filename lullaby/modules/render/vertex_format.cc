@@ -22,50 +22,97 @@ namespace lull {
 namespace {
 
 inline bool operator==(const VertexAttribute& a, const VertexAttribute& b) {
-  return (memcmp(&a, &b, sizeof(a)) == 0);
+  return (a.usage() == b.usage() && a.type() == b.type());
+}
+inline bool operator!=(const VertexAttribute& a, const VertexAttribute& b) {
+  return (a.usage() != b.usage() || a.type() != b.type());
 }
 
 }  // namespace
 
-constexpr uint32_t VertexFormat::kAlignment;
+const VertexAttribute* VertexFormat::GetAttributeAt(size_t index) const {
+  if (index < num_attributes_) {
+    return &attributes_[index];
+  } else {
+    return nullptr;
+  }
+}
 
-const VertexAttribute& VertexFormat::GetAttributeAt(size_t index) const {
-  CHECK(index < num_attributes_) << "Index out of bounds!";
-  return attributes_[index];
+void VertexFormat::AppendAttribute(const VertexAttribute& attribute) {
+  if (num_attributes_ == kMaxAttributes) {
+    LOG(DFATAL) << "Cannot exceed max attributes size of " << kMaxAttributes;
+    return;
+  }
+  attributes_[num_attributes_] = attribute;
+  vertex_size_ += GetAttributeSize(attribute);
+  ++num_attributes_;
 }
 
 const VertexAttribute* VertexFormat::GetAttributeWithUsage(
-    VertexAttribute::Usage usage, int usage_index) const {
+    VertexAttributeUsage usage, int n) const {
   for (size_t i = 0; i < num_attributes_; ++i) {
-    const VertexAttribute& attribute = attributes_[i];
-    if (attribute.usage == usage && attribute.index == usage_index) {
-      return &attribute;
+    if (attributes_[i].usage() == usage) {
+      if (n == 0) {
+        return &attributes_[i];
+      } else {
+        --n;
+      }
     }
   }
   return nullptr;
 }
 
-bool VertexFormat::operator==(const VertexFormat& rhs) const {
-  bool equal = (vertex_size_ == rhs.vertex_size_ &&
-                num_attributes_ == rhs.num_attributes_);
-
-  for (size_t i = 0; equal && i < num_attributes_; ++i) {
-    equal = (attributes_[i] == rhs.attributes_[i]);
+size_t VertexFormat::GetAttributeOffsetAt(size_t index) const {
+  CHECK_LT(index, num_attributes_);
+  size_t offset = 0;
+  for (size_t i = 0; i < index; ++i) {
+    offset += GetAttributeSize(attributes_[i]);
   }
-
-  return equal;
+  return offset;
 }
 
-uint32_t VertexFormat::GetSize(VertexAttribute::Type type) {
-  switch (type) {
-    case VertexAttribute::kUnsignedInt8:
-      return 1;
-    case VertexAttribute::kUnsignedInt16:
-      return 2;
-    case VertexAttribute::kFloat32:
-      return 4;
+size_t VertexFormat::GetAttributeOffset(
+    const VertexAttribute* attribute) const {
+  CHECK_GE(attribute, &attributes_[0]);
+  CHECK_LT(attribute, &attributes_[num_attributes_]);
+
+  const size_t index = attribute - &attributes_[0];
+  return GetAttributeOffsetAt(index);
+}
+
+bool VertexFormat::operator==(const VertexFormat& rhs) const {
+  if (vertex_size_ != rhs.vertex_size_) {
+    return false;
+  }
+  if (num_attributes_ != rhs.num_attributes_) {
+    return false;
+  }
+  for (size_t i = 0; i < num_attributes_; ++i) {
+    if (attributes_[i] != rhs.attributes_[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+size_t VertexFormat::GetAttributeSize(const VertexAttribute& attr) {
+  switch (attr.type()) {
+    case VertexAttributeType_Scalar1f:
+      return 1 * sizeof(float);
+    case VertexAttributeType_Vec2f:
+      return 2 * sizeof(float);
+    case VertexAttributeType_Vec3f:
+      return 3 * sizeof(float);
+    case VertexAttributeType_Vec4f:
+      return 4 * sizeof(float);
+    case VertexAttributeType_Vec2us:
+      return 2 * sizeof(uint16_t);
+    case VertexAttributeType_Vec4ub:
+      return 4 * sizeof(uint8_t);
+    case VertexAttributeType_Empty:
+      return 0;
     default:
-      LOG(DFATAL) << "Invalid vertex attribute type";
+      LOG(DFATAL) << "Unsupported attrib type: " << attr.type();
       return 0;
   }
 }

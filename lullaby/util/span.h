@@ -35,7 +35,8 @@ class Span {
 
   Span(const T* data, size_t size) : data_(data), size_(size) {}
 
-  Span(const std::vector<T>& vec)
+  template <typename Alloc>
+  Span(const std::vector<T, Alloc>& vec)
       : data_(vec.data()), size_(vec.size()) {}
 
   template <size_t N>

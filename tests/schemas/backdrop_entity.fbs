@@ -1,0 +1,11 @@
+include "lull/lull_common.fbs";
+
+include "lull/nine_patch_def.fbs";
+include "lull/render_def.fbs";
+include "lull/transform_def.fbs";
+
+union ComponentDefType {
+  lull.NinePatchDef,
+  lull.RenderDef,
+  lull.TransformDef,
+}

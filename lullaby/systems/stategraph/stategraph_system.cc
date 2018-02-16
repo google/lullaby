@@ -132,6 +132,14 @@ void StategraphSystem::SnapToStateAtTime(Entity entity, HashValue state,
   }
 }
 
+std::string StategraphSystem::GetGraphDebugString(Entity entity) const {
+  const StategraphComponent* component = components_.Get(entity);
+  if (component && component->stategraph) {
+    return component->stategraph->GetGraphDebugString();
+  }
+  return "";
+}
+
 void StategraphSystem::EnterState(StategraphComponent* component,
                                   HashValue state, HashValue signal,
                                   Clock::duration timestamp,

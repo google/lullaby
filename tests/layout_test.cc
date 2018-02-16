@@ -130,10 +130,8 @@ class LayoutTest : public testing::Test {
     }
   }
 
-  // If enabled_expectations is null that means check all are enabled.
-  void AssertDesiredSizesAndEnabled(const std::vector<Entity>& children,
-      const DesiredSize* desired_sizes,
-      const bool* enabled_expectations = nullptr) {
+  void AssertDesiredSizes(const std::vector<Entity>& children,
+                          const DesiredSize* desired_sizes) {
     for (size_t i = 0; i < children.size(); ++i) {
       const Optional<float> size_x =
           layout_box_system_->GetDesiredSizeX(children[i]);
@@ -144,8 +142,6 @@ class LayoutTest : public testing::Test {
       EXPECT_EQ(desired_sizes[i].x, size_x);
       EXPECT_EQ(desired_sizes[i].y, size_y);
       EXPECT_EQ(kUnchanged, size_z);
-      EXPECT_EQ(enabled_expectations ? enabled_expectations[i] : true,
-                transform_system_->IsEnabled(children[i]));
     }
   }
 
@@ -675,7 +671,7 @@ TEST_F(LayoutTest, WeightedElements) {
   ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
-  AssertDesiredSizesAndEnabled(children, desired_sizes);
+  AssertDesiredSizes(children, desired_sizes);
 }
 
 TEST_F(LayoutTest, WeightedElements_Vertical) {
@@ -718,7 +714,7 @@ TEST_F(LayoutTest, WeightedElements_Vertical) {
   ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
-  AssertDesiredSizesAndEnabled(children, desired_sizes);
+  AssertDesiredSizes(children, desired_sizes);
 }
 
 TEST_F(LayoutTest, WeightedElements_Disabled) {
@@ -730,13 +726,9 @@ TEST_F(LayoutTest, WeightedElements_Disabled) {
   // The fixed element is so large it disables all other elements.
   // And, no spacing is left over.
 
-  const DesiredSize desired_sizes[] = {
-      kUnchangedSize, kUnchangedSize,
-      kUnchangedSize
-  };
-  const bool enabled_expectations[] = {
-      false, false, true,
-  };
+  const DesiredSize desired_sizes[] = {DesiredSize(0.f, kUnchanged),
+                                       DesiredSize(0.f, kUnchanged),
+                                       kUnchangedSize};
 
   LayoutParams params;
   params.vertical_alignment = LayoutVerticalAlignment_Top;
@@ -760,7 +752,7 @@ TEST_F(LayoutTest, WeightedElements_Disabled) {
   EXPECT_NEAR(0.f, sqt->translation.x, kEpsilon);
   EXPECT_NEAR(1.f, sqt->translation.y, kEpsilon);
 
-  AssertDesiredSizesAndEnabled(children, desired_sizes, enabled_expectations);
+  AssertDesiredSizes(children, desired_sizes);
 }
 
 TEST_F(LayoutTest, WeightedElements_OuterWeight) {
@@ -811,7 +803,7 @@ TEST_F(LayoutTest, WeightedElements_OuterWeight) {
   ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
-  AssertDesiredSizesAndEnabled(children, desired_sizes);
+  AssertDesiredSizes(children, desired_sizes);
 }
 
 TEST_F(LayoutTest, WeightedElements_OuterHidden) {
@@ -827,11 +819,10 @@ TEST_F(LayoutTest, WeightedElements_OuterHidden) {
       mathfu::vec2(-1.f, 0.f), mathfu::vec2(0.f, 0.f),
   };
   const DesiredSize desired_sizes[] = {
-      kUnchangedSize, kUnchangedSize,
-      kUnchangedSize, DesiredSize(kUnchanged, 3.f),
-  };
-  const bool enabled_expectations[] = {
-      false, false, true, true
+      DesiredSize(kUnchanged, 0.f),
+      DesiredSize(kUnchanged, 0.f),
+      kUnchangedSize,
+      DesiredSize(kUnchanged, 3.f),
   };
 
   LayoutParams params;
@@ -854,7 +845,7 @@ TEST_F(LayoutTest, WeightedElements_OuterHidden) {
   ApplyLayout(registry_.get(), params, elements, set_pos_fn_, kParent);
 
   AssertTranslations(children, expectations);
-  AssertDesiredSizesAndEnabled(children, desired_sizes, enabled_expectations);
+  AssertDesiredSizes(children, desired_sizes);
 }
 
 TEST_F(LayoutTest, InsertIndex) {

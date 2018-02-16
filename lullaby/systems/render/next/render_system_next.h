@@ -17,32 +17,33 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_RENDER_SYSTEM_NEXT_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_RENDER_SYSTEM_NEXT_H_
 
+#include <array>
 #include <queue>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "fplbase/render_target.h"
-#include "lullaby/generated/render_def_generated.h"
-#include "lullaby/generated/render_pass_def_generated.h"
-#include "lullaby/generated/render_target_def_generated.h"
+#include "fplbase/renderer.h"
 #include "lullaby/events/entity_events.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/render/mesh_data.h"
-#include "lullaby/modules/render/triangle_mesh.h"
 #include "lullaby/modules/render/vertex.h"
 #include "lullaby/systems/render/detail/sort_order.h"
 #include "lullaby/systems/render/next/mesh.h"
+#include "lullaby/systems/render/next/mesh_factory.h"
 #include "lullaby/systems/render/next/render_component.h"
-#include "lullaby/systems/render/next/render_factory.h"
+#include "lullaby/systems/render/next/render_target.h"
+#include "lullaby/systems/render/next/shader_factory.h"
+#include "lullaby/systems/render/next/texture_atlas_factory.h"
+#include "lullaby/systems/render/next/texture_factory.h"
 #include "lullaby/systems/render/render_system.h"
-#include "lullaby/systems/render/uniform.h"
-#include "lullaby/systems/text/html_tags.h"
-#include "lullaby/systems/text/text_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/async_processor.h"
 #include "lullaby/util/buffered_data.h"
 #include "lullaby/util/string_view.h"
+#include "lullaby/generated/render_def_generated.h"
+#include "lullaby/generated/render_pass_def_generated.h"
+#include "lullaby/generated/render_target_def_generated.h"
 
 namespace lull {
 
@@ -50,17 +51,8 @@ namespace lull {
 // functions, refer to the RenderSystem class declaration.
 class RenderSystemNext : public System {
  public:
-  using CullMode = RenderSystem::CullMode;
-  using Deformation = RenderSystem::Deformation;
-  using PrimitiveType = RenderSystem::PrimitiveType;
-  using Quad = RenderSystem::Quad;
-  using SortMode = RenderSystem::SortMode;
-  using SortOrder = RenderSystem::SortOrder;
-  using SortOrderOffset = RenderSystem::SortOrderOffset;
-  using View = RenderSystem::View;
-  using RenderComponentID = HashValue;
-
-  explicit RenderSystemNext(Registry* registry);
+  using InitParams = RenderSystem::InitParams;
+  explicit RenderSystemNext(Registry* registry, const InitParams& init_params);
   ~RenderSystemNext() override;
 
   void Initialize() override;
@@ -75,15 +67,16 @@ class RenderSystemNext : public System {
   TexturePtr GetTexture(HashValue texture_hash) const;
   void LoadTextureAtlas(const std::string& filename);
   MeshPtr LoadMesh(const std::string& filename);
+  TexturePtr CreateTexture(const ImageData& image, bool create_mips);
 
   ShaderPtr LoadShader(const std::string& filename);
 
   void Create(Entity e, HashValue type, const Def* def) override;
-  void Create(Entity e, HashValue component_id, HashValue pass);
+  void Create(Entity e, HashValue pass, HashValue pass_enum);
   void Create(Entity e, HashValue pass);
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
   void Destroy(Entity e) override;
-  void Destroy(Entity e, HashValue component_id);
+  void Destroy(Entity e, HashValue pass);
 
   void ProcessTasks();
   void WaitForAssetsToLoad();
@@ -100,12 +93,12 @@ class RenderSystemNext : public System {
 
   void SetUniform(Entity e, const char* name, const float* data, int dimension,
                   int count);
-  void SetUniform(Entity e, HashValue component_id, const char* name,
-                  const float* data, int dimension, int count);
+  void SetUniform(Entity e, HashValue pass, const char* name, const float* data,
+                  int dimension, int count);
   bool GetUniform(Entity e, const char* name, size_t length,
                   float* data_out) const;
-  bool GetUniform(Entity e, HashValue component_id, const char* name,
-                  size_t length, float* data_out) const;
+  bool GetUniform(Entity e, HashValue pass, const char* name, size_t length,
+                  float* data_out) const;
   void CopyUniforms(Entity entity, Entity source);
 
   int GetNumBones(Entity entity) const;
@@ -119,27 +112,27 @@ class RenderSystemNext : public System {
   void SetBoneTransforms(Entity entity,
                          const mathfu::AffineTransform* transforms,
                          int num_transforms);
-  void SetBoneTransforms(Entity entity, HashValue component_id,
+  void SetBoneTransforms(Entity entity, HashValue pass,
                          const mathfu::AffineTransform* transforms,
                          int num_transforms);
 
   void SetTexture(Entity e, int unit, const TexturePtr& texture);
-  void SetTexture(Entity e, HashValue component_id, int unit,
+  void SetTexture(Entity e, HashValue pass, int unit,
                   const TexturePtr& texture);
 
-  TexturePtr CreateProcessedTexture(const TexturePtr& source_texture,
-                                    bool create_mips,
-                                    RenderSystem::TextureProcessor processor);
+  TexturePtr CreateProcessedTexture(
+      const TexturePtr& texture, bool create_mips,
+      const RenderSystem::TextureProcessor& processor);
 
   TexturePtr CreateProcessedTexture(
-      const TexturePtr& source_texture, bool create_mips,
+      const TexturePtr& texture, bool create_mips,
       const RenderSystem::TextureProcessor& processor,
       const mathfu::vec2i& output_dimensions);
 
   void SetTextureId(Entity e, int unit, uint32_t texture_target,
                     uint32_t texture_id);
-  void SetTextureId(Entity e, HashValue component_id, int unit,
-                    uint32_t texture_target, uint32_t texture_id);
+  void SetTextureId(Entity e, HashValue pass, int unit, uint32_t texture_target,
+                    uint32_t texture_id);
 
   TexturePtr GetTexture(Entity entity, int unit) const;
 
@@ -147,45 +140,38 @@ class RenderSystemNext : public System {
                float heading_offset_deg);
 
   void SetText(Entity e, const std::string& text);
-  const std::vector<LinkTag>* GetLinkTags(Entity e) const;
 
-  bool GetQuad(Entity e, Quad* quad) const;
-  void SetQuad(Entity e, const Quad& quad);
-  void SetQuad(Entity e, HashValue component_id, const Quad& quad);
-
-  // TODO(b/31523782): Remove once pipeline for MeshData is stable.
-  void SetMesh(Entity e, const TriangleMesh<VertexPT>& mesh);
-  void SetMesh(Entity e, HashValue component_id,
-               const TriangleMesh<VertexPT>& mesh);
-  void SetAndDeformMesh(Entity entity, const TriangleMesh<VertexPT>& mesh);
-  void SetAndDeformMesh(Entity entity, HashValue component_id,
-                        const TriangleMesh<VertexPT>& mesh);
+  bool GetQuad(Entity e, RenderQuad* quad) const;
+  void SetQuad(Entity e, const RenderQuad& quad);
+  void SetQuad(Entity e, HashValue pass, const RenderQuad& quad);
 
   void SetMesh(Entity e, const MeshData& mesh);
-  void SetMesh(Entity entity, HashValue component_id, const MeshData& mesh);
+  void SetMesh(Entity entity, HashValue pass, const MeshData& mesh);
   void SetAndDeformMesh(Entity entity, const MeshData& mesh);
-  void SetAndDeformMesh(Entity entity, HashValue component_id,
-                        const MeshData& mesh);
+  void SetAndDeformMesh(Entity entity, HashValue pass, const MeshData& mesh);
 
   void SetMesh(Entity e, const std::string& file);
-  void SetMesh(Entity e, HashValue component_id, const MeshPtr& mesh);
-  MeshPtr GetMesh(Entity e, HashValue component_id);
+  void SetMesh(Entity e, HashValue pass, const MeshPtr& mesh);
+  MeshPtr GetMesh(Entity e, HashValue pass);
 
   ShaderPtr GetShader(Entity entity) const;
-  ShaderPtr GetShader(Entity entity, HashValue component_id) const;
-  void SetShader(Entity e, HashValue component_id, const ShaderPtr& shader);
+  ShaderPtr GetShader(Entity entity, HashValue pass) const;
+  void SetShader(Entity e, HashValue pass, const ShaderPtr& shader);
   void SetShader(Entity e, const ShaderPtr& shader);
+
+  void SetMaterial(Entity e, int submesh_index, const MaterialInfo& material);
 
   void SetFont(Entity entity, const FontPtr& font);
   void SetTextSize(Entity entity, int size);
 
-  SortOrderOffset GetSortOrderOffset(Entity e) const;
-  void SetSortOrderOffset(Entity e, SortOrderOffset sort_order_offset);
-  void SetSortOrderOffset(Entity e, HashValue component_id,
-                          SortOrderOffset sort_order_offset);
+  RenderSortOrder GetSortOrder(Entity e) const;
+  RenderSortOrderOffset GetSortOrderOffset(Entity e) const;
+  void SetSortOrderOffset(Entity e, RenderSortOrderOffset sort_order_offset);
+  void SetSortOrderOffset(Entity e, HashValue pass,
+                          RenderSortOrderOffset sort_order_offset);
 
-  void SetStencilMode(Entity e, StencilMode mode, int value);
-  void SetStencilMode(Entity e, HashValue component_id, StencilMode mode,
+  void SetStencilMode(Entity e, RenderStencilMode mode, int value);
+  void SetStencilMode(Entity e, HashValue pass, RenderStencilMode mode,
                       int value);
 
   bool IsTextureSet(Entity e, int unit) const;
@@ -197,7 +183,8 @@ class RenderSystemNext : public System {
 
   bool IsHidden(Entity e) const;
 
-  void SetDeformationFunction(Entity e, const Deformation& deform);
+  void SetDeformationFunction(Entity e,
+                              const RenderSystem::DeformationFn& deform);
 
   void Hide(Entity e);
   void Show(Entity e);
@@ -205,13 +192,15 @@ class RenderSystemNext : public System {
   HashValue GetRenderPass(Entity entity) const;
   void SetRenderPass(Entity e, HashValue pass);
 
-  void SetClearParams(HashValue pass, const ClearParams& clear_params);
+  void SetClearParams(HashValue pass, const RenderClearParams& clear_params);
 
   SortMode GetSortMode(HashValue pass) const;
   void SetSortMode(HashValue pass, SortMode mode);
 
-  CullMode GetCullMode(HashValue pass);
-  void SetCullMode(HashValue pass, CullMode mode);
+  RenderCullMode GetCullMode(HashValue pass);
+  void SetCullMode(HashValue pass, RenderCullMode mode);
+
+  void SetDefaultFrontFace(RenderFrontFace face);
 
   /// Sets a render state to be used when rendering a specific render pass. If
   /// a pass is rendered without a state being set, a default render state will
@@ -230,14 +219,14 @@ class RenderSystemNext : public System {
   void SetDepthTest(const bool enabled);
   void SetDepthWrite(const bool enabled);
 
-  void SetViewport(const View& view);
+  void SetViewport(const RenderView& view);
 
   // Sets the model_view_projection uniform.  Doesn't take effect until the next
   // call to BindShader.
   void SetClipFromModelMatrix(const mathfu::mat4& mvp);
 
   void SetClipFromModelMatrixFunction(
-      const CalculateClipFromModelMatrixFunc& func);
+      const RenderSystem::ClipFromModelMatrixFn& func);
 
   mathfu::vec4 GetClearColor() const;
   void SetClearColor(float r, float g, float b, float a);
@@ -245,8 +234,8 @@ class RenderSystemNext : public System {
   void BeginFrame() {}
   void EndFrame() {}
 
-  void Render(const View* views, size_t num_views);
-  void Render(const View* views, size_t num_views, HashValue pass);
+  void Render(const RenderView* views, size_t num_views);
+  void Render(const RenderView* views, size_t num_views, HashValue pass);
 
   // Resets the GL state to default.  It's not necessary to call this for any
   // predefined render passes, but this can be useful for any custom ones.
@@ -255,7 +244,7 @@ class RenderSystemNext : public System {
   // Sets the GL blend mode to |blend_mode|.
   void SetBlendMode(fplbase::BlendMode blend_mode);
 
-  void UpdateDynamicMesh(Entity entity, PrimitiveType primitive_type,
+  void UpdateDynamicMesh(Entity entity, MeshData::PrimitiveType primitive_type,
                          const VertexFormat& vertex_format,
                          const size_t max_vertices, const size_t max_indices,
                          const std::function<void(MeshData*)>& update_mesh);
@@ -266,16 +255,7 @@ class RenderSystemNext : public System {
 
   void BindUniform(const char* name, const float* data, int dimension);
 
-  void DrawPrimitives(PrimitiveType primitive_type,
-                      const VertexFormat& vertex_format,
-                      const void* vertex_data, size_t num_vertices);
-
-  void DrawIndexedPrimitives(PrimitiveType primitive_type,
-                             const VertexFormat& vertex_format,
-                             const void* vertex_data, size_t num_vertices,
-                             const uint16_t* indices, size_t num_indices);
-
-  const std::vector<mathfu::vec3>* GetCaretPositions(Entity e) const;
+  void DrawMesh(const MeshData& mesh);
 
   /// Returns the render state cached by the FPL renderer.
   const fplbase::RenderState& GetCachedRenderState() const;
@@ -288,93 +268,122 @@ class RenderSystemNext : public System {
   /// Creates a render target that can be used in a pass for rendering, and as a
   /// texture on top of an object.
   void CreateRenderTarget(HashValue render_target_name,
-                          const mathfu::vec2i& dimensions,
-                          TextureFormat texture_format,
-                          DepthStencilFormat depth_stencil_format);
+                          const RenderTargetCreateParams& create_params);
 
   void BindUniform(const Uniform& uniform);
 
  protected:
-  using RenderComponent = detail::RenderComponent;
-  using RenderComponentPool = detail::RenderComponentPool;
-  using UniformVector = std::vector<Uniform>;
+  /// Structure holding cached gpu state data.
+  struct GPUCache {
+    std::vector<TexturePtr> bound_textures;
+  };
 
   /// Minimal amount of information needed to render a single "object".
   struct RenderObject {
     MeshPtr mesh = nullptr;
-    std::shared_ptr<MeshData> dynamic_mesh;
-    Material material;
-    RenderSystem::SortOrder sort_order = 0;
+    std::shared_ptr<Material> material;
+    int submesh_index;
+    RenderSortOrder sort_order = 0;
     float z_sort_order = 0.0f;
-    StencilMode stencil_mode = StencilMode::kDisabled;
-    int stencil_value = 0;
     mathfu::mat4 world_from_entity_matrix;
   };
 
-  /// Structure defining data used when rendering a RenderPass.
-  struct RenderPassDefinition {
+  /// Structure defining data used when rendering a RenderPassObject.
+  struct RenderPassObjectDefinition {
     fplbase::RenderState render_state;
-    ClearParams clear_params;
-    SortMode sort_mode = SortMode::kNone;
-    CullMode cull_mode = CullMode::kNone;
-    fplbase::RenderTarget* render_target = nullptr;
+    RenderClearParams clear_params;
+    SortMode sort_mode = SortMode_None;
+    RenderCullMode cull_mode = RenderCullMode::kNone;
+    RenderTarget* render_target = nullptr;
   };
 
-  /// A collection of RenderObjects and a RenderPassDefinition.
-  using RenderObjectList = std::vector<RenderObject>;
-  struct RenderPassAndObjects {
-    RenderObjectList render_objects;
-    RenderPassDefinition pass_definition;
+  /// Structure holding the render components and definition of a pass.
+  struct RenderPassObject {
+    RenderPassObject();
+
+    RenderPassObjectDefinition definition;
+    ComponentPool<RenderComponent> components;
   };
 
-  /// The complete set of passes and objects to render.
-  using RenderData = std::unordered_map<HashValue, RenderPassAndObjects>;
+  /// The blend mode types for objects in a render pass.
+  enum class RenderObjectsBlendMode { kOpaque, kBlendEnabled, kNumModes };
+  // Container for render objects.
+  using RenderObjectVector = std::vector<RenderObject>;
+
+  /// A group of render objects and associated parameters for rendering.
+  struct RenderPassDrawGroup {
+    /// Render state associated with this draw group.
+    fplbase::RenderState render_state;
+    /// Sort mode associated with this draw group.
+    SortMode sort_mode = SortMode_None;
+    /// Objects to be rendered within this draw group.
+    RenderObjectVector render_objects;
+  };
+
+  /// A container for holding the data to render entities in a render pass.
+  struct RenderPassDrawContainer {
+    RenderClearParams clear_params;
+    RenderCullMode cull_mode = RenderCullMode::kNone;
+    RenderTarget* render_target = nullptr;
+
+    std::array<RenderPassDrawGroup,
+               static_cast<size_t>(RenderObjectsBlendMode::kNumModes)>
+        draw_groups;
+  };
+
+  /// The complete set of passes and associated data for drawing the frame.
+  using RenderData = std::unordered_map<HashValue, RenderPassDrawContainer>;
 
   /// Stores a mesh to be deformed at a later time.
   struct DeferredMesh {
-    EntityIdPair entity_id_pair = kNullEntity;
+    Entity entity;
+    HashValue pass;
     HashValue mesh_id = 0;
     MeshData mesh;
   };
 
   void SetRenderPass(const RenderPassDefT& data);
-  void ApplyClearParams(const ClearParams& clear_params);
+  void ApplyClearParams(const RenderClearParams& clear_params);
 
-  void RenderAt(const RenderObject* component,
-                const mathfu::mat4& world_from_entity_matrix, const View& view);
-  void RenderAtMultiview(const RenderObject* component,
+  void RenderAt(const RenderObject* render_object,
+                const mathfu::mat4& world_from_entity_matrix,
+                const RenderView& view);
+  void RenderAtMultiview(const RenderObject* render_object,
                          const mathfu::mat4& world_from_entity_matrix,
-                         const View* views);
+                         const RenderView* views);
 
-  void RenderObjects(const RenderObjectList& objects, const View* views,
+  void RenderObjects(const RenderObjectVector& objects, const RenderView* views,
                      size_t num_views);
-  void RenderPanos(const View* views, size_t num_views);
-  void SetViewUniforms(const View& view);
+  void RenderPanos(const RenderView* views, size_t num_views);
+  void SetViewUniforms(const RenderView& view);
 
-  void SetMesh(Entity entity, HashValue component_id, const MeshData& mesh,
+  void SetMesh(Entity entity, HashValue pass, const MeshData& mesh,
                HashValue mesh_id);
   void SetMesh(Entity e, MeshPtr mesh);
-  void DeformMesh(Entity entity, HashValue component_id, MeshData* mesh);
-  void BindStencilMode(StencilMode mode, int ref);
+  void DeformMesh(Entity entity, HashValue pass, MeshData* mesh);
   void BindVertexArray(uint32_t ref);
   void ClearSamplers();
+  void ApplyMaterial(const Material& material,
+                     fplbase::RenderState render_state);
 
   // Triggers the generation of a quad mesh for the given entity and deforms
   // that mesh if a deformation exists on that entity.
-  void SetQuadImpl(Entity e, HashValue component_id, const Quad& quad);
+  void SetQuadImpl(Entity e, HashValue pass, const RenderQuad& quad);
 
   void CreateDeferredMeshes();
 
-  void UpdateUniformLocations(RenderComponent* component);
+  void UpdateUniformLocations(Material* material);
 
-  void RenderDebugStats(const View* views, size_t num_views);
-  void OnParentChanged(const ParentChangedEvent& event);
+  void RenderDebugStats(const RenderView* views, size_t num_views);
+  void UpdateSortOrder(Entity entity);
   void OnTextureLoaded(const RenderComponent& component, int unit,
                        const TexturePtr& texture);
-  void OnMeshLoaded(RenderComponent* render_component);
+  void OnMeshLoaded(RenderComponent* render_component, HashValue pass);
   bool IsReadyToRenderImpl(const RenderComponent& component) const;
-  void SetShaderUniforms(const UniformVector& uniforms);
-  void DrawMeshFromComponent(const RenderObject* component);
+  void SetShaderUniforms(const std::vector<Uniform>& uniforms);
+  void DrawMeshFromComponent(const RenderObject* render_object);
+  bool GetUniform(const RenderComponent* render_component, const char* name,
+                  size_t length, float* data_out) const;
 
   /// Correct the front face mode according to the scalar in the matrix. This is
   /// needed for cases where the matrix contains negative scale used to flip the
@@ -384,22 +393,44 @@ class RenderSystemNext : public System {
   /// Initializes the default render passes. This includes the following passes:
   /// RenderPass_Pano, RenderPass_Opaque, RenderPass_Main, RenderPass_OverDraw
   /// and RenderPass_OverDrawGlow.
-  void InitDefaultRenderPasses();
+  void InitDefaultRenderPassObjectes();
+
+  // Returns a render pass. This creates the pass if needed.
+  RenderPassObject* GetRenderPassObject(HashValue pass);
+  // Returns a render pass or nullptr if the pass doesn't exist.
+  RenderPassObject* FindRenderPassObject(HashValue pass);
+  const RenderPassObject* FindRenderPassObject(HashValue pass) const;
+
+  /// Runs the lambda for all components associated with an entity. This
+  /// guarantees not to pass a nullptr to the lambda.
+  void ForEachComponentOfEntity(
+      Entity entity,
+      const std::function<void(RenderComponent*, HashValue)>& fn);
+
+  // Finds a component in a pass, or returns nullptr if it doesn't exist.
+  RenderComponent* GetComponent(Entity e, HashValue pass);
+  const RenderComponent* GetComponent(Entity e, HashValue pass) const;
+
+  // Returns a render component associated with an entity, or nullptr if no
+  // component is associated with the entity.
+  RenderComponent* FindRenderComponentForEntity(Entity e);
+  const RenderComponent* FindRenderComponentForEntity(Entity e) const;
 
   /// Returns true if the SortMode is independent of the view.
   static bool IsSortModeViewIndependent(SortMode mode);
 
   /// Sorts a vector of RenderObject by a given (non view-dependent) sort mode.
-  static void SortObjects(RenderObjectList* objects, SortMode mode);
+  static void SortObjects(RenderObjectVector* objects, SortMode mode);
 
   /// Sorts a vector of RenderObject by a given view-dependent sort mode.
-  static void SortObjectsUsingView(RenderObjectList* objects, SortMode mode,
-                                   const RenderSystem::View* views,
-                                   size_t num_views);
+  static void SortObjectsUsingView(RenderObjectVector* objects, SortMode mode,
+                                   const RenderView* views, size_t num_views);
 
   // Thread-specific render API. Holds rendering context.
   // In multi-threaded rendering, every thread should have one of these classes.
   fplbase::Renderer renderer_;
+  fplbase::BlendMode blend_mode_ = fplbase::kBlendModeOff;
+  int max_texture_unit_ = 0;
 
   /// The set of data the renderer will use to draw things onto the screen. The
   /// RenderData is created by SubmitRenderData, and this pointer is set at
@@ -411,22 +442,22 @@ class RenderSystemNext : public System {
   BufferedData<RenderData> render_data_buffer_;
 
   /// Definitions of Render Passes.
-  std::unordered_map<HashValue, RenderPassDefinition> pass_definitions_;
+  HashValue default_pass_ = ConstHash("Main");
+  std::unordered_map<HashValue, RenderPassObject> render_passes_;
 
-  RenderFactory* factory_;
-  RenderComponentPool components_;
-  std::unordered_map<Entity, std::vector<EntityIdPair>> entity_ids_;
-  fplbase::BlendMode blend_mode_ = fplbase::kBlendModeOff;
-  int max_texture_unit_ = 0;
+  /// Factories used for creating rendering-related objects.
+  MeshFactoryImpl* mesh_factory_;
+  ShaderFactory* shader_factory_;
+  TextureFactoryImpl* texture_factory_;
+  TextureAtlasFactory* texture_atlas_factory_;
 
-  std::unordered_map<EntityIdPair, Deformation, EntityIdPairHash> deformations_;
+  std::unordered_map<Entity, RenderSystem::DeformationFn> deformations_;
   /// Since deformations require transforms and meshes can be set before the
   /// transform system has initialized, we need to delay deformations until we
   /// can be sure that the transforms are valid.
   std::queue<DeferredMesh> deferred_meshes_;
 
-  std::unordered_map<HashValue, std::unique_ptr<fplbase::RenderTarget>>
-      render_targets_;
+  std::unordered_map<HashValue, std::unique_ptr<RenderTarget>> render_targets_;
 
   std::vector<mathfu::AffineTransform> shader_transforms_;
 
@@ -446,17 +477,25 @@ class RenderSystemNext : public System {
   /// Is stereoscopic multiview rendering mode enabled?
   bool multiview_enabled_ = false;
 
+  bool initialized_ = false;
+
   ShaderPtr shader_ = nullptr;
 
   // The frame buffer that was bound at the beginning of rendering.
   int default_frame_buffer_ = 0;
 
-  // The last render state bound.
-  fplbase::RenderState cached_render_state_;
+  // The render state of which materials will inherit states.
+  fplbase::RenderState inherited_render_state_;
+
+  // Cached GPU state.
+  GPUCache gpu_cache_;
 
   // The function used to calculate the clip_from_model_matrix just before
   // setting the associated uniform.
-  CalculateClipFromModelMatrixFunc clip_from_model_matrix_func_;
+  RenderSystem::ClipFromModelMatrixFn clip_from_model_matrix_func_;
+
+  // The winding order / GL front face to use by default.
+  RenderFrontFace default_front_face_ = RenderFrontFace::kCounterClockwise;
 
   RenderSystemNext(const RenderSystemNext&) = delete;
   RenderSystemNext& operator=(const RenderSystemNext&) = delete;

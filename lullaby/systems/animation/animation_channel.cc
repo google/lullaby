@@ -254,6 +254,8 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
   playback.playback_rate = params.speed;
   playback.blend_x = static_cast<float>(
       AnimationSystem::GetMotiveTimeFromSeconds(params.blend_time_s));
+  playback.start_x = -static_cast<float>(
+      AnimationSystem::GetMotiveTimeFromSeconds(params.start_delay_s));
 
   anim->total_time =
       params.looping ? motive::kMotiveTimeEndless : rig_anim->end_time();

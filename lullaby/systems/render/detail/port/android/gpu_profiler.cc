@@ -267,7 +267,7 @@ void GpuProfiler::EndFrame() {}
 
 bool GpuProfiler::IsSupported() {
   static const bool available = []() {
-#if ION_PRODUCTION
+#ifdef NDEBUG
     return false;
 #endif
     const GLubyte *ext = glGetString(GL_EXTENSIONS);

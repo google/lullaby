@@ -1,9 +1,13 @@
 # Description:
 #  Build rules for Lullaby's examples framework.
+
 package(
     default_visibility = ["//visibility:public"],
 )
+
 licenses(["notice"])  # Apache 2.0
+
+
 cc_library(
     name = "example_app",
     srcs = [
@@ -12,19 +16,24 @@ cc_library(
     hdrs = [
         "example_app.h",
     ],
-    linkstatic = 1,
     deps = [
-        "@fplbase//:fplbase",
-        "@mathfu//:mathfu",
+        "//third_party/lullaby/editor",
+        "//lullaby/modules/config",
+        "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
+        "//lullaby/modules/file",
+        "//lullaby/modules/input",
+        "//lullaby/modules/input_processor",
         "//lullaby/modules/render",
         "//lullaby/modules/script",
         "//lullaby/util:clock",
-        "//lullaby/util:math",
+        "//lullaby/util:registry",
         "//lullaby/util:span",
+        "@mathfu//:mathfu",
     ],
-    alwayslink = 1,
 )
+
+
 cc_library(
     name = "sdl2_main",
     srcs = [
@@ -36,10 +45,16 @@ cc_library(
     ],
     deps = [
         ":example_app",
-        "@sdl2//:sdl2",
-        "@fplbase//:fplbase",
+        "//third_party/SDL2",
+        "//lullaby/modules/input",
+        "//lullaby/util:controller_util",
+        "//lullaby/util:registry",
         "@mathfu//:mathfu",
         "//lullaby/util:math",
-    ],
-    linkstatic = 1,
+    ] + select({
+        "//conditions:default": [
+            "//third_party/GL_native:default",
+        ],
+    }),
 )
+

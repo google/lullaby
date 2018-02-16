@@ -37,12 +37,16 @@ namespace lull {
 class RigSystem : public System {
  public:
   // A list of bone indices.
-  using BoneIndices = std::vector<uint8_t>;
+  using BoneIndices = Span<uint8_t>;
 
   // A pose is defined by a transform for each bone in the rig.
-  using Pose = std::vector<mathfu::AffineTransform>;
+  using Pose = Span<mathfu::AffineTransform>;
 
   explicit RigSystem(Registry* registry);
+
+  // Initializes the "rig" animation channel to pass pose information from
+  // the AnimationSystem to the RenderSystem.
+  void Initialize() override;
 
   RigSystem(const RigSystem&) = delete;
   RigSystem& operator=(const RigSystem&) = delete;
@@ -61,42 +65,45 @@ class RigSystem : public System {
   // Returns the number of bones associated with |entity|.
   size_t GetNumBones(Entity entity) const;
 
-  // Returns the array of bone indices associated with |entity|.
-  Span<uint8_t> GetBoneIndices(Entity entity) const;
-
-  // Returns the array of parent bone indices associated with |entity|.
-  Span<uint8_t> GetBoneParentIndices(Entity entity) const;
-
   // Returns the array of bone names associated with |entity|.
   Span<std::string> GetBoneNames(Entity entity) const;
 
+  // Returns the array of parent bone indices associated with |entity|.
+  BoneIndices GetBoneParentIndices(Entity entity) const;
+
   // Returns the array of default bone transform inverses (AKA inverse bind-pose
   // matrices) associated with |entity|.
-  Span<mathfu::AffineTransform> GetDefaultBoneTransformInverses(
-      Entity entity) const;
+  Pose GetDefaultBoneTransformInverses(Entity entity) const;
+
+  // Returns the array of bone transforms representing the current pose
+  // associated with |entity|.
+  Pose GetPose(Entity entity) const;
 
  private:
+  using AffineMatrixAllocator = mathfu::simd_allocator<mathfu::AffineTransform>;
+
   struct RigComponent {
     // The number of elements represents the number of bones in the rig, and
     // each element refers to the parent bone for the bone at that index.
-    BoneIndices parent_indices;
+    std::vector<uint8_t> parent_indices;
 
     // An (optional) list of bone names useful for debugging.
     std::vector<std::string> bone_names;
 
     // The current pose of the Entity.
-    Pose pose;
+    std::vector<mathfu::AffineTransform, AffineMatrixAllocator> pose;
 
     // The default inverse bind pose of the rig.  These matrices are mulitplied
     // with the individual bone pose transforms to generate the final flattened
     // pose.
-    Pose inverse_bind_pose;
+    std::vector<mathfu::AffineTransform, AffineMatrixAllocator>
+        inverse_bind_pose;
 
     // Maps a bone to a given uniform index in the shader.
-    BoneIndices shader_indices;
+    std::vector<uint8_t> shader_indices;
 
     // The flattened pose data passed to the shader.
-    Pose shader_pose;
+    std::vector<mathfu::AffineTransform, AffineMatrixAllocator> shader_pose;
   };
 
   void UpdateShaderTransforms(Entity entity, RigComponent* rig);

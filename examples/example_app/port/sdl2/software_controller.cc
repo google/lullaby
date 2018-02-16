@@ -16,21 +16,23 @@ limitations under the License.
 
 #include "examples/example_app/port/sdl2/software_controller.h"
 
+#include "lullaby/util/controller_util.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/math.h"
 
 namespace lull {
 
 SoftwareController::SoftwareController(Registry* registry)
-      : registry_(registry),
-        rotation_(0.f, 0.f, 0.f) {
+    : registry_(registry), rotation_(0.f, 0.f, 0.f) {
   InputManager::DeviceParams params;
   params.has_rotation_dof = true;
   params.has_position_dof = true;
-  params.num_buttons = 1;
+  params.num_buttons = 2;
 
   InputManager* input_manager = registry_->Get<InputManager>();
   input_manager->ConnectDevice(InputManager::kController, params);
+  input_manager->SetDeviceInfo(InputManager::kController, kSelectionRayHash,
+                               kDaydreamControllerSelectionRay);
 }
 
 SoftwareController::~SoftwareController() {
@@ -41,10 +43,13 @@ SoftwareController::~SoftwareController() {
 void SoftwareController::Update() {
   InputManager* input_manager = registry_->Get<InputManager>();
   input_manager->UpdatePosition(InputManager::kController, mathfu::kZeros3f);
-  input_manager->UpdateRotation(
-      InputManager::kController, mathfu::quat::FromEulerAngles(rotation_));
+  input_manager->UpdateRotation(InputManager::kController,
+                                mathfu::quat::FromEulerAngles(rotation_));
   input_manager->UpdateButton(InputManager::kController,
                               InputManager::kPrimaryButton, pressed_, false);
+  input_manager->UpdateButton(InputManager::kController,
+                              InputManager::kSecondaryButton,
+                              secondary_button_pressed_, false);
 }
 
 void SoftwareController::OnMouseMotion(const mathfu::vec2i& delta) {
@@ -53,12 +58,16 @@ void SoftwareController::OnMouseMotion(const mathfu::vec2i& delta) {
   rotation_.x -= delta.y * kRotationSensitivity;
 }
 
-void SoftwareController::OnButtonDown() {
-  pressed_ = true;
+void SoftwareController::OnButtonDown() { pressed_ = true; }
+
+void SoftwareController::OnButtonUp() { pressed_ = false; }
+
+void SoftwareController::OnSecondaryButtonDown() {
+  secondary_button_pressed_ = true;
 }
 
-void SoftwareController::OnButtonUp() {
-  pressed_ = false;
+void SoftwareController::OnSecondaryButtonUp() {
+  secondary_button_pressed_ = false;
 }
 
 }  // namespace lull

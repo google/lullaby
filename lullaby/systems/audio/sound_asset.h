@@ -21,7 +21,7 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -35,7 +35,6 @@ class SoundAsset {
   enum LoadStatus {
     kUnloaded,
     kLoaded,
-    kStreaming,
     kFailed,
   };
 

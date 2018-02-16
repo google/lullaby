@@ -17,7 +17,6 @@ limitations under the License.
 #include "lullaby/modules/animation_channels/transform_channels.h"
 
 #include "mathfu/constants.h"
-#include "motive/init.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"

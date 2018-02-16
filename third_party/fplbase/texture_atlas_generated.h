@@ -67,7 +67,7 @@ struct TextureAtlasEntryBuilder {
   void add_size(const fplbase::Vec2 *size) {
     fbb_.AddStruct(TextureAtlasEntry::VT_SIZE, size);
   }
-  explicit TextureAtlasEntryBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  TextureAtlasEntryBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
@@ -134,7 +134,7 @@ struct TextureAtlasBuilder {
   void add_entries(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<TextureAtlasEntry>>> entries) {
     fbb_.AddOffset(TextureAtlas::VT_ENTRIES, entries);
   }
-  explicit TextureAtlasBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  TextureAtlasBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }

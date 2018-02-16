@@ -23,6 +23,13 @@ limitations under the License.
 namespace lull {
 
 // Applys the RenderState specified in |state| to the |target| renderstate.
+void Apply(fplbase::RenderState* target, const AlphaTestStateT* state);
+void Apply(fplbase::RenderState* target, const BlendStateT* state);
+void Apply(fplbase::RenderState* target, const CullStateT* state);
+void Apply(fplbase::RenderState* target, const DepthStateT* state);
+void Apply(fplbase::RenderState* target, const PointStateT* state);
+void Apply(fplbase::RenderState* target, const ScissorStateT* state);
+void Apply(fplbase::RenderState* target, const StencilStateT* state);
 void Apply(fplbase::RenderState* target, const RenderStateT& state);
 
 }  // namespace lull

@@ -106,4 +106,21 @@ Stategraph::Path Stategraph::FindPath(HashValue from_state_id,
   return FindPathHelper(from_state, to_state, visited);
 }
 
+std::string Stategraph::GetGraphDebugString() const {
+  std::stringstream str;
+  str << "digraph {\n";
+  for (const auto& state : states_) {
+    for (const auto& trans : state.second->GetTransitions()) {
+#ifdef LULLABY_DEBUG_HASH
+      str << Unhash(trans.from_state) << "->" << Unhash(trans.to_state)
+          << ";\n";
+#else
+      str << trans.from_state << "->" << trans.to_state << ";\n";
+#endif
+    }
+  }
+  str << "}";
+  return str.str();
+}
+
 }  // namespace lull

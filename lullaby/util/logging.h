@@ -23,6 +23,14 @@ limitations under the License.
 
 namespace lull {
 
+enum LogSeverity {
+  INFO,
+  WARNING,
+  ERROR,
+  FATAL,
+  DFATAL,
+};
+
 // Provides an "empty" logger used for disabling logging while still supporting
 // streaming message expressions.
 class NullLogger {
@@ -31,6 +39,30 @@ class NullLogger {
     static std::ostream kNullStream(nullptr);
     return kNullStream;
   }
+};
+
+// Provides a logger that writes to std::cout.
+class SimpleLogger {
+ public:
+  explicit SimpleLogger(LogSeverity severity) : severity_(severity) {}
+
+  ~SimpleLogger() {
+    std::cerr << str_.str() << std::endl;
+    if (severity_ == FATAL) {
+      assert(false);
+    }
+#ifndef NDEBUG
+    if (severity_ == DFATAL) {
+      assert(false);
+    }
+#endif
+  }
+
+  std::ostream& Get() { return str_; }
+
+ private:
+  LogSeverity severity_ = INFO;
+  std::ostringstream str_;
 };
 
 // Provides a logger that writes to std::cerr and aborts execution.
@@ -60,46 +92,31 @@ T CheckNotNull(T&& t) {
 
 }  // namespace lull
 
-#define LULLABY_LOG(severity) ::lull::NullLogger().Get()
-
-// If statement prevents unused variable warnings.
-#define LULLABY_DCHECK(expr) \
-  if (false && (expr))       \
-    ;                        \
-  else                       \
-    ::lull::NullLogger().Get()
-
-#define LULLABY_CHECK(expr)                                      \
-  (expr) ? ::lull::NullLogger().Get()                            \
-         : ::lull::FatalLogger(__FILE__, __LINE__, #expr).Get()
-
-#define LULLABY_CHECK_NOTNULL(val) ::lull::CheckNotNull(val)
-
 #ifndef LOG
-#define LOG LULLABY_LOG
+#define LOG(severity) ::lull::SimpleLogger(::lull::severity).Get()
 #endif
 
 #ifndef DLOG
-#define DLOG LULLABY_LOG
+#ifndef NDEBUG
+#define DLOG(severity) LOG(severity)
+#else
+#define DLOG(severity) ::lull::NullLogger().Get()
+#endif
 #endif
 
 #ifndef LOG_ONCE
-#define LOG_ONCE LULLABY_LOG
+#define LOG_ONCE DLOG
 #endif
 
-#ifndef DCHECK
-#define DCHECK LULLABY_DCHECK
-#define DCHECK_OP(val1, val2, op) DCHECK((val1) op (val2))
-#define DCHECK_EQ(val1, val2) DCHECK_OP((val1), (val2), ==)
-#define DCHECK_NE(val1, val2) DCHECK_OP((val1), (val2), !=)
-#define DCHECK_LE(val1, val2) DCHECK_OP((val1), (val2), <=)
-#define DCHECK_LT(val1, val2) DCHECK_OP((val1), (val2), <)
-#define DCHECK_GE(val1, val2) DCHECK_OP((val1), (val2), >=)
-#define DCHECK_GT(val1, val2) DCHECK_OP((val1), (val2), >)
+#ifndef CHECK_NOTNULL
+#define CHECK_NOTNULL(val) ::lull::CheckNotNull(val)
 #endif
 
 #ifndef CHECK
-#define CHECK LULLABY_CHECK
+#define CHECK(expr) \
+  (expr) ? ::lull::NullLogger().Get() \
+         : ::lull::FatalLogger(__FILE__, __LINE__, #expr).Get()
+
 #define CHECK_OP(val1, val2, op) CHECK((val1) op (val2))
 #define CHECK_EQ(val1, val2) CHECK_OP((val1), (val2), ==)
 #define CHECK_NE(val1, val2) CHECK_OP((val1), (val2), !=)
@@ -109,8 +126,21 @@ T CheckNotNull(T&& t) {
 #define CHECK_GT(val1, val2) CHECK_OP((val1), (val2), >)
 #endif
 
-#ifndef CHECK_NOTNULL
-#define CHECK_NOTNULL LULLABY_CHECK_NOTNULL
+
+#ifndef DCHECK
+#ifndef NDEBUG
+#define DCHECK(expr) CHECK(expr)
+#else
+#define DCHECK(expr) ::lull::NullLogger().Get()
+#endif
+
+#define DCHECK_OP(val1, val2, op) DCHECK((val1) op (val2))
+#define DCHECK_EQ(val1, val2) DCHECK_OP((val1), (val2), ==)
+#define DCHECK_NE(val1, val2) DCHECK_OP((val1), (val2), !=)
+#define DCHECK_LE(val1, val2) DCHECK_OP((val1), (val2), <=)
+#define DCHECK_LT(val1, val2) DCHECK_OP((val1), (val2), <)
+#define DCHECK_GE(val1, val2) DCHECK_OP((val1), (val2), >=)
+#define DCHECK_GT(val1, val2) DCHECK_OP((val1), (val2), >)
 #endif
 
 #endif  // LULLABY_UTIL_LOGGING_H_

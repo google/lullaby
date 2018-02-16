@@ -18,11 +18,15 @@ limitations under the License.
 #define LULLABY_BASE_COMMON_TYPES_H_
 
 #include <string>
-
+#include <vector>
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/util/color.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/typeid.h"
+
+namespace lull {
+using ByteArray = std::vector<uint8_t>;
+}
 
 LULLABY_SETUP_TYPEID(bool);
 LULLABY_SETUP_TYPEID(int8_t);
@@ -45,7 +49,10 @@ LULLABY_SETUP_TYPEID(mathfu::vec4i);
 LULLABY_SETUP_TYPEID(mathfu::quat);
 LULLABY_SETUP_TYPEID(mathfu::mat4);
 LULLABY_SETUP_TYPEID(lull::Aabb);
+LULLABY_SETUP_TYPEID(lull::ByteArray);
 LULLABY_SETUP_TYPEID(lull::Color4ub);
+LULLABY_SETUP_TYPEID(lull::Ray);
+LULLABY_SETUP_TYPEID(lull::Sqt);
 
 #ifdef __APPLE__
 LULLABY_SETUP_TYPEID(size_t);

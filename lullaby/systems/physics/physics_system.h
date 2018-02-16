@@ -22,13 +22,14 @@ limitations under the License.
 #include <vector>
 
 #include "btBulletDynamicsCommon.h"
-#include "lullaby/generated/rigid_body_def_generated.h"
+#include "mathfu/constants.h"
+#include "mathfu/glsl_mappings.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
-#include "lullaby/systems/physics/bullet_utils.h"
+#include "lullaby/systems/physics/collision_shapes.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/clock.h"
-#include "lullaby/util/math.h"
+#include "lullaby/generated/rigid_body_def_generated.h"
 
 namespace lull {
 
@@ -107,15 +108,7 @@ class PhysicsSystem : public System {
 
     std::unique_ptr<btRigidBody> bt_body;
     std::unique_ptr<MotionState> bt_motion_state;
-    // The shape that actually represents this rigid body. The owning unique_ptr
-    // of this shape will be the last member of bt_shapes.
-    btCollisionShape* bt_primary_shape = nullptr;
-    // The scale applied to bt_primary_shape prior to any Entity-related
-    // scaling. Required for applying scale changes while updating simulation
-    // transforms.
-    mathfu::vec3 primary_shape_scale = mathfu::kOnes3f;
-    // Ownership of the shape(s) that this RigidBody uses.
-    std::vector<std::unique_ptr<btCollisionShape>> bt_shapes;
+    std::unique_ptr<CollisionShape> shape;
 
     mathfu::vec3 center_of_mass_translation = mathfu::kZeros3f;
     RigidBodyType type = RigidBodyType::RigidBodyType_Dynamic;
@@ -127,7 +120,8 @@ class PhysicsSystem : public System {
   };
 
   void InitRigidBody(Entity entity, const RigidBodyDef* data);
-  void InitCollisionShape(RigidBody* body, const RigidBodyDef* data);
+  void InitCollisionShape(
+      RigidBody* body, const RigidBodyDef* data);
 
   // Setup Bullet flags. Should be called whenever the body changes rigid body
   // types or collider types. Will be called by SetupBtIntertialProperties() as
@@ -136,11 +130,11 @@ class PhysicsSystem : public System {
 
   // Setup mass and local inertia. Should be called whenever a Dynamic body
   // changes mass or shape.
-  void SetupBtIntertialProperties(RigidBody* body) const;
+  void SetupBtInertialProperties(RigidBody* body) const;
 
   // Setup the collision shape to match the AABB of the Entity. Assumes that the
   // shape has already been constructed and only needs to be re-scaled.
-  void SetupAabbCollisionShape(RigidBody* body);
+  void SetupAabbCollisionShape(Entity entity, AabbCollisionShape* shape);
 
   // The post-tick internal callback allows contact events to be dispatched.
   static void InternalTickCallback(btDynamicsWorld* world, btScalar time_step);
@@ -166,7 +160,7 @@ class PhysicsSystem : public System {
   void OnEntityDisabled(Entity entity);
   void OnEntityEnabled(Entity entity);
   void OnParentChanged(Entity entity, Entity new_parent);
-  void OnAabbChanged(Entity entity);
+  void OnAabbChanged(Entity entity, AabbCollisionShape* shape);
 
   ComponentPool<RigidBody> rigid_bodies_;
   TransformSystem* transform_system_;

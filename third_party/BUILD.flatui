@@ -38,12 +38,14 @@ cc_library(
     hdrs = [
         "external/include/harfbuzz/hb-version.h",
         "include/flatui/flatui.h",
+        "include/flatui/flatui_core.h",
         "include/flatui/flatui_common.h",
         "include/flatui/flatui_serialization.h",
         "include/flatui/font_buffer.h",
         "include/flatui/font_manager.h",
         "include/flatui/font_util.h",
         "include/flatui/internal/distance_computer.h",
+        "include/flatui/internal/fast_antialias_distance_computer.h",
         "include/flatui/internal/flatui_util.h",
         "include/flatui/internal/glyph_cache.h",
         "include/flatui/internal/hb_complex_font.h",
@@ -69,6 +71,6 @@ cc_library(
         "@mathfu//:mathfu",
         "@motive//:motive",
         "@stb//:stb",
-        "@//third_party/stb:stb_image_resize",
+        "@//third_party/stb_image_resize:stb_image_resize",
     ],
 )

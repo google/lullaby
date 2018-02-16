@@ -18,7 +18,7 @@ limitations under the License.
 #define LULLABY_SYSTEMS_DISPATCHER_EVENT_H_
 
 #include "lullaby/generated/dispatcher_def_generated.h"
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/util/registry.h"
 

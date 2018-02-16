@@ -19,7 +19,7 @@ limitations under the License.
 
 #include "lullaby/generated/scroll_def_generated.h"
 #include "lullaby/modules/ecs/component.h"
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/scroll/scroll_system.h"

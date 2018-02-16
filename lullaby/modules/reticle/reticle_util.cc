@@ -16,7 +16,7 @@ limitations under the License.
 
 #include "lullaby/modules/reticle/reticle_util.h"
 
-#include "lullaby/modules/reticle/reticle_provider.h"
+#include "lullaby/modules/input_processor/input_processor.h"
 #include "lullaby/systems/transform/transform_system.h"
 
 namespace lull {
@@ -30,8 +30,8 @@ bool ComputeRayAabbXyIntersectionPoint(const Ray& ray, const Aabb& aabb,
   }
 
   if (!intersection_point) {
-    LOG(ERROR) <<
-        "ComputeRayAabbXyIntersectionPoint without valid mathfu::vec2*.";
+    LOG(ERROR)
+        << "ComputeRayAabbXyIntersectionPoint without valid mathfu::vec2*.";
     return false;
   }
 
@@ -57,8 +57,8 @@ bool GetReticleIntersectionPoint(Registry* registry, Entity entity,
   }
 
   if (!intersection_point) {
-    LOG(DFATAL) <<
-        "GetReticleIntersectionPoint called without valid mathfu::vec2 *.";
+    LOG(DFATAL)
+        << "GetReticleIntersectionPoint called without valid mathfu::vec2 *.";
     return false;
   }
 
@@ -80,11 +80,21 @@ bool GetReticleIntersectionPoint(Registry* registry, Entity entity,
     LOG(ERROR) << "Failed to get aabb from entity.";
     return false;
   }
-  auto* reticle_provider = registry->Get<ReticleProvider>();
-  if (!reticle_provider) {
+
+  const auto* input_processor = registry->Get<InputProcessor>();
+  if (!input_processor) {
+    LOG(ERROR) << "InputProcessor doesn't exit.";
     return false;
   }
-  const Ray collision_ray = reticle_provider->GetCollisionRay();
+
+  const InputFocus* focus =
+      input_processor->GetInputFocus(input_processor->GetPrimaryDevice());
+  if (!focus) {
+    LOG(ERROR) << "Primary Device has not been updated in InputProcessor.";
+    return false;
+  }
+
+  const Ray collision_ray = focus->collision_ray;
   const Ray local_gaze = TransformRay(world_mat->Inverse(), collision_ray);
   return ComputeRayAabbXyIntersectionPoint(local_gaze, *aabb,
                                            intersection_point);
@@ -167,30 +177,24 @@ Sqt AdjustSqtForReticle(Registry* registry, const Sqt& sqt) {
     LOG(DFATAL) << "AdjustSqtForReticle called without valid registry.";
     return sqt;
   }
+  const auto* input_processor = registry->Get<InputProcessor>();
+  if (!input_processor) {
+    LOG(ERROR) << "InputProcessor doesn't exit.";
+    return sqt;
+  }
+  const InputFocus* focus =
+      input_processor->GetInputFocus(input_processor->GetPrimaryDevice());
+  if (!focus) {
+    LOG(ERROR) << "Primary Device has not been updated in InputProcessor.";
+    return sqt;
+  }
 
   // Set sqt's offset angle to be the angle between the forward vector
-  // and the direction vector to the reticle.
-  auto* reticle_provider = registry->Get<ReticleProvider>();
-  if (!reticle_provider) {
-    return sqt;
-  }
-
-  auto* transform_system = registry->Get<TransformSystem>();
-  if (!transform_system) {
-    LOG(DFATAL) << "Transform system missing from registry.";
-    return sqt;
-  }
-
-  const Sqt* reticle_sqt =
-      transform_system->GetSqt(reticle_provider->GetReticleEntity());
-  if (!reticle_sqt) {
-    return sqt;
-  }
-
+  // and the direction vector to the cursor.
   Sqt adjusted_sqt = sqt;
   mathfu::quat offset_angle = mathfu::quat::RotateFromTo(
       sqt.rotation * -mathfu::kAxisZ3f,
-      (reticle_sqt->translation - sqt.translation).Normalized());
+      (focus->cursor_position - sqt.translation).Normalized());
 
   adjusted_sqt.rotation = offset_angle * sqt.rotation;
 

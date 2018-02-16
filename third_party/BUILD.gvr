@@ -4,15 +4,16 @@ package(
 
 cc_library(
     name = "gvr",
-    hdrs = [
-        "libraries/headers/vr/gvr/capi/include/gvr.h",
-        "libraries/headers/vr/gvr/capi/include/gvr_audio.h",
-        "libraries/headers/vr/gvr/capi/include/gvr_audio_surround.h",
-        "libraries/headers/vr/gvr/capi/include/gvr_controller.h",
-        "libraries/headers/vr/gvr/capi/include/gvr_gesture.h",
-        "libraries/headers/vr/gvr/capi/include/gvr_types.h",
-    ],
-    includes = [
-        "libraries/headers/",
-    ],
+    hdrs = glob(["libraries/headers/vr/gvr/capi/include/*.h"]),
+    includes = ["libraries/headers"],
+)
+
+cc_library(
+    name = "gvr_headers",
+    deps = [":gvr"],
+)
+
+cc_library(
+    name = "gvr_audio",
+    deps = [":gvr"],
 )

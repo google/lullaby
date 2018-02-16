@@ -1,0 +1,16 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Constrains the translation of the entity to a line defined in either world
+/// or object-local coordinates. The position of the line is defined at runtime
+/// as the point of initial grab.
+table LinearGrabbableDef {
+  /// Direction of the line constraint. Origin will be defined at runtime by
+  /// where the object is grabbed.
+  direction: Vec3 (native_default:"{1.0f, 0.0f, 0.0f}");
+  /// Whether the direction is defined in the entity's local space.
+  local_orientation: bool = false;
+}
+
+root_type LinearGrabbableDef;

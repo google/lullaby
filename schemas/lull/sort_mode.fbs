@@ -1,0 +1,22 @@
+namespace lull;
+
+// Sort modes used to order objects inside a render pass for rendering.
+enum SortMode : ushort {
+  // Do not sort.
+  None,
+  // Hierarchical based sort order derived from the scene graph and explicit
+  /// sort values.
+  SortOrderDecreasing,
+  SortOrderIncreasing,
+  // Sort based only on Z-position of the entity.  Used for simple UIs.
+  WorldSpaceZBackToFront,
+  WorldSpaceZFrontToBack,
+  // Average space: eye space of the camera calculated by averaging the
+  // cameras of each of the known views.  Sorting in average space is only
+  // performed once, ie it's not done for every view.
+  AverageSpaceOriginBackToFront,
+  AverageSpaceOriginFrontToBack,
+  // Sort in an optimal way for rendering to reduce overhead (reduce state
+  // changes and resource swaps).
+  Optimized,
+}

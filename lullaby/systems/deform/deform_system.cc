@@ -21,6 +21,7 @@ limitations under the License.
 #include "lullaby/modules/render/mesh_util.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/math.h"
 
 namespace lull {
 namespace {
@@ -130,9 +131,8 @@ void DeformSystem::SetDeformationFunction(Entity entity) {
   // until the first render call. We only need to set this function one time for
   // each entity.
   registry_->Get<RenderSystem>()->SetDeformationFunction(
-      entity, [this, entity](float* data, size_t len, size_t stride) {
-        return DeformMesh(entity, data, len, stride);
-      });
+      entity,
+      [this, entity](MeshData* mesh) { return DeformMesh(entity, mesh); });
 }
 
 void DeformSystem::SetAsDeformed(Entity entity, string_view path_id) {
@@ -197,6 +197,27 @@ DeformMode DeformSystem::GetDeformMode(Entity e) const {
   return deformer ? deformer->mode : DeformMode::DeformMode_None;
 }
 
+Optional<float> DeformSystem::GetDeformStrength(Entity e) const {
+  const auto* deformed = deformed_.Get(e);
+  if (!deformed) {
+    return Optional<float>();
+  }
+  const auto* deformer = deformers_.Get(deformed->deformer);
+  return deformer ? Optional<float>(deformer->deform_strength)
+                  : Optional<float>();
+}
+
+void DeformSystem::SetDeformStrength(Entity e, float strength) {
+  Deformer* deformer = deformers_.Get(e);
+  if (!deformer) {
+    LOG(WARNING) << e << " is not a deformer";
+    return;
+  }
+  deformer->deform_strength = strength;
+  auto& transform_system = *registry_->Get<TransformSystem>();
+  transform_system.RecalculateWorldFromEntityMatrix(e);
+}
+
 const Aabb* DeformSystem::UndeformedBoundingBox(Entity entity) const {
   const auto* deformed = deformed_.Get(entity);
   if (!deformed) {
@@ -235,6 +256,8 @@ Optional<DeformSystem::WaypointPath> DeformSystem::BuildWaypointPath(
                          &waypoint.original_aabb_anchor);
     MathfuVec3FromFbVec3(waypoint_def->remapped_aabb_anchor(),
                          &waypoint.remapped_aabb_anchor);
+    MathfuVec3FromFbVec3(waypoint_def->remapped_scale(),
+                         &waypoint.remapped_scale);
     waypoint_path.waypoints.push_back(waypoint);
   }
 
@@ -276,9 +299,8 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
     case DeformMode_GlobalCylinder: {
       const float radius = deformer->radius;
       world_from_entity_fn =
-          [this, e, radius](
-              const Sqt& local_sqt,
-              const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
+          [radius](const Sqt& local_sqt,
+                   const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
         const float parent_radius =
             world_from_parent_mat ? GetRadius(*world_from_parent_mat) : 0.f;
         const auto tmp = CalculateCylinderDeformedTransformMatrix(
@@ -305,9 +327,8 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
     case DeformMode_Waypoint: {
       RecalculateAnchoredPath(e);
       world_from_entity_fn =
-          [this, e, deformer](
-              const Sqt& local_sqt,
-              const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
+          [this, e](const Sqt& local_sqt,
+                    const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
         return CalculateWaypointTransformMatrix(e, local_sqt,
                                                 world_from_parent_mat);
       };
@@ -320,8 +341,7 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
                                                     &entity_from_world_fn);
 }
 
-void DeformSystem::DeformMesh(Entity e, float* data, size_t len,
-                              size_t stride) {
+void DeformSystem::DeformMesh(Entity e, MeshData* mesh) {
   // There are two scenarios here that need to be accounted for: the first is
   // the nominal case when we have a valid Deformed component, and the second is
   // the legacy case where there is no Deformed component and instead the
@@ -330,8 +350,8 @@ void DeformSystem::DeformMesh(Entity e, float* data, size_t len,
   if (deformed) {
     const Deformer* deformer = deformers_.Get(deformed->deformer);
     if (deformer != nullptr && deformer->mode == DeformMode_CylinderBend) {
-      deformed->undeformed_aabb = GetBoundingBox(data, len, stride);
-      CylinderBendDeformMesh(*deformed, *deformer, data, len, stride);
+      deformed->undeformed_aabb = GetBoundingBox(*mesh);
+      CylinderBendDeformMesh(*deformed, *deformer, mesh);
     } else if (deformer != nullptr && deformer->mode == DeformMode_Waypoint) {
       // Waypoint deformation deliberately does not deform mesh
     } else {
@@ -347,7 +367,7 @@ void DeformSystem::DeformMesh(Entity e, float* data, size_t len,
     const float current_radius = GetRadius(
         *registry_->Get<TransformSystem>()->GetWorldFromEntityMatrix(e));
     const mathfu::vec3 translation = current_radius * mathfu::kAxisZ3f;
-    ApplyDeformation(data, len, stride, [&](const mathfu::vec3& pos) {
+    ApplyDeformation(mesh, [&](const mathfu::vec3& pos) {
       return DeformPoint(pos - translation, deformer->radius) + translation;
     });
   }
@@ -439,10 +459,10 @@ mathfu::mat4 DeformSystem::CalculateWaypointTransformMatrix(
     path = &it->second;
   }
 
-  const Sqt entity_from_root_sqt =
+  const Sqt entity_from_deformer_sqt =
       CalculateSqtFromMatrix(deformed->deformer_from_entity_undeformed_space);
   const float current_point = mathfu::vec3::DotProduct(
-      entity_from_root_sqt.translation, path->parameterization_axis);
+      entity_from_deformer_sqt.translation, path->parameterization_axis);
 
   size_t min_index;
   size_t max_index;
@@ -461,19 +481,31 @@ mathfu::mat4 DeformSystem::CalculateWaypointTransformMatrix(
   const mathfu::quat deformed_rotation = mathfu::quat::FromEulerAngles(
       deformed_euler_rotation * kDegreesToRadians);
 
-  const Sqt deformed_sqt =
-      Sqt(deformed_translation, deformed_rotation * local_sqt.rotation,
-          local_sqt.scale);
-  const mathfu::mat4 deformed_world_from_deformer =
-      *registry_->Get<TransformSystem>()->GetWorldFromEntityMatrix(
+  const mathfu::vec3 deformed_scale = mathfu::vec3::Lerp(
+      path->waypoints[min_index].remapped_scale,
+      path->waypoints[max_index].remapped_scale, entity_match_percentage);
+
+  // Also interpolate between the full deformed sqt and the original sqt based
+  // on the deformer->deform_strength (default 1.0f). This allows us to animate
+  // the application of a deform.
+  const Sqt deformed_sqt = Sqt(
+      mathfu::vec3::Lerp(entity_from_deformer_sqt.translation,
+                         deformed_translation, deformer->deform_strength),
+      mathfu::quat::Slerp(entity_from_deformer_sqt.rotation,
+                          deformed_rotation * entity_from_deformer_sqt.rotation,
+                          deformer->deform_strength),
+      mathfu::vec3::Lerp(entity_from_deformer_sqt.scale, deformed_scale,
+                         deformer->deform_strength));
+  const mathfu::mat4* deformed_world_from_deformer =
+      registry_->Get<TransformSystem>()->GetWorldFromEntityMatrix(
           deformer->GetEntity());
   return CalculateTransformMatrixFromParent(deformed_sqt,
-                                            &deformed_world_from_deformer);
+                                            deformed_world_from_deformer);
 }
 
 void DeformSystem::CylinderBendDeformMesh(const Deformed& deformed,
-                                          const Deformer& deformer, float* data,
-                                          size_t len, size_t stride) const {
+                                          const Deformer& deformer,
+                                          MeshData* mesh) const {
   const TransformSystem& transform_system = *registry_->Get<TransformSystem>();
   const mathfu::mat4* world_from_entity_deformed_space =
       transform_system.GetWorldFromEntityMatrix(deformed.GetEntity());
@@ -498,7 +530,7 @@ void DeformSystem::CylinderBendDeformMesh(const Deformed& deformed,
       (*world_from_deformer_deformed_space) *
       mathfu::mat4::FromTranslationVector(radius * mathfu::kAxisZ3f);
 
-  ApplyDeformation(data, len, stride,
+  ApplyDeformation(mesh,
                    [&radius, &root_from_entity_undeformed_space,
                     &entity_from_root_deformed_space](const mathfu::vec3& pos) {
                      return entity_from_root_deformed_space *

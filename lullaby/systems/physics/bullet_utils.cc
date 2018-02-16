@@ -46,15 +46,14 @@ Sqt GetShapeSqt(const PhysicsShapePart* part) {
   return sqt;
 }
 
-std::unique_ptr<btCollisionShape> CreateCollisionShape(
-    const PhysicsShapePart* part) {
+std::unique_ptr<btCollisionShape> CreateBtShape(const PhysicsShapePart* part) {
   std::unique_ptr<btCollisionShape> shape;
   const auto type = part->shape_type();
   const void* shape_data = part->shape();
 
   if (type == PhysicsShapePrimitive_PhysicsBoxShape) {
     const auto* box = static_cast<const PhysicsBoxShape*>(shape_data);
-    mathfu::vec3 half_dimensions;
+    mathfu::vec3 half_dimensions = mathfu::kOnes3f * 0.5f;
     MathfuVec3FromFbVec3(box->half_dimensions(), &half_dimensions);
 
     shape = MakeUnique<btBoxShape>(BtVectorFromMathfu(half_dimensions));
@@ -69,6 +68,14 @@ std::unique_ptr<btCollisionShape> CreateCollisionShape(
     // btMultiSphereShape.
     // TODO(b/64492155): add a "PhysicsUniformSphereShape" to handle this case.
     shape = MakeUnique<btMultiSphereShape>(&position, &radius, 1);
+  } else if (type == PhysicsShapePrimitive_PhysicsStaticPlaneShape) {
+    const auto* plane = static_cast<const PhysicsStaticPlaneShape*>(shape_data);
+    mathfu::vec3 normal = mathfu::kOnes3f;
+    MathfuVec3FromFbVec3(plane->normal(), &normal);
+    const float distance = plane->distance();
+
+    shape =
+        MakeUnique<btStaticPlaneShape>(BtVectorFromMathfu(normal), distance);
   } else {
     LOG(DFATAL) << "Unsupported shape type";
   }

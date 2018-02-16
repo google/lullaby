@@ -24,6 +24,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/systems/text/flatui/font.h"
 #include "lullaby/systems/text/flatui/text_buffer.h"
+#include "lullaby/systems/text/flatui/text_task.h"
 #include "lullaby/util/math.h"
 #include "lullaby/generated/text_def_generated.h"
 #include "mathfu/constants.h"
@@ -35,6 +36,7 @@ namespace lull {
 // RenderSystem.  This is a private class.
 struct TextComponent : Component {
   std::string text;
+  std::string rendered_text;
   FontPtr font = nullptr;
   TextBufferPtr buffer = nullptr;
   bool loading_buffer = false;
@@ -48,6 +50,8 @@ struct TextComponent : Component {
   Entity underline_entity = kNullEntity;
   Dispatcher::ScopedConnection on_hidden;
   Dispatcher::ScopedConnection on_unhidden;
+  TextTaskQueue::TaskId task_id = TextTaskQueue::kInvalidTaskId;
+  TextTaskPtr task;
 
   explicit TextComponent(Entity entity) : Component(entity) {}
 };

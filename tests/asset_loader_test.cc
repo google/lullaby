@@ -139,10 +139,6 @@ TEST(AssetLoader, SimpleAsset) {
   EXPECT_EQ(kDummyData, str);
 }
 
-TEST(AssetLoaderDeathTest, NullFileLoader) {
-  PORT_EXPECT_DEBUG_DEATH(AssetLoader loader(nullptr), "");
-}
-
 TEST(AssetLoader, SetFileLoader) {
   AssetLoader loader(LoadFile);
   auto asset1 = loader.LoadNow<TestAsset>("filename.txt");

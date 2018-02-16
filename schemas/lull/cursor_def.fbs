@@ -1,10 +1,10 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
 /// Configures a cursor to display at the end of an input collision ray.
-/// Apps should consider reusing: lullaby/data/blueprints/reticle.json.
-/// In case of changing any of these values, please update reticle_template.fbs.
+/// Apps should consider using: lullaby/data/jsonnet/cursor_template.jsonnet.
+/// In case of changing any of these values, please update cursor_template.fbs.
 table CursorDef {
   ring_active_diameter: float = 1.0;
   ring_inactive_diameter: float = 1.0;

@@ -16,7 +16,7 @@ cc_library(
         "cursor_trail_system.h",
     ],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/animation_channels:render_channels",
         "//lullaby/modules/animation_channels:transform_channels",
@@ -25,6 +25,7 @@ cc_library(
         "//lullaby/modules/ecs",
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/input",
+        "//lullaby/modules/input_processor",
         "//lullaby/modules/render",
         "//lullaby/systems/animation",
         "//lullaby/systems/collision",

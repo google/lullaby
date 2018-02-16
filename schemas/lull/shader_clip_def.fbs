@@ -1,0 +1,37 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+// The Clip Region Space is the same as Model Space (sometimes referenced to as
+// Entity Space in Lullaby) for the entity registered with this component. A box
+// volume defines the clip region in this space. Entites with this component
+// registered will not have its geometry clipped. In code, entites can be added
+// as targets to a region and only the targets will have geometry clipped.
+//
+// All targets should use customized shaders that import the
+// uber_vertex_common.glslh or uber_fragment_common.glslh headers, call the
+// necessary functions, and compile with the CLIP_REGION flag.
+table ShaderClipDef {
+  // Minimum point in the box volume defining the clip region.
+  min_in_clip_region_space: Vec3;
+  // Maximum point in the box volume defining the clip region.
+  max_in_clip_region_space: Vec3;
+}
+
+// Or, children can define a Target def which will find the first closest
+// ancestor ShaderClipDef region to be a part of. All children of this def will
+// also be clipped automatically.
+// Note that this has the same behavior as ShaderClipSystem::AddTarget(), where
+// it will remain clipped even if the hierarchy changes and the Region is no
+// longer an ancestor of the Target. Also, if the Region that owns this Target
+// is Destroyed, the entity with this Def will no longer be clipped by anyone
+// until a new AddTarget() call.
+// At the time of entity creation, the Target does not need to have a region
+// ancestor. In that case, the Target will be inactive until it gets a Region as
+// an ancestor.
+table ShaderClipTargetDef {
+}
+
+// Entities that do not have a ShaderClipTargetDef or AddTarget() called on them
+// will still be automatically be clipped if they are descendents of a Target,
+// but will stop being clipped if they are removed from the hierarchy.

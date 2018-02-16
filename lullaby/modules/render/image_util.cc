@@ -20,6 +20,19 @@ limitations under the License.
 
 namespace lull {
 
+void MultiplyRgbByAlpha(uint8_t* data, const mathfu::vec2i& size) {
+  const int num_pixels = size.x * size.y;
+  for (int i = 0; i < num_pixels; ++i, data += 4) {
+    const auto alpha = static_cast<uint16_t>(data[3]);
+    data[0] =
+        static_cast<uint8_t>((static_cast<uint16_t>(data[0]) * alpha) / 255);
+    data[1] =
+        static_cast<uint8_t>((static_cast<uint16_t>(data[1]) * alpha) / 255);
+    data[2] =
+        static_cast<uint8_t>((static_cast<uint16_t>(data[2]) * alpha) / 255);
+  }
+}
+
 void ConvertRgb888ToRgba8888(const uint8_t* rgb_ptr, const mathfu::vec2i& size,
                              uint8_t* out_rgba_ptr) {
   if (!rgb_ptr || !out_rgba_ptr) {

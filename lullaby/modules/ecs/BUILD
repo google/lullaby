@@ -6,13 +6,6 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 cc_library(
-    name = "entity",
-    hdrs = [
-        "entity.h",
-    ],
-)
-
-cc_library(
     name = "ecs",
     srcs = [
         "blueprint.cc",
@@ -29,11 +22,13 @@ cc_library(
         "system.h",
     ],
     deps = [
-        ":entity",
         "@flatbuffers//:flatbuffers",
         "//lullaby/modules/file",
-        "//lullaby/modules/flatbuffers",
         "//lullaby/util:dependency_checker",
+        "//lullaby/util:entity",
+        "//lullaby/util:filename",
+        "//lullaby/util:flatbuffer_reader",
+        "//lullaby/util:flatbuffer_writer",
         "//lullaby/util:hash",
         "//lullaby/util:logging",
         "//lullaby/util:make_unique",

@@ -22,9 +22,8 @@ limitations under the License.
 
 namespace lull {
 
-TextureAtlasFactory::TextureAtlasFactory(Registry* registry,
-                                         fplbase::Renderer* renderer)
-    : registry_(registry), fpl_renderer_(renderer) {}
+TextureAtlasFactory::TextureAtlasFactory(Registry* registry)
+    : registry_(registry) {}
 
 void TextureAtlasFactory::LoadTextureAtlas(const std::string& filename,
                                            bool create_mips) {
@@ -37,10 +36,13 @@ void TextureAtlasFactory::LoadTextureAtlas(const std::string& filename,
     }
 
     auto atlasdef = atlasdef::GetTextureAtlas(asset->GetData());
-    auto texture_factory = registry_->Get<TextureFactory>();
+    auto* texture_factory =
+        static_cast<TextureFactoryImpl*>(registry_->Get<TextureFactory>());
 
+    TextureFactory::CreateParams params;
+    params.generate_mipmaps = create_mips;
     TexturePtr texture = texture_factory->LoadTexture(
-        atlasdef->texture_filename()->c_str(), create_mips);
+        atlasdef->texture_filename()->c_str(), params);
 
     std::vector<std::string> subtextures;
     subtextures.reserve(atlasdef->entries()->Length());
@@ -52,7 +54,9 @@ void TextureAtlasFactory::LoadTextureAtlas(const std::string& filename,
       const mathfu::vec2 location(entry->location()->x(),
                                   entry->location()->y());
       const mathfu::vec4 uv_bounds(location.x, location.y, size.x, size.y);
-      texture_factory->CreateSubtexture(Hash(name), texture, uv_bounds);
+      TexturePtr sub_texture =
+          texture_factory->CreateSubtexture(Hash(name), texture, uv_bounds);
+      texture_factory->CacheTexture(Hash(name), sub_texture);
     }
 
     auto atlas = std::make_shared<TextureAtlas>();
@@ -67,10 +71,11 @@ void TextureAtlasFactory::ReleaseTextureAtlasFromCache(HashValue key) {
     return;
   }
 
-  auto texture_factory = registry_->Get<TextureFactory>();
+  auto* texture_factory =
+      static_cast<TextureFactoryImpl*>(registry_->Get<TextureFactory>());
   for (const auto& name : atlas->Subtextures()) {
     const HashValue key = Hash(name.c_str());
-    texture_factory->ReleaseTextureFromCache(key);
+    texture_factory->ReleaseTexture(key);
   }
   atlases_.Release(key);
 }

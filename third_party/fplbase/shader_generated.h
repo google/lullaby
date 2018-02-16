@@ -68,7 +68,7 @@ struct ShaderBuilder {
   void add_original_sources(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> original_sources) {
     fbb_.AddOffset(Shader::VT_ORIGINAL_SOURCES, original_sources);
   }
-  explicit ShaderBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  ShaderBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }

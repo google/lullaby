@@ -20,11 +20,11 @@ limitations under the License.
 #include <memory>
 #include <unordered_map>
 #include "lullaby/modules/ecs/component.h"
-#include "lullaby/modules/ecs/entity.h"
 #include "lullaby/modules/ecs/system.h"
-#include "lullaby/modules/script/lull/script_env.h"
+#include "lullaby/modules/lullscript/script_env.h"
 #include "lullaby/systems/stategraph/stategraph_asset.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/resource_manager.h"
 
 namespace lull {
@@ -74,6 +74,9 @@ class StategraphSystem : public System {
   /// time, bypassing all other logic and transitions.
   void SnapToStateAtTime(Entity entity, HashValue state,
                          Clock::duration timestamp);
+
+  // Returns the Graphviz representation of the graph.
+  std::string GetGraphDebugString(Entity entity) const;
 
   StategraphSystem(const StategraphSystem&) = delete;
   StategraphSystem& operator=(const StategraphSystem&) = delete;

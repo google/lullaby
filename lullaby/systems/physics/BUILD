@@ -9,16 +9,18 @@ cc_library(
     name = "physics",
     srcs = [
         "bullet_utils.cc",
+        "collision_shapes.cc",
         "physics_system.cc",
     ],
     hdrs = [
         "bullet_utils.h",
+        "collision_shapes.h",
         "physics_system.h",
     ],
     deps = [
         "@bullet//:BulletCollision",
         "@bullet//:BulletDynamics",
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/ecs",
         "//lullaby/modules/flatbuffers",
@@ -31,5 +33,6 @@ cc_library(
         "//lullaby/util:math",
         "//lullaby/util:time",
         "//lullaby/util:trace",
+        "@mathfu//:mathfu",
     ],
 )

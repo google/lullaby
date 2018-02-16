@@ -1,0 +1,60 @@
+include "lull/lull_common.fbs";
+include "lull/vertex_attribute_def.fbs";
+include "lull/shader_uniform_def.fbs";
+
+namespace lull;
+
+/// Types of programmable shader stages.
+enum ShaderStageType : ushort {
+  /// The vertex stage processes each individual vertex and outputs a new
+  /// vertex, typically in projection space.
+  Vertex,
+  /// The fragment stage receives output from the vertex stage and may output a
+  /// set of colors and a single depth value that will potentially be written
+  /// into the current framebuffers.
+  Fragment,
+}
+
+/// Snippet containing shader source code or reference to a file containing the
+/// source code.
+table ShaderSnippetDef {
+  /// Features implemented by this snippet.
+  features: [uint] (hashvalue);
+  /// Environment flags required for this snippet to work.
+  environment: [uint] (hashvalue);
+
+  /// Uniforms used by this snippet's shader code.
+  uniforms: [ShaderUniformDef];
+  /// Vertex attributes used by this snippet's shader code.
+  attributes: [ShaderVertexAttributeDef];
+
+  /// Shader source code for this snippet.
+  code: string;
+  /// Shader main() function implementation code for this snippet.
+  main_code: string;
+}
+
+/// A shader stage and associated snippets.
+table ShaderStageDef {
+  /// The shader stage type this def is associated with.
+  type: ShaderStageType;
+  /// Shader code snippets associated with this shader stage.
+  snippets: [ShaderSnippetDef];
+}
+
+/// Shader attributes used to map vertex attributes as inputs at different
+/// shader stages.
+table ShaderVertexAttributeDef {
+  /// Name of the variable this attribute binds to.
+  name: string;
+  /// The data type of the attribute.
+  type: VertexAttributeType;
+  /// The usage of the attribute.
+  usage: VertexAttributeUsage;
+}
+
+/// Contains the full description of a shader program, including its code.
+table ShaderDef {
+  /// Defined shader stages.
+  stages: [ShaderStageDef];
+}

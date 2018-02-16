@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "lullaby/systems/audio/audio_system.h"
 
+#include <utility>
+
+#include "mathfu/constants.h"
 #include "lullaby/generated/audio_environment_def_generated.h"
 #include "lullaby/generated/audio_listener_def_generated.h"
 #include "lullaby/generated/audio_response_def_generated.h"
@@ -24,6 +27,7 @@ limitations under the License.
 #include "lullaby/events/entity_events.h"
 #include "lullaby/events/lifetime_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/dispatcher/event_wrapper.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/modules/gvr/mathfu_gvr_conversions.h"
 #include "lullaby/modules/script/function_binder.h"
@@ -38,6 +42,7 @@ limitations under the License.
 #include "lullaby/util/scoped_java_local_ref.h"
 #include "lullaby/util/trace.h"
 
+namespace lull {
 namespace {
 
 gvr::AudioMaterialName SelectMaterial(lull::AudioSurfaceMaterial name) {
@@ -119,8 +124,6 @@ gvr::AudioMaterialName SelectMaterial(lull::AudioSurfaceMaterial name) {
 }
 
 }  // namespace
-
-namespace lull {
 
 // GVR expects an orthogonal head-from-world matrix for the head pose.
 gvr::Mat4f ConvertToGvrHeadPoseMatrix(
@@ -213,30 +216,33 @@ AudioSystem::AudioSystem(Registry* registry, std::unique_ptr<gvr::AudioApi> api)
     binder->RegisterMethod("lull.Audio.Play", &AudioSystem::Play);
     binder->RegisterMethod("lull.Audio.Stop", &AudioSystem::Stop);
     binder->RegisterMethod("lull.Audio.StopAll", &AudioSystem::StopAll);
-    auto set_entity_volume = [this](Entity e, float volume) {
-      SetVolume(e, volume);
-    };
-    auto set_sound_volume = [this](Entity e, float volume, HashValue sound) {
-      SetVolume(e, volume, sound);
-    };
-    binder->RegisterFunction("lull.Audio.SetEntityVolume",
-                             std::move(set_entity_volume));
-    binder->RegisterFunction("lull.Audio.SetSoundVolume",
-                             std::move(set_sound_volume));
 
-    auto load_sound = [this](const std::string& filename,
-                             AudioPlaybackType type) {
-      LoadSound(filename, type);
-    };
-    binder->RegisterFunction("lull.Audio.LoadSound", std::move(load_sound));
+    binder->RegisterFunction(
+        "lull.Audio.Pause",
+        [this](Entity e, HashValue sound) { Pause(e, sound); });
+    binder->RegisterFunction(
+        "lull.Audio.Resume",
+        [this](Entity e, HashValue sound) { Resume(e, sound); });
+
+    binder->RegisterFunction(
+        "lull.Audio.SetVolume",
+        [this](Entity e, float volume, HashValue sound) {
+          SetVolume(e, volume, sound);
+        });
+
+    binder->RegisterFunction(
+        "lull.Audio.LoadSound",
+        [this](const std::string& filename, AudioLoadType type) {
+          LoadSound(filename, type);
+        });
     binder->RegisterMethod("lull.Audio.UnloadSound", &AudioSystem::UnloadSound);
 
     // Registering functions to access the enum values of AudioSourceType.
-    binder->RegisterFunction("lull.Audio.SourceType.Standard", []() {
-      return AudioSourceType::AudioSourceType_Standard;
+    binder->RegisterFunction("lull.Audio.SourceType.Stereo", []() {
+      return AudioSourceType::AudioSourceType_Stereo;
     });
-    binder->RegisterFunction("lull.Audio.SourceType.Spatialized", []() {
-      return AudioSourceType::AudioSourceType_Spatialized;
+    binder->RegisterFunction("lull.Audio.SourceType.SoundObject", []() {
+      return AudioSourceType::AudioSourceType_SoundObject;
     });
     binder->RegisterFunction("lull.Audio.SourceType.Soundfield", []() {
       return AudioSourceType::AudioSourceType_Soundfield;
@@ -251,8 +257,25 @@ AudioSystem::AudioSystem(Registry* registry, std::unique_ptr<gvr::AudioApi> api)
     binder->RegisterFunction("lull.Audio.PlaybackType.PlayWhenReady", []() {
       return AudioPlaybackType::AudioPlaybackType_PlayWhenReady;
     });
-    binder->RegisterFunction("lull.Audio.PlaybackType.Stream", []() {
-      return AudioPlaybackType::AudioPlaybackType_Stream;
+
+    // Registering functions to access the enum values of
+    // gvr::AudioRolloffMethod.
+    binder->RegisterFunction("lull.Audio.RolloffMethod.Logarithmic", []() {
+      return gvr::AudioRolloffMethod::GVR_AUDIO_ROLLOFF_LOGARITHMIC;
+    });
+    binder->RegisterFunction("lull.Audio.RolloffMethod.Linear", []() {
+      return gvr::AudioRolloffMethod::GVR_AUDIO_ROLLOFF_LINEAR;
+    });
+    binder->RegisterFunction("lull.Audio.RolloffMethod.None", []() {
+      return gvr::AudioRolloffMethod::GVR_AUDIO_ROLLOFF_NONE;
+    });
+
+    // Registering functions to access the enum values of AudioLoadType.
+    binder->RegisterFunction("lull.Audio.LoadType.Preload", []() {
+      return AudioLoadType::AudioLoadType_Preload;
+    });
+    binder->RegisterFunction("lull.Audio.LoadType.Stream", []() {
+      return AudioLoadType::AudioLoadType_Stream;
     });
   }
 
@@ -277,6 +300,7 @@ void AudioSystem::InitAudio() {
 #endif  // #ifdef __ANDROID__
 }
 
+
 AudioSystem::~AudioSystem() {
   // Explicitly destroy the asset manager first to ensure that pending loads are
   // flushed before the audio instance is destroyed.
@@ -296,16 +320,21 @@ AudioSystem::~AudioSystem() {
     binder->UnregisterFunction("lull.Audio.Play");
     binder->UnregisterFunction("lull.Audio.Stop");
     binder->UnregisterFunction("lull.Audio.StopAll");
-    binder->UnregisterFunction("lull.Audio.SetEntityVolume");
-    binder->UnregisterFunction("lull.Audio.SetSoundVolume");
+    binder->UnregisterFunction("lull.Audio.Pause");
+    binder->UnregisterFunction("lull.Audio.Resume");
+    binder->UnregisterFunction("lull.Audio.SetVolume");
     binder->UnregisterFunction("lull.Audio.LoadSound");
     binder->UnregisterFunction("lull.Audio.UnloadSound");
-    binder->UnregisterFunction("lull.Audio.SourceType.Standard");
-    binder->UnregisterFunction("lull.Audio.SourceType.Spatialized");
+    binder->UnregisterFunction("lull.Audio.SourceType.Stereo");
+    binder->UnregisterFunction("lull.Audio.SourceType.SoundObject");
     binder->UnregisterFunction("lull.Audio.SourceType.Soundfield");
     binder->UnregisterFunction("lull.Audio.PlaybackType.PlayIfReady");
     binder->UnregisterFunction("lull.Audio.PlaybackType.PlayWhenReady");
-    binder->UnregisterFunction("lull.Audio.PlaybackType.Stream");
+    binder->UnregisterFunction("lull.Audio.RolloffMethod.Logarithmic");
+    binder->UnregisterFunction("lull.Audio.RolloffMethod.Linear");
+    binder->UnregisterFunction("lull.Audio.RolloffMethod.None");
+    binder->UnregisterFunction("lull.Audio.LoadType.Preload");
+    binder->UnregisterFunction("lull.Audio.LoadType.Stream");
   }
 }
 
@@ -381,12 +410,11 @@ void AudioSystem::CreateSource(Entity e, const AudioSourceDef* data) {
     return;
   }
 
-  const AudioPlaybackType playback_type = data->playback_type();
-  asset_manager_->CreateSoundAsset(name->c_str(), playback_type, e);
+  LoadSound(name->c_str(), data->load_type(), e);
 
   const HashValue sound_hash = Hash(name->c_str());
   PlaySoundParameters params;
-  params.playback_type = playback_type;
+  params.playback_type = data->playback_type();
   params.volume = data->volume();
   params.loop = data->loop();
   params.source_type = data->source_type();
@@ -418,10 +446,10 @@ void AudioSystem::CreateResponse(Entity entity, const AudioResponseDef* data) {
     return;
   }
 
-  const AudioPlaybackType playback_type = data->playback_type();
+  const AudioLoadType load_type = data->load_type();
 
   PlaySoundParameters params;
-  params.playback_type = playback_type;
+  params.playback_type = data->playback_type();
   params.volume = data->volume();
   params.source_type = data->source_type();
   params.spatial_directivity_alpha = data->spatial_directivity_alpha();
@@ -429,7 +457,7 @@ void AudioSystem::CreateResponse(Entity entity, const AudioResponseDef* data) {
 
   if (data->sound()) {
     const auto* name = data->sound();
-    asset_manager_->CreateSoundAsset(name->c_str(), playback_type, entity);
+    LoadSound(name->c_str(), load_type, entity);
     const HashValue sound_hash = Hash(name->c_str());
 
     auto response = [this, entity, sound_hash, params](const EventWrapper&) {
@@ -440,7 +468,7 @@ void AudioSystem::CreateResponse(Entity entity, const AudioResponseDef* data) {
   } else if (data->random_sounds() && data->random_sounds()->size() > 0) {
     const auto* random_names = data->random_sounds();
     for (auto* name : *random_names) {
-      asset_manager_->CreateSoundAsset(name->c_str(), playback_type, entity);
+      LoadSound(name->c_str(), load_type, entity);
     }
 
     auto response = [this, entity, random_names, params](const EventWrapper&) {
@@ -458,7 +486,16 @@ void AudioSystem::CreateResponse(Entity entity, const AudioResponseDef* data) {
 
 void AudioSystem::Play(Entity e, HashValue sound_hash,
                        const PlaySoundParameters& params) {
-  if (params.playback_type == AudioPlaybackType::AudioPlaybackType_External) {
+  // AudioPlaybackType::Stream is equivalent to PlayWhenReady.
+  AudioPlaybackType playback_type = params.playback_type;
+  if (playback_type == AudioPlaybackType::AudioPlaybackType_StreamDeprecated) {
+    LOG(DFATAL) << "AudioPlaybackType::Stream is deprecated. Use "
+                   "AudioLoadType::Stream and "
+                   "AudioPlaybackType::PlayWhenReady for identical behavior.";
+    return;
+  }
+
+  if (playback_type == AudioPlaybackType::AudioPlaybackType_External) {
     LOG(DFATAL) << "AudioPlaybackType::External is reserved exclusively for "
                    "Track(), and cannot be attached to normal sources.";
     return;
@@ -477,8 +514,7 @@ void AudioSystem::Play(Entity e, HashValue sound_hash,
   // If the asset failed to load, or if it was set to only play if ready, skip
   // playing the sound.
   SoundAsset::LoadStatus status = asset->GetLoadStatus();
-  if ((params.playback_type ==
-           AudioPlaybackType::AudioPlaybackType_PlayIfReady &&
+  if ((playback_type == AudioPlaybackType::AudioPlaybackType_PlayIfReady &&
        status == SoundAsset::LoadStatus::kUnloaded) ||
       status == SoundAsset::LoadStatus::kFailed) {
     return;
@@ -502,10 +538,8 @@ void AudioSystem::Play(Entity e, HashValue sound_hash,
     // Stop and remove the sound as we are being asked to restart it.
     auto iter = source->sounds.find(sound_hash);
     if (iter != source->sounds.end()) {
-      if (audio_->IsSoundPlaying(iter->second.id)) {
-        LOG(WARNING) << "Restarting sound: " << asset->GetFilename();
-        audio_->StopSound(iter->second.id);
-      }
+      LOG(WARNING) << "Restarting sound: " << asset->GetFilename();
+      audio_->StopSound(iter->second.id);
       source->sounds.erase(iter);
     }
   }
@@ -516,6 +550,8 @@ void AudioSystem::Play(Entity e, HashValue sound_hash,
   sound.id = kInvalidSourceId;
   sound.asset_handle = asset;
   sound.params = params;
+  // Use the sanitized playback type.
+  sound.params.playback_type = playback_type;
 
   // Volume > 1.0 is allowed and used for gain by GVR Audio.
   if (params.volume < 0.f) {
@@ -525,9 +561,9 @@ void AudioSystem::Play(Entity e, HashValue sound_hash,
 
   // Only play-when-ready sounds that are still unloaded should be skipped at
   // this point.
-  const bool ready =
-      params.playback_type != AudioPlaybackType::AudioPlaybackType_PlayWhenReady
-      || status != SoundAsset::LoadStatus::kUnloaded;
+const bool ready =
+    playback_type != AudioPlaybackType::AudioPlaybackType_PlayWhenReady ||
+    status != SoundAsset::LoadStatus::kUnloaded;
 
   if (ready) {
     PlaySound(&sound, sqt, asset);
@@ -553,9 +589,68 @@ void AudioSystem::Stop(Entity e, HashValue key) {
     }
     audio_->StopSound(iter->second.id);
     source->sounds.erase(iter);
+  } else {
+    LOG(WARNING) << "Failed to find the specified sound to Stop().";
+    return;
   }
 
   TryDestroySource(e);
+}
+
+void AudioSystem::PauseSound(Sound* sound) {
+  if (!sound->paused) {
+    audio_->PauseSound(sound->id);
+    sound->paused = true;
+  }
+}
+
+void AudioSystem::Pause(Entity e, HashValue sound) {
+  auto* source = sources_.Get(e);
+  if (source == nullptr || !source->enabled) {
+    return;
+  }
+
+  // If a sound was specified, pause that sound. Otherwise, pause all sounds.
+  if (sound != 0) {
+    auto iter = source->sounds.find(sound);
+    if (iter != source->sounds.end()) {
+      PauseSound(&iter->second);
+    } else {
+      LOG(WARNING) << "Failed to find the specified sound to pause.";
+    }
+  } else {
+    for (auto& iter : source->sounds) {
+      PauseSound(&iter.second);
+    }
+  }
+}
+
+void AudioSystem::ResumeSound(Sound* sound) {
+  if (sound->paused) {
+    audio_->ResumeSound(sound->id);
+    sound->paused = false;
+  }
+}
+
+void AudioSystem::Resume(Entity e, HashValue sound) {
+  auto* source = sources_.Get(e);
+  if (source == nullptr || !source->enabled) {
+    return;
+  }
+
+  // If a sound was specified, resume that sound. Otherwise, resume all sounds.
+  if (sound != 0) {
+    auto iter = source->sounds.find(sound);
+    if (iter != source->sounds.end()) {
+      ResumeSound(&iter->second);
+    } else {
+      LOG(WARNING) << "Failed to find the specified sound to resume.";
+    }
+  } else {
+    for (auto& iter : source->sounds) {
+      ResumeSound(&iter.second);
+    }
+  }
 }
 
 void AudioSystem::Track(Entity entity, gvr::AudioSourceId id, HashValue key,
@@ -619,6 +714,9 @@ void AudioSystem::Untrack(Entity e, HashValue key) {
       return;
     }
     source->sounds.erase(iter);
+  } else {
+    LOG(WARNING) << "Failed to find the specified sound to Untrack().";
+    return;
   }
 
   TryDestroySource(e);
@@ -658,37 +756,43 @@ void AudioSystem::TryDestroySource(Entity entity) {
 
 void AudioSystem::UpdateSource(AudioSource* source,
                                const mathfu::mat4& world_from_entity) {
-  // Early-exit on paused sources, which are Entities that have *just* been
-  // enabled, but their OnEntityEnabled event has not been dispatched yet. This
-  // can occur when the QueuedDispatcher is used.
-  if (source->paused) {
+  // Early-exit on Entities that are enabled in the TransformSystem but haven't
+  // had their OnEnabledEvent dispatched yet.
+  if (!source->enabled) {
     return;
   }
 
   const bool sqt_updated = UpdateSourceSqt(source, world_from_entity);
   for (auto iter = source->sounds.begin(); iter != source->sounds.end();) {
-    const SourceId source_id = iter->second.id;
+    Sound& sound = iter->second;
+    // Skip paused sounds or they'll be deleted.
+    if (sound.paused) {
+      ++iter;
+      continue;
+    }
+    const SourceId source_id = sound.id;
     SoundAsset::LoadStatus status = SoundAsset::LoadStatus::kUnloaded;
     SoundAssetPtr asset = nullptr;
 
     // External playback sources will have null assets, but are considered
     // loaded.
-    if (iter->second.params.playback_type ==
+    if (sound.params.playback_type ==
         AudioPlaybackType::AudioPlaybackType_External) {
       status = SoundAsset::LoadStatus::kLoaded;
     } else {
-      // Make sure the asset hasn't been released. If it has, mark it as failed
-      // so the sound is cleaned up below.
-      asset = iter->second.asset_handle.lock();
+      // Non-looping sounds with unloaded assets can be forgotten and will be
+      // cleaned up by GVR Audio. Looping sounds must be held onto else they
+      // cannot be stopped.
+      asset = sound.asset_handle.lock();
       if (asset) {
         status = asset->GetLoadStatus();
-      } else {
+      } else if (!sound.params.loop) {
         status = SoundAsset::LoadStatus::kFailed;
       }
     }
 
     // 1. Clear out any sounds that failed to load or stream.
-    // 2. If a "preloaded play-when-ready" sound is unloaded, skip it for now.
+    // 2. If a play-when-ready sound is unloaded, skip it.
     // 3. If a sound hasn't been assigned an id yet, play it. If it fails to
     //    play for some reason, it will be cleaned up next Update().
     // 4. If a sound is currently playing, update its transform.
@@ -699,11 +803,11 @@ void AudioSystem::UpdateSource(AudioSource* source,
     } else if (status == SoundAsset::LoadStatus::kUnloaded) {
       ++iter;
     } else if (source_id == kInvalidSourceId) {
-      PlaySound(&iter->second, source->sqt, asset);
+      PlaySound(&sound, source->sqt, asset);
       ++iter;
     } else if (audio_->IsSoundPlaying(source_id)) {
       if (sqt_updated) {
-        UpdateSoundTransform(&iter->second, source->sqt);
+        UpdateSoundTransform(&sound, source->sqt);
       }
       ++iter;
     } else {
@@ -804,7 +908,7 @@ std::vector<string_view> AudioSystem::GetSounds(Entity e) const {
   return output;
 }
 
-void AudioSystem::SetVolume(Entity e, float volume) {
+void AudioSystem::SetVolume(Entity e, float volume, HashValue sound) {
   // Volume > 1.0 is allowed and used for gain by GVR Audio.
   if (volume < 0.f) {
     volume = 0.f;
@@ -825,38 +929,28 @@ void AudioSystem::SetVolume(Entity e, float volume) {
     return;
   }
 
-  for (auto& iter : source->sounds) {
-    auto& sound = iter.second;
-    audio_->SetSoundVolume(sound.id, volume);
-    sound.params.volume = volume;
+  // If a sound was specified, set the volume of that sound. Otherwise, set the
+  // volume of all sounds.
+  if (sound != 0) {
+    auto iter = source->sounds.find(sound);
+    if (iter != source->sounds.end()) {
+      auto& sound = iter->second;
+      audio_->SetSoundVolume(sound.id, volume);
+      sound.params.volume = volume;
+    } else {
+      LOG(WARNING) << "Failed to find the specified sound to change the "
+                      "volume.";
+    }
+  } else {
+    for (auto& iter : source->sounds) {
+      auto& sound = iter.second;
+      audio_->SetSoundVolume(sound.id, volume);
+      sound.params.volume = volume;
+    }
   }
 }
 
-void AudioSystem::SetVolume(Entity e, float volume, HashValue sound) {
-  // Volume > 1.0 is allowed and used for gain by GVR Audio.
-  if (volume < 0.f) {
-    volume = 0.f;
-  }
-
-  if (!audio_) {
-    return;
-  }
-
-  auto* source = sources_.Get(e);
-  if (source == nullptr) {
-    // This may happen if a source is not fully loaded after it is created.
-    return;
-  }
-
-  auto iter = source->sounds.find(sound);
-  if (iter != source->sounds.end()) {
-    auto& sound = iter->second;
-    audio_->SetSoundVolume(sound.id, volume);
-    sound.params.volume = volume;
-  }
-}
-
-float AudioSystem::GetVolume(Entity e) const {
+float AudioSystem::GetVolume(Entity e, HashValue sound) const {
   if (e == listener_.GetEntity()) {
     return master_volume_;
   }
@@ -868,36 +962,29 @@ float AudioSystem::GetVolume(Entity e) const {
     return 0.f;
   }
 
-  // Arbitrarily return the volume of the first sound on this source.
-  if (!source->sounds.empty()) {
-    auto iter = source->sounds.begin();
-    return iter->second.params.volume;
+  // If a sound was specified, get the volume of that sound. Otherwise,
+  // arbitrarily return the volume of the first sound on this source to support
+  // volume animations.
+  if (sound != 0) {
+    auto iter = source->sounds.find(sound);
+    if (iter != source->sounds.end()) {
+      return iter->second.params.volume;
+    } else {
+      LOG(WARNING) << "Failed to find the specified sound to retrieve the "
+                      "volume.";
+    }
+  } else {
+    if (!source->sounds.empty()) {
+      auto iter = source->sounds.begin();
+      return iter->second.params.volume;
+    }
   }
 
-  // Again, return 0 volume for sounds that aren't properly set up.
+  // Return 0 volume for sounds that aren't properly set up.
   return 0.f;
 }
 
-float AudioSystem::GetVolume(Entity e, HashValue sound) const {
-  auto* source = sources_.Get(e);
-  if (source == nullptr) {
-    // This may happen if a source is not fully loaded after it is created. A
-    // non-loaded sound is not playing, and therefore has 0 volume.
-    return 0.f;
-  }
-
-  auto iter = source->sounds.find(sound);
-  if (iter != source->sounds.end()) {
-    return iter->second.params.volume;
-  }
-
-  // Again, return 0 volume for sounds that aren't properly set up.
-  return 0.f;
-}
-
-Entity AudioSystem::GetCurrentListener() const {
-  return listener_.GetEntity();
-}
+Entity AudioSystem::GetCurrentListener() const { return listener_.GetEntity(); }
 
 void AudioSystem::SetEnvironment(Entity e) {
   if (audio_ == nullptr || e == current_environment_) {
@@ -912,7 +999,7 @@ void AudioSystem::SetEnvironment(Entity e) {
 
   auto* model = environments_.Get(e);
   if (!model) {
-    LOG(DFATAL) << "No Audio Environment componenet associated with Entity.";
+    LOG(DFATAL) << "No Audio Environment component associated with Entity.";
     return;
   }
 
@@ -926,8 +1013,8 @@ void AudioSystem::SetEnvironment(Entity e) {
   audio_->EnableRoom(true);
 }
 
-void AudioSystem::SetSpatializedSoundDirectivity(Entity entity, HashValue key,
-                                                 float alpha, float order) {
+void AudioSystem::SetSoundObjectDirectivity(Entity entity, HashValue key,
+                                            float alpha, float order) {
   if (!audio_) {
     return;
   }
@@ -942,7 +1029,7 @@ void AudioSystem::SetSpatializedSoundDirectivity(Entity entity, HashValue key,
   if (iter != source->sounds.end()) {
     auto& sound = iter->second;
     if (sound.params.source_type !=
-        AudioSourceType::AudioSourceType_Spatialized) {
+        AudioSourceType::AudioSourceType_SoundObject) {
       LOG(WARNING) << "Directivity can only be set on sound objects.";
       return;
     }
@@ -950,15 +1037,64 @@ void AudioSystem::SetSpatializedSoundDirectivity(Entity entity, HashValue key,
     sound.params.spatial_directivity_order = order;
     audio_->SetSoundObjectDirectivity(sound.id, alpha, order);
     UpdateSoundTransform(&sound, source->sqt);
+  } else {
+    LOG(WARNING) << "Failed to find the specified sound to set directivity "
+                    "constants.";
   }
 }
 
 bool AudioSystem::IsSpatialDirectivityEnabled(Sound* sound) const {
   return sound->params.source_type ==
-             AudioSourceType::AudioSourceType_Spatialized &&
+             AudioSourceType::AudioSourceType_SoundObject &&
          sound->params.spatial_directivity_alpha >= 0 &&
          sound->params.spatial_directivity_alpha <= 1 &&
          sound->params.spatial_directivity_order >= 1;
+}
+
+void AudioSystem::SetSoundObjectDistanceRolloffMethod(
+    Entity entity, HashValue key, gvr::AudioRolloffMethod method,
+    float min_distance, float max_distance) {
+  if (!audio_) {
+    return;
+  }
+
+  if (min_distance > max_distance || min_distance < 0) {
+    LOG(WARNING) << "Maximum distance must be greater than minimum distance, "
+                    "and both must be >= 0. Rolloff model will not be set.";
+    return;
+  }
+
+  auto* source = sources_.Get(entity);
+  if (source == nullptr) {
+    // This may happen if a source is not fully loaded after it is created.
+    LOG(WARNING) << "Could not find the specified sound.";
+    return;
+  }
+
+  auto iter = source->sounds.find(key);
+  if (iter != source->sounds.end()) {
+    auto& sound = iter->second;
+    if (sound.params.source_type !=
+        AudioSourceType::AudioSourceType_SoundObject) {
+      LOG(WARNING) << "Rolloff can only be set on sound objects.";
+      return;
+    }
+    sound.params.spatial_rolloff_method = method;
+    sound.params.spatial_rolloff_min_distance = min_distance;
+    sound.params.spatial_rolloff_max_distance = max_distance;
+    audio_->SetSoundObjectDistanceRolloffModel(sound.id, method, min_distance,
+                                               max_distance);
+  } else {
+    LOG(WARNING) << "Failed to find the specified sound to set the rolloff "
+                    "method.";
+  }
+}
+
+bool AudioSystem::IsDistanceRolloffMethodEnabled(Sound* sound) const {
+  return sound->params.source_type ==
+             AudioSourceType::AudioSourceType_SoundObject &&
+         sound->params.spatial_rolloff_min_distance >= 0.0f &&
+         sound->params.spatial_rolloff_max_distance > 0.0f;
 }
 
 void AudioSystem::PlaySound(Sound* sound, const Sqt& sqt,
@@ -977,7 +1113,7 @@ void AudioSystem::PlaySound(Sound* sound, const Sqt& sqt,
     case AudioSourceType::AudioSourceType_Soundfield:
       new_id = audio_->CreateSoundfield(asset->GetFilename());
       break;
-    case AudioSourceType::AudioSourceType_Spatialized:
+    case AudioSourceType::AudioSourceType_SoundObject:
       new_id = audio_->CreateSoundObject(asset->GetFilename());
       break;
     default:
@@ -992,6 +1128,12 @@ void AudioSystem::PlaySound(Sound* sound, const Sqt& sqt,
           sound->id, sound->params.spatial_directivity_alpha,
           sound->params.spatial_directivity_order);
     }
+    if (IsDistanceRolloffMethodEnabled(sound)) {
+      audio_->SetSoundObjectDistanceRolloffModel(
+          sound->id, sound->params.spatial_rolloff_method,
+          sound->params.spatial_rolloff_min_distance,
+          sound->params.spatial_rolloff_max_distance);
+    }
     UpdateSoundTransform(sound, sqt);
     audio_->SetSoundVolume(new_id, sound->params.volume);
     audio_->PlaySound(new_id, sound->params.loop);
@@ -1004,7 +1146,7 @@ void AudioSystem::PlaySound(Sound* sound, const Sqt& sqt,
 
 void AudioSystem::UpdateSoundTransform(Sound* sound, const Sqt& sqt) {
   if (sound->params.source_type ==
-      AudioSourceType::AudioSourceType_Spatialized) {
+      AudioSourceType::AudioSourceType_SoundObject) {
     audio_->SetSoundObjectPosition(sound->id, sqt.translation.x,
                                    sqt.translation.y, sqt.translation.z);
     if (IsSpatialDirectivityEnabled(sound)) {
@@ -1017,7 +1159,7 @@ void AudioSystem::UpdateSoundTransform(Sound* sound, const Sqt& sqt) {
   }
 }
 
-void AudioSystem::LoadSound(const std::string& filename, AudioPlaybackType type,
+void AudioSystem::LoadSound(const std::string& filename, AudioLoadType type,
                             Entity e) {
   asset_manager_->CreateSoundAsset(filename, type, e);
 }
@@ -1027,36 +1169,42 @@ void AudioSystem::UnloadSound(const std::string& filename) {
 }
 
 void AudioSystem::OnEntityEnabled(Entity entity) {
-  // Resume whatever sounds were left on the Entity when it was disabled.
+  // Resume sounds that were playing when the Entity was disabled. Leave paused
+  // sounds paused.
   auto* source = sources_.Get(entity);
-  if (audio_ && source && source->paused) {
-    for (auto& iter : source->sounds) {
-      // ResumeSound() only affects sounds that were paused, so looped sounds
-      // that had not yet begun playback are ignored.
-      audio_->ResumeSound(iter.second.id);
+  if (source && !source->enabled) {
+    source->enabled = true;
+    if (audio_) {
+      for (auto& iter : source->sounds) {
+        Sound& sound = iter.second;
+        if (!sound.paused) {
+          audio_->ResumeSound(sound.id);
+        }
+      }
     }
-    source->paused = false;
   }
 }
 
 void AudioSystem::OnEntityDisabled(Entity entity) {
   auto* source = sources_.Get(entity);
-  if (audio_ && source) {
-    for (auto iter = source->sounds.begin(); iter != source->sounds.end();) {
-      auto& sound = iter->second;
-      // Looping sounds should be paused so that they may be resumed
-      // OnEntityEnabled at the time they were stopped. This includes externally
-      // Track()'d sounds.
-      if (sound.params.loop) {
-        if (audio_->IsSoundPlaying(sound.id)) {
-          audio_->PauseSound(sound.id);
-          source->paused = true;
+  if (source && source->enabled) {
+    source->enabled = false;
+    if (audio_) {
+      for (auto iter = source->sounds.begin(); iter != source->sounds.end();) {
+        Sound& sound = iter->second;
+        // Looping sounds should be paused so that they may be resumed
+        // OnEntityEnabled at the time they were stopped. This includes
+        // externally tracked sounds.
+        if (sound.params.loop) {
+          if (audio_->IsSoundPlaying(sound.id)) {
+            audio_->PauseSound(sound.id);
+          }
+          ++iter;
+        } else {
+          // Non-looped sounds are forgotten. They will continue playback if not
+          // finished.
+          iter = source->sounds.erase(iter);
         }
-        ++iter;
-      } else {
-        // Non-looped sounds are forgotten. They will continue playback if not
-        // finished.
-        iter = source->sounds.erase(iter);
       }
     }
   }

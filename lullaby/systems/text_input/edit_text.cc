@@ -76,6 +76,21 @@ void EditText::SetComposingRegion(size_t start, size_t end) {
   ClampRegions();
 }
 
+void EditText::SetComposingText(const std::string& text) {
+  size_t deletion_start = 0;
+  size_t deletion_end = 0;
+  if (HasComposingRegion()) {
+    GetComposingRegion(&deletion_start, &deletion_end);
+    SetSelectionRegion(deletion_start, deletion_end);
+  } else {
+    GetSelectionRegion(&deletion_start, &deletion_end);
+  }
+  Insert(text);
+  if (text.length() > 0) {
+    SetComposingRegion(deletion_start, deletion_start + text.length());
+  }
+}
+
 bool EditText::HasComposingRegion() const {
   return composing_start_index_ < composing_end_index_;
 }
@@ -138,7 +153,8 @@ bool EditText::Backspace() {
   return true;
 }
 
-void EditText::Insert(const char* utf8_cstr) {
+bool EditText::Insert(const char* utf8_cstr) {
+  std::string old = text_.str();
   if (HasSelectionRegion()) {
     const size_t delete_len = selection_end_index_ - selection_start_index_;
     text_.DeleteChars(selection_start_index_, delete_len);
@@ -156,10 +172,12 @@ void EditText::Insert(const char* utf8_cstr) {
   }
 
   SetCaretPosition(selection_start_index_ + added);
+
+  return old != text_.str();
 }
 
-void EditText::Insert(const std::string& utf8_str) {
-  Insert(utf8_str.c_str());
+bool EditText::Insert(const std::string& utf8_str) {
+  return Insert(utf8_str.c_str());
 }
 
 void EditText::ClearComposingRegion() {

@@ -17,259 +17,206 @@ limitations under the License.
 #include "lullaby/systems/render/next/mesh.h"
 
 #include <vector>
+#include "lullaby/systems/render/next/detail/glplatform.h"
+#include "lullaby/systems/render/next/gl_helpers.h"
+#include "lullaby/util/make_unique.h"
 
 namespace lull {
 
-namespace {
+Mesh::Mesh() {}
 
-Mesh::MeshImplPtr CreateMesh(const MeshData& src,
-                             const fplbase::Attribute* attributes) {
-  Mesh::MeshImplPtr mesh(
-      new fplbase::Mesh(src.GetVertexBytes(), src.GetNumVertices(),
-                        src.GetVertexFormat().GetVertexSize(), attributes,
-                        nullptr /* max_position */, nullptr /* min_position */,
-                        Mesh::GetFplPrimitiveType(src.GetPrimitiveType())),
-      [](const fplbase::Mesh* mesh) { delete mesh; });
-  fplbase::Material* mat = nullptr;
-  const bool is_32_bit = false;
-
-  for (MeshData::Index i = 0; i < src.GetNumSubMeshes(); ++i) {
-    const MeshData::IndexRange submesh = src.GetSubMesh(i);
-    const int count = submesh.end - submesh.start;
-    const MeshData::Index* indices = src.GetIndexData();
-    mesh->AddIndices(indices + submesh.start, count, mat, is_32_bit);
+Mesh::~Mesh() {
+  if (vao_) {
+    GLuint handle = *vao_;
+    GL_CALL(glDeleteVertexArrays(1, &handle));
   }
-  mesh->Finalize();
-  return mesh;
-}
-
-}  // namespace
-
-Mesh::Mesh(MeshImplPtr mesh) : impl_(std::move(mesh)), num_triangles_(0) {
-  AddOrInvokeOnLoadCallback([this]() {
-    if (impl_) {
-      num_triangles_ =
-          static_cast<int>(impl_->CalculateTotalNumberOfIndices() / 3);
-    }
-  });
-}
-
-Mesh::Mesh(const MeshData& mesh) {
-  fplbase::Attribute attributes[kMaxFplAttributeArraySize];
-  GetFplAttributes(mesh.GetVertexFormat(), attributes);
-  impl_ = CreateMesh(mesh, attributes);
-  // TODO(b/62088621): Fix this calculation for different primitive types.
-  num_triangles_ = static_cast<int>(mesh.GetNumIndices() / 3);
-}
-
-bool Mesh::IsLoaded() const { return !impl_ || impl_->IsFinalized(); }
-
-void Mesh::AddOrInvokeOnLoadCallback(
-    const fplbase::AsyncAsset::AssetFinalizedCallback& callback) {
-  if (!impl_ || !impl_->AddFinalizeCallback(callback)) {
-    callback();
+  if (ibo_) {
+    GLuint handle = *ibo_;
+    GL_CALL(glDeleteBuffers(1, &handle));
+  }
+  if (vbo_) {
+    GLuint handle = *vbo_;
+    GL_CALL(glDeleteBuffers(1, &handle));
   }
 }
 
-int Mesh::GetNumVertices() const {
-  return static_cast<int>(impl_->num_vertices());
-}
-
-int Mesh::GetNumTriangles() const { return num_triangles_; }
-
-Aabb Mesh::GetAabb() const {
-  return Aabb(impl_->min_position(), impl_->max_position());
-}
-
-int Mesh::GetNumBones() const { return static_cast<int>(impl_->num_bones()); }
-
-int Mesh::GetNumShaderBones() const {
-  return static_cast<int>(impl_->num_shader_bones());
-}
-
-const uint8_t* Mesh::GetBoneParents(int* num) const {
-  if (impl_) {
-    if (num) {
-      *num = static_cast<int>(impl_->num_bones());
-    }
-    return impl_->bone_parents();
-  } else {
-    if (num) {
-      *num = 0;
-    }
-    return nullptr;
-  }
-}
-
-const std::string* Mesh::GetBoneNames(int* num) const {
-  if (impl_) {
-    if (num) {
-      *num = static_cast<int>(impl_->num_bones());
-    }
-    return impl_->bone_names();
-  } else {
-    if (num) {
-      *num = 0;
-    }
-    return nullptr;
-  }
-}
-
-const mathfu::AffineTransform* Mesh::GetDefaultBoneTransformInverses(
-    int* num) const {
-  if (impl_) {
-    if (num) {
-      *num = static_cast<int>(impl_->num_bones());
-    }
-    return impl_->default_bone_transform_inverses();
-  } else {
-    if (num) {
-      *num = 0;
-    }
-    return nullptr;
-  }
-}
-
-void Mesh::GatherShaderTransforms(
-    const mathfu::AffineTransform* bone_transforms,
-    mathfu::AffineTransform* shader_transforms) const {
-  impl_->GatherShaderTransforms(bone_transforms, shader_transforms);
-}
-
-void Mesh::UpdateRig(RigSystem* rig_system, Entity entity) {
-  const size_t num_bones = impl_->num_bones();
-  const size_t num_shader_bones = impl_->num_shader_bones();
-
-  RigSystem::Pose inverse_bind_pose(num_bones);
-  RigSystem::BoneIndices parent_indices(num_bones);
-  RigSystem::BoneIndices shader_indices(num_shader_bones);
-  std::vector<std::string> bone_names(num_bones);
-
-  for (size_t i = 0; i < num_bones; ++i) {
-    inverse_bind_pose[i] = impl_->default_bone_transform_inverses()[i];
-    parent_indices[i] = impl_->bone_parents()[i];
-    bone_names[i] = impl_->bone_names()[i];
-  }
-  for (size_t i = 0; i < num_shader_bones; ++i) {
-    shader_indices[i] = impl_->shader_bone_indices()[i];
-  }
-  rig_system->SetRig(entity, std::move(parent_indices),
-                     std::move(inverse_bind_pose), std::move(shader_indices),
-                     std::move(bone_names));
-}
-
-void Mesh::Render(fplbase::Renderer* renderer) {
-  if (!impl_->IsValid()) {
+void Mesh::Init(const MeshData& mesh, const SkeletonData& skeleton) {
+  if (IsLoaded()) {
+    DLOG(FATAL) << "Can only be initialized once.";
     return;
   }
-  const bool ignore_material = impl_->GetMaterial(0) == nullptr;
-  if (ignore_material) {
-    renderer->SetBlendMode(renderer->GetBlendMode());
-  } else {
-    impl_->GetMaterial(0)->set_blend_mode(renderer->GetBlendMode());
+
+  vertex_format_ = mesh.GetVertexFormat();
+  primitive_type_ = mesh.GetPrimitiveType();
+  index_type_ = mesh.GetIndexType();
+  num_vertices_ = mesh.GetNumVertices();
+  num_indices_ = mesh.GetNumIndices();
+  aabb_ = mesh.GetAabb();
+
+  const size_t vbo_size = vertex_format_.GetVertexSize() * num_vertices_;
+  GLuint gl_vbo = 0;
+  GL_CALL(glGenBuffers(1, &gl_vbo));
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, gl_vbo));
+  GL_CALL(glBufferData(GL_ARRAY_BUFFER, vbo_size, mesh.GetVertexBytes(),
+                       GL_STATIC_DRAW));
+  vbo_ = gl_vbo;
+
+  if (GlSupportsVertexArrays()) {
+    GLuint gl_vao = 0;
+    GL_CALL(glGenVertexArrays(1, &gl_vao));
+    GL_CALL(glBindVertexArray(gl_vao));
+    SetVertexAttributes(vertex_format_);
+    GL_CALL(glBindVertexArray(0));
+    vao_ = gl_vao;
   }
-  renderer->Render(impl_.get(), ignore_material);
-}
 
-// TODO(b/30033982) cache fpl attributes for vertex formats.
-void Mesh::GetFplAttributes(
-    const VertexFormat& format,
-    fplbase::Attribute attributes[kMaxFplAttributeArraySize]) {
-  // Make sure there's space for the kEND terminator.
-  CHECK_LT(format.GetNumAttributes() + 1, kMaxFplAttributeArraySize);
+  if (mesh.GetIndexBytes()) {
+    const size_t ibo_size = mesh.GetIndexSize() * num_indices_;
+    GLuint gl_ibo = 0;
+    GL_CALL(glGenBuffers(1, &gl_ibo));
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl_ibo));
+    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, ibo_size,
+                         mesh.GetIndexBytes(), GL_STATIC_DRAW));
+    ibo_ = gl_ibo;
 
-  for (size_t i = 0; i < format.GetNumAttributes(); ++i) {
-    const VertexAttribute& src = format.GetAttributeAt(i);
-    switch (src.usage) {
-      case VertexAttribute::kPosition:
-        if (src.type == VertexAttribute::kFloat32 && src.count == 3) {
-          attributes[i] = fplbase::kPosition3f;
-        } else if (src.type == VertexAttribute::kFloat32 && src.count == 2) {
-          attributes[i] = fplbase::kPosition2f;
-        } else {
-          LOG(DFATAL) << "kPosition must be a kFloat32 with 2 or 3 elements.";
-          attributes[i] = fplbase::kEND;
-        }
-        break;
-      case VertexAttribute::kTexCoord:
-        if (src.type == VertexAttribute::kFloat32 && src.count == 2) {
-          if (src.index == 0) {
-            attributes[i] = fplbase::kTexCoord2f;
-          } else if (src.index == 1) {
-            attributes[i] = fplbase::kTexCoordAlt2f;
-          } else {
-            LOG(DFATAL) << "Only UV index of 0 or 1 supported.";
-          }
-        } else if (src.type == VertexAttribute::kUnsignedInt16 &&
-                   src.count == 2) {
-          attributes[i] = fplbase::kTexCoord2us;
-        } else {
-          LOG(DFATAL) << "Unsupported UV format: type " << src.type
-                      << ", count " << src.count;
-          attributes[i] = fplbase::kEND;
-        }
-        break;
-      case VertexAttribute::kColor:
-        if (src.type == VertexAttribute::kUnsignedInt8 && src.count == 4) {
-          attributes[i] = fplbase::kColor4ub;
-        } else {
-          LOG(DFATAL) << "kColor must be a kUnsignedInt8 with 4 elements.";
-          attributes[i] = fplbase::kEND;
-        }
-        break;
-      case VertexAttribute::kIndex:
-        if (src.type == VertexAttribute::kUnsignedInt8 && src.count == 4) {
-          attributes[i] = fplbase::kBoneIndices4ub;
-        } else {
-          LOG(DFATAL) << "kIndex must be a kUnsignedInt8 with 4 elements.";
-          attributes[i] = fplbase::kEND;
-        }
-        break;
-      case VertexAttribute::kWeight:
-        if (src.type == VertexAttribute::kUnsignedInt8 && src.count == 4) {
-          attributes[i] = fplbase::kBoneWeights4ub;
-        } else {
-          LOG(DFATAL) << "kWeight must be a kUnsignedInt8 with 4 elements.";
-          attributes[i] = fplbase::kEND;
-        }
-        break;
-      case VertexAttribute::kNormal:
-        if (src.type == VertexAttribute::kFloat32 && src.count == 3) {
-          attributes[i] = fplbase::kNormal3f;
-        } else {
-          LOG(DFATAL) << "kNormal must be a kFloat32 with 3 elements.";
-          attributes[i] = fplbase::kEND;
-        }
-        break;
-      default:
-        LOG(DFATAL) << "Unsupported vertex attribute";
-        break;
+    submeshes_.reserve(mesh.GetNumSubMeshes());
+    for (size_t i = 0; i < mesh.GetNumSubMeshes(); ++i) {
+      submeshes_.push_back(mesh.GetSubMesh(i));
     }
-    // This function also requires that the attributes be terminated, so we need
-    // to ensure that kEND is appended before this DCHECK.
-    attributes[i + 1] = fplbase::kEND;
-    DCHECK_EQ(static_cast<size_t>(src.offset),
-              fplbase::Mesh::AttributeOffset(attributes, attributes[i]));
+  }
+
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+
+  bone_parents_.assign(skeleton.parent_indices.begin(),
+                       skeleton.parent_indices.end());
+  shader_bone_indices_.assign(skeleton.shader_indices.begin(),
+                              skeleton.shader_indices.end());
+  bone_transform_inverses_.assign(skeleton.inverse_bind_pose.begin(),
+                                  skeleton.inverse_bind_pose.end());
+  bone_names_.resize(skeleton.bone_names.size());
+  for (size_t i = 0; i < bone_names_.size(); ++i) {
+    bone_names_[i] = skeleton.bone_names[i].data();
+  }
+
+  for (auto& cb : on_load_callbacks_) {
+    cb();
+  }
+  on_load_callbacks_.clear();
+}
+
+bool Mesh::IsLoaded() const { return num_vertices_ > 0; }
+
+void Mesh::AddOrInvokeOnLoadCallback(const std::function<void()>& callback) {
+  if (IsLoaded()) {
+    callback();
+  } else {
+    on_load_callbacks_.push_back(callback);
   }
 }
 
-fplbase::Mesh::Primitive Mesh::GetFplPrimitiveType(
-    MeshData::PrimitiveType type) {
-  switch (type) {
-    case MeshData::PrimitiveType::kPoints:
-      return fplbase::Mesh::kPoints;
-    case MeshData::PrimitiveType::kLines:
-      return fplbase::Mesh::kLines;
-    case MeshData::PrimitiveType::kTriangles:
-      return fplbase::Mesh::kTriangles;
-    case MeshData::PrimitiveType::kTriangleFan:
-      return fplbase::Mesh::kTriangleFan;
-    case MeshData::PrimitiveType::kTriangleStrip:
-      return fplbase::Mesh::kTriangleStrip;
-    default:
-      LOG(ERROR) << "Invalid primitive type; falling back on triangles.";
-      return fplbase::Mesh::kTriangles;
+int Mesh::GetNumVertices() const { return static_cast<int>(num_vertices_); }
+
+int Mesh::GetNumTriangles() const {
+  if (primitive_type_ == MeshData::kTriangles) {
+    return static_cast<int>(num_indices_ / 3);
+  } else if (primitive_type_ == MeshData::kTriangleFan) {
+    return static_cast<int>(num_indices_ - 2);
+  } else if (primitive_type_ == MeshData::kTriangleStrip) {
+    return static_cast<int>(num_indices_ - 2);
+  } else {
+    // TODO(b/62088621): Fix this calculation for different primitive types.
+    return static_cast<int>(num_indices_ / 3);
   }
+}
+
+size_t Mesh::GetNumSubmeshes() const { return submeshes_.size(); }
+
+Aabb Mesh::GetAabb() const { return aabb_; }
+
+void Mesh::Render() {
+  if (!IsLoaded()) {
+    return;
+  }
+
+  BindAttributes();
+  if (submeshes_.empty()) {
+    DrawArrays();
+  } else {
+    for (size_t i = 0; i < submeshes_.size(); ++i) {
+      DrawElements(i);
+    }
+  }
+  UnbindAttributes();
+}
+
+void Mesh::RenderSubmesh(size_t submesh) {
+  if (!IsLoaded()) {
+    return;
+  }
+
+  BindAttributes();
+  if (submeshes_.empty()) {
+    CHECK_EQ(submesh, 0u);
+    DrawArrays();
+  } else {
+    DrawElements(submesh);
+  }
+  UnbindAttributes();
+}
+
+void Mesh::DrawArrays() {
+  const GLenum gl_mode = GetGlPrimitiveType(primitive_type_);
+  GL_CALL(glDrawArrays(gl_mode, 0, static_cast<int32_t>(num_vertices_)));
+}
+
+void Mesh::DrawElements(size_t index) {
+  if (index >= submeshes_.size()) {
+    LOG(DFATAL) << "Invalid submesh index.";
+    return;
+  }
+
+  const auto& range = submeshes_[index];
+  const GLenum gl_mode = GetGlPrimitiveType(primitive_type_);
+  const GLenum gl_type = GetGlIndexType(index_type_);
+  const void* offset = reinterpret_cast<void*>(
+      MeshData::GetIndexSize(index_type_) * range.start);
+
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ibo_));
+  GL_CALL(glDrawElements(gl_mode, range.end - range.start, gl_type, offset));
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+}
+
+void Mesh::BindAttributes() {
+  if (vao_) {
+    GL_CALL(glBindVertexArray(*vao_));
+  } else {
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, *vbo_));
+    SetVertexAttributes(vertex_format_);
+  }
+}
+
+void Mesh::UnbindAttributes() {
+  if (vao_) {
+    GL_CALL(glBindVertexArray(0));
+  } else {
+    UnsetVertexAttributes(vertex_format_);
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+  }
+}
+
+size_t Mesh::TryUpdateRig(RigSystem* rig_system, Entity entity) {
+  const size_t num_shader_bones = shader_bone_indices_.size();
+  if (rig_system == nullptr) {
+    return num_shader_bones;
+  }
+  if (bone_parents_.empty() || shader_bone_indices_.empty() ||
+      bone_names_.empty() || bone_transform_inverses_.empty()) {
+    return num_shader_bones;
+  }
+  rig_system->SetRig(entity, bone_parents_, bone_transform_inverses_,
+                     shader_bone_indices_, bone_names_);
+  return num_shader_bones;
 }
 
 }  // namespace lull

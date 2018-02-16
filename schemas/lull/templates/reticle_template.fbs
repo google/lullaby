@@ -1,0 +1,54 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Reticle template for reference purposes only.
+/// Should have the same values as
+/// lull/reticle_def.fbs and
+/// lull/reticle_trail_def.fbs
+
+table ReticleTemplateDef {
+  ring_active_diameter: float = 1.0;
+  ring_inactive_diameter: float = 1.0;
+
+  hit_color: Color;
+  no_hit_color: Color;
+  no_hit_distance: float = 2.0;
+
+  /// Next 5 values are all in the range of [0-1], with 1 being the full radius
+  /// of the ring_diameter.
+
+  /// Distance from center to start of solid color ring.
+  /// This - |inner_ring_thickness| will be the distance to the start of color.
+  inner_hole: float = 0.0;
+  /// Distance from center to end of solid color ring.
+  /// This + |inner_ring_thickness| will be the distance to the end of color.
+  inner_ring_end: float = 0.177;
+  /// Feathering that will be applied inside |inner_hole| and outside
+  /// |inner_ring_end|.
+  inner_ring_thickness: float = 0.14;
+  /// Distance from center to end of black ring.
+  mid_ring_end: float = 0.177;
+  /// Opacity of black ring outside of the colored ring.
+  mid_ring_opacity: float = 0.22;
+
+  /// OBSOLETE
+  ergo_angle_offset: float = -0.26;
+
+  /// An ordered list of what input device should drive the reticle.  If the
+  /// first device is connected, it will control the reticle.  Control will fall
+  /// down the array, and if no devices are connected the reticle will be
+  /// disabled.  Defaults to [Controller, Hmd] if not set.
+  device_preference: [DeviceType];
+
+  /// The number of reticles to draw in the trail by default
+  average_trail_length: int = 14;
+  /// The size of the reticle quad
+  quad_size: float = 0.05;
+  /// The number of samples from which to create the interpolating curve
+  curve_samples: int = 4;
+  /// Speed of the cursor at which the number of reticles drawn = trail_length
+  average_speed: float = 0.2;
+  /// Default reticle color
+  default_color: Color;
+}

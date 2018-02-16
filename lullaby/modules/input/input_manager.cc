@@ -27,8 +27,7 @@ limitations under the License.
 
 namespace lull {
 namespace {
-const Clock::duration kDefaultLongPressTime =
-    std::chrono::milliseconds(500);
+const Clock::duration kDefaultLongPressTime = std::chrono::milliseconds(500);
 
 // Clamps the components of the vector between min and max and logs an error if
 // they fall outside that range.
@@ -59,6 +58,8 @@ const InputManager::ButtonId InputManager::kForwardMouse = 4;
 const InputManager::ButtonId InputManager::kPrimaryButton = 0;
 const InputManager::ButtonId InputManager::kSecondaryButton = 1;
 const InputManager::ButtonId InputManager::kRecenterButton = 2;
+const InputManager::ButtonId InputManager::kInvalidButton =
+    std::numeric_limits<InputManager::ButtonId>::max();
 
 const char* const InputManager::kKeyBackspace = "\x08";
 const char* const InputManager::kKeyReturn = "\x0d";
@@ -252,6 +253,14 @@ void InputManager::UpdateGesture(DeviceType device, GestureType type,
     touch_gesture.direction = direction;
     touch_gesture.displacement = displacement;
     touch_gesture.velocity = velocity;
+    if (type == GestureType::kScrollStart) {
+      touch_gesture.initial_displacement_axis =
+          std::abs(displacement[0]) > std::abs(displacement[1])
+              ? mathfu::kAxisX2f
+              : mathfu::kAxisY2f;
+    } else if (type != GestureType::kScrollUpdate) {
+      touch_gesture.initial_displacement_axis = mathfu::kZeros2f;
+    }
   } else {
     LOG(DFATAL) << "Touch gestures not enabled for device: "
                 << GetDeviceName(device);
@@ -458,8 +467,8 @@ InputManager::ButtonState InputManager::GetButtonState(DeviceType device,
                         prev_buffer.button_press_times[button]);
 }
 
-Clock::duration InputManager::GetButtonPressedDuration(
-    DeviceType device, ButtonId button) const {
+Clock::duration InputManager::GetButtonPressedDuration(DeviceType device,
+                                                       ButtonId button) const {
   const DataBuffer* buffer = GetConnectedDataBuffer(device);
   if (buffer == nullptr) {
     LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
@@ -548,6 +557,27 @@ bool InputManager::IsValidTouch(DeviceType device) const {
   return CheckBit(GetTouchState(device), kPressed);
 }
 
+bool InputManager::IsTouchGestureAvailable(DeviceType device) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(INFO) << "Invalid buffer for device: " << GetDeviceName(device);
+    return false;
+  }
+
+  const DeviceParams* params = GetDeviceParams(device);
+  if (!params || !params->has_touch_gesture) {
+    LOG(INFO) << "Gesture not setup for device: " << GetDeviceName(device);
+    return false;
+  }
+
+  const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
+  if (!touch_gesture_ptr) {
+    LOG(INFO) << "Gesture not setup for device: " << GetDeviceName(device);
+    return false;
+  }
+  return true;
+}
+
 InputManager::TouchState InputManager::GetTouchState(DeviceType device) const {
   const DataBuffer* buffer = GetConnectedDataBuffer(device);
   if (buffer == nullptr) {
@@ -609,6 +639,10 @@ mathfu::vec2 InputManager::GetTouchDelta(DeviceType device) const {
   return curr - prev;
 }
 
+mathfu::vec2 InputManager::GetLockedTouchDelta(DeviceType device) const {
+  return GetTouchDelta(device) * GetInitialDisplacementAxis(device);
+}
+
 mathfu::vec2 InputManager::GetTouchVelocity(DeviceType device) const {
   const DataBuffer* buffer = GetConnectedDataBuffer(device);
   if (buffer == nullptr) {
@@ -632,6 +666,31 @@ mathfu::vec2 InputManager::GetTouchVelocity(DeviceType device) const {
   }
 
   return buffer->GetCurrent().touch[0].velocity;
+}
+
+InputManager::GestureType InputManager::GetTouchGestureType(
+    DeviceType device) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return GestureType::kNone;
+  }
+
+  const DeviceParams* params = GetDeviceParams(device);
+  if (!params || !params->has_touchpad) {
+    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
+    return GestureType::kNone;
+  }
+
+  if (params->has_touch_gesture) {
+    const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
+    if (touch_gesture_ptr) {
+      return touch_gesture_ptr->type;
+    }
+  }
+
+  LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
+  return GestureType::kNone;
 }
 
 InputManager::GestureDirection InputManager::GetTouchGestureDirection(
@@ -689,6 +748,16 @@ InputManager::GestureDirection InputManager::GetTouchGestureDirection(
     return GestureDirection::kDown;
   }
   return GestureDirection::kLeft;
+}
+
+mathfu::vec2 InputManager::GetInitialDisplacementAxis(DeviceType device) const {
+  if (!IsTouchGestureAvailable(device)) {
+    LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
+    return mathfu::kZeros2f;
+  }
+
+  const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
+  return touch_gesture_ptr->initial_displacement_axis;
 }
 
 mathfu::vec3 InputManager::GetDofPosition(DeviceType device) const {
@@ -904,6 +973,24 @@ InputManager::DeviceParams InputManager::GetDeviceParamsCopy(
   return params ? *params : DeviceParams();
 }
 
+Variant InputManager::GetDeviceInfo(DeviceType device, HashValue key) const {
+  if (device != kMaxNumDeviceTypes) {
+    const VariantMap& info = devices_[device].GetDeviceInfo();
+    auto iter = info.find(key);
+    if (iter != info.end()) {
+      return iter->second;
+    }
+  }
+  return Variant();
+}
+
+void InputManager::SetDeviceInfo(DeviceType device, HashValue key,
+                                 const Variant& value) {
+  if (device != kMaxNumDeviceTypes) {
+    devices_[device].GetDeviceInfo().emplace(key, value);
+  }
+}
+
 InputManager::DeviceState* InputManager::GetDeviceStateForWriteLocked(
     DeviceType device) {
   if (device == kMaxNumDeviceTypes) {
@@ -919,10 +1006,8 @@ InputManager::DeviceState* InputManager::GetDeviceStateForWriteLocked(
 
 InputManager::ButtonState InputManager::GetButtonState(
     bool curr, bool prev, bool repeat, Clock::duration long_press_time,
-    Clock::time_point curr_time_stamp,
-    Clock::time_point prev_time_stamp,
-    Clock::time_point curr_press_time,
-    Clock::time_point prev_press_time) {
+    Clock::time_point curr_time_stamp, Clock::time_point prev_time_stamp,
+    Clock::time_point curr_press_time, Clock::time_point prev_press_time) {
   ButtonState state = 0;
   if (curr) {
     state |= kPressed;
@@ -939,10 +1024,14 @@ InputManager::ButtonState InputManager::GetButtonState(
     const bool curr_long_press = curr_press_duration >= long_press_time;
     if (curr_long_press) {
       state |= kLongPressed;
-      const Clock::duration prev_press_duration =
-          prev_time_stamp - prev_press_time;
-      const bool prev_long_press = prev_press_duration >= long_press_time;
-      if (!prev_long_press) {
+      if (prev) {
+        const Clock::duration prev_press_duration =
+            prev_time_stamp - prev_press_time;
+        const bool prev_long_press = prev_press_duration >= long_press_time;
+        if (!prev_long_press) {
+          state |= kJustLongPressed;
+        }
+      } else {
         state |= kJustLongPressed;
       }
     }
@@ -977,8 +1066,7 @@ void InputManager::Device::Connect(const DeviceParams& params) {
   state.scroll.resize(params.has_scroll ? 1 : 0, 0);
   state.buttons.resize(params.num_buttons, false);
   state.repeat.resize(params.num_buttons, false);
-  state.button_press_times.resize(params.num_buttons,
-                                  Clock::time_point());
+  state.button_press_times.resize(params.num_buttons, Clock::time_point());
   state.joystick.resize(params.num_joysticks, mathfu::kZeros2f);
   state.touch.resize(params.has_touchpad ? 1 : 0, TouchpadState());
   state.touch_press_times.resize(params.has_touchpad ? 1 : 0,
@@ -991,6 +1079,7 @@ void InputManager::Device::Connect(const DeviceParams& params) {
   state.eye_viewport.resize(params.num_eyes);
   state.eye_fov.resize(params.num_eyes);
   buffer_.reset(new DataBuffer(state));
+  info_.clear();
 }
 
 void InputManager::Device::Disconnect() {
@@ -998,6 +1087,7 @@ void InputManager::Device::Disconnect() {
   params_ = DeviceParams();
   connected_ = false;
   buffer_.reset();
+  info_.clear();
 }
 
 void InputManager::Device::Advance(Clock::duration delta_time) {

@@ -125,6 +125,11 @@ class UnorderedVectorMap {
     lookup_table_.erase(iter);
   }
 
+  // Returns true if an Object is associated with the |key|.
+  bool Contains(const Key& key) const {
+    return lookup_table_.count(key) > 0;
+  }
+
   // Returns a pointer to the Object associated with |key|, or nullptr if no
   // such Object exists.
   Object* Get(const Key& key) {
@@ -178,6 +183,12 @@ class UnorderedVectorMap {
     return ((objects_size - 1) * page_size_) + back_size;
   }
 
+  // Clears the container, destroying the contained objects.
+  void Clear() {
+    objects_.clear();
+    lookup_table_.clear();
+  }
+
   iterator begin() { return iterator(objects_.begin(), objects_.end()); }
 
   const_iterator begin() const {
@@ -199,6 +210,10 @@ class UnorderedVectorMap {
   // non-copyable objects.  This container implements the minimal API that is
   // needed to work with the UnorderedVectorMap.
   class ObjectArray {
+   private:
+    using ObjectBuffer =
+        typename std::aligned_storage<sizeof(Object), alignof(Object)>::type;
+
    public:
     using iterator = Object*;
     using const_iterator = Object const*;
@@ -210,7 +225,7 @@ class UnorderedVectorMap {
 #else
       const size_t kAlignment = alignof(Object);
 #endif
-      uint8_t* ptr = new uint8_t[sizeof(Object) * max];
+      ObjectBuffer* ptr = new ObjectBuffer[max];
       assert(reinterpret_cast<intptr_t>(ptr) % kAlignment == 0);
       // "Use" kAlignment variable since it seems unused in non-dbg.
       (void)kAlignment;
@@ -254,14 +269,12 @@ class UnorderedVectorMap {
 
     // Gets the Object at the given |index|.
     Object* Get(size_t index) {
-      Object* arr = reinterpret_cast<Object*>(memory_.get());
-      return arr + index;
+      return reinterpret_cast<Object*>(&memory_[index]);
     }
 
     // Gets the Object at the given |index|.
     const Object* Get(size_t index) const {
-      const Object* arr = reinterpret_cast<const Object*>(memory_.get());
-      return arr + index;
+      return reinterpret_cast<const Object*>(&memory_[index]);
     }
 
     // Returns the number of constructed Objects in the container.
@@ -277,7 +290,7 @@ class UnorderedVectorMap {
 
    private:
     // Memory for storing Object instances.
-    std::unique_ptr<uint8_t[]> memory_;
+    std::unique_ptr<ObjectBuffer[]> memory_;
 
     // Number of Objects that have been constructed/emplaced.
     size_t count_;

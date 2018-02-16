@@ -47,6 +47,7 @@ class MapEventsSystem : public System {
     kParent,
     kSiblings,
     kGroup,
+    kDescendants,
   };
 
   struct ResponseData {
@@ -62,6 +63,8 @@ class MapEventsSystem : public System {
   void MapEvent(const ResponseData& response, const EventWrapper& event) const;
   void SendEventsToTargets(const ResponseData& response,
                            const EventSender& sender) const;
+  void SendEventsToDescendants(const Entity& entity,
+                               const EventSender& sender) const;
 
   std::unordered_map<HashValue, Group> groups_;
 };

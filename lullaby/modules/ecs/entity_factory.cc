@@ -20,7 +20,7 @@ limitations under the License.
 #include <utility>
 
 #include "lullaby/modules/file/asset_loader.h"
-#include "lullaby/modules/file/file.h"
+#include "lullaby/util/filename.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/make_unique.h"
 
@@ -139,11 +139,16 @@ Span<uint8_t> EntityFactory::Finalize(Blueprint* blueprint) {
   return data;
 }
 
-Entity EntityFactory::CreateFromBlueprint(const void* data,
+Entity EntityFactory::CreateFromBlueprint(const void* blueprint,
                                           const std::string& name) {
   const Entity entity = Create();
-  const bool success = CreateImpl(entity, name, data);
+  const bool success = CreateImpl(entity, name, blueprint);
   return success ? entity : kNullEntity;
+}
+
+void EntityFactory::CreateFromBlueprint(Entity entity, const void* blueprint,
+                                        const std::string& name) {
+  CreateImpl(entity, name, blueprint);
 }
 
 bool EntityFactory::CreateImpl(Entity entity, const std::string& name,

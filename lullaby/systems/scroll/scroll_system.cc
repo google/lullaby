@@ -162,6 +162,8 @@ void ScrollSystem::Create(Entity e, HashValue type, const Def* def) {
       dispatcher_system->Connect(e, [this](const AnimationCompleteEvent& ev) {
         OnAnimationComplete(ev.target, ev.id);
       });
+
+  view->lock_axis = data->lock_axis();
 }
 
 void ScrollSystem::Create(Entity entity, const Aabb& content_bounds) {
@@ -202,17 +204,19 @@ void ScrollSystem::SetSnapByDeltaFn(Entity entity, SnapByDeltaFn fn) {
   }
 }
 
-void ScrollSystem::Activate(Entity entity) {
+void ScrollSystem::Deactivate(Entity entity) {
   ScrollView* view = views_.Get(entity);
-  if (view) {
-    UpdateInputView(entity, view->priority);
+  if (view && view->activated) {
+    view->activated = false;
+    RemoveInputView(entity);
   }
 }
 
-void ScrollSystem::Deactivate(Entity entity) {
+void ScrollSystem::Activate(Entity entity) {
   ScrollView* view = views_.Get(entity);
-  if (view) {
-    RemoveInputView(entity);
+  if (view && !view->activated) {
+    view->activated = true;
+    UpdateInputView(entity, view->priority);
   }
 }
 
@@ -382,7 +386,7 @@ ScrollSystem::ScrollView* ScrollSystem::GetContainerView(Entity entity) {
   Entity parent = transform_system->GetParent(entity);
   while (parent != kNullEntity) {
     ScrollView* view = views_.Get(parent);
-    if (view) {
+    if (view && view->activated) {
       return view;
     }
     parent = transform_system->GetParent(parent);
@@ -392,7 +396,7 @@ ScrollSystem::ScrollView* ScrollSystem::GetContainerView(Entity entity) {
 
 ScrollSystem::ScrollView* ScrollSystem::GetViewForInput(Entity entity) {
   ScrollView* view = views_.Get(entity);
-  if (view) {
+  if (view && view->activated) {
     return view;
   }
   return GetContainerView(entity);
@@ -403,10 +407,18 @@ void ScrollSystem::UpdateHoverView() {
     return;
   }
 
+  const ScrollView* previous_view = GetActiveInputView();
   if (current_hover_view_ != kNullEntity) {
     const ScrollView* old_view = views_.Get(current_hover_view_);
-    if (old_view && old_view->priority == kHoverPriority) {
-      RemoveInputView(current_hover_view_);
+    if (old_view) {
+      if (old_view->priority == kHoverPriority) {
+        RemoveInputView(current_hover_view_);
+      } else {
+        // We are the current hover entity, but we are about to change and want
+        // to reset our priority.
+        UpdateInputView(old_view->GetEntity(), old_view->priority,
+                        UpdateInputViewMode::kForceChangePriority);
+      }
     }
   }
 
@@ -414,6 +426,8 @@ void ScrollSystem::UpdateHoverView() {
   if (current_hover_view_ != kNullEntity) {
     UpdateInputView(current_hover_view_, kHoverPriority);
   }
+
+  TryEndTouch(previous_view);
 }
 
 void ScrollSystem::OnStartHover(Entity entity) {
@@ -428,6 +442,9 @@ void ScrollSystem::OnStopHover(Entity entity) {
 ScrollSystem::ScrollView* ScrollSystem::GetActiveInputView() {
   if (input_views_.empty()) {
     return nullptr;
+  }
+  if (current_hover_view_ != kNullEntity) {
+    return views_.Get(current_hover_view_);
   }
   const Entity entity = input_views_.back().entity;
   return views_.Get(entity);
@@ -449,9 +466,21 @@ void ScrollSystem::UpdateTouch() {
   }
 
   const InputManager* input = registry_->Get<InputManager>();
-  const mathfu::vec2 delta = mathfu::vec2(-1.f, 1.f) *
-                             input->GetTouchDelta(InputManager::kController) *
-                             view->touch_sensitivity;
+  mathfu::vec2 delta = mathfu::vec2(-1.f, 1.f) *
+                       input->GetTouchDelta(InputManager::kController) *
+                       view->touch_sensitivity;
+
+  if (view->lock_axis) {
+    if (!view->locked_axis && delta.Length() > kDefaultEpsilon) {
+      view->locked_axis = std::abs(delta[0]) > std::abs(delta[1])
+                              ? mathfu::kAxisX2f
+                              : mathfu::kAxisY2f;
+    }
+    if (view->locked_axis) {
+      delta *= *view->locked_axis;
+    }
+  }
+
   const mathfu::vec2 target =
       GetDragTarget(view->target_offset + delta, view->target_offset,
                     view->content_bounds.min.xy(),
@@ -461,15 +490,19 @@ void ScrollSystem::UpdateTouch() {
   SetTargetOffset(view, target, view->drag_momentum_time);
 }
 
-void ScrollSystem::EndTouch() {
-  if (input_views_.empty()) {
-    return;
-  }
-
+void ScrollSystem::EndActiveTouch() {
   ScrollView* view = GetActiveInputView();
   if (!view) {
     return;
   }
+
+  if (view->locked_axis) {
+    view->locked_axis.reset();
+  }
+  EndTouch(view);
+}
+
+void ScrollSystem::EndTouch(const ScrollView* view) {
   if (!IsTouchControllerConnected()) {
     return;
   }
@@ -491,8 +524,17 @@ void ScrollSystem::EndTouch() {
     offset += delta;
   }
 
-  const Entity entity = input_views_.back().entity;
-  SetViewOffset(entity, offset, view->momentum_time);
+  SetViewOffset(view->GetEntity(), offset, view->momentum_time);
+}
+
+void ScrollSystem::TryEndTouch(const ScrollView* previous_view) {
+  if (!previous_view) {
+    return;
+  }
+  const ScrollView* new_view = GetActiveInputView();
+  if (!new_view || new_view->GetEntity() != previous_view->GetEntity()) {
+    EndTouch(previous_view);
+  }
 }
 
 void ScrollSystem::AdvanceFrame(Clock::duration delta_time) {
@@ -518,7 +560,7 @@ void ScrollSystem::ProcessTouch() {
       !CheckBit(state, InputManager::kJustPressed)) {
     UpdateTouch();
   } else if (CheckBit(state, InputManager::kJustReleased)) {
-    EndTouch();
+    EndActiveTouch();
   }
 }
 
@@ -546,21 +588,35 @@ bool ScrollSystem::IsInputView(Entity entity) const {
   return iter != input_views_.end();
 }
 
-void ScrollSystem::UpdateInputView(Entity entity, int priority) {
+void ScrollSystem::UpdateInputView(Entity entity, int priority,
+                                   UpdateInputViewMode mode) {
+  const ScrollView* view = views_.Get(entity);
+  if (!view || !view->activated) {
+    RemoveInputView(entity);
+    return;
+  }
+
   const bool is_hovered =
       entity == current_hover_view_ || entity == next_hover_view_;
   if (priority == kHoverPriority && !is_hovered) {
     RemoveInputView(entity);
     return;
   }
+  if (priority != kHoverPriority && is_hovered &&
+      mode == UpdateInputViewMode::kDontChangeFromHoverPriority) {
+    // Don't change the priority of the hovered view.
+    return;
+  }
 
+  const ScrollView* previous_view = GetActiveInputView();
   auto iter = std::find_if(input_views_.begin(), input_views_.end(),
                            [entity](const EntityPriorityTuple& entry) {
                              return entry.entity == entity;
                            });
 
-  // If there's an existing entry, do one of two things:
-  // - if entity is active and will remain active, just update priority;
+  // If there's an existing entry, do one of three things:
+  // - if entity is highest priority and will remain highest, just update it.
+  // - if it will now be hovered, move it to the front with hover priority.
   // - otherwise, remove & deactivate entity, then continue to re-add it.
   if (iter != input_views_.end()) {
     auto higher_priority_iter = std::find_if(
@@ -568,11 +624,19 @@ void ScrollSystem::UpdateInputView(Entity entity, int priority) {
         [entity, priority](const EntityPriorityTuple& entry) {
           return entry.entity != entity && entry.priority > priority;
         });
-    const bool will_be_active = higher_priority_iter == input_views_.end();
-    const bool is_active = iter + 1 == input_views_.end();
+    const bool will_be_highest = higher_priority_iter == input_views_.end();
+    const bool is_highest = iter + 1 == input_views_.end();
 
-    if (is_active && will_be_active) {
+    if (is_highest && will_be_highest) {
       iter->priority = priority;
+      TryEndTouch(previous_view);
+      return;
+    } else if (is_hovered && priority == kHoverPriority) {
+      // The reason we move it manually is to preserve current_hover_view_ which
+      // RemoveInputView() would reset.
+      input_views_.erase(iter);
+      input_views_.emplace_front(entity, priority);
+      TryEndTouch(previous_view);
       return;
     }
 
@@ -589,6 +653,7 @@ void ScrollSystem::UpdateInputView(Entity entity, int priority) {
     dispatcher->Send(ScrollViewTargeted());
 
     input_views_.emplace_back(entry);
+    TryEndTouch(previous_view);
     return;
   }
 
@@ -597,23 +662,29 @@ void ScrollSystem::UpdateInputView(Entity entity, int priority) {
   for (; it != input_views_.rend(); ++it) {
     if (it->priority <= priority) {
       input_views_.insert(it.base(), entry);
+      TryEndTouch(previous_view);
       return;
     }
   }
 
   input_views_.insert(it.base(), entry);
+  TryEndTouch(previous_view);
 }
 
 void ScrollSystem::RemoveInputView(Entity entity) {
   if (current_hover_view_ == entity) {
     current_hover_view_ = kNullEntity;
   }
+  if (next_hover_view_ == entity) {
+    next_hover_view_ = kNullEntity;
+  }
   if (input_views_.empty()) {
     // Do nothing.
-  } else if (input_views_.back().entity == entity) {
-    EndTouch();
-    input_views_.pop_back();
   } else {
+    const ScrollView* view = GetActiveInputView();
+    if (view && view->GetEntity() == entity) {
+      EndTouch(view);
+    }
     auto iter = std::find_if(input_views_.begin(), input_views_.end(),
                              [entity](const EntityPriorityTuple& entry) {
                                return entry.entity == entity;

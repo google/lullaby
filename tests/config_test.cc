@@ -19,7 +19,7 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/config_def_generated.h"
-#include "lullaby/modules/flatbuffers/flatbuffer_writer.h"
+#include "lullaby/util/flatbuffer_writer.h"
 #include "lullaby/util/inward_buffer.h"
 
 namespace lull {

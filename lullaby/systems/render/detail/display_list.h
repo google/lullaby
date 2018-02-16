@@ -30,32 +30,29 @@ namespace detail {
 template <typename Component>
 class DisplayList {
  public:
-  using View = RenderSystem::View;
-
   union SortKey {
     SortKey() : u64(0) {}
-
     uint64_t u64;
     float f32;
   };
 
   struct Entry {
-    explicit Entry(Entity e) : entity(e), component(nullptr) {}
+    explicit Entry(Entity e) : entity(e) {}
 
     Entity entity;
-    const Component* component;
+    const Component* component = nullptr;
     mathfu::mat4 world_from_entity_matrix;
     SortKey sort_key;
   };
 
   explicit DisplayList(Registry* registry) : registry_(registry) {}
 
-  // Returns a pointer to the list of drawables.
+  // Returns a pointer to the list of entries.
   const std::vector<Entry>* GetContents() const { return &list_; }
 
   // Populates the list using |pool|.  |views| is used for camera-based sort
   // modes.
-  void Populate(const RenderPool<Component>& pool, const View* views,
+  void Populate(const RenderPool<Component>& pool, const RenderView* views,
                 size_t num_views);
 
  private:
@@ -63,7 +60,8 @@ class DisplayList {
   void GetComponentsWithSortOrder(const RenderPool<Component>& pool);
   void GetComponentsWithWorldSpaceZ(const RenderPool<Component>& pool);
   void GetComponentsWithAverageSpaceZ(const RenderPool<Component>& pool,
-                                      const View* views, size_t num_views);
+                                      const RenderView* views,
+                                      size_t num_views);
 
   void SortDecreasingFloat();
   void SortIncreasingFloat();
@@ -102,7 +100,8 @@ void DisplayList<Component>::GetComponentsWithSortOrder(
 
 template <typename Component>
 void DisplayList<Component>::GetComponentsWithAverageSpaceZ(
-    const RenderPool<Component>& pool, const View* views, size_t num_views) {
+    const RenderPool<Component>& pool, const RenderView* views,
+    size_t num_views) {
   if (num_views <= 0) {
     LOG(DFATAL) << "Must have at least 1 view.";
     return;
@@ -171,18 +170,18 @@ void DisplayList<Component>::SortIncreasingUnsigned() {
 
 template <typename Component>
 void DisplayList<Component>::Populate(const RenderPool<Component>& pool,
-                                      const View* views, size_t num_views) {
+                                      const RenderView* views,
+                                      size_t num_views) {
   LULLABY_CPU_TRACE_CALL();
 
   list_.clear();
   list_.reserve(pool.Size());
 
-  using CullMode = RenderSystem::CullMode;
-  const CullMode cull_mode = pool.GetCullMode();
+  const RenderCullMode cull_mode = pool.GetCullMode();
 
   const auto* transform_system = registry_->Get<TransformSystem>();
 
-  if (cull_mode == CullMode::kNone) {
+  if (cull_mode == RenderCullMode::kNone) {
     transform_system->ForEach(
         pool.GetTransformFlag(),
         [&](Entity e, const mathfu::mat4& world_from_entity_mat,
@@ -233,32 +232,31 @@ void DisplayList<Component>::Populate(const RenderPool<Component>& pool,
         });
   }
 
-  using SortMode = RenderSystem::SortMode;
   const SortMode sort_mode = pool.GetSortMode();
 
-  if (sort_mode == SortMode::kSortOrderIncreasing) {
+  if (sort_mode == SortMode_SortOrderIncreasing) {
     GetComponentsWithSortOrder(pool);
     SortIncreasingUnsigned();
-  } else if (sort_mode == SortMode::kSortOrderDecreasing) {
+  } else if (sort_mode == SortMode_SortOrderDecreasing) {
     GetComponentsWithSortOrder(pool);
     SortDecreasingUnsigned();
-  } else if (sort_mode == SortMode::kWorldSpaceZBackToFront) {
+  } else if (sort_mode == SortMode_WorldSpaceZBackToFront) {
     // -z is forward, so z decreases as distance in front of camera increases.
     GetComponentsWithWorldSpaceZ(pool);
     SortIncreasingFloat();
-  } else if (sort_mode == SortMode::kWorldSpaceZFrontToBack) {
+  } else if (sort_mode == SortMode_WorldSpaceZFrontToBack) {
     GetComponentsWithWorldSpaceZ(pool);
     SortDecreasingFloat();
-  } else if (sort_mode == SortMode::kAverageSpaceOriginBackToFront) {
+  } else if (sort_mode == SortMode_AverageSpaceOriginBackToFront) {
     // -z is forward, so z decreases as distance in front of camera increases.
     GetComponentsWithAverageSpaceZ(pool, views, num_views);
     SortIncreasingFloat();
-  } else if (sort_mode == SortMode::kAverageSpaceOriginFrontToBack) {
+  } else if (sort_mode == SortMode_AverageSpaceOriginFrontToBack) {
     GetComponentsWithAverageSpaceZ(pool, views, num_views);
     SortDecreasingFloat();
   } else {
-    DCHECK(sort_mode == SortMode::kNone) << "Unsupported sort mode "
-                                         << static_cast<int>(sort_mode);
+    DCHECK(sort_mode == SortMode_None)
+        << "Unsupported sort mode " << static_cast<int>(sort_mode);
     GetComponentsUnsorted(pool);
   }
 }

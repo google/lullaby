@@ -12,14 +12,14 @@ cc_library(
     ],
     hdrs = [
         "layout.h",
+        "layout_manager.h",
     ],
     deps = [
-        "@flatui//:flatui",
-        "//lullaby/generated",
-        "//lullaby/modules/ecs:entity",
+        "//:fbs",
         "//lullaby/systems/layout:layout_box",
         "//lullaby/systems/transform",
         "//lullaby/util:clock",
+        "//lullaby/util:entity",
         "//lullaby/util:logging",
         "//lullaby/util:math",
         "//lullaby/util:registry",

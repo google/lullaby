@@ -40,9 +40,12 @@ class ScopedJavaLocalRef {
 
   ScopedJavaLocalRef& operator=(ScopedJavaLocalRef&& other) {
     if (this != &other) {
+      if (env_) {
+        env_->DeleteLocalRef(object_);
+      }
+
       object_ = other.object_;
       env_ = other.env_;
-
       other.object_ = nullptr;
       other.env_ = nullptr;
     }
@@ -53,7 +56,9 @@ class ScopedJavaLocalRef {
   ScopedJavaLocalRef& operator=(const ScopedJavaLocalRef& rhs) = delete;
 
   ~ScopedJavaLocalRef() {
-    env_->DeleteLocalRef(object_);
+    if (env_) {
+      env_->DeleteLocalRef(object_);
+    }
   }
 
   jobject Get() const {

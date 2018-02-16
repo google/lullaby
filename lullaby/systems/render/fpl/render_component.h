@@ -23,8 +23,8 @@ limitations under the License.
 #include <vector>
 
 #include "lullaby/modules/ecs/component.h"
+#include "lullaby/systems/render/fpl/material.h"
 #include "lullaby/systems/render/fpl/mesh.h"
-#include "lullaby/systems/render/material.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
@@ -44,11 +44,11 @@ struct RenderComponent : Component {
   MeshPtr mesh = nullptr;
   Material material;
   RenderPass pass = RenderPass_Main;
-  RenderSystem::SortOrder sort_order = 0;
-  StencilMode stencil_mode = StencilMode::kDisabled;
+  RenderSortOrder sort_order = 0;
+  RenderStencilMode stencil_mode = RenderStencilMode::kDisabled;
   int stencil_value = 0;
   bool hidden = false;
-  RenderSystem::Quad quad = RenderSystem::Quad();
+  RenderQuad quad = {};
 };
 
 }  // namespace detail

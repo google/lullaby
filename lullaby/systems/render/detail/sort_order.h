@@ -17,18 +17,44 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_DETAIL_SORT_ORDER_H_
 #define LULLABY_SYSTEMS_RENDER_DETAIL_SORT_ORDER_H_
 
-#include <functional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "lullaby/modules/ecs/entity.h"
-#include "lullaby/systems/render/render_system.h"
+#include "lullaby/util/entity.h"
+#include "lullaby/systems/render/render_types.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/registry.h"
 
 namespace lull {
 namespace detail {
+
+/// A pair of an Entity and a HashValue id.
+union EntityIdPair {
+  struct {
+    /// An entity associated with this pair.
+    Entity entity;
+    /// A unique id used to differentiate multiple components associated with a
+    /// given entity.
+    HashValue id;
+  };
+  /// The combined bit value of the union, used for hashing and indexing the
+  /// entity id pair. Entity and HashValue are both 32-bit ints, and value is
+  /// their unified 64-bit value.
+  uint64_t value;
+
+  EntityIdPair(Entity e, HashValue id = 0)
+      : entity(e), id(id) {}
+  bool operator==(const EntityIdPair& other) const {
+    return value == other.value;
+  }
+};
+
+struct EntityIdPairHash {
+  size_t operator()(const EntityIdPair& entity_id_pair) const {
+    return std::hash<uint64_t>{}(entity_id_pair.value);
+  }
+};
 
 // A helper class to manage sort orders.  This stores the offsets of all known
 // entities, even those that don't have render components.
@@ -38,10 +64,7 @@ namespace detail {
 // value based on its inheritance.
 class SortOrderManager {
  public:
-  using SortOrder = RenderSystem::SortOrder;
-  using SortOrderOffset = RenderSystem::SortOrderOffset;
-
-  static constexpr SortOrderOffset kUseDefaultOffset = 0;
+  static constexpr RenderSortOrderOffset kUseDefaultOffset = 0;
 
   explicit SortOrderManager(Registry* registry) : registry_(registry) {}
 
@@ -50,17 +73,17 @@ class SortOrderManager {
 
   // Returns |entity_id_pair|'s sort order offset, or kUseDefaultOffset if it's
   // not known.
-  SortOrderOffset GetOffset(EntityIdPair entity_id_pair) const;
+  RenderSortOrderOffset GetOffset(EntityIdPair entity_id_pair) const;
 
   // Sets |entity_id_pair|'s sort order offset without recalculating its sort
   // order.  An offset of kUseDefaultOffset signifies that a default,
   // auto-calculated value be used when determining the sort order.
-  void SetOffset(EntityIdPair entity_id_pair, SortOrderOffset offset);
+  void SetOffset(EntityIdPair entity_id_pair, RenderSortOrderOffset offset);
 
   // Returns the sort order for |entity_id_pair| based on its offset and
   // hierarchy.  For entities that have a render component, prefer the cached
   // value in the component.
-  SortOrder CalculateSortOrder(EntityIdPair entity_id_pair);
+  RenderSortOrder CalculateSortOrder(EntityIdPair entity_id_pair);
 
   // Calculates |entity_id_pair|'s sort order, stores it in its render component
   // (if it has one), and recurses through its children.
@@ -71,34 +94,34 @@ class SortOrderManager {
  private:
   // Returns the sibling offset of |entity_id_pair|.  Result is undefined if
   // |parent| is kNullEntity.
-  SortOrderOffset CalculateSiblingOffset(EntityIdPair entity_id_pair,
-                                         Entity parent) const;
+  RenderSortOrderOffset CalculateSiblingOffset(EntityIdPair entity_id_pair,
+                                               Entity parent) const;
 
   // Calculates the sort order for root-level |entity_id_pair|.  If
   // |entity_id_pair| does not yet have an offset assigned, this will assign
   // one.
-  SortOrder CalculateRootSortOrder(EntityIdPair entity_id_pair);
+  RenderSortOrder CalculateRootSortOrder(EntityIdPair entity_id_pair);
 
   // Calculates the sort order for |entity|, also returning its hierarchical
   // depth.  If |entity_id_pair| has no parent, this will assign it a rolling
   // offset if one does not exist.
-  std::pair<SortOrder, int> CalculateSortOrderAndDepth(
+  std::pair<RenderSortOrder, int> CalculateSortOrderAndDepth(
       EntityIdPair entity_id_pair);
 
   // Registry of shared systems, owned by the app.
   Registry* registry_;
 
   // Per-entity offsets requested via SetOffset.
-  std::unordered_map<EntityIdPair, SortOrderOffset, EntityIdPairHash>
+  std::unordered_map<EntityIdPair, RenderSortOrderOffset, EntityIdPairHash>
       requested_offset_map_;
 
   // Offsets assigned to root level entities, which need to remain consistent
   // across hierarchy changes and calls to SetOffset.
-  std::unordered_map<EntityIdPair, SortOrderOffset, EntityIdPairHash>
+  std::unordered_map<EntityIdPair, RenderSortOrderOffset, EntityIdPairHash>
       root_offset_map_;
 
   // Offset to use for the next root-level entity to be registered.
-  SortOrderOffset next_root_offset_ = 1;
+  RenderSortOrderOffset next_root_offset_ = 1;
 };
 
 template <typename GetComponentFn>

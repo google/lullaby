@@ -20,9 +20,9 @@ limitations under the License.
 #include <memory>
 #include "lullaby/generated/animation_stategraph_generated.h"
 #include "lullaby/events/animation_events.h"
-#include "lullaby/modules/ecs/entity.h"
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/stategraph/stategraph.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/selector.h"
 
@@ -66,6 +66,9 @@ class StategraphAsset : public Asset {
 
   /// Return true if the stategraph has finished loading.
   bool IsReady() const { return stategraph_ != nullptr; }
+
+  // Returns the Graphviz representation of the graph.
+  std::string GetGraphDebugString() const;
 
   StategraphAsset(const StategraphAsset&) = delete;
   StategraphAsset& operator=(const StategraphAsset&) = delete;

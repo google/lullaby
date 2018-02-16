@@ -16,7 +16,6 @@ limitations under the License.
 
 #include "lullaby/systems/layout/layout_system.h"
 
-#include "lullaby/generated/layout_def_generated.h"
 #include "lullaby/events/render_events.h"
 #include "lullaby/modules/animation_channels/transform_channels.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
@@ -58,8 +57,17 @@ LayoutSystem::LayoutSystem(Registry* registry)
   RegisterDependency<LayoutBoxSystem>(this);
 
   Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  dispatcher->Connect(this, [this](const OnEnabledEvent& event) {
+    OnEnabledChanged(event.target);
+  });
+  dispatcher->Connect(this, [this](const OnDisabledEvent& event) {
+    OnEnabledChanged(event.target);
+  });
   dispatcher->Connect(this, [this](const ParentChangedEvent& event) {
     OnParentChanged(event);
+  });
+  dispatcher->Connect(this, [this](const ChildIndexChangedEvent& event) {
+    OnChildIndexChanged(event.target);
   });
   dispatcher->Connect(this, [this](const OriginalBoxChangedEvent& event) {
     OnOriginalBoxChanged(event.target);
@@ -228,6 +236,7 @@ void LayoutSystem::Create(Entity e, HashValue type, const Def* def) {
       SetDirty(e, kOriginal);
     }
     layout->max_elements = static_cast<size_t>(data->max_elements());
+    layout->ignore_mode = data->ignore_mode();
 
     layout->layout.reset(new LayoutParams());
 
@@ -504,6 +513,10 @@ void LayoutSystem::LayoutImpl(const DirtyLayout& dirty_layout) {
     std::vector<LayoutElement> elements;
     elements.reserve(children->size());
     for (const Entity& child : *children) {
+      if (layout->ignore_mode == LayoutIgnoreMode_Disabled &&
+          !transform_system->IsEnabled(child)) {
+        continue;
+      }
       elements.emplace_back(GetLayoutElement(child));
     }
 
@@ -588,12 +601,27 @@ void LayoutSystem::SetParentDirty(Entity e, LayoutPass pass, Entity source) {
   }
 }
 
+void LayoutSystem::OnEnabledChanged(Entity entity) {
+  const auto* transform_system = registry_->Get<TransformSystem>();
+  Entity parent = transform_system->GetParent(entity);
+  LayoutComponent* layout = layouts_.Get(parent);
+  if (layout && layout->ignore_mode == LayoutIgnoreMode_Disabled) {
+    SetDirty(parent, kOriginal);
+  }
+}
+
 void LayoutSystem::OnParentChanged(const ParentChangedEvent& ev) {
   if (layouts_.Get(ev.new_parent)) {
     SetDirty(ev.new_parent, kOriginal);
   }
   if (layouts_.Get(ev.old_parent)) {
     SetDirty(ev.old_parent, kOriginal);
+  }
+}
+
+void LayoutSystem::OnChildIndexChanged(Entity entity) {
+  if (layouts_.Get(entity)) {
+    SetDirty(entity, kOriginal);
   }
 }
 

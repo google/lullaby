@@ -24,6 +24,7 @@ limitations under the License.
 
 #include "lullaby/util/clock.h"
 #include "lullaby/util/typeid.h"
+#include "lullaby/util/variant.h"
 #include "mathfu/constants.h"
 #include "mathfu/glsl_mappings.h"
 
@@ -34,14 +35,14 @@ namespace lull {
 // (ex. event loops, callbacks, polling threads, etc.)
 //
 // The InputManager keeps a small buffer of state for each connected input
-// device.  The "front" of the buffer is used for recording the incoming state
-// for the devices from the input events.  The rest of the buffer is read-only
-// and can be used to query the state of a device.  The readable portion of
-// the buffer stores a two-frame history (current and previous) to allow for
-// limited support of queries like "just pressed" and "touch delta".
+// device, containing three frames: front, current, and previous.  |front| is
+// used for recording the incoming state for the device, i.e. from input events.
+// |current| and |previous| are read-only and can be used to query the state of
+// the device.  This two-frame history allows for limited support of queries
+// like "just pressed" and "touch delta".
 //
-// The AdvanceFrame function is used to update the buffer such that the "front"
-// state becomes the "current" state and a new "front" state is made available
+// The AdvanceFrame function is used to update the buffer such that the |front|
+// state becomes the |current| state and a new |front| state is made available
 // for write operations.  The InputManager allows multiple threads to generate
 // input events by using a mutex.  State information is also safe to read from
 // multiple threads as they are read-only operations.  However, it is assumed
@@ -61,7 +62,7 @@ class InputManager {
     kMaxNumDeviceTypes
   };
 
-  // Type for representing the state of a button (or key or touch).  All states
+  // Type for representing the state of a button (or key or touchpad).  States
   // are not necessarily mutually exclusive, so bitwise checks should be used
   // instead of direct comparisons.
   using ButtonState = uint8_t;
@@ -92,9 +93,12 @@ class InputManager {
   static const ButtonId kSecondaryButton;
   static const ButtonId kRecenterButton;
 
-  // Common joystick mappings.  For controllers that support additional
-  // joysticks, clients can simply define their own identifiers or use numeric
-  // values directly.
+  // Reserved mapping for an unset or invalid button (MAX if ButtonId type).
+  static const ButtonId kInvalidButton;
+
+  // Common controller joystick mappings.  For controllers that support
+  // additional joysticks, clients can simply define their own identifiers or
+  // use numeric values directly.
   enum JoystickType {
     kLeftJoystick = 0,
     kRightJoystick = 1,
@@ -105,7 +109,8 @@ class InputManager {
   static const char* const kKeyBackspace;
   static const char* const kKeyReturn;
 
-  // Invalid touch location used to represent touchpad is not active.
+  // Reserved mapping for an invalid touch location, used to represent that the
+  // touchpad is not active.
   static const mathfu::vec2 kInvalidTouchLocation;
 
   // Type representing the eye (left or right).
@@ -156,6 +161,9 @@ class InputManager {
   // Returns true if |device|'s touchpad is active.
   bool IsValidTouch(DeviceType device) const;
 
+  // Returns whether or not TouchGesture is queryable for |device|.
+  bool IsTouchGestureAvailable(DeviceType device) const;
+
   // Gets the current state of the |device|'s touchpad.
   TouchState GetTouchState(DeviceType device) const;
 
@@ -168,11 +176,29 @@ class InputManager {
   // values for each element is [-1.f, 1.f].
   mathfu::vec2 GetTouchDelta(DeviceType device) const;
 
+  // Gets the change in 2D position of the |device|'s touchpad, locked to the
+  // axis of its initial displacement. The range of values for each element is
+  // [-1.f, 1.f]. Always returns [0.f, 0.f] for devices that don't support
+  // TouchGesture.
+  mathfu::vec2 GetLockedTouchDelta(InputManager::DeviceType device) const;
+
   // Gets the filtered touch velocity of |device| or (0,0) if touch isn't valid.
   mathfu::vec2 GetTouchVelocity(DeviceType device) const;
 
-  // Gets the just-completed gesture of |device|'s touchpad, if any.
+  // Gets the direction of a just-completed fling on |device|'s touchpad.
+  // Despite the generalized name it returns GestureDirection::kNone for all
+  // non-fling events.
   GestureDirection GetTouchGestureDirection(DeviceType device) const;
+
+  // Gets the just-completed gesture type of |device|'s touchpad, if any.
+  // Only valid for the current frame.
+  GestureType GetTouchGestureType(DeviceType device) const;
+
+  // Gets the initial displacement axis across |device|'s touchpad, if any.
+  // Returns [0.f, 0.f] if the user hasn't been scrolling (IE if they've flung
+  // or haven't performed a touch gesture recently at all), mathfu::kAxisY/X2f
+  // otherwise.
+  mathfu::vec2 GetInitialDisplacementAxis(DeviceType device) const;
 
   // Gets the current position of a |device| with a positional sensor.
   mathfu::vec3 GetDofPosition(DeviceType device) const;
@@ -294,6 +320,14 @@ class InputManager {
   // Gets the DeviceParams for a |device|.
   DeviceParams GetDeviceParamsCopy(DeviceType device) const;
 
+  // Gets an arbitrary piece of data for the |device| that was previously set.
+  // This should be used for unchanging data about the connected device.
+  Variant GetDeviceInfo(DeviceType device, HashValue key) const;
+
+  // Stores an arbitrary piece of data for the |device|.
+  // This should be used for unchanging data about the connected device.
+  void SetDeviceInfo(DeviceType device, HashValue key, const Variant& value);
+
  private:
   static const Clock::time_point kInvalidSampleTime;
 
@@ -310,6 +344,7 @@ class InputManager {
     GestureDirection direction = GestureDirection::kNone;
     mathfu::vec2 velocity = mathfu::kZeros2f;
     mathfu::vec2 displacement = mathfu::kZeros2f;
+    mathfu::vec2 initial_displacement_axis = mathfu::kZeros2f;
   };
 
   // Structure to hold the "input" state of a device.  std::vector's are used
@@ -379,10 +414,14 @@ class InputManager {
 
     const DeviceParams& GetDeviceParams() const { return params_; }
 
+    VariantMap& GetDeviceInfo() { return info_; }
+    const VariantMap& GetDeviceInfo() const { return info_; }
+
    private:
     bool connected_;
     DeviceParams params_;
     std::unique_ptr<DataBuffer> buffer_;
+    VariantMap info_;
   };
 
   static const ButtonState kInvalidButtonState = 0;
@@ -407,5 +446,6 @@ class InputManager {
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::InputManager);
+LULLABY_SETUP_TYPEID(lull::InputManager::DeviceType);
 
 #endif  // LULLABY_MODULES_INPUT_INPUT_MANAGER_H_

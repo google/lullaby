@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -119,12 +119,20 @@ table ScissorState {
   enabled: bool = false;
 }
 
+// Corresponds to the state set by glPointSize.
+table PointState {
+  point_sprite_enabled: bool;
+  program_point_size_enabled: bool;
+  point_size: float;
+}
+
 // Corresponds to the GL state tracked by fplbase.
 table RenderState {
   alpha_test_state: AlphaTestState (defaults_to_null);
   blend_state: BlendState (defaults_to_null);
   cull_state: CullState (defaults_to_null);
   depth_state: DepthState (defaults_to_null);
+  point_state: PointState (defaults_to_null);
   scissor_state: ScissorState (defaults_to_null);
   stencil_state: StencilState (defaults_to_null);
   viewport: Rect (defaults_to_null);

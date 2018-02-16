@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_EVENTS_ENTITY_EVENTS_H_
 #define LULLABY_EVENTS_ENTITY_EVENTS_H_
 
-#include "lullaby/modules/ecs/entity.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -163,6 +163,31 @@ struct ChildRemovedEvent {
   Entity child = kNullEntity;
 };
 
+// The entity |child| has been moved from |old_index| to |new_index| within the
+// array of children of |parent|.
+struct ChildIndexChangedEvent {
+  ChildIndexChangedEvent() {}
+  ChildIndexChangedEvent(Entity parent, Entity child, size_t old_index,
+                         size_t new_index)
+      : target(parent),
+        child(child),
+        old_index(old_index),
+        new_index(new_index) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&target, Hash("target"));
+    archive(&child, Hash("child"));
+    archive(&old_index, Hash("old_index"));
+    archive(&new_index, Hash("new_index"));
+  }
+
+  Entity target = kNullEntity;
+  Entity child = kNullEntity;
+  size_t old_index = 0;
+  size_t new_index = 0;
+};
+
 struct AabbChangedEvent {
   AabbChangedEvent() {}
   explicit AabbChangedEvent(Entity entity) : target(entity) {}
@@ -231,6 +256,7 @@ LULLABY_SETUP_TYPEID(lull::AabbChangedEvent);
 LULLABY_SETUP_TYPEID(lull::AddChildEvent);
 LULLABY_SETUP_TYPEID(lull::AddChildPreserveWorldToEntityTransformEvent);
 LULLABY_SETUP_TYPEID(lull::ChildAddedEvent);
+LULLABY_SETUP_TYPEID(lull::ChildIndexChangedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildRemovedEvent);
 LULLABY_SETUP_TYPEID(lull::DisableEvent);
 LULLABY_SETUP_TYPEID(lull::DisableFollowCameraEvent);

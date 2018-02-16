@@ -1,0 +1,15 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// If the mutation needs a reference, use one of these spaces.
+enum MutateSpace: int {
+  /// The entity's current local space, including any lower order mutations.
+  Mutated,
+
+  /// The entity's parent's space, or world space if the entity has no parent.
+  Parent,
+
+  /// World space.
+  World
+}

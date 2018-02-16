@@ -1,0 +1,13 @@
+{
+  "components": [{
+    "def_type": "TransformDef",
+    "def": {
+    }
+  }, {
+    "def_type": "ReticleDef",
+    "def": {
+      "thickness": 0.1,
+      "diameter": 0.3
+    }
+  }]
+}

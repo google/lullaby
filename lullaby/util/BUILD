@@ -12,14 +12,13 @@ cc_library(
     ],
     hdrs = [
         "android_context.h",
-        "scoped_java_local_ref.h",
     ],
     deps = [
-        ":clock",
-        ":dependency_checker",
+        ":jni_util",
         ":logging",
-        ":registry",
-        ":time",
+        ":make_unique",
+        ":scoped_java_exception_guard",
+        ":scoped_java_local_ref",
         ":typeid",
     ],
 )
@@ -38,6 +37,24 @@ cc_library(
     ],
     deps = [
         ":math",
+    ],
+)
+
+cc_library(
+    name = "arg_parser",
+    srcs = [
+        "arg_parser.cc",
+    ],
+    hdrs = [
+        "arg.h",
+        "arg_parser.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":span",
+        "//lullaby/util:hash",
+        "//lullaby/util:logging",
+        "//lullaby/util:string_view",
     ],
 )
 
@@ -109,6 +126,16 @@ cc_library(
 )
 
 cc_library(
+    name = "controller_util",
+    hdrs = [
+        "controller_util.h",
+    ],
+    deps = [
+        ":math",
+    ],
+)
+
+cc_library(
     name = "data_container",
     srcs = [
         "data_container.cc",
@@ -136,6 +163,26 @@ cc_library(
 )
 
 cc_library(
+    name = "entity",
+    hdrs = ["entity.h"],
+)
+
+cc_library(
+    name = "enum_hash",
+    hdrs = ["enum_hash.h"],
+)
+
+cc_library(
+    name = "filename",
+    srcs = [
+        "filename.cc",
+    ],
+    hdrs = [
+        "filename.h",
+    ],
+)
+
+cc_library(
     name = "fixed_string",
     hdrs = ["fixed_string.h"],
     deps = [
@@ -146,17 +193,84 @@ cc_library(
 )
 
 cc_library(
+    name = "flatbuffer_native_types",
+    hdrs = ["flatbuffer_native_types.h"],
+    deps = [
+        ":color",
+        ":math",
+        "@mathfu//:mathfu",
+    ],
+)
+
+cc_library(
+    name = "flatbuffer_reader",
+    hdrs = ["flatbuffer_reader.h"],
+    deps = [
+        ":flatbuffer_native_types",
+        ":logging",
+        ":optional",
+        "@flatbuffers//:flatbuffers",
+    ],
+)
+
+cc_library(
+    name = "flatbuffer_writer",
+    hdrs = ["flatbuffer_writer.h"],
+    deps = [
+        ":flatbuffer_native_types",
+        ":inward_buffer",
+        ":logging",
+        ":optional",
+        "@flatbuffers//:flatbuffers",
+    ],
+)
+
+# Set this flag to enable the Unhash function, which reverses Hash.
+config_setting(
+    name = "lullaby_debug_hash",
+    values = {"define": "lullaby_debug_hash=1"},
+)
+
+cc_library(
     name = "hash",
     srcs = [
         "hash.cc",
     ],
     hdrs = [
         "hash.h",
-    ],
+    ] + select({
+        ":lullaby_debug_hash": ["generated_unhash_table.h"],
+        "//conditions:default": [],
+    }),
+    defines = select({
+        ":lullaby_debug_hash": [
+            "LULLABY_DEBUG_HASH",
+            "LULLABY_GENERATED_UNHASH_TABLE",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         ":string_view",
     ],
 )
+
+# This target is the same as :hash, but sets LULLABY_DEBUG_HASH. It is meant
+# for unit testing. To use LULLABY_DEBUG_HASH for debugging, use this flag:
+# blaze build --define=lullaby_debug_hash=1 ...
+cc_library(
+    name = "debug_hash",
+    srcs = [
+        "hash.cc",
+    ],
+    hdrs = [
+        "hash.h",
+    ],
+    defines = ["LULLABY_DEBUG_HASH"],
+    deps = [
+        ":string_view",
+    ],
+)
+
 
 cc_library(
     name = "interpolation",
@@ -192,6 +306,26 @@ cc_library(
     ],
     hdrs = [
         "inward_buffer.h",
+    ],
+    deps = [
+        ":logging",
+    ],
+)
+
+cc_library(
+    name = "jni_signature",
+    hdrs = [
+        "jni_signature.h",
+    ],
+    deps = [
+        ":fixed_string",
+    ],
+)
+
+cc_library(
+    name = "jni_util",
+    hdrs = [
+        "jni_util.h",
     ],
     deps = [
         ":logging",
@@ -261,6 +395,9 @@ cc_library(
 
 cc_library(
     name = "optional",
+    srcs = [
+        "optional.cc",
+    ],
     hdrs = [
         "optional.h",
     ],
@@ -280,19 +417,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "profiler",
-    srcs = [
-        "profiler.cc",
-    ],
-    hdrs = [
-        "profiler.h",
-    ],
-    deps = [
-        ":logging",
-        ":string_view",
-    ],
-)
 
 cc_library(
     name = "random_number_generator",
@@ -318,6 +442,7 @@ cc_library(
     hdrs = ["resource_manager.h"],
     deps = [
         ":hash",
+        ":make_unique",
     ],
 )
 
@@ -333,13 +458,19 @@ cc_library(
 )
 
 cc_library(
-    name = "scoped_java_local_ref",
+    name = "scoped_java_exception_guard",
     hdrs = [
-        "scoped_java_local_ref.h",
+        "scoped_java_exception_guard.h",
     ],
     deps = [
         ":logging",
-        ":typeid",
+    ],
+)
+
+cc_library(
+    name = "scoped_java_local_ref",
+    hdrs = [
+        "scoped_java_local_ref.h",
     ],
 )
 
@@ -375,6 +506,7 @@ cc_library(
     deps = [
         ":logging",
         ":typeid",
+        "//lullaby/util:entity",
     ],
 )
 

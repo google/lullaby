@@ -151,10 +151,14 @@ void AnimationAsset::GetSplinesAndConstants(
     const motive::CompactSpline** splines, float* constants) const {
   const motive::RigAnim* rig_anim = GetRigAnim(rig_anim_index);
   if (rig_anim != nullptr && ops != nullptr) {
-    const motive::BoneIndex root_bone_index = 0;
-    // Pull splines and constant values from the RigAnim for the root bone.
-    rig_anim->GetSplinesAndConstants(root_bone_index, ops, dimensions, splines,
-                                      constants);
+    if (rig_anim->NumBones() > 0) {
+      const motive::BoneIndex root_bone_index = 0;
+      // Pull splines and constant values from the RigAnim for the root bone.
+      rig_anim->GetSplinesAndConstants(root_bone_index, ops, dimensions, splines,
+                                        constants);
+    } else {
+      LOG(ERROR) << "Rigged animations must contain at least one bone.";
+    }
   } else {
     for (int k = 0; k < dimensions; ++k) {
       // Use the splines in the order that they are listed.

@@ -30,6 +30,7 @@ const HashValue kMapEventsToChildrenHash = Hash("MapEventsToChildrenDef");
 const HashValue kMapEventsToParentHash = Hash("MapEventsToParentDef");
 const HashValue kMapEventsToSiblingsHash = Hash("MapEventsToSiblingsDef");
 const HashValue kMapEventsToGroupHash = Hash("MapEventsToGroupDef");
+const HashValue kMapEventsToDescendantsHash = Hash("MapEventsToDescendantsDef");
 
 }  // namespace
 
@@ -39,6 +40,7 @@ MapEventsSystem::MapEventsSystem(Registry* registry)
   RegisterDef(this, kMapEventsToParentHash);
   RegisterDef(this, kMapEventsToSiblingsHash);
   RegisterDef(this, kMapEventsToGroupHash);
+  RegisterDef(this, kMapEventsToDescendantsHash);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<TransformSystem>(this);
 }
@@ -70,6 +72,10 @@ void MapEventsSystem::Create(Entity entity, HashValue type, const Def* def) {
     }
     response.group_id = Hash(data->group()->c_str());
     groups_[response.group_id].insert(entity);
+  } else if (type == kMapEventsToDescendantsHash) {
+    const auto* data = ConvertDef<MapEventsToDescendantsDef>(def);
+    response.mode = kDescendants;
+    ProcessEventMap(data->events(), &response);
   } else {
     LOG(DFATAL) << "Unsupported ComponentDef type: " << type;
     return;
@@ -143,6 +149,20 @@ void MapEventsSystem::SendEventsToTargets(const ResponseData& response,
           sender(member);
         }
       }
+    }
+  } else if (response.mode == kDescendants) {
+    SendEventsToDescendants(response.entity, sender);
+  }
+}
+
+void MapEventsSystem::SendEventsToDescendants(const Entity& entity,
+                                              const EventSender& sender) const {
+  const auto* transform_system = registry_->Get<TransformSystem>();
+  const std::vector<Entity>* children = transform_system->GetChildren(entity);
+  if (children) {
+    for (const lull::Entity& child : *children) {
+      sender(child);
+      SendEventsToDescendants(child, sender);
     }
   }
 }

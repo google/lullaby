@@ -10,7 +10,7 @@ cc_library(
     srcs = ["map_events_system.cc"],
     hdrs = ["map_events_system.h"],
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/ecs",
         "//lullaby/systems/dispatcher",
         "//lullaby/systems/transform",

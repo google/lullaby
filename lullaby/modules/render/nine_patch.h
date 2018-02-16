@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef LULLABY_MODULES_RENDER_NINE_PATCH_H_
-#define LULLABY_MODULES_RENDER_NINE_PATCH_H_
+#ifndef LULLABY_UTIL_NINE_PATCH_H_
+#define LULLABY_UTIL_NINE_PATCH_H_
 
 #include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/generated/nine_patch_def_generated.h"
 #include "mathfu/constants.h"
 #include "mathfu/glsl_mappings.h"
 
@@ -31,6 +32,8 @@ struct NinePatch {
   float top_slice = 0;
   mathfu::vec2 original_size = mathfu::kZeros2f;
   mathfu::vec2i subdivisions = mathfu::vec2i(1);
+  mathfu::vec2 texture_alt_min = mathfu::kZeros2f;
+  mathfu::vec2 texture_alt_max = mathfu::kOnes2f;
 
   /// Returns the number of vertices that will be generated for this NinePatch.
   int GetVertexCount() const {
@@ -47,9 +50,11 @@ struct NinePatch {
   }
 };
 
+void NinePatchFromDef(const NinePatchDef* def, NinePatch* nine_patch);
+
 /// Computes the |mesh| given the data in |nine_patch|.
 void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh);
 
 }  // namespace lull
 
-#endif  // LULLABY_MODULES_RENDER_NINE_PATCH_H_
+#endif  // LULLABY_UTIL_NINE_PATCH_H_

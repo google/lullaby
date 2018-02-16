@@ -30,6 +30,7 @@ limitations under the License.
 #include "lullaby/systems/render/fpl/shader.h"
 #include "lullaby/systems/render/fpl/texture.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/modules/render/image_data.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -38,6 +39,9 @@ namespace lull {
 // Shaders.
 class RenderFactory {
  public:
+  class ResourceGroupStub;
+  using ResourceGroup = ResourceGroupStub*;
+
   RenderFactory(Registry* registry, fplbase::Renderer* renderer);
 
   RenderFactory(const RenderFactory&) = delete;
@@ -75,12 +79,14 @@ class RenderFactory {
   // Creates and caches a named mesh using the specified data.
   MeshPtr CreateMesh(HashValue key, const MeshData& mesh);
 
+  // Creates a texture from the ImageData.
+  TexturePtr CreateTexture(const ImageData& image, bool create_mips = false);
+
   // Creates a texture from memory.  |data| is copied into GL memory, so it's no
   // longer needed after calling this function.
   TexturePtr CreateTextureFromMemory(const void* data, const mathfu::vec2i size,
                                      fplbase::TextureFormat format,
                                      bool create_mips);
-
 
   // Create and return a pre-processed texture.  This will set up a rendering
   // environment suitable to render |sourcE_texture| with a pre-process shader.
@@ -125,7 +131,24 @@ class RenderFactory {
   // Releases the cached texture associated with |key|.
   void ReleaseTextureFromCache(HashValue key);
 
+  // Creates and attaches a new ResourceGroup.  All resource
+  // allocations from now on will be associated with this group.
+  void PushNewResourceGroup();
+
+  // Removes all the resources associated with a ResourceGroup from the cache.
+  void ReleaseResourceGroup(ResourceGroup group);
+
+  // Detaches a ResourceGroup so new allocations are no longer associated with
+  // that ResourceGroup.
+  ResourceGroup PopResourceGroup();
+
  private:
+  struct ResourceGroupImpl {
+    ResourceManager<Texture>::ResourceGroup texture_group;
+    ResourceManager<Mesh>::ResourceGroup mesh_group;
+    ResourceManager<Shader>::ResourceGroup shader_group;
+  };
+
   Mesh::MeshImplPtr LoadFplMesh(const std::string& name);
   Shader::ShaderImplPtr LoadFplShader(const std::string& name);
   Texture::TextureImplPtr LoadFplTexture(const std::string& name,
@@ -139,6 +162,7 @@ class RenderFactory {
   ResourceManager<Mesh> meshes_;
   ResourceManager<Texture> textures_;
   ResourceManager<Shader> shaders_;
+  std::list<ResourceGroupImpl> detached_resource_groups_;
 
   fplbase::Renderer* fpl_renderer_;
   std::shared_ptr<fplbase::AssetManager> fpl_asset_manager_;

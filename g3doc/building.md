@@ -36,7 +36,7 @@ following information might be useful:
 
 Transitive dependencies include:
 
--   freetype 2.6.1
+-   freetype
 -   gumbo-parser
 -   harfbuzz
 -   libunibreak

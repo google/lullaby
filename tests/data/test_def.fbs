@@ -1,0 +1,15 @@
+namespace lull.testing;
+
+table ValueDef {
+  name: string;
+  value: int;
+}
+
+table IntData {
+  value: int;
+}
+
+table ComplexDef {
+  name: string;
+  data: IntData;
+}

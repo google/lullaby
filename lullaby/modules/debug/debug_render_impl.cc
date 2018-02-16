@@ -17,10 +17,12 @@ limitations under the License.
 #include "lullaby/modules/debug/debug_render_impl.h"
 
 #include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/modules/render/mesh_util.h"
 
 namespace lull {
 
 constexpr const char* kShapeShader = "shaders/vertex_color.fplshader";
+constexpr const char* kTextureShader = "shaders/texture.fplshader";
 constexpr const char* kFontShader = "shaders/texture.fplshader";
 constexpr const char* kFontTexture = "textures/debug_font.webp";
 constexpr float kUVBounds[4] = {0.0f, 0.0f, 1.0f, 1.0f};
@@ -29,6 +31,7 @@ constexpr float kFontSize = 0.12f;
 DebugRenderImpl::DebugRenderImpl(Registry* registry) : registry_(registry) {
   render_system_ = registry_->Get<RenderSystem>();
   shape_shader_ = render_system_->LoadShader(kShapeShader);
+  texture_shader_ = render_system_->LoadShader(kTextureShader);
   font_shader_ = render_system_->LoadShader(kFontShader);
   font_texture_ = render_system_->LoadTexture(kFontTexture);
   font_.reset(new SimpleFont(font_shader_, font_texture_));
@@ -71,12 +74,11 @@ void DebugRenderImpl::DrawText3D(const mathfu::vec3& pos, const Color4ub color,
   const mathfu::vec4 cv = Color4ub::ToVec4(color);
   const float cf[4] = {cv.x, cv.y, cv.z, cv.w};
   for (size_t i = 0; i < num_views_; ++i) {
-    TriangleMesh<VertexPT> mesh;
     render_system_->SetViewport(views_[i]);
     render_system_->SetClipFromModelMatrix(views_[i].clip_from_eye_matrix);
     mathfu::vec3 eye_space_pos =
         views_[i].world_from_eye_matrix.Inverse() * pos;
-    font_->AddStringToMesh(text, &mesh, &eye_space_pos);
+    MeshData mesh = font_->CreateMeshForString(text, eye_space_pos);
     render_system_->BindShader(font_->GetShader());
     render_system_->BindTexture(0, font_->GetTexture());
     render_system_->BindUniform("uv_bounds", kUVBounds, 4);
@@ -97,13 +99,12 @@ void DebugRenderImpl::DrawText2D(const Color4ub color, const char* text) {
   const mathfu::vec4 cv = Color4ub::ToVec4(color);
   const float cf[4] = {cv.x, cv.y, cv.z, cv.w};
   for (size_t i = 0; i < num_views_; ++i) {
-    TriangleMesh<VertexPT> mesh;
     render_system_->SetViewport(views_[i]);
     render_system_->SetClipFromModelMatrix(views_[i].clip_from_eye_matrix);
     mathfu::vec3 eye_space_pos =
         views_[i].world_from_eye_matrix.Inverse() *
         (views_[0].world_from_eye_matrix * start_pos);
-    font_->AddStringToMesh(text, &mesh, &eye_space_pos);
+    MeshData mesh = font_->CreateMeshForString(text, eye_space_pos);
     render_system_->BindShader(font_->GetShader());
     render_system_->BindTexture(0, font_->GetTexture());
     render_system_->BindUniform("uv_bounds", kUVBounds, 4);
@@ -147,6 +148,38 @@ void DebugRenderImpl::DrawBox3D(const mathfu::mat4& world_from_object_matrix,
     render_system_->DrawIndexedPrimitives(MeshData::PrimitiveType::kTriangles,
                                           verts_.data(), verts_.size(), indices,
                                           kNumIndices);
+  }
+}
+
+void DebugRenderImpl::DrawQuad2D(const Color4ub color, float x, float y,
+                                 float w, float h, const TexturePtr& texture) {
+  const int kNumVerts = 2;           // 2x2 verts.
+  const float kCornerRadius = 0.0f;  // No rounded corners.
+  const int kCornerVerts = 0;        // No corner verts.
+  const float z = -1.0f;
+  const float tan_half_fov = 1.0f / views_[0].clip_from_eye_matrix[5];
+  const float w_scale = 2.0f * w * -z * tan_half_fov;
+  const float h_scale = 2.0f * h * -z * tan_half_fov;
+  const mathfu::vec3 offset = mathfu::vec3(x, y, z);
+  const mathfu::vec4 cv = Color4ub::ToVec4(color);
+  const float cf[4] = {cv.x, cv.y, cv.z, cv.w};
+  for (size_t i = 0; i < num_views_; ++i) {
+    render_system_->SetViewport(views_[i]);
+    render_system_->SetClipFromModelMatrix(views_[i].clip_from_eye_matrix);
+    MeshData mesh = CreateQuadMesh<VertexPTN>(w_scale, h_scale,
+                                              kNumVerts, kNumVerts,
+                                              kCornerRadius, kCornerVerts);
+    VertexPTN* vertices = mesh.GetMutableVertexData<VertexPTN>();
+    for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
+      vertices[i].x += offset.x;
+      vertices[i].y += offset.y;
+      vertices[i].z += offset.z;
+    }
+    render_system_->BindShader(texture_shader_);
+    render_system_->BindTexture(0, texture);
+    render_system_->BindUniform("uv_bounds", kUVBounds, 4);
+    render_system_->BindUniform("color", cf, 4);
+    registry_->Get<lull::RenderSystem>()->DrawMesh(mesh);
   }
 }
 

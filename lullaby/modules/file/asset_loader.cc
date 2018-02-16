@@ -16,8 +16,18 @@ limitations under the License.
 
 #include "lullaby/modules/file/asset_loader.h"
 
+#ifdef __ANDROID__
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
+#include <jni.h>
+#endif
+
+#include <fstream>
 #include <limits>
 
+#ifdef __ANDROID__
+#include "lullaby/util/android_context.h"
+#endif
 #include "lullaby/util/logging.h"
 #include "lullaby/util/time.h"
 
@@ -27,20 +37,76 @@ limitations under the License.
 
 namespace lull {
 
+static bool LoadFileDirect(const std::string& filename, std::string* dest) {
+  std::ifstream file(filename, std::ios::binary);
+  if (!file) {
+    LOG(ERROR) << "Failed to open file " << filename;
+    return false;
+  }
+
+  file.seekg(0, std::ios::end);
+  const std::streamoff length = file.tellg();
+  if (length < 0) {
+    LOG(ERROR) << "Failed to get file size for " << filename;
+    return false;
+  }
+
+  dest->resize(static_cast<size_t>(length));
+  file.seekg(0, std::ios::beg);
+  file.read(&(*dest)[0], dest->size());
+  return file.good();
+}
+
+#ifdef __ANDROID__
+
+static bool LoadFileUsingAAssetManager(AAssetManager* android_asset_manager,
+                                       const std::string& filename,
+                                       std::string* dest) {
+  if (!android_asset_manager) {
+    LOG(ERROR) << "Missing AAssetManager.";
+    return false;
+  }
+  AAsset* asset = AAssetManager_open(android_asset_manager, filename.c_str(),
+                                     AASSET_MODE_STREAMING);
+  if (!asset) {
+    LOG(ERROR) << "Failed to open asset " << filename;
+    return false;
+  }
+  const off_t len = AAsset_getLength(asset);
+  dest->resize(static_cast<size_t>(len));
+  const int rlen = AAsset_read(asset, &(*dest)[0], len);
+  AAsset_close(asset);
+  return len == rlen && len > 0;
+}
+
+static bool LoadFileAndroid(Registry* registry, const std::string& filename,
+                            std::string* dest) {
+  AAssetManager* android_asset_manager = nullptr;
+  auto* android_context = registry->Get<AndroidContext>();
+  if (android_context) {
+    android_asset_manager = android_context->GetAndroidAssetManager();
+  }
+  if (android_asset_manager && !filename.empty() && filename[0] != '\\') {
+    return LoadFileUsingAAssetManager(android_asset_manager, filename, dest);
+  } else {
+    return LoadFileDirect(filename, dest);
+  }
+}
+
+#endif  // __ANDROID__
+
 AssetLoader::LoadRequest::LoadRequest(const std::string& filename,
                                       const AssetPtr& asset)
     : asset(asset), filename(filename) {
   asset->SetFilename(filename);
 }
 
-AssetLoader::AssetLoader(LoadFileFn load_fn)
-    : load_fn_(load_fn), pending_requests_(0) {
-  if (!load_fn) {
-    LOG(DFATAL) << "Must provide a load callback.";
-  }
+AssetLoader::AssetLoader(Registry* registry) : registry_(registry) {
+  SetLoadFunction(nullptr);
 }
 
-AssetLoader::~AssetLoader() {
+AssetLoader::AssetLoader(LoadFileFn load_fn) {
+  SetLoadFunction(std::move(load_fn));
 }
 
 void AssetLoader::LoadImpl(const std::string& filename, const AssetPtr& asset,
@@ -119,11 +185,28 @@ void AssetLoader::DoFinalize(LoadRequest* req, LoadMode mode) const {
 }
 
 void AssetLoader::SetLoadFunction(LoadFileFn load_fn) {
-  load_fn_ = load_fn;
+  if (load_fn) {
+    load_fn_ = std::move(load_fn);
+  } else {
+    load_fn_ = GetDefaultLoadFunction();
+  }
 }
 
-const AssetLoader::LoadFileFn AssetLoader::GetLoadFunction() {
+AssetLoader::LoadFileFn AssetLoader::GetLoadFunction() const {
   return load_fn_;
+}
+
+AssetLoader::LoadFileFn AssetLoader::GetDefaultLoadFunction() const {
+#ifdef __ANDROID__
+  Registry* registry = registry_;
+  if (registry) {
+    return [registry](const std::string& filename, std::string* dest) {
+      return LoadFileAndroid(registry, filename, dest);
+    };
+  }
+#endif
+
+  return LoadFileDirect;
 }
 
 void AssetLoader::StartAsyncLoads() { processor_.Start(); }

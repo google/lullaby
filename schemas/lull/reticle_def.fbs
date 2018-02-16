@@ -1,4 +1,4 @@
-include "lull/common.fbs";
+include "lull/lull_common.fbs";
 
 namespace lull;
 
@@ -32,6 +32,7 @@ table ReticleDef {
   /// Opacity of black ring outside of the colored ring.
   mid_ring_opacity: float = 0.22;
 
+  /// OBSOLETE
   ergo_angle_offset: float = -0.26;
 
   /// An ordered list of what input device should drive the reticle.  If the

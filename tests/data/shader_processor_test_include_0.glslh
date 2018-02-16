@@ -1,0 +1,3 @@
+int IncludedFoo_0(int x, int y) {
+  return x + y;
+}

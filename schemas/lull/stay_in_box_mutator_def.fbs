@@ -1,0 +1,32 @@
+include "lull/lull_common.fbs";
+include "lull/mutator_def.fbs";
+
+namespace lull;
+
+/// A mutator which will constrain an sqt's position to stay within a certain
+/// box.
+table StayInBoxMutatorDef {
+  /// The order to apply this mutation in.  Mutations that are in the same group
+  /// will be applied from lowest to highest.
+  order: int = 0;
+
+  /// Hash of the name of the group of mutations this is associated with.
+  group: uint = 0 (hashvalue);
+
+  /// What space the box is defined in.  Supports Parent, and World spaces.
+  space: MutateSpace = Parent;
+
+  /// The input Sqt's position will be constrained to fit within this box.
+  box: AabbDef;
+
+  /// A way to achieve 'springy' boundaries similar to modern mobile scrolling.
+  /// If an sqt's position is outside of |box|, it will stay outside of the box
+  /// but within the buffer region specified by |stretch|.  The final position
+  /// is calculated as:
+  ///   (box.max + stretch.max) - (stretch.max / (1 + dist_past_max))
+  ///
+  /// These values are offsets from |box|.  Values in the |min| vector should be
+  /// negative. Set values to 0 to disable stretching.
+  stretch: AabbDef
+      (native_default:"{{-0.2f, -0.2f, -0.2f}, {0.2f, 0.2f, 0.2f}}");
+}

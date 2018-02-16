@@ -27,6 +27,7 @@ limitations under the License.
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/systems/text/text_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/math.h"
@@ -127,8 +128,12 @@ void TextInputSystem::Create(Entity e, HashValue type, const Def* def) {
     if (!input || input->text.empty()) {
       return;
     }
+    auto* text_system = registry_->Get<TextSystem>();
+    if (!text_system) {
+      return;
+    }
     const std::vector<mathfu::vec3>* positions =
-        registry_->Get<RenderSystem>()->GetCaretPositions(event.target);
+        text_system->GetCaretPositions(event.target);
     const size_t caret_index_from_position =
         GetCaretIndexFromPosition(positions, event.location);
     SetCaretIndex(event.target, caret_index_from_position);
@@ -206,18 +211,19 @@ void TextInputSystem::AdvanceFrame(const Clock::duration& delta_time) {
   }
 
   auto keys = input_manager->GetPressedKeys(InputManager::kKeyboard);
+  bool text_changed = false;
   for (const std::string& key : keys) {
     if (key == InputManager::kKeyBackspace) {
-      input->text.Backspace();
+      text_changed = input->text.Backspace();
     } else if (key == InputManager::kKeyReturn) {
       input->text.ClearComposingRegion();
       AcceptText(active_input_);
     } else {
-      input->text.Insert(key);
+      text_changed = input->text.Insert(key);
     }
   }
 
-  if (!keys.empty()) {
+  if (!keys.empty() && text_changed) {
     UpdateText(active_input_);
   }
 
@@ -322,6 +328,38 @@ void TextInputSystem::SetCaretPosition(size_t index) {
   SetCaretIndex(active_input_, index);
 }
 
+void TextInputSystem::GetSelectionIndices(Entity e, size_t* start_index,
+                                          size_t* end_index) const {
+  const TextInput* input = inputs_.Get(e);
+  if (!input) {
+    return;
+  }
+
+  input->text.GetSelectionRegion(start_index, end_index);
+}
+
+void TextInputSystem::GetSelectionIndices(size_t* start_index,
+                                          size_t* end_index) const {
+  GetSelectionIndices(active_input_, start_index, end_index);
+}
+
+void TextInputSystem::SetSelectionIndices(Entity e, size_t start_index,
+                                          size_t end_index) {
+  TextInput* input = inputs_.Get(e);
+  if (!input) {
+    return;
+  }
+
+  input->text.SetSelectionRegion(start_index, end_index);
+
+  // TODO(b/72647070): Update selection indicator
+}
+
+void TextInputSystem::SetSelectionIndices(size_t start_index,
+                                          size_t end_index) {
+  SetSelectionIndices(active_input_, start_index, end_index);
+}
+
 void TextInputSystem::GetComposingIndices(Entity e, size_t* start_index,
                                           size_t* end_index) const {
   const TextInput* input = inputs_.Get(e);
@@ -354,6 +392,23 @@ void TextInputSystem::SetComposingIndices(size_t start_index,
   SetComposingIndices(active_input_, start_index, end_index);
 }
 
+void TextInputSystem::SetComposingText(const std::string& text) {
+  TextInput* input = inputs_.Get(active_input_);
+  if (!input) {
+    return;
+  }
+  input->text.SetComposingText(text);
+  UpdateText(active_input_);
+}
+
+bool TextInputSystem::HasCompositionRegion() {
+  TextInput* input = inputs_.Get(active_input_);
+  if (!input) {
+    return false;
+  }
+  return input->text.HasComposingRegion();
+}
+
 void TextInputSystem::ClearComposingRegion(Entity e) {
   SetComposingIndices(e, 0, 0);
 }
@@ -372,6 +427,11 @@ void TextInputSystem::UpdateComposingIndicator(Entity e) {
     return;
   }
 
+  auto* text_system = registry_->Get<TextSystem>();
+  if (!text_system) {
+    return;
+  }
+
   auto* transform_system = registry_->Get<TransformSystem>();
 
   size_t start_index, end_index;
@@ -385,9 +445,9 @@ void TextInputSystem::UpdateComposingIndicator(Entity e) {
     // including the cursor rendering and click handling.
     auto composing_mesh_fn = [this, e, input, start_index,
                               end_index](MeshData* mesh) {
-      auto* render_system = registry_->Get<RenderSystem>();
+      auto* text_system = registry_->Get<TextSystem>();
       const std::vector<mathfu::vec3>* caret_positions =
-          render_system->GetCaretPositions(e);
+          text_system->GetCaretPositions(e);
 
       if (!caret_positions) {
         return;
@@ -459,19 +519,24 @@ void TextInputSystem::UpdateText(Entity e) {
     }
   }
 
+  auto* text_system = registry_->Get<TextSystem>();
+  if (!text_system) {
+    return;
+  }
+
   auto render_system = registry_->Get<RenderSystem>();
+
   // Show hint if the text is empty.
   if (input->text.empty()) {
-    render_system->SetText(e, input->hint);
+    text_system->SetText(e, input->hint);
     render_system->SetColor(e, input->hint_color);
   } else {
     auto* const string_preprocessor = registry_->Get<StringPreprocessor>();
     if (string_preprocessor) {
-      render_system->SetText(
-          e,
-          StringPreprocessor::kLiteralStringPrefixString + input->text.str());
+      text_system->SetText(e, StringPreprocessor::kLiteralStringPrefixString +
+                                  input->text.str());
     } else {
-      render_system->SetText(e, input->text.str());
+      text_system->SetText(e, input->text.str());
     }
     render_system->SetColor(e, render_system->GetDefaultColor(e));
   }
@@ -492,15 +557,19 @@ void TextInputSystem::UpdateCaret(Entity e) {
     return;
   }
 
+  auto* text_system = registry_->Get<TextSystem>();
+  if (!text_system) {
+    return;
+  }
+
   auto transform_system = registry_->Get<TransformSystem>();
   if (e != active_input_) {
     transform_system->Disable(input->caret_entity);
     return;
   }
 
-  auto* render_system = registry_->Get<RenderSystem>();
   const std::vector<mathfu::vec3>* caret_positions =
-      render_system->GetCaretPositions(e);
+      text_system->GetCaretPositions(e);
   if (!caret_positions || caret_positions->empty() ||
       input->text.GetCaretPosition() >= caret_positions->size() ||
       input->caret_entity == kNullEntity) {

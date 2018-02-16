@@ -1,0 +1,180 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+/// Button template for reference purposes only.
+
+/// Defines a button background entity, which is usually a visible quad behind
+/// button's foreground.
+table ButtonBackgroundDef {
+  /// Optional. Which render pass this entity belongs to (and by extension,
+  /// its render state).
+  pass: RenderPass = Main;
+
+  /// Optional. A [QuadDef](#quaddef) defines the mesh for the entity based on
+  /// a simple quadrilateral.
+  quad: QuadDef;
+
+  /// Optional. An fpl shader used to render the entity. Default shader is
+  /// "shaders/texture.fplshader" if texture is defined, otherwise its
+  /// "shaders/color.fplshader".
+  shader: string;
+
+  /// Optional. The bitmap to use as a texture for the entity (supported
+  /// formats: WEBP, PNG, TGA).
+  texture: string;
+
+  /// Optional. An rgba color associated with the entity. Can be specified
+  /// either as a 4-component map of RGBA values ranging from 0.0 to 1.0 or as
+  /// a hexadecimal string (eg. "#336699FF"). Default color is white(1,1,1,1).
+  color: Color;
+  /// "xxxxxx" or "xxxxxxxx" with optional "#" prefix
+  color_hex: string;
+
+  /// Optional. If set to true, the Entity will be interactive (ie. you can
+  /// click on the entity with the reticle).
+  interactive: bool = true;
+}
+
+/// Defines a button shadow entity, which renders behind entire button
+/// and is given a "fake" shadow texture.
+table ButtonShadowDef {
+  /// Optional. Shadow uses the same size as button background. This value
+  /// specifies the additional margin to add to the shadow size on each side.
+  margin: Vec2;
+
+  /// Optional. Number of mesh vertices to generate in the x direction.
+  /// Default is ButtonBackgroundDef quad value.
+  verts_x: int;
+
+  /// Optional. Number of mesh vertices to generate in the y direction.
+  /// Default is ButtonBackgroundDef quad value.
+  verts_y: int;
+
+  /// Optional. Whether to add texture coordinates to the mesh.
+  /// Default is ButtonBackgroundDef quad value.
+  has_uv: bool;
+
+  /// Optional. Radius of rounded corners to create on the mesh.
+  /// Default is ButtonBackgroundDef quad value.
+  corner_radius: float;
+
+  /// Optional. Number of vertices in the triangle fan created at corners to
+  /// produce the corner radius (default = 0).
+  /// Default is ButtonBackgroundDef quad value.
+  corner_verts: int;
+
+  /// Optional. An fpl shader used to render the entity. Default shader is
+  /// "shaders/texture.fplshader" if texture is defined, otherwise its
+  /// "shaders/color.fplshader".
+  shader: string;
+
+  /// Optional. The bitmap to use as a texture for the entity (supported
+  /// formats: WEBP, PNG, TGA).
+  texture: string;
+
+  /// Optional. An rgba color associated with the entity. Can be specified
+  /// either as a 4-component map of RGBA values ranging from 0.0 to 1.0 or as
+  /// a hexadecimal string (eg. "#336699FF"). Default color is white(1,1,1,1).
+  color: Color;
+  /// "xxxxxx" or "xxxxxxxx" with optional "#" prefix
+  color_hex: string;
+}
+
+/// Defines a button text entity. Will display given text on top of button.
+table ButtonTextDef {
+  /// Optional. An fpl shader used to render the entity. Default shader is
+  /// "shaders/sdf_glyph_aa.fplshader".
+  shader: string;
+
+  /// Optional. An rgba color associated with the entity. Can be specified
+  /// either as a 4-component map of RGBA values ranging from 0.0 to 1.0 or as
+  /// a hexadecimal string (eg. "#336699FF"). Default color is white(1,1,1,1).
+  color: Color;
+  /// "xxxxxx" or "xxxxxxxx" with optional "#" prefix
+  color_hex: string;
+
+  /// Optional. The unprocessed text string. If a StringProcessor exists in
+  /// the app, the result of ProcessString(text) will be rendered.
+  /// Otherwise, |text| will be rendered.
+  text: string;
+
+  /// Required. A list of fonts to use. Each font should contain suffix as
+  /// well, such as ".ttf". For flatui, fonts are selected with a fallback
+  /// priority, and ".SystemFont" can be used to refer to system font. For
+  /// Ion backend, the first font in the list will be always used and the
+  /// rest are simply ignored.
+  fonts: [string];
+
+  /// Required. The font size, measured in meters from the top to bottom of
+  /// each line (including any ascenders/descenders and leading).
+  /// The height of the text bounding box is this value multiplied by the
+  /// number of lines multiplied by line_height_scale.
+  font_size: float;
+
+  /// Optional. The spacing between lines as a function of the font size.
+  line_height_scale: float = 1.2;
+
+  /// Optional. How to align the text in the x direction (default = Center,
+  /// can also be Left or Right).
+  horizontal_alignment: HorizontalAlignment = Center;
+
+  /// Optional. How to align the text in the y direction (default = Baseline,
+  /// can also be Top, Center, or Bottom).
+  vertical_alignment: VerticalAlignment = Baseline;
+
+  /// Optional. How text should be displayed (default = UseSystemSetting,
+  /// can also be LeftToRight and RightToLeft).
+  direction: TextDirection = UseSystemSetting;
+
+  /// Optional. Rectangle area to render the text. If both are zeros,
+  /// text will be rendered in a single line. If height is zero, text will be
+  /// rendered in multiple lines if it doesn't fit into a single line.
+  /// Since Ion doesn't support text layout, text will always be rendered in
+  /// single line in Ion. Values are measured in meters.
+  bounds: Vec2;
+
+  /// Optional. If not None, sets the aabb bounds to the bounds of the text
+  /// content. Otherwise, sets it to bounds.x or bounds.y if non-zero.
+  /// Note: This applies to flatui rendering only.
+  wrap_mode: TextWrapMode = None;
+
+  /// Optional. The string used as an ellipsis. Setting this to a nonempty
+  /// string enables text truncation. The specified ellipsis will be appended
+  /// to the truncated text.
+  ellipsis: string;
+
+  /// Optional. Glyph edge softness: [0,1] where 0 = hard edges, 1 = opaque @
+  /// glyph center.
+  edge_softness: float = 0.3;
+
+  /// Optional. A float value specifying a scale applied to the kerning value
+  /// between glyphs. This applies to flatui rendering only.
+  kerning_scale: float = 1.0;
+}
+
+/// Defines a button entity that consists of the following hierarchy:
+///               button_root
+/// button_shadow             button_bg
+///                           button_fg
+///                           button_text
+table ButtonTemplateDef {
+  /// Optional. The position of the button.
+  position: Vec3;
+
+  /// Optional. The rotation of the button as Euler angles (provided in
+  /// degrees).
+  rotation: Vec3 = {x: 0.0, y: 0.0, z: 0.0};
+
+  /// Optional. The scale of the button.
+  scale: Vec3 = {x: 0.0, y: 0.0, z: 0.0};
+
+  /// Required. Background part of the button defined by a separate entity.
+  background: ButtonBackgroundDef,
+
+  /// Optional. Text part of the button defined by a separate entity.
+  text: ButtonTextDef,
+
+  /// Optional. Shadow part of the button defined by a separate entity.
+  shadow: ButtonShadowDef
+}
+

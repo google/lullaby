@@ -8,6 +8,7 @@ licenses(["notice"])  # Apache 2.0
 public_headers = [
     "html_tags.h",
     "text_system.h",
+    "detail/util.h",
 ]
 
 # 'text_system' is the target for the API.  Use this for other systems that
@@ -19,7 +20,7 @@ cc_library(
     ],
     hdrs = public_headers,
     deps = [
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/modules/ecs",
         "//lullaby/modules/script",
         "//lullaby/util:math",
@@ -36,25 +37,24 @@ cc_library(
         "flatui/flatui_text_system.cc",
         "flatui/font.cc",
         "flatui/text_buffer.cc",
+        "flatui/text_task.cc",
     ],
     hdrs = public_headers + [
         "flatui/flatui_text_system.h",
         "flatui/font.h",
         "flatui/text_buffer.h",
         "flatui/text_component.h",
-        "detail/util.h",
+        "flatui/text_task.h",
     ],
     defines = ["LULLABY_TEXT_BACKEND_FLATUI"],
     deps = [
         ":text",
         "@flatui//:flatui",
         "@fplbase//:fplbase",
-        "//lullaby/generated",
+        "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
-        "//lullaby/modules/ecs:entity",
-        "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/render",
         "//lullaby/systems/deform",
@@ -62,15 +62,20 @@ cc_library(
         "//lullaby/systems/layout:layout_box",
         "//lullaby/systems/render",
         "//lullaby/systems/transform",
+        "//lullaby/util:android_context",
         "//lullaby/util:async_processor",
+        "//lullaby/util:entity",
+        "//lullaby/util:filename",
         "//lullaby/util:logging",
         "//lullaby/util:math",
+        "//lullaby/util:optional",
         "//lullaby/util:string_preprocessor",
         "//lullaby/util:trace",
         "//lullaby/util:typeid",
         "@mathfu//:mathfu",
     ],
 )
+
 
 # The GMock implementation.
 cc_library(
@@ -81,7 +86,25 @@ cc_library(
     ],
     deps = [
         ":text",
-        "//lullaby/generated",
+        "//:fbs",
+        "//lullaby/util:math",
+        "@mathfu//:mathfu",
+    ],
+)
+
+cc_library(
+    name = "stub",
+    testonly = 1,
+    srcs = [
+        "testing/stub_text_system.cc",
+    ],
+    hdrs = public_headers + [
+        "testing/stub_text_system.h",
+    ],
+    deps = [
+        ":text",
+        "//:fbs",
+        "//lullaby/modules/ecs",
         "//lullaby/util:math",
         "@mathfu//:mathfu",
     ],

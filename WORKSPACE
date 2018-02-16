@@ -1,8 +1,8 @@
-new_git_repository(
+new_http_archive(
   name = "bullet",
-  remote = "https://github.com/bulletphysics/bullet3",
+  urls = ["https://github.com/bulletphysics/bullet3/archive/0e893d4c56ba.tar.gz"],
   build_file = "third_party/BUILD.bullet",
-  commit = "0e893d4",
+  strip_prefix = "bullet3-0e893d4c56ba16039a103764bd7c815a8417572e",
 )
 
 new_http_archive(
@@ -12,25 +12,25 @@ new_http_archive(
   strip_prefix = "flatbuffers-9de08611041111f2c200185b8a2e51cc7a9c747e",
 )
 
-new_git_repository(
+new_http_archive(
   name = "flatui",
-  remote = "https://github.com/google/flatui.git",
+  urls = ["https://github.com/google/flatui/archive/2e363fa18228.tar.gz"],
   build_file = "third_party/BUILD.flatui",
-  commit = "2e363fa18228664a06d8279ab07e514f3a3f51af",
+  strip_prefix = "flatui-2e363fa18228664a06d8279ab07e514f3a3f51af",
 )
 
-new_git_repository(
+new_http_archive(
   name = "fplbase",
-  remote = "https://github.com/google/fplbase.git",
+  urls = ["https://github.com/google/fplbase/archive/79d701a85e21.tar.gz"],
   build_file = "third_party/BUILD.fplbase",
-  commit = "79d701a85e21eb77f3572cd06705c6994f52c1a1",
+  strip_prefix = "fplbase-79d701a85e21eb77f3572cd06705c6994f52c1a1",
 )
 
-new_git_repository(
+new_http_archive(
   name = "fplutil",
-  remote = "https://github.com/google/fplutil.git",
+  urls = ["https://github.com/google/fplutil/archive/719d059f4c46.tar.gz"],
   build_file = "third_party/BUILD.fplutil",
-  commit = "719d059",
+  strip_prefix = "fplutil-719d059f4c46870c0465a2c582ee7692c2695174",
 )
 
 new_http_archive(
@@ -45,11 +45,11 @@ http_archive(
    strip_prefix = "googletest-master",
 )
 
-new_git_repository(
+new_http_archive(
   name = "gumbo",
-  remote = "https://github.com/google/gumbo-parser.git",
+  urls = ["https://github.com/google/gumbo-parser/archive/aa91b27b02c0.tar.gz"],
   build_file = "third_party/BUILD.gumbo",
-  commit = "aa91b27",
+  strip_prefix = "gumbo-parser-aa91b27b02c0c80c482e24348a457ed7c3c088e0",
 )
 
 new_http_archive(
@@ -59,11 +59,11 @@ new_http_archive(
   strip_prefix = "gvr-android-sdk-3bd22d73c3d68b760b99957bb557c8ab6b1755b3",
 )
 
-new_git_repository(
+new_http_archive(
   name = "harfbuzz",
-  remote = "https://github.com/behdad/harfbuzz.git",
+  urls = ["https://github.com/behdad/harfbuzz/archive/60e2586f7652.tar.gz"],
   build_file = "third_party/BUILD.harfbuzz",
-  commit = "60e2586",
+  strip_prefix = "harfbuzz-60e2586f7652aaa0ee908eb8f54b1498e2ad299e",
 )
 
 new_http_archive(
@@ -80,11 +80,11 @@ new_http_archive(
   strip_prefix = "libunibreak-0e8e32dcd0d8f9d2744026bef591b16af1ddd0ff",
 )
 
-new_git_repository(
+new_http_archive(
   name = "libwebp",
-  remote = "https://github.com/webmproject/libwebp.git",
+  urls = ["https://github.com/webmproject/libwebp/archive/fb3daad.tar.gz"],
   build_file = "third_party/BUILD.libwebp",
-  commit = "fb3daad",
+  strip_prefix = "libwebp-fb3daad604ffbd807bf33dec93df9dbc728d1cbd",
 )
 
 new_http_archive(
@@ -94,11 +94,11 @@ new_http_archive(
   strip_prefix = "mathfu-87e6a3bbc2d2d1c0f71b301804c18efc7174a702",
 )
 
-new_git_repository(
+new_http_archive(
   name = "motive",
-  remote = "https://github.com/google/motive.git",
+  urls = ["https://github.com/google/motive/archive/42b3a383788c.tar.gz"],
   build_file = "third_party/BUILD.motive",
-  commit = "42b3a383788c1112f0795aa470a87be71a1a9779",
+  strip_prefix = "motive-42b3a383788c1112f0795aa470a87be71a1a9779",
 )
 
 new_http_archive(

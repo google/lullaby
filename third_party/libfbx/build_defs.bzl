@@ -1,3 +1,4 @@
+FBX_BUILD_FILE_CONTENTS = """
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -21,3 +22,4 @@ cc_library(
         "-pthread",
     ]
 )
+"""

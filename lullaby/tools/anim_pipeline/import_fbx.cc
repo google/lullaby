@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include <fbxsdk.h>
+#include <unordered_map>
 #include "lullaby/util/logging.h"
 #include "lullaby/tools/anim_pipeline/animation.h"
 #include "lullaby/tools/common/fbx_utils.h"

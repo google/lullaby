@@ -65,11 +65,38 @@ enum ShaderStageType : ushort {
   Fragment,
 }
 
+/// Types of programmable shader stages.
+enum ShaderLanguage : ushort {
+  /// GL Shading Language Compatible across GLSL and GLSL_ES. Version mapping
+  /// attempts to keep OpenGL ES and OpenGL Core compatible and uses OpenGL ES
+  /// as the base for versioning.
+  /// Sample mapping: 100 = [100 GLES, 110 GL], 300 = [300 GLES, 330 GL].
+  GL_Compat,
+  /// OpenGL Shading Language. Versions map directly to the GLSL versions.
+  GLSL,
+  /// OpenGL ES Shading Language. Versions map directly to GLSL ES versions.
+  GLSL_ES,
+}
+
+table ShaderSnippetVersionDef {
+  /// Shader language defined for the snippet.
+  lang: ShaderLanguage;
+  /// Minimum shading language version supported.
+  /// [0 = no minimum version].
+  min_version: int;
+  /// Maximum shading language version supported.
+  /// [0 = no maximum version].
+  max_version: int;
+}
+
 /// Snippet containing shader source code or reference to a file containing the
 /// source code.
 table ShaderSnippetDef {
   // Name identifier for this snippet. This is mostly for debug purposes.
   name: string;
+
+  // Shading language versions supported by this shader snippet.
+  versions: [ShaderSnippetVersionDef];
 
   /// Features implemented by this snippet.
   features: [uint] (hashvalue);
@@ -78,6 +105,8 @@ table ShaderSnippetDef {
 
   /// Uniforms used by this snippet's shader code.
   uniforms: [ShaderUniformDef];
+  /// Samplers used by this snippet's shader code.
+  samplers: [ShaderSamplerDef];
   /// Input data received by the snippet in the form of attributes or varying.
   inputs: [ShaderAttributeDef];
   /// Output data sent by the snippet in the form of attributes or varying.
@@ -87,9 +116,6 @@ table ShaderSnippetDef {
   code: string;
   /// Shader main() function implementation code for this snippet.
   main_code: string;
-
-  /// Samplers used by this snippet's shader code.
-  samplers: [ShaderSamplerDef];
 }
 
 /// A shader stage and associated snippets.

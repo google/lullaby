@@ -348,7 +348,7 @@ void PrintSnippetsNames(string_view prefix_string,
 }  // namespace
 
 ShaderData::ShaderData(const ShaderDefT& def) {
-  const ShaderCreateParams params;
+  const ShaderCreateParams params{};
   BuildFromShaderDefT(def, params);
 }
 

@@ -23,9 +23,9 @@
     "def": {
       "shader": "shaders/text.fplshader",
       "color": {
-        "r": 1.0,
-        "g": 1.0,
-        "b": 1.0,
+        "r": 0.0,
+        "g": 0.5,
+        "b": 0.0,
         "a": 1.0
       }
     }
@@ -35,8 +35,12 @@
       "fonts": [
         "Roboto-Regular.ttf"
       ],
-      "text": "Hello World!",
-      "font_size": 0.2,
+      "text": "Hello World!\nThis is a Lullaby example.",
+      "font_size": 0.5,
+      "bounds": {
+        "x": 10.0,
+        "y": 0.0,
+      },
       "vertical_alignment": "Center"
     }
   }]

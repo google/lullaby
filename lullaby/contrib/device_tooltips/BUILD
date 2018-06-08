@@ -21,6 +21,7 @@ cc_library(
         "//lullaby/systems/text",
         "//lullaby/systems/transform",
         "//lullaby/util:entity",
+        "//lullaby/util:enum_hash",
         "//lullaby/util:registry",
     ],
 )

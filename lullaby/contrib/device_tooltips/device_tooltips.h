@@ -22,6 +22,7 @@ limitations under the License.
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/entity.h"
+#include "lullaby/util/enum_hash.h"
 #include "lullaby/util/registry.h"
 
 namespace lull {
@@ -83,7 +84,7 @@ class DeviceTooltips {
 
   std::unordered_map<DeviceButtonPair, Tooltip, DeviceButtonPairHash> tooltips_;
 
-  std::unordered_map<InputManager::DeviceType, Entity> devices_;
+  std::unordered_map<InputManager::DeviceType, Entity, EnumHash> devices_;
 
   Dispatcher::ScopedConnection device_connnected_connection_;
   Dispatcher::ScopedConnection show_tooltip_connection_;

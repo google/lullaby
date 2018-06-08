@@ -53,7 +53,7 @@ cc_library(
     copts = ["-Wno-null-dereference"],
     deps = [
         ":model_lib",
-        "//third_party/libfbx:libfbx",
+        "@libfbx//:libfbx",
         "//:fbs",
         "//lullaby/util:common_types",
         "//lullaby/tools/common:fbx_utils",

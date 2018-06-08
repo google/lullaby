@@ -175,7 +175,8 @@ NextRenderer::NextRenderer() {
   }
 
   // Check for ASTC.
-#if defined(GL_COMPRESSED_RGBA_ASTC_4x4_KHR)
+#if defined(GL_COMPRESSED_RGBA_ASTC_4x4_KHR) and \
+    defined(GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
   // If we have the ASTC type enums defined, check using them.
   gContextCapabilities.supports_astc_textures = true;
 

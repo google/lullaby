@@ -211,6 +211,7 @@ cc_library(
         "//lullaby/util:flatbuffer_reader",
         "//lullaby/util:async_processor",
         "//lullaby/util:buffered_data",
+        "//lullaby/util:enum_hash",
         "//lullaby/util:filename",
         "//lullaby/util:fixed_string",
         "//lullaby/util:resource_manager",
@@ -227,7 +228,6 @@ cc_library(
     name = "render_system_mock",
     testonly = 1,
     srcs = [
-        "detail/port/default/gpu_profiler.cc",
         "testing/mock_render_system_impl.cc",
     ],
     hdrs = [
@@ -323,6 +323,27 @@ cc_library(
     ] + select({
         "//conditions:default": [],
     }),
+)
+
+# Test-only target that doesn't include any GL.
+cc_library(
+    name = "profiler_no_gl",
+    testonly = 1,
+    srcs = [
+        "detail/port/default/gpu_profiler.cc",
+        "detail/profiler.cc",
+    ],
+    hdrs = [
+        "detail/gpu_profiler.h",
+        "detail/profiler.h",
+    ],
+    deps = [
+        ":render",
+        "//lullaby/util:clock",
+        "//lullaby/util:logging",
+        "//lullaby/util:time",
+        "//lullaby/util:typeid",
+    ],
 )
 
 cc_library(

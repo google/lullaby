@@ -30,6 +30,7 @@ namespace lull {
 namespace tool {
 
 namespace {
+static constexpr int kUnspecifiedVersion = 0;
 static constexpr HashValue kAttributeHashPosition = ConstHash("ATTR_POSITION");
 static constexpr HashValue kAttributeHashUV = ConstHash("ATTR_UV");
 static constexpr HashValue kAttributeHashColor = ConstHash("ATTR_COLOR");
@@ -57,6 +58,21 @@ void AddUnique(ValueType value, rapidjson::Value* array,
     }
   }
   array->PushBack(value, document->GetAllocator());
+}
+
+// Helper function that ensures there is a version in the snippet.
+void CheckForVersion(rapidjson::Value* snippet, rapidjson::Document* document) {
+  if (!snippet || !document) {
+    return;
+  }
+
+  if (!snippet->HasMember("versions")) {
+    rapidjson::Value versions(rapidjson::kArrayType);
+    rapidjson::Value version(rapidjson::kObjectType);
+    version.AddMember("lang", "GL_Compat", document->GetAllocator());
+    versions.PushBack(version, document->GetAllocator());
+    snippet->AddMember("versions", versions, document->GetAllocator());
+  }
 }
 
 // Helper function to create the environment flags of a snippet.
@@ -360,6 +376,7 @@ bool AddSnippetsFromJson(const std::string& json_string,
   for (rapidjson::Value::ValueIterator iter = snippets.Begin();
        iter != snippets.End(); ++iter) {
     rapidjson::Value* snippet = &*iter;
+    CheckForVersion(snippet, &json);
     CreateSnippetEnvironmentFlags(snippet, &json);
     ValidateAndProcessUniforms(snippet, &json);
     ProcessSnippetCodeSection("code", snippet, &json);

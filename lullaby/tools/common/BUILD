@@ -15,7 +15,7 @@ cc_library(
         "fbx_utils.h",
     ],
     deps = [
-        "//third_party/libfbx:libfbx",
+        "@libfbx//:libfbx",
         "//:fbs",
     ],
 )

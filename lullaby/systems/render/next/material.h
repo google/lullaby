@@ -25,6 +25,7 @@ limitations under the License.
 #include "lullaby/systems/render/next/uniform.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
+#include "lullaby/util/enum_hash.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/variant.h"
@@ -117,7 +118,7 @@ class Material {
   std::vector<Uniform> uniforms_;
   std::vector<TexturePtr> textures_;
   std::unordered_map<HashValue, size_t> uniform_index_map_;
-  std::unordered_map<MaterialTextureUsage, size_t> sampler_index_map_;
+  std::unordered_map<MaterialTextureUsage, size_t, EnumHash> sampler_index_map_;
 
   // Render State.
   Optional<BlendStateT> blend_state_;

@@ -24,7 +24,7 @@ cc_library(
     ],
     deps = [
         ":animation_lib",
-        "@libfbx//:2016_1_2",
+        "@libfbx//:libfbx",
         "//lullaby/util:logging",
         "//lullaby/tools/common:fbx_utils",
     ],

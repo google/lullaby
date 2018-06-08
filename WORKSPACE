@@ -1,3 +1,6 @@
+load("//dev:custom_rules.bzl", "local_repository_env")
+load("//third_party/libfbx:build_defs.bzl", "FBX_BUILD_FILE_CONTENTS")
+
 new_http_archive(
   name = "absl",
   urls = ["https://github.com/abseil/abseil-cpp/archive/7aacab8ae05d.tar.gz"],
@@ -98,6 +101,12 @@ new_http_archive(
   urls = ["https://github.com/KhronosGroup/KTX-Software/archive/0e6b5c7c2181.tar.gz"],
   build_file = "third_party/BUILD.ktx",
   strip_prefix = "KTX-Software-0e6b5c7c21818044da33da5f39534ea268fed181",
+)
+
+local_repository_env(
+  name = "libfbx",
+  env = "FBX_SDK_ROOT",
+  build_file = FBX_BUILD_FILE_CONTENTS,
 )
 
 new_http_archive(

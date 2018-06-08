@@ -1178,6 +1178,14 @@ void RenderSystemFpl::SetClearColor(float r, float g, float b, float a) {
   clear_color_ = mathfu::vec4(r, g, b, a);
 }
 
+void RenderSystemFpl::SetClearParams(HashValue pass,
+                                     const ClearParams& clear_params) {
+  if (CheckBit(clear_params.clear_options, RenderClearParams::kColor)) {
+    SetClearColor(clear_params.color_value.x, clear_params.color_value.y,
+                  clear_params.color_value.z, clear_params.color_value.w);
+  }
+}
+
 void RenderSystemFpl::BeginFrame() {
   LULLABY_CPU_TRACE_CALL();
   GL_CALL(glClearColor(clear_color_.x, clear_color_.y, clear_color_.z,
@@ -1823,11 +1831,6 @@ void RenderSystemFpl::SetTextureId(Entity /*e*/, HashValue pass, int unit,
 }
 void RenderSystemFpl::SetSortOrderOffset(Entity /*e*/, HashValue pass,
                                          SortOrderOffset offset) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-}
-
-void RenderSystemFpl::SetClearParams(HashValue pass,
-                                     const ClearParams& clear_params) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 

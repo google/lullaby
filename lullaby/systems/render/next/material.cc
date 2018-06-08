@@ -237,8 +237,8 @@ void Material::Bind(int max_texture_units) {
 }
 
 void Material::CopyUniforms(const Material& rhs) {
-  for (auto& iter : uniform_index_map_) {
-    Uniform& uniform = uniforms_[iter.second];
+  for (const auto& iter : rhs.uniform_index_map_) {
+    const Uniform& uniform = rhs.uniforms_[iter.second];
     const uint8_t* bytes = uniform.data.GetData<uint8_t>();
     const size_t size = uniform.data.Size();
     SetUniform(iter.first, uniform.data.Type(), {bytes, size});

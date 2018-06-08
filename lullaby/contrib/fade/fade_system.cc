@@ -31,7 +31,7 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kFadeResponseHash = Hash("FadeDef");
+const HashValue kFadeResponseHash = ConstHash("FadeDef");
 const Clock::duration kDefaultFadeTime = std::chrono::milliseconds(250);
 }
 
@@ -43,6 +43,20 @@ FadeSystem::FadeSystem(Registry* registry) : System(registry), fades_(16) {
   RegisterDependency<AnimationSystem>(this);
   RegisterDependency<TransformSystem>(this);
   RegisterDependency<RenderSystem>(this);
+}
+
+void FadeSystem::Initialize() {
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  dispatcher->Connect(this, [this](const FadeInEvent& e) {
+    const auto duration = std::chrono::duration_cast<Clock::duration>(
+        std::chrono::duration<float, std::milli>(e.time_ms));
+    FadeIn(e.entity, duration);
+  });
+  dispatcher->Connect(this, [this](const FadeOutEvent& e) {
+    const auto duration = std::chrono::duration_cast<Clock::duration>(
+        std::chrono::duration<float, std::milli>(e.time_ms));
+    FadeOut(e.entity, duration);
+  });
 }
 
 void FadeSystem::Destroy(Entity e) { fades_.Destroy(e); }

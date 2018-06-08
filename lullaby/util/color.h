@@ -27,7 +27,11 @@ struct Color4ub {
   Color4ub() : r(255), g(255), b(255), a(255) {}
   Color4ub(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
       : r(r), g(g), b(b), a(a) {}
-  explicit Color4ub(uint32_t packed) : packed(packed) {}
+  explicit Color4ub(uint32_t rgba)
+      : r(static_cast<uint8_t>((rgba >> 24) & 0xff)),
+        g(static_cast<uint8_t>((rgba >> 16) & 0xff)),
+        b(static_cast<uint8_t>((rgba >>  8) & 0xff)),
+        a(static_cast<uint8_t>( rgba        & 0xff)) {}
   explicit Color4ub(const mathfu::vec4& v)
       : r(static_cast<uint8_t>(v.x * 255)),
         g(static_cast<uint8_t>(v.y * 255)),
@@ -38,6 +42,15 @@ struct Color4ub {
   }
   bool operator!=(Color4ub rhs) const {
     return (packed != rhs.packed);
+  }
+
+  static Color4ub FromARGB(uint32_t argb) {
+    Color4ub result;
+    result.a = static_cast<uint8_t>((argb >> 24) & 0xff);
+    result.r = static_cast<uint8_t>((argb >> 16) & 0xff);
+    result.g = static_cast<uint8_t>((argb >>  8) & 0xff);
+    result.b = static_cast<uint8_t>( argb        & 0xff);
+    return result;
   }
 
   static mathfu::vec4 ToVec4(const Color4ub color) {

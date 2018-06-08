@@ -28,9 +28,10 @@ namespace lull {
 class RandomNumberGenerator {
  public:
   RandomNumberGenerator() : rng_engine_(std::random_device()()) {}
+  virtual ~RandomNumberGenerator() {}
 
   // Generate a uniformly random int between |min| and |max|, inclusive.
-  int GenerateUniform(int min, int max) {
+  virtual int GenerateUniform(int min, int max) {
     return std::uniform_int_distribution<int>(min, max)(rng_engine_);
   }
 
@@ -48,6 +49,9 @@ class RandomNumberGenerator {
 
  private:
   std::mt19937 rng_engine_;
+
+  RandomNumberGenerator(const RandomNumberGenerator&) = delete;
+  RandomNumberGenerator& operator=(const RandomNumberGenerator&) = delete;
 };
 
 }  // namespace lull

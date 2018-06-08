@@ -30,7 +30,7 @@ namespace {
 
 constexpr int kPoolSize = 4;
 const HashValue kScrollSnapToGrandchildrenDefHash =
-    Hash("ScrollSnapToGrandchildrenDef");
+    ConstHash("ScrollSnapToGrandchildrenDef");
 
 mathfu::vec2 SnapPositionClosestEntity(
     const mathfu::vec2& position, InputManager::GestureDirection gesture,

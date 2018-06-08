@@ -31,9 +31,9 @@ template <typename Component>
 class DisplayList {
  public:
   union SortKey {
-    SortKey() : u64(0) {}
-    uint64_t u64;
+    SortKey() : f32(0.0f) {}
     float f32;
+    RenderSortOrder sort_order;
   };
 
   struct Entry {
@@ -59,9 +59,12 @@ class DisplayList {
   void GetComponentsUnsorted(const RenderPool<Component>& pool);
   void GetComponentsWithSortOrder(const RenderPool<Component>& pool);
   void GetComponentsWithWorldSpaceZ(const RenderPool<Component>& pool);
+  void GetComponentsWithWorldSpaceVector(const RenderPool<Component>& pool,
+                                         const mathfu::vec3& vector);
   void GetComponentsWithAverageSpaceZ(const RenderPool<Component>& pool,
                                       const RenderView* views,
                                       size_t num_views);
+  void GetComponentsWithWorldSpaceZMinusAbsX(const RenderPool<Component>& pool);
 
   void SortDecreasingFloat();
   void SortIncreasingFloat();
@@ -94,7 +97,7 @@ void DisplayList<Component>::GetComponentsWithSortOrder(
       LOG(DFATAL) << "Failed to get component.";
       return;
     }
-    info.sort_key.u64 = info.component->sort_order;
+    info.sort_key.sort_order = info.component->sort_order;
   }
 }
 
@@ -141,6 +144,36 @@ void DisplayList<Component>::GetComponentsWithWorldSpaceZ(
 }
 
 template <typename Component>
+void DisplayList<Component>::GetComponentsWithWorldSpaceVector(
+    const RenderPool<Component>& pool, const mathfu::vec3& vector) {
+  for (auto& info : list_) {
+    info.component = pool.GetComponent(info.entity);
+    if (!info.component) {
+      LOG(DFATAL) << "Failed to get component.";
+      return;
+    }
+    const mathfu::vec3 pos =
+        info.world_from_entity_matrix.TranslationVector3D();
+    info.sort_key.f32 = mathfu::vec3::DotProduct(pos, vector);
+  }
+}
+
+template <typename Component>
+void DisplayList<Component>::GetComponentsWithWorldSpaceZMinusAbsX(
+    const RenderPool<Component>& pool) {
+  for (auto& info : list_) {
+    info.component = pool.GetComponent(info.entity);
+    if (!info.component) {
+      LOG(DFATAL) << "Failed to get component.";
+      return;
+    }
+    const mathfu::vec3 world_pos =
+        info.world_from_entity_matrix.TranslationVector3D();
+    info.sort_key.f32 = world_pos.z - std::abs(world_pos.x);
+  }
+}
+
+template <typename Component>
 void DisplayList<Component>::SortDecreasingFloat() {
   std::sort(list_.begin(), list_.end(), [](const Entry& a, const Entry& b) {
     return a.sort_key.f32 > b.sort_key.f32;
@@ -157,14 +190,14 @@ void DisplayList<Component>::SortIncreasingFloat() {
 template <typename Component>
 void DisplayList<Component>::SortDecreasingUnsigned() {
   std::sort(list_.begin(), list_.end(), [](const Entry& a, const Entry& b) {
-    return a.sort_key.u64 > b.sort_key.u64;
+    return a.sort_key.sort_order > b.sort_key.sort_order;
   });
 }
 
 template <typename Component>
 void DisplayList<Component>::SortIncreasingUnsigned() {
   std::sort(list_.begin(), list_.end(), [](const Entry& a, const Entry& b) {
-    return a.sort_key.u64 < b.sort_key.u64;
+    return a.sort_key.sort_order < b.sort_key.sort_order;
   });
 }
 
@@ -247,6 +280,12 @@ void DisplayList<Component>::Populate(const RenderPool<Component>& pool,
   } else if (sort_mode == SortMode_WorldSpaceZFrontToBack) {
     GetComponentsWithWorldSpaceZ(pool);
     SortDecreasingFloat();
+  } else if (sort_mode == SortMode_WorldSpaceVectorBackToFront) {
+    GetComponentsWithWorldSpaceVector(pool, pool.GetSortVector().value());
+    SortDecreasingFloat();
+  } else if (sort_mode == SortMode_WorldSpaceVectorFrontToBack) {
+    GetComponentsWithWorldSpaceVector(pool, pool.GetSortVector().value());
+    SortIncreasingFloat();
   } else if (sort_mode == SortMode_AverageSpaceOriginBackToFront) {
     // -z is forward, so z decreases as distance in front of camera increases.
     GetComponentsWithAverageSpaceZ(pool, views, num_views);
@@ -254,6 +293,9 @@ void DisplayList<Component>::Populate(const RenderPool<Component>& pool,
   } else if (sort_mode == SortMode_AverageSpaceOriginFrontToBack) {
     GetComponentsWithAverageSpaceZ(pool, views, num_views);
     SortDecreasingFloat();
+  } else if (sort_mode == SortMode_WorldSpaceZBackToFrontXOutToMiddle) {
+    GetComponentsWithWorldSpaceZMinusAbsX(pool);
+    SortIncreasingFloat();
   } else {
     DCHECK(sort_mode == SortMode_None)
         << "Unsupported sort mode " << static_cast<int>(sort_mode);

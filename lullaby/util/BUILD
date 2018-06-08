@@ -14,11 +14,8 @@ cc_library(
         "android_context.h",
     ],
     deps = [
-        ":jni_util",
         ":logging",
         ":make_unique",
-        ":scoped_java_exception_guard",
-        ":scoped_java_local_ref",
         ":typeid",
     ],
 )
@@ -126,16 +123,6 @@ cc_library(
 )
 
 cc_library(
-    name = "controller_util",
-    hdrs = [
-        "controller_util.h",
-    ],
-    deps = [
-        ":math",
-    ],
-)
-
-cc_library(
     name = "data_container",
     srcs = [
         "data_container.cc",
@@ -163,6 +150,21 @@ cc_library(
 )
 
 cc_library(
+    name = "device_util",
+    srcs = [
+        "device_util.cc",
+    ],
+    hdrs = [
+        "device_util.h",
+    ],
+    deps = [
+        ":math",
+        ":typeid",
+        "//lullaby/modules/input",
+    ],
+)
+
+cc_library(
     name = "entity",
     hdrs = ["entity.h"],
 )
@@ -170,6 +172,27 @@ cc_library(
 cc_library(
     name = "enum_hash",
     hdrs = ["enum_hash.h"],
+)
+
+cc_library(
+    name = "error",
+    hdrs = [
+        "error.h",
+    ],
+    deps = [
+        ":string_view",
+    ],
+)
+
+cc_library(
+    name = "expected",
+    hdrs = [
+        "expected.h",
+    ],
+    deps = [
+        ":error",
+        ":logging",
+    ],
 )
 
 cc_library(
@@ -231,6 +254,13 @@ config_setting(
     values = {"define": "lullaby_debug_hash=1"},
 )
 
+DEBUG_HASH_DEFINES = [
+    "LULLABY_DEBUG_HASH",
+    "LULLABY_GENERATED_UNHASH_TABLE",
+]
+
+DEBUG_HASH_INCLUDES = ["generated_unhash_table.h"]
+
 cc_library(
     name = "hash",
     srcs = [
@@ -239,14 +269,9 @@ cc_library(
     hdrs = [
         "hash.h",
     ] + select({
-        ":lullaby_debug_hash": ["generated_unhash_table.h"],
         "//conditions:default": [],
     }),
     defines = select({
-        ":lullaby_debug_hash": [
-            "LULLABY_DEBUG_HASH",
-            "LULLABY_GENERATED_UNHASH_TABLE",
-        ],
         "//conditions:default": [],
     }),
     deps = [
@@ -313,26 +338,6 @@ cc_library(
 )
 
 cc_library(
-    name = "jni_signature",
-    hdrs = [
-        "jni_signature.h",
-    ],
-    deps = [
-        ":fixed_string",
-    ],
-)
-
-cc_library(
-    name = "jni_util",
-    hdrs = [
-        "jni_util.h",
-    ],
-    deps = [
-        ":logging",
-    ],
-)
-
-cc_library(
     name = "job_processor",
     hdrs = [
         "job_processor.h",
@@ -389,6 +394,7 @@ cc_library(
     deps = [
         ":hash",
         ":logging",
+        ":span",
         "@mathfu//:mathfu",
     ],
 )
@@ -458,23 +464,6 @@ cc_library(
 )
 
 cc_library(
-    name = "scoped_java_exception_guard",
-    hdrs = [
-        "scoped_java_exception_guard.h",
-    ],
-    deps = [
-        ":logging",
-    ],
-)
-
-cc_library(
-    name = "scoped_java_local_ref",
-    hdrs = [
-        "scoped_java_local_ref.h",
-    ],
-)
-
-cc_library(
     name = "selector",
     srcs = [
     ],
@@ -506,7 +495,6 @@ cc_library(
     deps = [
         ":logging",
         ":typeid",
-        "//lullaby/util:entity",
     ],
 )
 
@@ -640,6 +628,7 @@ cc_library(
         "variant.h",
     ],
     deps = [
+        ":clock",
         ":common_types",
         ":logging",
         ":type_util",

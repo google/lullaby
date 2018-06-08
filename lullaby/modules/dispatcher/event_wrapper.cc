@@ -118,6 +118,17 @@ void EventWrapper::SetValues(const VariantMap& values) {
   }
 }
 
+void EventWrapper::SetValues(VariantMap&& values) {
+  if (ptr_) {
+    LOG(ERROR) << "Cannot set value on a concrete event.";
+    return;
+  }
+
+  if (data_) {
+    *data_ = std::move(values);
+  }
+}
+
 const VariantMap* EventWrapper::GetValues() const {
   EnsureRuntimeEventAvailable();
   return data_ ? data_.get() : nullptr;

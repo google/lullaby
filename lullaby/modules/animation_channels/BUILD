@@ -61,10 +61,12 @@ cc_library(
         "render_channels.h",
     ],
     deps = [
+        "//lullaby/modules/dispatcher",
         "//lullaby/systems/animation",
         "//lullaby/systems/render",
         "//lullaby/systems/render:render_helpers",
         "//lullaby/systems/transform",
+        "//lullaby/util:color",
         "//lullaby/util:logging",
         "//lullaby/util:registry",
         "@motive//:motive",
@@ -80,6 +82,7 @@ cc_library(
         "transform_channels.h",
     ],
     deps = [
+        "//lullaby/modules/dispatcher",
         "//lullaby/systems/animation",
         "//lullaby/systems/transform",
         "//lullaby/util:logging",

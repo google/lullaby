@@ -211,8 +211,8 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
         interval_x += x_step;
       }
 
-      mesh->AddVertex<lull::VertexPTT>(x - half_size.x, y - half_size.y, 0.0f,
-                                       u0, 1.0f - v0, u1, v1);
+      mesh->AddVertex<VertexPTT>(x - half_size.x, y - half_size.y, 0.0f, u0,
+                                 1.0f - v0, u1, v1);
     }
   }
 

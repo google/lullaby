@@ -45,13 +45,19 @@ class InputBehaviorSystem : public System {
 
   void UpdateInputFocus(InputFocus* focus) const;
 
-  /// Sets the reticle collision behavior for |entity|.
+  /// Sets the cursor collision behavior for |entity|.
   void SetFocusBehavior(Entity entity, InputBehaviorType behavior_type);
+
+  /// Set to true to make the Entity receive Drag events.
+  void SetDraggable(Entity entity, bool draggable);
+  bool IsDraggable(Entity entity) const;
 
  private:
   struct InputBehavior : Component {
     explicit InputBehavior(Entity entity)
-        : Component(entity), focus_start_dead_zone(mathfu::kZeros3f) {}
+        : Component(entity),
+          focus_start_dead_zone(mathfu::kZeros3f),
+          draggable(false) {}
 
     // The amount to shrink this entity's Aabb by when starting to focus on it.
     // The dead zone is applied on both sides.
@@ -59,6 +65,9 @@ class InputBehaviorSystem : public System {
 
     // How this entity should handle collisions.
     InputBehaviorType behavior_type;
+
+    // If this entity should receive drag events.
+    bool draggable;
   };
 
   // If the target has a ReticleBehavior, apply that behavior and return the
@@ -66,7 +75,7 @@ class InputBehaviorSystem : public System {
   Entity HandleBehavior(Entity entity) const;
 
   // Checks if |collided_entity| has a hover start dead zone. If it does and the
-  // reticle is currently within the dead zone, return true. Otherwise, return
+  // cursor is currently within the dead zone, return true. Otherwise, return
   // false.
   bool IsInsideEntityDeadZone(Entity entity, const Ray& collision_ray) const;
 

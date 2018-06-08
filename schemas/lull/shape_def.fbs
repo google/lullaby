@@ -8,3 +8,25 @@ table SphereDef {
   num_parallels: int;
   num_meridians: int;
 }
+
+// Specifies the parameter of a generated rectangular mesh for an entity.
+table RectMeshDef {
+  /// The size in the x dimension.
+  size_x: float;
+
+  /// The size in the y dimension.
+  size_y: float;
+
+  /// Number of mesh vertices to generate in the x direction (default = 2).
+  verts_x: int;
+
+  /// Number of mesh vertices to generate in the y direction (default = 2).
+  verts_y: int;
+
+  /// Radius of rounded corners to create on the mesh (default = 0).
+  corner_radius: float;
+
+  /// Number of vertices in the triangle fan created at corners to produce the
+  /// corner radius (default = 0).
+  corner_verts: int;
+}

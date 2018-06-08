@@ -27,12 +27,22 @@ namespace lull {
 /// match |in| based on the VariantDef union.
 bool VariantFromFbVariant(VariantDef type, const void* in, Variant* out);
 
+/// Converts a VariantDefT to a Variant.
+bool VariantFromVariantDefT(const VariantDefT& in, Variant* out);
+
 /// Converts a flatbuffer VariantArrayDef to a VariantArray.
 bool VariantArrayFromFbVariantArray(const VariantArrayDef* in,
                                     VariantArray* out);
 
+/// Converts a VariantArrayDefT to a VariantArray.
+bool VariantArrayFromVariantArrayDefT(const VariantArrayDefT& in,
+                                      VariantArray* out);
+
 /// Converts a flatbuffer VariantMapDef to a VariantMap.
 bool VariantMapFromFbVariantMap(const VariantMapDef* in, VariantMap* out);
+
+/// Converts a VariantMapDefT to a VariantMap.
+bool VariantMapFromVariantMapDefT(const VariantMapDefT& in, VariantMap* out);
 
 }  // namespace lull
 

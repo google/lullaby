@@ -69,6 +69,40 @@ size_t ImageData::GetBitsPerPixel(Format format) {
   }
 }
 
+size_t ImageData::GetChannelCount(Format format) {
+  switch (format) {
+    // 1 channel:
+    case kAlpha:
+    case kLuminance:
+      return 1;
+
+    // 2 channels:
+    case kLuminanceAlpha:
+      return 2;
+
+    // 3 channels:
+    case kRgb565:
+    case kRgb888:
+      return 3;
+
+    // 4 channels:
+    case kRgba4444:
+    case kRgba5551:
+    case kRgba8888:
+      return 4;
+
+    // Container formats:
+    case kAstc:
+    case kPkm:
+    case kKtx:
+      return 0;
+
+    default:
+      LOG(WARNING) << "Invalid image format " << format;
+      return 0;
+  }
+}
+
 size_t ImageData::CalculateDataSize(Format format, const mathfu::vec2i& size) {
   return size.y * CalculateMinStride(format, size);
 }

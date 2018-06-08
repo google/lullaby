@@ -1,0 +1,18 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Translate the grabbed entity with a device, with a fixed distance from
+/// entity's origin to the grabbing sphere center.
+table SphericalGrabInputDef {
+  /// The grabbing sphere center in world space.
+  sphere_center: Vec3 (native_default:"{0.f, 0.f, 0.f}");
+
+  /// Indicates whether to keep the grabbing offset. If it is false, an entity
+  /// will be grabbed by its origin. If it is true, it will be grabbed by the
+  /// cursor position when the grabbing is started.
+  keep_grab_offset: bool = true;
+
+  /// Indicates whether to hide cursor during grabbing.
+  hide_cursor: bool = true;
+}

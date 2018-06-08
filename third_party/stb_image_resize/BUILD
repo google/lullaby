@@ -11,6 +11,6 @@ cc_library(
     ],
     includes = ["."],
     deps = [
-        "@stb//:stb",
+        "@stb",
     ],
 )

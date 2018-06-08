@@ -54,23 +54,28 @@ ScriptEngine::ScriptEngine(Registry* registry)
 
 ScriptEngine::ScriptEngine(Registry* registry, FunctionCall::Handler handler)
     : registry_(registry) {
+  AssetLoader* asset_loader = registry->Get<AssetLoader>();
+  AssetLoader::LoadFileFn load_fn =
+      asset_loader ? asset_loader->GetLoadFunction() : nullptr;
+  (void)load_fn;
+
+#if LULLABY_SCRIPT_LULLSCRIPT
   lull_engine_.SetFunctionCallHandler(std::move(handler));
-#ifdef LULLABY_SCRIPT_LUA
-  AssetLoader* asset_loader = registry->Get<AssetLoader>();
-  CHECK(asset_loader) << "No asset loader";
-  lua_engine_.SetLoadFileFunction(asset_loader->GetLoadFunction());
 #endif
-#ifdef LULLABY_SCRIPT_JS
-  AssetLoader* asset_loader = registry->Get<AssetLoader>();
-  CHECK(asset_loader) << "No asset loader";
-  js_engine_.SetLoadFileFunction(asset_loader->GetLoadFunction());
+#if LULLABY_SCRIPT_LUA
+  lua_engine_.SetLoadFileFunction(load_fn);
+#endif
+#if LULLABY_SCRIPT_JS
+  js_engine_.SetLoadFileFunction(load_fn);
 #endif
 }
 
 void ScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {
+#if LULLABY_SCRIPT_LULLSCRIPT
   if (handler) {
     lull_engine_.SetFunctionCallHandler(std::move(handler));
   }
+#endif
 }
 
 ScriptId ScriptEngine::LoadScript(const std::string& filename) {
@@ -98,13 +103,15 @@ ScriptId ScriptEngine::LoadInlineScript(const std::string& code,
                                         const std::string& debug_name,
                                         Language lang) {
   switch (lang) {
+#if LULLABY_SCRIPT_LULLSCRIPT
     case Language_LullScript:
       return ScriptId(lang, lull_engine_.LoadScript(code, debug_name));
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
     case Language_Lua5_2:
       return ScriptId(lang, lua_engine_.LoadScript(code, debug_name));
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
     case Language_JavaScript:
       return ScriptId(lang, js_engine_.LoadScript(code, debug_name));
 #endif
@@ -116,15 +123,17 @@ ScriptId ScriptEngine::LoadInlineScript(const std::string& code,
 
 void ScriptEngine::ReloadScript(ScriptId id, const std::string& code) {
   switch (id.lang_) {
+#if LULLABY_SCRIPT_LULLSCRIPT
     case Language_LullScript:
       lull_engine_.ReloadScript(id.id_, code);
       return;
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
     case Language_Lua5_2:
       lua_engine_.ReloadScript(id.id_, code);
       return;
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
     case Language_JavaScript:
       js_engine_.ReloadScript(id.id_, code);
       return;
@@ -136,15 +145,17 @@ void ScriptEngine::ReloadScript(ScriptId id, const std::string& code) {
 
 void ScriptEngine::RunScript(ScriptId id) {
   switch (id.lang_) {
+#if LULLABY_SCRIPT_LULLSCRIPT
     case Language_LullScript:
       lull_engine_.RunScript(id.id_);
       return;
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
     case Language_Lua5_2:
       lua_engine_.RunScript(id.id_);
       return;
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
     case Language_JavaScript:
       js_engine_.RunScript(id.id_);
       return;
@@ -156,15 +167,17 @@ void ScriptEngine::RunScript(ScriptId id) {
 
 void ScriptEngine::UnloadScript(ScriptId id) {
   switch (id.lang_) {
+#if LULLABY_SCRIPT_LULLSCRIPT
     case Language_LullScript:
       lull_engine_.UnloadScript(id.id_);
       return;
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
     case Language_Lua5_2:
       lua_engine_.UnloadScript(id.id_);
       return;
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
     case Language_JavaScript:
       js_engine_.UnloadScript(id.id_);
       return;
@@ -175,20 +188,24 @@ void ScriptEngine::UnloadScript(ScriptId id) {
 }
 
 void ScriptEngine::UnregisterFunction(const std::string& name) {
-#ifdef LULLABY_SCRIPT_LUA
+#if LULLABY_SCRIPT_LUA
   lua_engine_.UnregisterFunction(name);
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
   js_engine_.UnregisterFunction(name);
 #endif
 }
 
 size_t ScriptEngine::GetTotalScripts() const {
-  size_t total = lull_engine_.GetTotalScripts();
-#ifdef LULLABY_SCRIPT_LUA
+  size_t total = 0;
+
+#if LULLABY_SCRIPT_LULLSCRIPT
+  total += lull_engine_.GetTotalScripts();
+#endif
+#if LULLABY_SCRIPT_LUA
   total += lua_engine_.GetTotalScripts();
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
   total += js_engine_.GetTotalScripts();
 #endif
   return total;

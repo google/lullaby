@@ -34,9 +34,9 @@ struct SliderChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&old_value, Hash("old_value"));
-    archive(&new_value, Hash("new_value"));
+    archive(&target, ConstHash("target"));
+    archive(&old_value, ConstHash("old_value"));
+    archive(&new_value, ConstHash("new_value"));
   }
 
   Entity target = kNullEntity;

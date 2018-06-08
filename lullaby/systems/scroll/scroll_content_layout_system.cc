@@ -26,7 +26,8 @@ limitations under the License.
 namespace lull {
 namespace {
 
-const HashValue kScrollContentLayoutDefHash = Hash("ScrollContentLayoutDef");
+const HashValue kScrollContentLayoutDefHash =
+    ConstHash("ScrollContentLayoutDef");
 }
 
 ScrollContentLayoutSystem::ScrollContentLayoutSystem(Registry* registry)

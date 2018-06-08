@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_RENDER_TARGET_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_RENDER_TARGET_H_
 
+#include "lullaby/modules/render/image_data.h"
 #include "lullaby/systems/render/next/render_handle.h"
 #include "lullaby/systems/render/render_target.h"
 #include "lullaby/generated/render_target_def_generated.h"
@@ -35,17 +36,23 @@ class RenderTarget {
 
   // Sets the render target as the current target for rendering.
   void Bind() const;
+  void Unbind() const;
 
   // Returns the handle to the texture underlying the render target.
   TextureHnd GetTextureId() const {
     return texture_;
   }
 
+  // Gets the framebuffer data.
+  ImageData GetFrameBufferData() const;
+
  private:
   BufferHnd frame_buffer_;
   BufferHnd depth_buffer_;
   TextureHnd texture_;
   mathfu::vec2i dimensions_ = {0, 0};
+  int num_mip_levels_ = 0;
+  mutable int prev_frame_buffer_ = 0;
 };
 
 }  // namespace lull

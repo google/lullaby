@@ -21,7 +21,9 @@ limitations under the License.
 
 #include "lullaby/modules/input/input_focus.h"
 #include "lullaby/modules/input/input_manager.h"
+#include "lullaby/systems/collision/collision_system.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/optional.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/span.h"
 
@@ -38,26 +40,37 @@ class StandardInputPipeline {
   /// Executes the entire standard input update for the current main device.
   void AdvanceFrame(const Clock::duration& delta_time);
 
-  /// Executes the entire standard input update for the given device.
+  /// Returns the InputFocus resulting from executing the entire standard input
+  /// update for the given device. This should be used instead of AdvanceFrame
+  /// if pipeline customization is needed, i.e. to edit the returned InputFocus.
   /// Notes:
   /// If this function is called directly instead of AdvanceFrame, the
   /// DevicePreference and PrimaryDevice functionality won't work unless the app
   /// calls input_processor->SetPrimaryDevice(pipeline->GetPrimaryDevice()) each
-  /// frame, before calling this function for that device.
-  void UpdateInputFocus(const Clock::duration& delta_time,
-                        InputManager::DeviceType device);
+  /// frame, before calling this function for that device. Additionally, the
+  /// caller must call UpdateDevice on the device with the updated |focus|
+  /// (after any other custom adjustments to the focus).
+  InputFocus ComputeInputFocus(const Clock::duration& delta_time,
+                               InputManager::DeviceType device) const;
+
+  // Triggers a collision as if the reticle was interacting with the given
+  // entity at the given depth. Entity may be kNullEntity.
+  void StartManualCollision(Entity entity, float depth);
+
+  // Stop triggering a manual collision if one has previously been started.
+  void StopManualCollision();
 
   /// Specifies the preferred devices to be used.  The lowest index connected
   /// device in this vector will be treated as the main device.
   void SetDevicePreference(Span<InputManager::DeviceType> devices);
 
-  /// Re calculates the collision ray so that it comes from the hmd, but points
+  /// Recalculates the collision ray so that it comes from the hmd, but points
   /// towards the pre-collision cursor position.
-  void MakeRayComeFromHmd(InputFocus* focus);
+  void MakeRayComeFromHmd(InputFocus* focus) const;
 
   /// Applies standard systems that modify the focused entity.  i.e. collision
   /// detection, focus locking, input behavior, etc.
-  void ApplySystemsToInputFocus(InputFocus* focus);
+  void ApplySystemsToInputFocus(InputFocus* focus) const;
 
   /// Applies the collision system to the input focus.
   void ApplyCollisionSystemToInputFocus(InputFocus* focus) const;
@@ -75,6 +88,8 @@ class StandardInputPipeline {
  private:
   Registry* registry_;
   std::vector<InputManager::DeviceType> device_preference_;
+  Optional<CollisionSystem::CollisionResult> manual_collision_ =
+      Optional<CollisionSystem::CollisionResult>();
 };
 
 }  // namespace lull

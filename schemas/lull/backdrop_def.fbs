@@ -52,3 +52,9 @@ table BackdropDef {
   /// applied to all edges.
   top_right_margin: Vec2 (defaults_to_null);
 }
+
+/// When a parent entity containing a BackdropDef component calculates the aabb
+/// of its children to determine the size of its backdrop, it will ignore any
+/// children containing a BackdropExclusionDef component.
+table BackdropExclusionDef {
+}

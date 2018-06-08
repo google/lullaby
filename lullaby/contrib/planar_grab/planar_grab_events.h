@@ -35,8 +35,8 @@ struct PlanarGrabEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&location, Hash("location"));
+    archive(&entity, ConstHash("entity"));
+    archive(&location, ConstHash("location"));
   }
 };
 
@@ -48,7 +48,7 @@ struct PlanarGrabReleasedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 };
 

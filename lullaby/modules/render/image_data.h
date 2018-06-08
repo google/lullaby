@@ -25,7 +25,6 @@ namespace lull {
 
 // Provides Image abstraction over arbitrary data containers.
 //
-//
 // The data itself is stored in DataContainer objects moved into the ImageData
 // in its constructor.
 class ImageData {
@@ -84,6 +83,9 @@ class ImageData {
   // Returns |format|'s pixel size in bits, or 0 for container formats (eg pkm,
   // ktx).
   static size_t GetBitsPerPixel(Format format);
+
+  // Returns |format|'s number of channels.
+  static size_t GetChannelCount(Format format);
 
   // Calculates the data size given |size| and |format| assuming the smallest
   // possible stride. Returns 0 for container formats (eg pkm, ktx).

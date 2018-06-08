@@ -33,6 +33,8 @@ class FadeSystem : public System {
  public:
   explicit FadeSystem(Registry* registry);
 
+  void Initialize() override;
+
   void PostCreateInit(Entity e, HashValue type, const Def* def) override;
 
   void Destroy(Entity e) override;

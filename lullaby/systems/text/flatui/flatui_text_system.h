@@ -24,6 +24,7 @@ limitations under the License.
 #include "flatui/font_manager.h"
 #include "fplbase/renderer.h"
 #include "lullaby/events/layout_events.h"
+#include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/text/flatui/text_buffer.h"
 #include "lullaby/systems/text/flatui/text_component.h"
 #include "lullaby/systems/text/flatui/text_task.h"
@@ -87,6 +88,7 @@ class FlatuiTextSystem : public TextSystemImpl {
 
   void ProcessTasks() override;
   void WaitForAllTasks() override;
+  void ReprocessAllText() override;
 
  private:
   void GenerateText(Entity entity, Entity desired_size_source = kNullEntity);
@@ -108,9 +110,9 @@ class FlatuiTextSystem : public TextSystemImpl {
   void CreateTextEntities(TextComponent* component);
   void CreateLinkUnderlineEntity(TextComponent* component);
   void DestroyRenderEntities(TextComponent* component);
-  void UpdateEntityUniforms(Entity entity, Entity source,
-                            const mathfu::vec4& color);
-  void UpdateUniforms(const TextComponent* component);
+  void UpdateComponentUniform(Entity entity, HashValue pass, int submesh_index,
+                              string_view name, ShaderDataType type,
+                              Span<uint8_t> data, int count);
 
   void HideRenderEntities(const TextComponent& component);
   void ShowRenderEntities(const TextComponent& component);

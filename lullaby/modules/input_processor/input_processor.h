@@ -185,9 +185,9 @@ class InputProcessor {
     Entity focused_entity = kNullEntity;
     // The current logical state of the button.
     ButtonStates state = kReleased;
-    // Location in local space of the first frame that this button was focused
-    // on focused_entity.
-    mathfu::vec3 focus_location = mathfu::kZeros3f;
+    // Location in local space of the first frame that this button was pressed
+    // and focused on focused_entity.
+    mathfu::vec3 pressed_location = mathfu::kZeros3f;
     // Time since the button was pressed.
     int64_t ms_since_press = 0;
   };

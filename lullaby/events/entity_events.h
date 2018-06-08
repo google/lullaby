@@ -29,7 +29,7 @@ struct EnableEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -42,7 +42,7 @@ struct DisableEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -56,8 +56,8 @@ struct AddChildEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&child, Hash("child"));
+    archive(&entity, ConstHash("entity"));
+    archive(&child, ConstHash("child"));
   }
 
   Entity entity = kNullEntity;
@@ -73,8 +73,8 @@ struct AddChildPreserveWorldToEntityTransformEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&child, Hash("child"));
+    archive(&entity, ConstHash("entity"));
+    archive(&child, ConstHash("child"));
   }
 
   Entity entity = kNullEntity;
@@ -87,7 +87,7 @@ struct OnDisabledEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, ConstHash("target"));
   }
 
   Entity target = kNullEntity;
@@ -99,7 +99,7 @@ struct OnEnabledEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, ConstHash("target"));
   }
 
   Entity target = kNullEntity;
@@ -112,9 +112,9 @@ struct ParentChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&old_parent, Hash("old_parent"));
-    archive(&new_parent, Hash("new_parent"));
+    archive(&target, ConstHash("target"));
+    archive(&old_parent, ConstHash("old_parent"));
+    archive(&new_parent, ConstHash("new_parent"));
   }
 
   Entity target = kNullEntity;
@@ -140,8 +140,8 @@ struct ChildAddedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&child, Hash("child"));
+    archive(&target, ConstHash("target"));
+    archive(&child, ConstHash("child"));
   }
 
   Entity target = kNullEntity;
@@ -155,8 +155,8 @@ struct ChildRemovedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&child, Hash("child"));
+    archive(&target, ConstHash("target"));
+    archive(&child, ConstHash("child"));
   }
 
   Entity target = kNullEntity;
@@ -176,10 +176,10 @@ struct ChildIndexChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&child, Hash("child"));
-    archive(&old_index, Hash("old_index"));
-    archive(&new_index, Hash("new_index"));
+    archive(&target, ConstHash("target"));
+    archive(&child, ConstHash("child"));
+    archive(&old_index, ConstHash("old_index"));
+    archive(&new_index, ConstHash("new_index"));
   }
 
   Entity target = kNullEntity;
@@ -194,7 +194,7 @@ struct AabbChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, ConstHash("target"));
   }
 
   Entity target = kNullEntity;
@@ -206,7 +206,7 @@ struct OnInteractionDisabledEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -218,7 +218,25 @@ struct OnInteractionEnabledEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct DisableCollisionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct EnableCollisionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -231,7 +249,7 @@ struct EnableFollowCameraEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -244,7 +262,7 @@ struct DisableFollowCameraEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -258,8 +276,10 @@ LULLABY_SETUP_TYPEID(lull::AddChildPreserveWorldToEntityTransformEvent);
 LULLABY_SETUP_TYPEID(lull::ChildAddedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildIndexChangedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildRemovedEvent);
+LULLABY_SETUP_TYPEID(lull::DisableCollisionEvent);
 LULLABY_SETUP_TYPEID(lull::DisableEvent);
 LULLABY_SETUP_TYPEID(lull::DisableFollowCameraEvent);
+LULLABY_SETUP_TYPEID(lull::EnableCollisionEvent);
 LULLABY_SETUP_TYPEID(lull::EnableEvent);
 LULLABY_SETUP_TYPEID(lull::EnableFollowCameraEvent);
 LULLABY_SETUP_TYPEID(lull::OnDisabledEvent);

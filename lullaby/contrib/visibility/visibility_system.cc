@@ -24,8 +24,9 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kWindowGroupDefHashValue = Hash("VisibilityWindowGroupDef");
-const HashValue kContentDefHashValue = Hash("VisibilityContentDef");
+const HashValue kWindowGroupDefHashValue =
+    ConstHash("VisibilityWindowGroupDef");
+const HashValue kContentDefHashValue = ConstHash("VisibilityContentDef");
 }  // namespace
 
 VisibilitySystem::VisibilitySystem(Registry* registry)

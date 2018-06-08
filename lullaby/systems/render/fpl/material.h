@@ -22,9 +22,9 @@ limitations under the License.
 #include <vector>
 
 #include "fplbase/internal/detailed_render_state.h"
+#include "lullaby/systems/render/fpl/uniform.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
-#include "lullaby/systems/render/uniform.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/optional.h"
 
@@ -57,8 +57,6 @@ class Material {
 
   /// Clears all uniforms and their descriptions.
   void ClearUniforms();
-  /// Updates a uniform description.
-  void UpdateUniform(const Uniform::Description& description);
 
   /// Finds and returns a uniform by its name.
   Uniform* GetUniformByName(string_view name);
@@ -73,44 +71,8 @@ class Material {
   /// Finds and returns a const uniform by its hash.
   const Uniform* GetUniformByHash(HashValue hash) const;
 
-  /// Sets a uniform data block by index and size.
-  void SetUniformByIndex(UniformIndex index, const void* data, size_t size,
-                         size_t offset = 0);
-  /// Sets a uniform type by index and number of instances of the type.
-  template <typename T>
-  void SetUniformByIndex(UniformIndex index, const T* data, size_t count,
-                         size_t offset = 0) {
-    SetUniformByIndex(index, reinterpret_cast<const void*>(data),
-                      sizeof(T) * count, offset);
-  }
-  /// Sets a uniform type by hashed name and number of instances of the type.
-  template <typename T>
-  void SetUniformByHash(HashValue name_hash, const T* data, size_t count,
-                        size_t offset = 0) {
-    auto iter = name_to_uniform_index_.find(name_hash);
-    if (iter != name_to_uniform_index_.end()) {
-      SetUniformByIndex(iter->second, data, count, offset);
-    }
-  }
-  /// Sets a uniform type by name and number of instances of the type.
-  template <typename T>
-  void SetUniformByName(const std::string& name, const T* data, size_t count,
-                        size_t offset = 0) {
-    size_t index = 0;
-    auto iter = name_to_uniform_index_.find(lull::Hash(name));
-    if (iter == name_to_uniform_index_.end()) {
-      index = uniforms_.size();
-      Uniform::Description desc;
-      desc.name = name;
-      desc.type =
-          (sizeof(T) == 4) ? Uniform::Type::kFloats : Uniform::Type::kMatrix;
-      desc.num_bytes = sizeof(T) * count;
-      AddUniform(desc);
-    } else {
-      index = iter->second;
-    }
-    SetUniformByIndex(index, data, count, offset);
-  }
+  /// Sets a uniform, replacing the existing one.
+  void SetUniform(Uniform uniform);
 
   /// Returns all uniforms.
   const std::vector<Uniform>& GetUniforms() const;

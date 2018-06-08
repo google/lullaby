@@ -93,12 +93,15 @@ Entity EntityFactory::Create(const std::string& name) {
     LOG(ERROR) << "No such blueprint: " << name;
     return kNullEntity;
   }
-  return CreateFromBlueprint(asset->GetData(), name);
+  return CreateFromBlueprint(asset->GetData(), asset->GetSize(), name);
 }
 
 Entity EntityFactory::Create(Blueprint* blueprint) {
   Entity entity = Create();
-  CreateImpl(entity, blueprint);
+  if (!CreateImpl(entity, blueprint)) {
+    return kNullEntity;
+  }
+
   entity_to_blueprint_map_[entity] = "";
   return entity;
 }
@@ -110,18 +113,24 @@ Entity EntityFactory::Create(BlueprintTree* blueprint) {
 
 Entity EntityFactory::Create(Entity entity, const std::string& name) {
   auto asset = GetBlueprintAsset(name);
-  if (asset) {
-    CreateImpl(entity, name, asset->GetData());
-    return entity;
-  } else {
+  if (!asset) {
     LOG(ERROR) << "No such blueprint: " << name;
     return kNullEntity;
   }
+
+  if (!CreateImpl(entity, name, asset->GetData(), asset->GetSize())) {
+    LOG(ERROR) << "Could not create from blueprint: " << name;
+    return kNullEntity;
+  }
+
+  return entity;
 }
 
 Entity EntityFactory::Create(Entity entity, BlueprintTree* blueprint) {
-  CreateImpl(entity, blueprint);
   entity_to_blueprint_map_[entity] = "";
+  if (!CreateImpl(entity, blueprint)) {
+    return kNullEntity;
+  }
   return entity;
 }
 
@@ -139,20 +148,22 @@ Span<uint8_t> EntityFactory::Finalize(Blueprint* blueprint) {
   return data;
 }
 
-Entity EntityFactory::CreateFromBlueprint(const void* blueprint,
+Entity EntityFactory::CreateFromBlueprint(const void* blueprint, size_t len,
                                           const std::string& name) {
   const Entity entity = Create();
-  const bool success = CreateImpl(entity, name, blueprint);
-  return success ? entity : kNullEntity;
+  if (!CreateImpl(entity, name, blueprint, len)) {
+    return kNullEntity;
+  }
+  return entity;
 }
 
-void EntityFactory::CreateFromBlueprint(Entity entity, const void* blueprint,
-                                        const std::string& name) {
-  CreateImpl(entity, name, blueprint);
+bool EntityFactory::CreateFromBlueprint(Entity entity, const void* blueprint,
+                                        size_t len, const std::string& name) {
+  return CreateImpl(entity, name, blueprint, len);
 }
 
 bool EntityFactory::CreateImpl(Entity entity, const std::string& name,
-                               const void* data) {
+                               const void* data, size_t len) {
   if (entity == kNullEntity) {
     LOG(DFATAL) << "Cannot create null entity: " << name;
     return false;
@@ -162,33 +173,14 @@ bool EntityFactory::CreateImpl(Entity entity, const std::string& name,
     return false;
   }
 
-  BlueprintTree blueprint;
-
-  const string_view identifier(
-      flatbuffers::GetBufferIdentifier(data),
-      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
-  FlatbufferConverter* converter = GetFlatbufferConverter(identifier);
-  if (converter) {
-    blueprint = converter->load(data);
-  } else {
-    if (converters_.empty()) {
-      // Creating an entity before entity_factory was initialized.
-      LOG(ERROR) << "Unable to convert raw data to blueprint.  Call "
-                    "::Initialize with arguments to specify how to perform "
-                    "this conversion. Using empty blueprint instead";
-    } else {
-      // Created an entity after initialization, but with a flatbuffer bin using
-      // an unregistered schema.
-      LOG(DFATAL) << "Unknown file identifier for entity: " << name
-                  << ".  Identifier was: " << identifier;
-    }
+  auto blueprint = CreateBlueprintFromData(name, data, len);
+  if (!blueprint) {
     return false;
   }
 
   entity_to_blueprint_map_[entity] = name;
 
-  const bool result = CreateImpl(entity, &blueprint);
-  return result;
+  return CreateImpl(entity, blueprint.get());
 }
 
 bool EntityFactory::CreateImpl(Entity entity, BlueprintTree* blueprint) {
@@ -211,7 +203,8 @@ bool EntityFactory::CreateImpl(Entity entity, Blueprint* blueprint,
     if (system) {
       system->CreateComponent(entity, blueprint);
     } else {
-      LOG(DFATAL) << "Unknown system when creating entity " << entity
+      LOG(DFATAL) << "Unknown system " << blueprint.GetLegacyDefType()
+                  << " when creating entity " << entity
                   << " from blueprint: " << entity_to_blueprint_map_[entity];
     }
   });
@@ -253,6 +246,50 @@ std::shared_ptr<SimpleAsset> EntityFactory::GetBlueprintAsset(
     return nullptr;
   }
   return asset;
+}
+
+Optional<BlueprintTree> EntityFactory::CreateBlueprint(
+    const std::string& name) {
+  auto asset = GetBlueprintAsset(name);
+  return CreateBlueprintFromAsset(name, asset.get());
+}
+
+Optional<BlueprintTree> EntityFactory::CreateBlueprintFromAsset(
+    const std::string& name, const SimpleAsset* asset) {
+  if (asset == nullptr) {
+    LOG(ERROR) << "No such blueprint: " << name;
+    return NullOpt;
+  }
+  return CreateBlueprintFromData(name, asset->GetData(), asset->GetSize());
+}
+
+Optional<BlueprintTree> EntityFactory::CreateBlueprintFromData(
+    const std::string& name, const void* data, size_t size) {
+  if (data == nullptr) {
+    LOG(DFATAL) << "Cannot create entity from null data: " << name;
+    return NullOpt;
+  }
+
+  const string_view identifier(
+      flatbuffers::GetBufferIdentifier(data),
+      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
+  FlatbufferConverter* const converter = GetFlatbufferConverter(identifier);
+  if (!converter) {
+    if (converters_.empty()) {
+      // Creating an entity before entity_factory was initialized.
+      LOG(ERROR) << "Unable to convert raw data to blueprint.  Call "
+                    "::Initialize with arguments to specify how to perform "
+                    "this conversion.";
+    } else {
+      // Created an entity after initialization, but with a flatbuffer bin using
+      // an unregistered schema.
+      LOG(DFATAL) << "Unknown file identifier for entity: " << name
+                  << ".  Identifier was: " << identifier;
+    }
+    return NullOpt;
+  }
+
+  return converter->load(data, size);
 }
 
 void EntityFactory::Destroy(Entity entity) {

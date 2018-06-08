@@ -18,27 +18,22 @@ limitations under the License.
 #define LULLABY_SYSTEMS_MODEL_ASSET_MODEL_ASSET_H_
 
 #include <memory>
-#include "lullaby/generated/model_asset_def_generated.h"
-#include "lullaby/util/entity.h"
 #include "lullaby/modules/file/asset.h"
-#include "lullaby/systems/render/render_system.h"
-#include "lullaby/systems/rig/rig_system.h"
+#include "lullaby/modules/render/image_data.h"
+#include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/modules/render/material_info.h"
+#include "lullaby/modules/render/texture_params.h"
 #include "lullaby/util/registry.h"
+#include "lullaby/util/span.h"
 #include "lullaby/generated/model_def_generated.h"
 
 namespace lull {
 
-/// Parses a .lullmodel file and sets up the corresponding mesh and surface
-/// properties for entities in the RenderSystem.
+/// Parses a lullmodel file and extracts the relevant information so that it
+/// can be consumed by appropriate runtime Systems.
 class ModelAsset : public Asset {
  public:
-  ModelAsset(Registry* registry, const ModelAssetDef* asset_def);
-  ~ModelAsset() override;
-
-  /// Registers an Entity with this model. Once the model is loaded, the
-  /// Entity will be updated with the information contained in the model file.
-  /// If the model is already loaded, the association happens right away.
-  void AddEntity(Entity entity);
+  explicit ModelAsset(std::function<void()> finalize_callback);
 
   /// Extracts the data from the .lullmodel file and stores it locally.
   void OnLoad(const std::string& filename, std::string* data) override;
@@ -46,30 +41,66 @@ class ModelAsset : public Asset {
   /// Updates all Entities that were waiting for the model to finish loading.
   void OnFinalize(const std::string& filename, std::string* data) override;
 
- private:
-  void SetMesh(Entity entity);
-  void SetRig(Entity entity);
-  void SetMaterials(Entity entity);
-  void BuildMesh();
-  void BuildMaterials();
-  void PrepareTextures();
-  std::string CreateTexture(const TextureDef* texture_def);
-  MaterialInfo BuildMaterialInfo(const MaterialDef* material_def, int lod,
-                                 int submesh_index);
-  void ApplyUniforms(Entity entity, const MaterialInfo& material,
-                     const ModelAssetMaterialDef* def);
+  /// Returns the MeshData contained in the model asset.
+  MeshData& GetMutableMeshData() { return mesh_data_; }
 
-  Registry* registry_ = nullptr;
-  std::string raw_data_;
-  const ModelDef* model_def_ = nullptr;
-  const ModelAssetDef* asset_def_ = nullptr;
-  std::vector<Entity> pending_entities_;
-  std::vector<HashValue> textures_;
-  std::unique_ptr<MeshData> mesh_data_;
+  /// Returns the list of materials contained in the model asset.
+  std::vector<MaterialInfo>& GetMutableMaterials() { return materials_; }
+
+  /// Information about a texture referenced by the model asset.
+  struct TextureInfo {
+    std::string name;
+    std::string file;
+    TextureParams params;
+    ImageData data;
+  };
+
+  /// Returns the list of textures references by the model asset.
+  std::vector<TextureInfo>& GetMutableTextures() { return textures_; }
+
+  /// Returns true if the asset has a valid skeleton.
+  bool HasValidSkeleton() const;
+
+  /// Returns the list of parent bone indices stored in the model asset.
+  Span<uint8_t> GetParentBoneIndices() const;
+
+  /// Returns the list of shader bone indices stored in the model asset.
+  Span<uint8_t> GetShaderBoneIndices() const;
+
+  /// Returns the inverse bind pose of the skeleton stored in the model asset.
+  Span<mathfu::AffineTransform> GetInverseBindPose() const;
+
+  /// Returns the list of bone names stored in the model asset.
+  Span<std::string> GetBoneNames() const { return bone_names_; }
+
+  /// Exposes underlying model definition directly.
+  /// TODO(79746085): Refactor BlendShapeSystem so that this can be removed.
+  const ModelDef* GetModelDef();
+
+ private:
+  /// Provides a simple wrapper around a flatbuffer table class where the actual
+  /// data is stored in a contiguous std container (ie. vector or string).
+  template <typename T, typename Data>
+  struct FlatbufferDataObject {
+    void Set(Data data) { data_ = std::move(data); }
+
+    explicit operator bool() { return data_.data() != nullptr; }
+    const T* operator->() const { return get(); }
+    const T* get() const { return flatbuffers::GetRoot<T>(data_.data()); }
+    Data data_;
+  };
+
+  void PrepareMesh();
+  void PrepareMaterials();
+  void PrepareTextures();
+  void PrepareSkeleton();
+
+  FlatbufferDataObject<ModelDef, std::string> model_def_;
+  MeshData mesh_data_;
   std::vector<MaterialInfo> materials_;
-  std::vector<VariantMap> extra_material_properties_;
-  MeshPtr mesh_;
-  bool ready_ = false;
+  std::vector<TextureInfo> textures_;
+  std::vector<std::string> bone_names_;
+  std::function<void()> finalize_callback_;
 };
 
 }  // namespace lull

@@ -19,4 +19,10 @@ enum SortMode : ushort {
   // Sort in an optimal way for rendering to reduce overhead (reduce state
   // changes and resource swaps).
   Optimized,
+  // Sort based on distance along a user-defined axis in world-space.
+  WorldSpaceVectorBackToFront,
+  WorldSpaceVectorFrontToBack,
+  // Sort based on the Z-position, and the absolution value of the X-position of
+  // the entity.
+  WorldSpaceZBackToFrontXOutToMiddle,
 }

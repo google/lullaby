@@ -1,0 +1,252 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
+
+// This module implements sampling preconvolved environment maps for diffuse and
+// specular reflection.
+
+#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "third_party/lullaby/data/shaders/pbr/gamma.glslh"
+#include "third_party/lullaby/data/shaders/pbr/math_common.glslh"
+#include "third_party/lullaby/data/shaders/pbr/rgb2hsv.glslh"
+#include "third_party/lullaby/data/shaders/pbr/screen_projection.glslh"
+#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
+#include "third_party/lullaby/data/shaders/pbr/texture_units.glslh"
+
+// Implies there's an external camera feed for reflection blending.
+uniform bool fibl_enabled;
+
+// This is used for fIBL, or "fake Image-Based Lighting", which is a technique
+// for matching the PBR lighting to the camera feed in an AR device.
+// TODO(b/74979497): The support for fIBL in Lullaby is incomplete.
+#if LULLABY_PBR_FIBL_AVAILABLE
+// Colors driving fake IBL, computed at vertices.
+STAGE_INPUT vec3 fibl_sky_color;
+STAGE_INPUT vec3 fibl_ground_color;
+#endif  // LULLABY_PBR_FIBL_AVAILABLE
+
+uniform mat4 model_view_projection;
+
+// Specular environment map.
+uniform samplerCube kSpecEnvMapUnit;
+
+// Diffuse environment map.
+uniform samplerCube kDiffEnvMapUnit;
+
+// How much to scale specular env lookups to equalize energy with diffuse.
+// Compensates for scaling differences due to normalization.
+uniform float specular_env_map_gain;
+
+// World-space to clip-space matrix, used for screen-space reflections (SSR).
+uniform mat4 view_projection;
+#if LULLABY_PBR_SCREEN_SPACE_REFL
+// Gain factor applied to SSR (derived empirically from tests on Pixel
+// phones). SSR brightness is clamped to below value regardless of gain.
+const float kScreenSpaceReflGain = 0.55;
+// Maximum SSR luma brightness.
+const float kClampScreenSpaceReflection = 1.0;
+#endif  // LULLABY_PBR_SCREEN_SPACE_REFL
+
+
+// Overall multiplier for environment map (diffuse and spec).
+const float kEnvMapGain = 1.25;
+
+uniform vec3 camera_pos;
+uniform sampler2D kCameraFeedMapUnit;
+
+// Per below reference, this equals log2(sqrt(3.0) * kSpecEnvMapWidth), where
+// kSpecEnvMapWidth = 128. Precomputed for efficiency as I'm not sure the
+// driver will fold it.
+const float kMaxMipLevel = 7.79248125;
+
+// Returns appropriate mipmap LOD level of environment cube map, based on
+// Beckmann roughness. This is derived from Morgan Mcguire's blog post:
+// http://casual-effects.blogspot.com/2011/08/plausible-environment-lighting-in-two.html
+//
+// One small deviation is that we begin with a lightly (smoothness = 0.75)
+// pre-convovled specular map rather than using the original HDRI environment
+// (smoothness = 1.0), so we adjust the mip level interpolation accordingly.
+float SpecularMipLevelForCubeMap(float phong_power) {
+  // Our specular env map is convovled to a smoothness 0.75, which is equivalent
+  // to a Blinn-Phong exponent of 510 per SmoothnessToSpecPower(). Plugging this
+  // into the nominal_mip_level equation below yields the following, which has
+  // been precomputed for efficiency:
+  const float kSpecEnvMapBaseMipLevel = 3.294;
+
+  float nominal_mip_level = kMaxMipLevel - 0.5 * log2(phong_power + 1.0);
+  float adjusted_mip_level = nominal_mip_level - kSpecEnvMapBaseMipLevel;
+  float adjusted_max_mip_level = kMaxMipLevel - kSpecEnvMapBaseMipLevel;
+  float mip_fraction =
+      clamp(adjusted_mip_level / adjusted_max_mip_level, 0.0, 1.0);
+  float mip_level = mix(0.0, kMaxMipLevel, mip_fraction);
+  mip_level = max(0.0, mip_level);
+  return mip_level;
+}
+
+// Similar to SpecularMipLevelForCubeMap() but intended for camera feed, which,
+// unlike the specular cube map, is not unpreconvolved.
+float SpecularMipLevelForCamFeed(float phong_power) {
+  float mip_level = kMaxMipLevel - 0.5 * log2(phong_power + 1.0);
+  return max(0.0, mip_level);
+}
+
+// Diffuse environment lookup based on the given dir vector.
+vec3 BaseEnvDiffuseColor(vec3 dir) {
+  vec3 tex_color = textureCube(kDiffEnvMapUnit, dir).rgb;
+  return kEnvMapGain * RemoveGamma(tex_color);
+}
+
+// Specular environment lookup based on the given dir vector. No screen-space
+// reflections.
+vec3 BaseEnvSpecularColor(vec3 dir, float roughness) {
+  float phong_power = RoughnessToSpecPower(roughness);
+  float lod = SpecularMipLevelForCubeMap(phong_power);
+  vec3 tex_color = textureCubeLod(kSpecEnvMapUnit, dir, lod).rgb;
+  return kEnvMapGain * specular_env_map_gain * RemoveGamma(tex_color);
+}
+
+// Projects a point along world_dir (starting at the camera position) into
+// screen coordinates suitable for texture lookup. Coordinates are clamped to
+// [0, 1]^2, preserving direction from center. The world_dir need not be a
+// unit vector but should be well above zero length for good precision.
+vec2 CamDirToClampedScreenUv(vec3 world_dir) {
+  vec4 world_pos = vec4(camera_pos + world_dir, 1.0);
+  return WorldToClampedScreenUv(world_pos, view_projection);
+}
+
+#if LULLABY_PBR_SCREEN_SPACE_REFL
+// Specular environment lookup based on the given dir vector, with blending of
+// screen-space reflection from camera feed, based on from_cam unit vector.
+vec3 BaseEnvSpecularColor(vec3 dir, vec3 from_cam, float roughness) {
+  float phong_power = RoughnessToSpecPower(roughness);
+  float cube_map_lod = SpecularMipLevelForCubeMap(phong_power);
+  vec3 tex_color =
+      RemoveGamma(textureCubeLod(kSpecEnvMapUnit, dir, cube_map_lod).rgb);
+
+  // Blending term from cube map to camera feed.
+  float grazing_cos = max(0.0, dot(dir, from_cam));
+  float schlick_cos = sqrt(1.0 - grazing_cos * grazing_cos);
+  float cam_feed_blend = Pow5(1.0 - schlick_cos);
+  vec2 screen_uv = CamDirToClampedScreenUv(dir);
+
+  // Camera feed is unpreconvolved and of different resolution, so its LOD
+  // differs from the cube map's.
+  float cam_feed_lod = SpecularMipLevelForCamFeed(phong_power);
+
+  vec3 cam_feed_color =
+      kScreenSpaceReflGain *
+      texture2DLod(kCameraFeedMapUnit, screen_uv, cam_feed_lod).rgb;
+
+  float base_gain = kEnvMapGain * specular_env_map_gain;
+  tex_color *= base_gain;
+  cam_feed_color *= base_gain;
+
+  // To avoid screen-space reflections being brighter than the camera feed
+  // they're based on, we clamp their brightness. This is a heuristic trying to
+  // satisfy two competing goals: on the one hand, we want the blended-in SSR to
+  // match the brightness of the cube map for consistency; on the other hand, we
+  // don't want reflecting surfaces glowing brighter than the camera-feed pixels
+  // they reflect.
+  float cam_feed_luma = Rgb2Luma(cam_feed_color);
+  cam_feed_color /= max(kClampScreenSpaceReflection, cam_feed_luma);
+
+  return mix(tex_color, cam_feed_color, cam_feed_blend);
+}
+#endif  // LULLABY_PBR_SCREEN_SPACE_REFL
+
+#if LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+// Returns screen-space refraction color based on world normal, incident vector
+// from_cam, ratio of refractive indices eta, and surface roughness. Blends to
+// reflection as the refraction approaches total internal reflection, per
+// (Schlick's approximation of) the Fresnel equations.
+vec3 ScreenSpaceRefraction(vec3 normal, vec3 from_cam, float eta,
+                           float roughness) {
+  vec3 refr_dir = refract(from_cam, normal, eta);
+
+#ifdef USE_REFRACTION_ROUGHNESS
+  // TODO(b/79370194): Enable this in once we figure out why it's overblurring.
+  // Also, this is being run elsewhere so should be factored out.
+  float phong_power = RoughnessToSpecPower(roughness);
+  float cam_feed_lod = SpecularMipLevelForCamFeed(phong_power);
+#else   // USE_REFRACTION_ROUGHNESS
+  float cam_feed_lod = 0.0;
+#endif  // USE_REFRACTION_ROUGHNESS
+
+  float n_dot_v = max(0.0, -dot(normal, from_cam));
+  float schlick_quintic = Pow5(1.0 - n_dot_v);
+  float f_ratio = (1.0 - eta) / ( 1.0 + eta);
+  float schlick_term = f_ratio + (1.0 - f_ratio) * schlick_quintic;
+
+  vec2 refr_screen_uv = CamDirToClampedScreenUv(refr_dir);
+  vec3 refr_color =
+      texture2DLod(kCameraFeedMapUnit, refr_screen_uv, cam_feed_lod).rgb;
+
+  vec3 refl_dir = reflect(from_cam, normal);
+  vec2 refl_screen_uv = CamDirToClampedScreenUv(refl_dir);
+  vec3 refl_color =
+      texture2DLod(kCameraFeedMapUnit, refl_screen_uv, cam_feed_lod).rgb;
+  return mix(refr_color, refl_color, schlick_term);
+}
+#endif  // LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+
+// The fIBL diffuse convolution simulates a dome light above and below, which
+// should look like a smooth vertical color gradient.  This is implemented as a
+// procedural environment sphere lookup where the color varies from top to
+// bottom based on the fIBL sky and ground colors, which are in turn derived
+// from the camera feed.
+vec3 FiblEnvDiffuseColor(vec3 dir) {
+#if LULLABY_PBR_FIBL_AVAILABLE
+  // We index the gradient by y^3 in order to simulate broader illumination
+  // domes at zenith and nadir. The odd exponent preserves sign.
+  float y_ramp = dir.y * dir.y * dir.y;
+  // Blending factor from ground to sky.
+  float t = 0.5 * (1.0 + y_ramp);
+  return mix(fibl_ground_color, fibl_sky_color, t);
+#else  // LULLABY_PBR_FIBL_AVAILABLE
+  // Since fIBL is applied multiplicatively, white is a no-op.
+  return vec3(1.0);
+#endif  // LULLABY_PBR_FIBL_AVAILABLE
+}
+
+// The fIBL specular convolution simulates a dome light above and below, which
+// should look like a vertical color gradient that is less smooth than the
+// diffuse convolution. This is implemented as a procedural environment sphere
+// lookup where the color varies from top to bottom based on the fIBL sky and
+// ground colors, which are in turn derived from the camera feed.
+vec3 FiblEnvSpecularColor(vec3 dir, float roughness) {
+#if LULLABY_PBR_FIBL_AVAILABLE
+  float y_ramp = dir.y;
+  // Blending factor from ground to sky.
+  float t = 0.5 * (1.0 + y_ramp);
+  return mix(fibl_ground_color, fibl_sky_color, t);
+#else  // LULLABY_PBR_FIBL_AVAILABLE
+  // Since fIBL is applied multiplicatively, white is a no-op.
+  return vec3(1.0);
+#endif  // LULLABY_PBR_FIBL_AVAILABLE
+}
+
+// The overall diffuse reflection along dir.
+vec3 EnvDiffuseColor(vec3 dir) {
+  return BaseEnvDiffuseColor(dir) * FiblEnvDiffuseColor(dir);
+}
+
+// The overall specular reflection along dir with no blending of camera feed
+// screen-space reflection. Used by viewer, where no camera feed is available.
+vec3 EnvSpecularColor(vec3 dir, float roughness) {
+  return BaseEnvSpecularColor(dir, roughness) *
+         FiblEnvSpecularColor(dir, roughness);
+}
+
+// The overall specular reflection along dir. If LULLABY_PBR_SCREEN_SPACE_REFL
+// is on and a camera feed is available via fIBL, this blends in screen-space
+// reflections from the camera feed, based on from_cam vector
+vec3 EnvSpecularColor(vec3 dir, vec3 from_cam, float roughness) {
+#if LULLABY_PBR_SCREEN_SPACE_REFL
+  if (fibl_enabled) {
+    return BaseEnvSpecularColor(dir, from_cam, roughness) *
+        FiblEnvSpecularColor(dir, roughness);
+  }
+#endif  // LULLABY_PBR_SCREEN_SPACE_REFL
+  return EnvSpecularColor(dir, roughness);
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_

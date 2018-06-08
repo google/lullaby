@@ -22,38 +22,30 @@ namespace lull {
 namespace detail {
 namespace {
 
-// When calculating the sort order, we store the root component IDs in the top
-// 4 bits, and each successive level in additional 4 bit blocks.  Each level is
-// limited to 16 components, so we wrap to prevent overflowing into another
-// depth's bits.
-constexpr int kNumBitsPerGroup = 4;
-constexpr RenderSortOrderOffset kMaxOffset = 1 << kNumBitsPerGroup;
-constexpr int kMaxDepth = 8 * sizeof(RenderSortOrder) / kNumBitsPerGroup;
-constexpr int kRootShift = 8 * sizeof(RenderSortOrder) - kNumBitsPerGroup;
-
 // Ensures the offset is within the valid range, logging if it's not.
 RenderSortOrderOffset CheckOffsetBounds(EntityIdPair entity_id_pair,
                                         RenderSortOrderOffset offset) {
-  if (offset >= kMaxOffset) {
+  if (offset >= lull::RenderSortOrder::kMaxOffset) {
     LOG(INFO) << "Offset exceeds valid range for entity "
               << entity_id_pair.entity << " with id " << entity_id_pair.id
               << "! "
               << "Resetting to max offset.";
-    return kMaxOffset;
+    return lull::RenderSortOrder::kMaxOffset;
   }
-  if (offset <= -kMaxOffset) {
+  if (offset <= -lull::RenderSortOrder::kMaxOffset) {
     LOG(INFO) << "Offset exceeds valid range for entity "
               << entity_id_pair.entity << " with id " << entity_id_pair.id
               << "! "
               << "Resetting to min offset.";
-    return -kMaxOffset;
+    return -lull::RenderSortOrder::kMaxOffset;
   }
   return offset;
 }
 
 // Calculates the sort order from an offset and a depth.
 RenderSortOrder SortOrderFromOffset(RenderSortOrderOffset offset, int depth) {
-  const int shift = kRootShift - kNumBitsPerGroup * depth;
+  const int shift = lull::RenderSortOrder::kRootShift -
+                    lull::RenderSortOrder::kNumBitsPerGroup * depth;
   return (static_cast<RenderSortOrder>(offset) << shift);
 }
 
@@ -96,7 +88,7 @@ RenderSortOrderOffset SortOrderManager::CalculateSiblingOffset(
       // Prevent the offset of the entity_id_pair from going over the max valid
       // value so we don't log the calculated offset as an error in
       // CheckOffsetBounds.
-      return std::min(kMaxOffset - 1, offset);
+      return std::min(lull::RenderSortOrder::kMaxOffset - 1, offset);
     }
     ++offset;
   }
@@ -118,7 +110,7 @@ RenderSortOrder SortOrderManager::CalculateRootSortOrder(
     auto result = root_offset_map_.emplace(entity_id_pair, next_root_offset_);
     const bool added = result.second;
 
-    if (added && ++next_root_offset_ >= kMaxOffset) {
+    if (added && ++next_root_offset_ >= lull::RenderSortOrder::kMaxOffset) {
       next_root_offset_ = 1;
     }
 
@@ -149,12 +141,13 @@ std::pair<RenderSortOrder, int> SortOrderManager::CalculateSortOrderAndDepth(
 
   offset = CheckOffsetBounds(entity_id_pair, offset);
 
-  const auto parent_order_depth_pair = CalculateSortOrderAndDepth(parent);
+  const auto parent_order_depth_pair =
+      CalculateSortOrderAndDepth(EntityIdPair(parent, entity_id_pair.id));
   RenderSortOrder parent_sort_order = parent_order_depth_pair.first;
   const int parent_depth = parent_order_depth_pair.second;
 
   const int depth = parent_depth + 1;
-  if (depth >= kMaxDepth) {
+  if (depth >= lull::RenderSortOrder::kMaxDepth) {
     LOG(DFATAL) << "Cannot exceed max depth.";
   }
 
@@ -166,7 +159,7 @@ std::pair<RenderSortOrder, int> SortOrderManager::CalculateSortOrderAndDepth(
     // For negative offsets, start at the highest possible value and work
     // backwards.  This will be offset by the fact that the parent block
     // offset has been reduced by 1.
-    offset += kMaxOffset;
+    offset += lull::RenderSortOrder::kMaxOffset;
   }
 
   return std::make_pair(parent_sort_order + SortOrderFromOffset(offset, depth),

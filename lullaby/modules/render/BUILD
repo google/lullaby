@@ -37,6 +37,7 @@ cc_library(
         "nine_patch.h",
         "render_view.h",
         "sanitize_shader_source.h",
+        "texture_params.h",
         "vertex.h",
         "vertex_format.h",
     ],

@@ -26,8 +26,8 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kCollisionDefHash = Hash("CollisionDef");
-const HashValue kClipBoundsDefHash = Hash("CollisionClipBoundsDef");
+const HashValue kCollisionDefHash = ConstHash("CollisionDef");
+const HashValue kClipBoundsDefHash = ConstHash("CollisionClipBoundsDef");
 }  // namespace
 
 CollisionSystem::CollisionSystem(Registry* registry)
@@ -41,6 +41,43 @@ CollisionSystem::CollisionSystem(Registry* registry)
   RegisterDef(this, kCollisionDefHash);
   RegisterDef(this, kClipBoundsDefHash);
   RegisterDependency<TransformSystem>(this);
+
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Connect(this, [this](const EnableCollisionEvent& e) {
+      EnableCollision(e.entity);
+    });
+    dispatcher->Connect(this, [this](const DisableCollisionEvent& e) {
+      DisableCollision(e.entity);
+    });
+    dispatcher->Connect(this, [this](const EnableInteractionEvent& e) {
+      EnableInteraction(e.entity);
+    });
+    dispatcher->Connect(this, [this](const DisableInteractionEvent& e) {
+      DisableInteraction(e.entity);
+    });
+    dispatcher->Connect(this, [this](const EnableDefaultInteractionEvent& e) {
+      EnableDefaultInteraction(e.entity);
+    });
+    dispatcher->Connect(this, [this](const DisableDefaultInteractionEvent& e) {
+      DisableDefaultInteraction(e.entity);
+    });
+    dispatcher->Connect(this,
+                        [this](const RestoreInteractionDescendantsEvent& e) {
+                          RestoreInteractionDescendants(e.entity);
+                        });
+    dispatcher->Connect(this,
+                        [this](const DisableInteractionDescendantsEvent& e) {
+                          DisableInteractionDescendants(e.entity);
+                        });
+  }
+}
+
+CollisionSystem::~CollisionSystem() {
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
+  }
 }
 
 void CollisionSystem::Initialize() {
@@ -91,7 +128,6 @@ void CollisionSystem::Destroy(Entity entity) {
 CollisionSystem::CollisionResult CollisionSystem::CheckForCollision(
     const Ray& ray) const {
   CollisionResult result = {kNullEntity, kNoHitDistance};
-  std::vector<CollisionResult> clipped_results;
 
   transform_system_->ForAll([&](Entity entity,
                                 const mathfu::mat4& world_from_entity_mat,

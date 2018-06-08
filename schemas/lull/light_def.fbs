@@ -1,5 +1,7 @@
 include "lull/lull_common.fbs";
 
+include "lull/texture_def.fbs";
+
 namespace lull;
 
 table ShadowMapDef {
@@ -75,6 +77,22 @@ table PointLightDef {
   position: Vec3;
 }
 
+/// Defines an environmental light source.
+table EnvironmentLightDef {
+  /// The group of lights to which this light belongs.
+  group: uint = 0 (hashvalue);
+
+  /// The texture to use for the diffuse environment map.
+  diffuse: TextureDef;
+
+  /// The texture to use for the specular environment map.
+  specular: TextureDef;
+
+  /// The bidirectional reflectance distribution function (BRDF) look-up table 
+  /// used to compute environment lighting.
+  brdf_lookup: TextureDef;
+}
+
 /// Enum reflecting the interaction an object has with shadows. This may be
 /// extended in the future.
 enum ShadowInteraction : int {
@@ -106,4 +124,7 @@ table LightableDef {
   /// Custom depth shader to use for rendering the shadow. If unset, default
   /// shader will be used.
   depth_shader : string;
+
+  /// Whether or not to apply environmental light to this Entity.
+  apply_environment_light: bool = false;
 }

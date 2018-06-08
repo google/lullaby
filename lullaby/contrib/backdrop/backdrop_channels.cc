@@ -22,7 +22,7 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue BackdropAabbChannel::kChannelName = Hash("backdrop-aabb");
+const HashValue BackdropAabbChannel::kChannelName = ConstHash("backdrop-aabb");
 
 BackdropAabbChannel::BackdropAabbChannel(Registry* registry, size_t pool_size)
     : AnimationChannel(registry, 6, pool_size) {}

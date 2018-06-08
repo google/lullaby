@@ -18,6 +18,7 @@ cc_library(
         "//lullaby/modules/input",
         "//lullaby/modules/reticle",
         "//lullaby/systems/dispatcher",
+        "//lullaby/systems/input_behavior",
         "//lullaby/systems/reticle",
         "//lullaby/systems/transform",
         "//lullaby/util:clock",

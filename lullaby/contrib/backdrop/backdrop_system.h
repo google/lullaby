@@ -120,6 +120,9 @@ class BackdropSystem : public System {
 
   // The Backdrop components for each entity.
   ComponentPool<Backdrop> backdrops_;
+
+  // The set of entities with a BackdropExclusionDef component.
+  std::unordered_set<lull::Entity> exclusions_;
 };
 
 }  // namespace lull

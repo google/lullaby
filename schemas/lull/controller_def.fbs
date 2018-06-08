@@ -22,25 +22,17 @@ table ControllerDef {
   enable_events: [EventDef];
   disable_events: [EventDef];
 
-  // The number of frames to let device data stabilize to avoid eye strain from
-  // the controller / laser models jumping around. This many frames are ignored
-  // before enabling the controller entity. Frames are used instead of a unit of
-  // time like milliseconds because frames are typically much longer when an app
-  // is started up or resumed, and this is typically when device data is
-  // unstable. The counter will be reset when the device disconnects.
-  stabilization_frames: int = 20;
+  deprecated1: int = 0;
+
+  // If true, controller_system will use the device profile to set up uniforms
+  // for the controller shader.
+  use_device_profile: bool = false;
 }
 
 table LaserDef {
   controller_type: ControllerType = Controller1 (deprecated);
 
-  // The number of frames to let device data stabilize to avoid eye strain from
-  // the controller / laser models jumping around. This many frames are ignored
-  // before enabling the laser entity. Frames are used instead of a unit of
-  // time like milliseconds because frames are typically much longer when an app
-  // is started up or resumed, and this is typically when device data is
-  // unstable. The counter will be reset when the device disconnects.
-  stabilization_frames: int = 20;
+  deprecated1: int = 0;
 }
 
 root_type ControllerDef;

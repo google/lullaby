@@ -86,6 +86,7 @@ vec2i Vec2iCreate(int x, int y) { return vec2i(x, y); }
 vec3i Vec3iCreate(int x, int y, int z) { return vec3i(x, y, z); }
 vec4i Vec4iCreate(int x, int y, int z, int w) { return vec4i(x, y, z, w); }
 quat QuatCreate(float x, float y, float z, float w) { return quat(x, y, z, w); }
+quat QuatFromEulerAngles(const vec3& v) { return quat::FromEulerAngles(v); }
 
 Variant GetX(ScriptFrame* frame, const Variant* vec) {
   if (const vec2* v2 = vec->Get<vec2>()) return v2->x;
@@ -130,7 +131,7 @@ Variant GetW(ScriptFrame* frame, const Variant* vec) {
 }
 
 void SetX(ScriptFrame* frame, Variant* vec, const Variant* num) {
-  Optional<float> f = num->NumericCast<float>();
+  Optional<float> f = num->ImplicitCast<float>();
   if (!f) {
     frame->Error("set-x: 2nd arg was not numeric");
     return;
@@ -151,7 +152,7 @@ void SetX(ScriptFrame* frame, Variant* vec, const Variant* num) {
     qt->vector().x = *f;
     return;
   }
-  Optional<int> i = num->NumericCast<int>();
+  Optional<int> i = num->ImplicitCast<int>();
   if (vec2i* v2i = vec->Get<vec2i>()) {
     v2i->x = *i;
     return;
@@ -168,7 +169,7 @@ void SetX(ScriptFrame* frame, Variant* vec, const Variant* num) {
 }
 
 void SetY(ScriptFrame* frame, Variant* vec, const Variant* num) {
-  Optional<float> f = num->NumericCast<float>();
+  Optional<float> f = num->ImplicitCast<float>();
   if (!f) {
     frame->Error("set-y: 2nd arg was not numeric");
     return;
@@ -189,7 +190,7 @@ void SetY(ScriptFrame* frame, Variant* vec, const Variant* num) {
     qt->vector().y = *f;
     return;
   }
-  Optional<int> i = num->NumericCast<int>();
+  Optional<int> i = num->ImplicitCast<int>();
   if (vec2i* v2i = vec->Get<vec2i>()) {
     v2i->y = *i;
     return;
@@ -206,7 +207,7 @@ void SetY(ScriptFrame* frame, Variant* vec, const Variant* num) {
 }
 
 void SetZ(ScriptFrame* frame, Variant* vec, const Variant* num) {
-  Optional<float> f = num->NumericCast<float>();
+  Optional<float> f = num->ImplicitCast<float>();
   if (!f) {
     frame->Error("set-z: 2nd arg was not numeric");
     return;
@@ -223,7 +224,7 @@ void SetZ(ScriptFrame* frame, Variant* vec, const Variant* num) {
     qt->vector().z = *f;
     return;
   }
-  Optional<int> i = num->NumericCast<int>();
+  Optional<int> i = num->ImplicitCast<int>();
   if (vec3i* v3i = vec->Get<vec3i>()) {
     v3i->z = *i;
     return;
@@ -236,7 +237,7 @@ void SetZ(ScriptFrame* frame, Variant* vec, const Variant* num) {
 }
 
 void SetW(ScriptFrame* frame, Variant* vec, const Variant* num) {
-  Optional<float> f = num->NumericCast<float>();
+  Optional<float> f = num->ImplicitCast<float>();
   if (!f) {
     frame->Error("set-w: 2nd arg was not numeric");
     return;
@@ -249,7 +250,7 @@ void SetW(ScriptFrame* frame, Variant* vec, const Variant* num) {
     qt->scalar() = *f;
     return;
   }
-  Optional<int> i = num->NumericCast<int>();
+  Optional<int> i = num->ImplicitCast<int>();
   if (vec4i* v4i = vec->Get<vec4i>()) {
     v4i->w = *i;
     return;
@@ -264,6 +265,7 @@ LULLABY_SCRIPT_FUNCTION_WRAP(Vec2iCreate, "vec2i");
 LULLABY_SCRIPT_FUNCTION_WRAP(Vec3iCreate, "vec3i");
 LULLABY_SCRIPT_FUNCTION_WRAP(Vec4iCreate, "vec4i");
 LULLABY_SCRIPT_FUNCTION_WRAP(QuatCreate, "quat");
+LULLABY_SCRIPT_FUNCTION_WRAP(QuatFromEulerAngles, "quat.FromEulerAngles");
 LULLABY_SCRIPT_FUNCTION_WRAP(GetX, "get-x");
 LULLABY_SCRIPT_FUNCTION_WRAP(GetY, "get-y");
 LULLABY_SCRIPT_FUNCTION_WRAP(GetZ, "get-z");

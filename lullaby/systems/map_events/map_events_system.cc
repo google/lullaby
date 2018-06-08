@@ -26,11 +26,12 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kMapEventsToChildrenHash = Hash("MapEventsToChildrenDef");
-const HashValue kMapEventsToParentHash = Hash("MapEventsToParentDef");
-const HashValue kMapEventsToSiblingsHash = Hash("MapEventsToSiblingsDef");
-const HashValue kMapEventsToGroupHash = Hash("MapEventsToGroupDef");
-const HashValue kMapEventsToDescendantsHash = Hash("MapEventsToDescendantsDef");
+const HashValue kMapEventsToChildrenHash = ConstHash("MapEventsToChildrenDef");
+const HashValue kMapEventsToParentHash = ConstHash("MapEventsToParentDef");
+const HashValue kMapEventsToSiblingsHash = ConstHash("MapEventsToSiblingsDef");
+const HashValue kMapEventsToGroupHash = ConstHash("MapEventsToGroupDef");
+const HashValue kMapEventsToDescendantsHash =
+    ConstHash("MapEventsToDescendantsDef");
 
 }  // namespace
 

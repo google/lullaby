@@ -12,6 +12,18 @@ struct ModelIndexRange {
   end: uint32;
 }
 
+/// Matches the format of the original mesh, but potentially supplies new
+/// normals and positions for each vertex.  This is used by BlendSystem to
+/// support blend shape animation (morph target animation) in Lullaby.
+table BlendShape {
+  /// The name of this blend shape.
+  name: uint = 0 (hashvalue);
+
+  /// Exactly duplicates the structure of ModelInstanceDef.vertex_data, but with
+  /// positions and normals adjusted to match this blend shape.
+  vertex_data: [uint8];
+}
+
 /// A single instance of model data used to render an object at a given LOD.
 table ModelInstanceDef {
   /// The "raw" vertex data stored as a byte array.
@@ -41,6 +53,9 @@ table ModelInstanceDef {
   /// are only the bones that have at least one vertex weighted to them and, as
   /// such, are a subset of all the bones in the skeleton.
   shader_to_mesh_bones: [ubyte];
+
+  /// A collection of blendshapes, if they exist.
+  blend_shapes: [BlendShape];
 }
 
 /// Contains all the information stored in a lullmodel file. This information

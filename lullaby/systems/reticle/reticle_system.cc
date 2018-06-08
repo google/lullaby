@@ -50,9 +50,10 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kReticleDef = Hash("ReticleDef");
-const HashValue kReticleBehaviourDef = Hash("ReticleBehaviourDef");
-const HashValue kEnableHmdFallback = Hash("lull.Reticle.EnableHmdFallback");
+const HashValue kReticleDef = ConstHash("ReticleDef");
+const HashValue kReticleBehaviourDef = ConstHash("ReticleBehaviourDef");
+const HashValue kEnableHmdFallback =
+    ConstHash("lull.Reticle.EnableHmdFallback");
 
 ReticleSystem::Reticle::Reticle(Entity e)
     : Component(e),
@@ -80,7 +81,9 @@ ReticleSystem::ReticleSystem(Registry* registry) : System(registry) {
     registry_->Create<InputProcessor>(registry_,
                                       InputProcessor::kLegacyEventsAndLogic);
   }
-  pipeline_.reset(new StandardInputPipeline(registry_));
+  if (registry_->Get<StandardInputPipeline>() == nullptr) {
+    registry_->Create<StandardInputPipeline>(registry_);
+  }
 }
 
 void ReticleSystem::Create(Entity entity, HashValue type, const Def* def) {
@@ -122,8 +125,9 @@ void ReticleSystem::CreateReticle(Entity entity, const ReticleDef* data) {
   } else {
     device_preference = {InputManager::kController, InputManager::kHmd};
   }
-  pipeline_->SetDevicePreference(device_preference);
-  input_processor->SetPrimaryDevice(pipeline_->GetPrimaryDevice());
+  auto* pipeline = registry_->Get<StandardInputPipeline>();
+  pipeline->SetDevicePreference(device_preference);
+  input_processor->SetPrimaryDevice(pipeline->GetPrimaryDevice());
 
   auto* cursor_system = registry_->Get<CursorSystem>();
   if (cursor_system) {
@@ -168,6 +172,7 @@ void ReticleSystem::CreateReticleBehaviour(Entity entity,
             InputBehaviorType::InputBehaviorType_HandleDescendants;
         break;
     }
+    behavior.draggable = data->draggable();
     input_behavior_system->CreateComponent(entity, Blueprint(&behavior));
   } else {
     LOG(DFATAL) << "Tried to create ReticleBehavior, but InputBehaviorSystem "
@@ -209,7 +214,8 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
   auto* cursor_system = registry_->Get<CursorSystem>();
   auto* input_processor = registry_->Get<InputProcessor>();
 
-  auto device = pipeline_->GetPrimaryDevice();
+  auto* pipeline = registry_->Get<StandardInputPipeline>();
+  auto device = pipeline->GetPrimaryDevice();
   input_processor->SetPrimaryDevice(device);
 
   if (device == InputManager::kMaxNumDeviceTypes) {
@@ -231,9 +237,9 @@ void ReticleSystem::AdvanceFrame(const Clock::duration& delta_time) {
   focus.no_hit_cursor_position = focus.cursor_position;
 
   // Make the collision come from the hmd instead of the controller
-  pipeline_->MakeRayComeFromHmd(&focus);
+  pipeline->MakeRayComeFromHmd(&focus);
 
-  pipeline_->ApplySystemsToInputFocus(&focus);
+  pipeline->ApplySystemsToInputFocus(&focus);
 
   // Send Events.
   input_processor->UpdateDevice(delta_time, focus);
@@ -250,8 +256,9 @@ void ReticleSystem::CalculateFocusPositions(Entity reticle_entity,
     focus->collision_ray = reticle_->movement_fn(focus->device);
   } else {
     const auto* transform_system = registry_->Get<TransformSystem>();
-    focus->collision_ray = pipeline_->GetDeviceSelectionRay(
-        focus->device, transform_system->GetParent(reticle_entity));
+    focus->collision_ray =
+        registry_->Get<StandardInputPipeline>()->GetDeviceSelectionRay(
+            focus->device, transform_system->GetParent(reticle_entity));
   }
 
   if (reticle_->smoothing_fn) {

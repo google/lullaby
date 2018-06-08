@@ -21,6 +21,61 @@ limitations under the License.
 
 namespace lull {
 
+bool VariantFromVariantDefT(const VariantDefT& in, Variant* out) {
+  if (!out) {
+    return false;
+  }
+
+  const VariantDef type = in.type();
+  switch (type) {
+    case VariantDef_DataBool: {
+      *out = in.get<DataBoolT>()->value;
+      return true;
+    }
+    case VariantDef_DataInt: {
+      *out = in.get<DataIntT>()->value;
+      return true;
+    }
+    case VariantDef_DataFloat: {
+      *out = in.get<DataFloatT>()->value;
+      return true;
+    }
+    case VariantDef_DataHashValue: {
+      *out = in.get<DataHashValueT>()->value;
+      return true;
+    }
+    case VariantDef_DataString: {
+      *out = in.get<DataStringT>()->value;
+      return true;
+    }
+    case VariantDef_DataVec2: {
+      *out = in.get<DataVec2T>()->value;
+      return true;
+    }
+    case VariantDef_DataVec3: {
+      *out = in.get<DataVec3T>()->value;
+      return true;
+    }
+    case VariantDef_DataVec4: {
+      *out = in.get<DataVec4T>()->value;
+      return true;
+    }
+    case VariantDef_DataQuat: {
+      *out = in.get<DataQuatT>()->value;
+      return true;
+    }
+    case VariantDef_DataBytes: {
+      *out = in.get<DataBytesT>()->value;
+      return true;
+    }
+    default: {
+      const char* label = EnumNameVariantDef(type);
+      LOG(ERROR) << "Unknown data variant type: " << label;
+      return false;
+    }
+  }
+}
+
 bool VariantFromFbVariant(VariantDef type, const void* in, Variant* out) {
   if (!in || !out) {
     return false;
@@ -95,6 +150,21 @@ bool VariantFromFbVariant(VariantDef type, const void* in, Variant* out) {
   }
 }
 
+bool VariantArrayFromVariantArrayDefT(const VariantArrayDefT& in,
+                                      VariantArray* out) {
+  if (out == nullptr) {
+    return false;
+  }
+
+  for (const VariantArrayDefImplT& iter : in.values) {
+    Variant var;
+    if (VariantFromVariantDefT(iter.value, &var)) {
+      out->emplace_back(std::move(var));
+    }
+  }
+  return true;
+}
+
 bool VariantArrayFromFbVariantArray(const VariantArrayDef* in,
                                     VariantArray* out) {
   if (in == nullptr || out == nullptr) {
@@ -113,6 +183,22 @@ bool VariantArrayFromFbVariantArray(const VariantArrayDef* in,
     Variant var;
     if (VariantFromFbVariant(values->value_type(), variant_def, &var)) {
       out->emplace_back(std::move(var));
+    }
+  }
+  return true;
+}
+
+bool VariantMapFromVariantMapDefT(const VariantMapDefT& in, VariantMap* out) {
+  if (out == nullptr) {
+    return false;
+  }
+
+  for (const KeyVariantPairDefT& iter : in.values) {
+    Variant var;
+    if (VariantFromVariantDefT(iter.value, &var)) {
+      const HashValue key_hash =
+          iter.key.empty() ? iter.hash_key : Hash(iter.key);
+      (*out)[key_hash] = std::move(var);
     }
   }
   return true;

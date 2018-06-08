@@ -29,7 +29,7 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kCursorTrailDef = Hash("CursorTrailDef");
+const HashValue kCursorTrailDef = ConstHash("CursorTrailDef");
 const int kNumVerticesPerTrailQuad = 4;
 const int kNumIndicesPerTrailQuad = 6;
 const float kMaxDeltaTime = 0.05f;

@@ -21,6 +21,7 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
+#include "lullaby/util/clock.h"
 #include "lullaby/util/common_types.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/type_util.h"
@@ -188,31 +189,33 @@ class Variant {
     }
 
 // Supported serialization types:
-#define TYPE_SWITCH        \
-  CASE(bool)               \
-  CASE(int8_t)             \
-  CASE(uint8_t)            \
-  CASE(int16_t)            \
-  CASE(uint16_t)           \
-  CASE(int32_t)            \
-  CASE(uint32_t)           \
-  CASE(int64_t)            \
-  CASE(uint64_t)           \
-  CASE(float)              \
-  CASE(double)             \
-  CASE(std::string)        \
-  CASE(mathfu::vec2)       \
-  CASE(mathfu::vec2i)      \
-  CASE(mathfu::vec3)       \
-  CASE(mathfu::vec3i)      \
-  CASE(mathfu::vec4)       \
-  CASE(mathfu::vec4i)      \
-  CASE(mathfu::quat)       \
-  CASE(mathfu::mat4)       \
-  CASE(lull::VariantArray) \
-  CASE(lull::VariantMap)
+#define LULLABY_TYPE_SWITCH        \
+  LULLABY_CASE(bool)               \
+  LULLABY_CASE(int8_t)             \
+  LULLABY_CASE(uint8_t)            \
+  LULLABY_CASE(int16_t)            \
+  LULLABY_CASE(uint16_t)           \
+  LULLABY_CASE(int32_t)            \
+  LULLABY_CASE(uint32_t)           \
+  LULLABY_CASE(int64_t)            \
+  LULLABY_CASE(uint64_t)           \
+  LULLABY_CASE(float)              \
+  LULLABY_CASE(double)             \
+  LULLABY_CASE(std::string)        \
+  LULLABY_CASE(mathfu::vec2)       \
+  LULLABY_CASE(mathfu::vec2i)      \
+  LULLABY_CASE(mathfu::vec3)       \
+  LULLABY_CASE(mathfu::vec3i)      \
+  LULLABY_CASE(mathfu::vec4)       \
+  LULLABY_CASE(mathfu::vec4i)      \
+  LULLABY_CASE(mathfu::quat)       \
+  LULLABY_CASE(mathfu::rectf)      \
+  LULLABY_CASE(mathfu::recti)      \
+  LULLABY_CASE(mathfu::mat4)       \
+  LULLABY_CASE(lull::VariantArray) \
+  LULLABY_CASE(lull::VariantMap)
 
-#define CASE(T)                             \
+#define LULLABY_CASE(T)                             \
   if (type_ == lull::GetTypeId<T>()) {      \
     if (archive.IsDestructive()) {          \
       T t;                                  \
@@ -223,9 +226,9 @@ class Variant {
     }                                       \
     return;                                 \
   }
-    TYPE_SWITCH;
-#undef CASE
-#undef TYPE_SWITCH
+    LULLABY_TYPE_SWITCH;
+#undef LULLABY_CASE
+#undef LULLABY_TYPE_SWITCH
 
     bool is_enum = (handler_ == nullptr);
     archive(&is_enum, ConstHash("is_enum"));
@@ -240,27 +243,19 @@ class Variant {
     Clear();
   }
 
-  // Utility type to enable/disable the NumericCast function below.
+  // Similar to Get(), but will also attempt to cast similar types:
+  //   static_cast if both T and the type are numeric (int, float, enum, etc.)
+  //   mathfu::rectf/i from mathfu::vec4, vec4i, and each other.
+  //   Clock::duration from (u)int64_t (interpreted as nanoseconds)
   template <typename T>
-  using EnableIfNumeric =
-      typename std::enable_if<std::is_arithmetic<T>::value, T>;
-
-  // Similar to Get(), but attempts to perform a static_cast on the underlying
-  // type.  Both T and the stored type must be a numeric value (ie. int, float,
-  // etc.).  If neither type is numeric, returns an empty value.
-  template <typename T>
-  auto NumericCast() const -> Optional<typename EnableIfNumeric<T>::type> {
-    if (auto ptr = Get<int32_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<float>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<uint32_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<int64_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<uint64_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<double>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<int16_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
-    if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
-    return NullOpt;
+  Optional<T> ImplicitCast() const {
+    if (auto ptr = Get<T>()) {
+      return *ptr;
+    } else if (Empty()) {
+      return NullOpt;
+    } else {
+      return ImplicitCastImpl<T>();
+    }
   }
 
  private:
@@ -462,10 +457,105 @@ class Variant {
   // Returns a pointer to the internal buffer storage.
   const void* Data() const { return &buffer_; }
 
+  // Cast specialization for int and float casts.
+  template <typename T>
+  Optional<typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+  ImplicitCastImpl() const;
+
+  // Cast specialization for enum types, only works on integers.
+  template <typename T>
+  Optional<typename std::enable_if<std::is_enum<T>::value, T>::type>
+  ImplicitCastImpl() const;
+
+  // Base template for other conversions, does nothing.
+  template <typename T>
+  Optional<typename std::enable_if<
+      !std::is_enum<T>::value && !std::is_arithmetic<T>::value, T>::type>
+  ImplicitCastImpl() const {
+    return NullOpt;
+  }
+
   TypeId type_ = 0;    // TypeId of the stored value, or 0 if no value stored.
   HandlerFn handler_;  // Used to perform type-specific operations on the value.
   Buffer buffer_;      // Memory buffer to hold variant value.
 };
+
+template <typename T>
+Optional<typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
+Variant::ImplicitCastImpl() const {
+  if (auto ptr = Get<int32_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<float>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint32_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int64_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint64_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<double>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int16_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
+  return NullOpt;
+}
+
+template <typename T>
+Optional<typename std::enable_if<std::is_enum<T>::value, T>::type>
+Variant::ImplicitCastImpl() const {
+  if (auto ptr = Get<int32_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint32_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int64_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint64_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int16_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
+  return NullOpt;
+}
+
+// Cast specialization for rectf from vec4(i) and recti.
+template <>
+inline Optional<mathfu::rectf> Variant::ImplicitCastImpl<mathfu::rectf>()
+    const {
+  if (auto ptr = Get<mathfu::vec4>()) {
+    return mathfu::rectf(*ptr);
+  }
+  if (auto ptr = Get<mathfu::vec4i>()) {
+    return mathfu::rectf(mathfu::vec4(*ptr));
+  }
+  if (auto ptr = Get<mathfu::recti>()) {
+    return mathfu::rectf(mathfu::vec2(ptr->pos), mathfu::vec2(ptr->size));
+  }
+  return NullOpt;
+}
+
+// Cast specialization for recti from vec4(i) and rectf.
+template <>
+inline Optional<mathfu::recti> Variant::ImplicitCastImpl<mathfu::recti>()
+    const {
+  if (auto ptr = Get<mathfu::vec4>()) {
+    return mathfu::recti(mathfu::vec4i(*ptr));
+  }
+  if (auto ptr = Get<mathfu::vec4i>()) {
+    return mathfu::recti(*ptr);
+  }
+  if (auto ptr = Get<mathfu::rectf>()) {
+    return mathfu::recti(mathfu::vec2i(ptr->pos), mathfu::vec2i(ptr->size));
+  }
+  return NullOpt;
+}
+
+// Cast specialization for duration from (u)int64.
+template <>
+inline Optional<Clock::duration> Variant::ImplicitCastImpl<Clock::duration>()
+    const {
+  if (auto ptr = Get<int64_t>()) {
+    return std::chrono::duration_cast<Clock::duration>(
+        std::chrono::duration<int64_t, std::nano>(*ptr));
+  }
+  if (auto ptr = Get<uint64_t>()) {
+    return std::chrono::duration_cast<Clock::duration>(
+        std::chrono::duration<uint64_t, std::nano>(*ptr));
+  }
+  return NullOpt;
+}
 
 }  // namespace lull
 

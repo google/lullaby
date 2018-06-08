@@ -19,15 +19,18 @@ limitations under the License.
 namespace lull {
 
 FunctionBinder::FunctionBinder(Registry* registry) : registry_(registry) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
   RegisterBuiltInFunctions(this);
   auto* script_engine = registry_->Get<ScriptEngine>();
   if (script_engine) {
     script_engine->SetFunctionCallHandler(
         [this](FunctionCall* call) { Call(call); });
   }
+#endif
 }
 
 void FunctionBinder::UnregisterFunction(string_view name) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
   auto* script_engine = registry_->Get<ScriptEngine>();
   if (script_engine) {
     script_engine->UnregisterFunction(name.to_string());
@@ -39,6 +42,7 @@ void FunctionBinder::UnregisterFunction(string_view name) {
     return;
   }
   functions_.erase(iter);
+#endif
 }
 
 bool FunctionBinder::IsFunctionRegistered(string_view name) const {
@@ -50,6 +54,7 @@ bool FunctionBinder::IsFunctionRegistered(HashValue id) const {
 }
 
 Variant FunctionBinder::Call(FunctionCall* call) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
   const auto iter = functions_.find(call->GetId());
   if (iter == functions_.end()) {
     if (call->GetName().empty()) {
@@ -61,6 +66,9 @@ Variant FunctionBinder::Call(FunctionCall* call) {
   }
   iter->second->Call(call);
   return call->GetReturnValue();
+#else
+  return Variant();
+#endif
 }
 
 }  // namespace lull

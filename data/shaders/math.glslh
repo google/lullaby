@@ -1,0 +1,9 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_MATH_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_MATH_GLSLH_
+
+/// General-purpose math constants and functions.
+
+/// A partial value of Pi.
+const float kPi = 3.14159265;
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_MATH_GLSLH_

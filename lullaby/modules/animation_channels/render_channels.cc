@@ -16,23 +16,25 @@ limitations under the License.
 
 #include "lullaby/modules/animation_channels/render_channels.h"
 
+#include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/render/render_helpers.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/color.h"
 
 namespace lull {
 
-const HashValue RenderRigChannel::kChannelName = Hash("render-rig");
-const HashValue UniformChannel::kColorChannelName = Hash("render-color");
-const HashValue RgbChannel::kChannelName = Hash("render-color-rgb");
-const HashValue AlphaChannel::kChannelName = Hash("render-color-alpha");
+const HashValue RenderRigChannel::kChannelName = ConstHash("render-rig");
+const HashValue UniformChannel::kColorChannelName = ConstHash("render-color");
+const HashValue RgbChannel::kChannelName = ConstHash("render-color-rgb");
+const HashValue AlphaChannel::kChannelName = ConstHash("render-color-alpha");
 const HashValue AlphaDescendantsChannel::kChannelName =
-    Hash("render-color-alpha-descendants");
+    ConstHash("render-color-alpha-descendants");
 const HashValue RgbMultiplierDescendantsChannel::kChannelName =
-    Hash("render-color-rgb-multiplier-descendants");
+    ConstHash("render-color-rgb-multiplier-descendants");
 const HashValue AlphaMultiplierDescendantsChannel::kChannelName =
-    Hash("render-color-alpha-multiplier-descendants");
+    ConstHash("render-color-alpha-multiplier-descendants");
 
 UniformChannel::UniformChannel(Registry* registry, size_t pool_size,
                                const std::string& uniform_name,
@@ -53,6 +55,22 @@ void UniformChannel::Setup(Registry* registry, size_t pool_size,
     animation_system->AddChannel(channel_id, std::move(ptr));
   } else {
     LOG(DFATAL) << "Failed to setup UniformChannel for " << uniform_name;
+  }
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (animation_system && dispatcher) {
+    if (channel_id == UniformChannel::kColorChannelName) {
+      dispatcher->Connect(animation_system, [animation_system](
+                                                const AnimateColorEvent& e) {
+
+        const auto color = e.int_argb ? Color4ub::ToVec4(Color4ub::FromARGB(
+                                            e.int_argb))
+                                      : e.color;
+        const auto duration = std::chrono::duration_cast<Clock::duration>(
+            std::chrono::duration<float, std::milli>(e.time_ms));
+        animation_system->SetTarget(e.entity, UniformChannel::kColorChannelName,
+                                    &color[0], 4, duration);
+      });
+    }
   }
 }
 

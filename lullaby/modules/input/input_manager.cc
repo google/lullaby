@@ -27,8 +27,6 @@ limitations under the License.
 
 namespace lull {
 namespace {
-const Clock::duration kDefaultLongPressTime = std::chrono::milliseconds(500);
-
 // Clamps the components of the vector between min and max and logs an error if
 // they fall outside that range.
 mathfu::vec2 ClampVec2(const mathfu::vec2& value, float min, float max) {
@@ -67,12 +65,15 @@ const Clock::time_point InputManager::kInvalidSampleTime =
     Clock::time_point::min();
 const mathfu::vec2 InputManager::kInvalidTouchLocation(-1, -1);
 
+const uint8_t InputManager::kInvalidBatteryCharge = 255;
+
 InputManager::DeviceParams::DeviceParams()
     : has_position_dof(false),
       has_rotation_dof(false),
       has_touchpad(false),
       has_touch_gesture(false),
       has_scroll(false),
+      has_battery(false),
       num_joysticks(0),
       num_buttons(0),
       num_eyes(0),
@@ -89,7 +90,7 @@ void InputManager::AdvanceFrame(Clock::duration delta_time) {
 }
 
 void InputManager::ConnectDevice(DeviceType device,
-                                 const DeviceParams& params) {
+                                 const DeviceProfile& profile) {
   if (device == kMaxNumDeviceTypes) {
     LOG(DFATAL) << "Invalid device type: " << GetDeviceName(device);
     return;
@@ -97,7 +98,41 @@ void InputManager::ConnectDevice(DeviceType device,
 
   // TODO(b/26692955): Update connected state in a thread-safe manner.
   std::unique_lock<std::mutex> lock(mutex_);
-  devices_[device].Connect(params);
+  devices_[device].Connect(profile);
+}
+
+void InputManager::ConnectDevice(DeviceType device,
+                                 const DeviceParams& params) {
+  if (device == kMaxNumDeviceTypes) {
+    LOG(DFATAL) << "Invalid device type: " << GetDeviceName(device);
+    return;
+  }
+
+  // Translate from deprecated InputManager::DeviceParams to new
+  // DeviceProfile.
+  DeviceProfile profile;
+  profile.rotation_dof = params.has_rotation_dof
+                             ? DeviceProfile::kRealDof
+                             : DeviceProfile::kUnavailableDof;
+  profile.position_dof = params.has_position_dof
+                             ? DeviceProfile::kRealDof
+                             : DeviceProfile::kUnavailableDof;
+  if (params.has_touchpad) {
+    profile.touchpads.resize(1);
+    profile.touchpads[0].has_gestures = params.has_touch_gesture;
+  }
+  if (params.has_scroll) {
+    profile.scroll_wheels.resize(1);
+  }
+  if (params.has_battery) {
+    profile.battery.emplace();
+  }
+  profile.joysticks.resize(params.num_joysticks);
+  profile.buttons.resize(params.num_buttons);
+  profile.eyes.resize(params.num_eyes);
+  profile.long_press_time = params.long_press_time;
+
+  ConnectDevice(device, profile);
 }
 
 void InputManager::DisconnectDevice(DeviceType device) {
@@ -258,7 +293,7 @@ void InputManager::UpdateGesture(DeviceType device, GestureType type,
           std::abs(displacement[0]) > std::abs(displacement[1])
               ? mathfu::kAxisX2f
               : mathfu::kAxisY2f;
-    } else if (type != GestureType::kScrollUpdate) {
+    } else if (type == GestureType::kScrollEnd || type == GestureType::kFling) {
       touch_gesture.initial_displacement_axis = mathfu::kZeros2f;
     }
   } else {
@@ -350,6 +385,24 @@ void InputManager::UpdateEye(DeviceType device, EyeType eye,
   }
 }
 
+void InputManager::UpdateBattery(DeviceType device, BatteryState state,
+                                 uint8_t charge) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  DeviceState* device_state = GetDeviceStateForWriteLocked(device);
+  if (device_state == nullptr) {
+    LOG(DFATAL) << "No state for device: " << GetDeviceName(device);
+    return;
+  }
+
+  if (device_state->battery_charge.size() == 1 &&
+      device_state->battery_state.size() == 1) {
+    device_state->battery_charge[0] = charge;
+    device_state->battery_state[0] = state;
+  } else {
+    LOG(DFATAL) << "Battery not enabled for device: " << GetDeviceName(device);
+  }
+}
+
 bool InputManager::IsConnected(DeviceType device) const {
   if (device == kMaxNumDeviceTypes) {
     LOG(DFATAL) << "Invalid device type: " << GetDeviceName(device);
@@ -359,48 +412,57 @@ bool InputManager::IsConnected(DeviceType device) const {
 }
 
 bool InputManager::HasPositionDof(DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->has_position_dof : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->position_dof != DeviceProfile::kUnavailableDof
+                 : false;
 }
 
 bool InputManager::HasRotationDof(DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->has_rotation_dof : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->rotation_dof != DeviceProfile::kUnavailableDof
+                 : false;
 }
 
 bool InputManager::HasTouchpad(DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->has_touchpad : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? !profile->touchpads.empty() : false;
 }
 
 bool InputManager::HasJoystick(DeviceType device, JoystickType joystick) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->num_joysticks > static_cast<size_t>(joystick) : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->joysticks.size() > static_cast<size_t>(joystick)
+                 : false;
 }
 
 bool InputManager::HasScroll(DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->has_scroll : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? !profile->scroll_wheels.empty() : false;
 }
 
 bool InputManager::HasButton(DeviceType device, ButtonId button) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->num_buttons > static_cast<size_t>(button) : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->buttons.size() > static_cast<size_t>(button)
+                 : false;
 }
 
 size_t InputManager::GetNumButtons(DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->num_buttons : 0;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->buttons.size() : 0;
 }
 
 bool InputManager::HasEye(DeviceType device, EyeType eye) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->num_eyes > static_cast<size_t>(eye) : false;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->eyes.size() > static_cast<size_t>(eye) : false;
 }
 
 size_t InputManager::GetNumEyes(DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? params->num_eyes : 0;
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? profile->eyes.size() : 0;
+}
+
+bool InputManager::HasBattery(DeviceType device) const {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  return profile ? (bool)profile->battery : false;
 }
 
 const char* InputManager::GetDeviceName(DeviceType device) {
@@ -447,8 +509,8 @@ InputManager::ButtonState InputManager::GetButtonState(DeviceType device,
     return kInvalidButtonState;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_buttons <= static_cast<size_t>(button)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->buttons.size() <= static_cast<size_t>(button)) {
     LOG(DFATAL) << "Invalid button [" << button
                 << "] for device: " << GetDeviceName(device);
     return kInvalidButtonState;
@@ -461,8 +523,9 @@ InputManager::ButtonState InputManager::GetButtonState(DeviceType device,
   const bool prev_press = prev_buffer.buttons[button];
   const bool repeat = buffer->GetCurrent().repeat[button];
 
-  return GetButtonState(curr_press, prev_press, repeat, params->long_press_time,
-                        curr_buffer.time_stamp, prev_buffer.time_stamp,
+  return GetButtonState(curr_press, prev_press, repeat,
+                        profile->long_press_time, curr_buffer.time_stamp,
+                        prev_buffer.time_stamp,
                         curr_buffer.button_press_times[button],
                         prev_buffer.button_press_times[button]);
 }
@@ -475,8 +538,8 @@ Clock::duration InputManager::GetButtonPressedDuration(DeviceType device,
     return Clock::duration::zero();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_buttons <= static_cast<size_t>(button)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->buttons.size() <= static_cast<size_t>(button)) {
     LOG(DFATAL) << "Invalid button [" << button
                 << "] for device: " << GetDeviceName(device);
     return Clock::duration::zero();
@@ -507,8 +570,8 @@ mathfu::vec2 InputManager::GetJoystickValue(DeviceType device,
     return mathfu::kZeros2f;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_joysticks <= static_cast<size_t>(joystick)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->joysticks.size() <= static_cast<size_t>(joystick)) {
     LOG(DFATAL) << "Invalid joystick [" << joystick
                 << "] for device: " << GetDeviceName(device);
     return mathfu::kZeros2f;
@@ -525,8 +588,8 @@ mathfu::vec2 InputManager::GetJoystickDelta(DeviceType device,
     return mathfu::kZeros2f;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_joysticks <= static_cast<size_t>(joystick)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->joysticks.size() <= static_cast<size_t>(joystick)) {
     LOG(DFATAL) << "Invalid joystick [" << joystick
                 << "] for device: " << GetDeviceName(device);
     return mathfu::kZeros2f;
@@ -544,8 +607,8 @@ mathfu::vec2 InputManager::GetTouchLocation(DeviceType device) const {
     return kInvalidTouchLocation;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touchpad) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty()) {
     LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
     return kInvalidTouchLocation;
   }
@@ -564,8 +627,9 @@ bool InputManager::IsTouchGestureAvailable(DeviceType device) const {
     return false;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touch_gesture) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty() ||
+      !profile->touchpads[0].has_gestures) {
     LOG(INFO) << "Gesture not setup for device: " << GetDeviceName(device);
     return false;
   }
@@ -585,8 +649,8 @@ InputManager::TouchState InputManager::GetTouchState(DeviceType device) const {
     return false;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touchpad) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty()) {
     LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
     return false;
   }
@@ -598,10 +662,10 @@ InputManager::TouchState InputManager::GetTouchState(DeviceType device) const {
   const bool prev_press = prev_buffer.touch[0].valid;
   const bool repeat = false;
 
-  return GetButtonState(curr_press, prev_press, repeat, params->long_press_time,
-                        curr_buffer.time_stamp, prev_buffer.time_stamp,
-                        curr_buffer.touch_press_times[0],
-                        prev_buffer.touch_press_times[0]);
+  return GetButtonState(
+      curr_press, prev_press, repeat, profile->long_press_time,
+      curr_buffer.time_stamp, prev_buffer.time_stamp,
+      curr_buffer.touch_press_times[0], prev_buffer.touch_press_times[0]);
 }
 
 mathfu::vec2 InputManager::GetTouchDelta(DeviceType device) const {
@@ -611,8 +675,8 @@ mathfu::vec2 InputManager::GetTouchDelta(DeviceType device) const {
     return mathfu::kZeros2f;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touchpad) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty()) {
     LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
     return mathfu::kZeros2f;
   }
@@ -621,7 +685,7 @@ mathfu::vec2 InputManager::GetTouchDelta(DeviceType device) const {
     return mathfu::kZeros2f;
   }
 
-  if (params->has_touch_gesture) {
+  if (profile->touchpads[0].has_gestures) {
     const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
     if (!touch_gesture_ptr) {
       LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
@@ -650,13 +714,13 @@ mathfu::vec2 InputManager::GetTouchVelocity(DeviceType device) const {
     return mathfu::kZeros2f;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touchpad) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty()) {
     LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
     return mathfu::kZeros2f;
   }
 
-  if (params->has_touch_gesture) {
+  if (profile->touchpads[0].has_gestures) {
     const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
     if (!touch_gesture_ptr) {
       LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
@@ -676,13 +740,13 @@ InputManager::GestureType InputManager::GetTouchGestureType(
     return GestureType::kNone;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touchpad) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty()) {
     LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
     return GestureType::kNone;
   }
 
-  if (params->has_touch_gesture) {
+  if (profile->touchpads[0].has_gestures) {
     const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
     if (touch_gesture_ptr) {
       return touch_gesture_ptr->type;
@@ -701,13 +765,13 @@ InputManager::GestureDirection InputManager::GetTouchGestureDirection(
     return GestureDirection::kNone;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_touchpad) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->touchpads.empty()) {
     LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
     return GestureDirection::kNone;
   }
 
-  if (params->has_touch_gesture) {
+  if (profile->touchpads[0].has_gestures) {
     const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
     if (!touch_gesture_ptr) {
       LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
@@ -767,8 +831,8 @@ mathfu::vec3 InputManager::GetDofPosition(DeviceType device) const {
     return mathfu::kZeros3f;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_position_dof) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->position_dof == DeviceProfile::kUnavailableDof) {
     LOG(DFATAL) << "Position DOF not setup for device: "
                 << GetDeviceName(device);
     return mathfu::kZeros3f;
@@ -784,8 +848,8 @@ mathfu::vec3 InputManager::GetDofDelta(DeviceType device) const {
     return mathfu::kZeros3f;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_position_dof) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->position_dof == DeviceProfile::kUnavailableDof) {
     LOG(DFATAL) << "Position DOF not setup for device: "
                 << GetDeviceName(device);
     return mathfu::kZeros3f;
@@ -803,8 +867,8 @@ mathfu::quat InputManager::GetDofRotation(DeviceType device) const {
     return mathfu::quat();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_rotation_dof) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->rotation_dof == DeviceProfile::kUnavailableDof) {
     LOG(DFATAL) << "Rotation DOF not setup for device: "
                 << GetDeviceName(device);
     return mathfu::quat();
@@ -820,8 +884,8 @@ mathfu::quat InputManager::GetDofAngularDelta(DeviceType device) const {
     return mathfu::quat();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_rotation_dof) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->rotation_dof == DeviceProfile::kUnavailableDof) {
     LOG(DFATAL) << "Rotation DOF not setup for device: "
                 << GetDeviceName(device);
     return mathfu::quat();
@@ -840,19 +904,22 @@ mathfu::mat4 InputManager::GetDofWorldFromObjectMatrix(
     return mathfu::mat4::Identity();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || (!params->has_rotation_dof && !params->has_position_dof)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || (profile->rotation_dof == DeviceProfile::kUnavailableDof &&
+                   profile->rotation_dof == DeviceProfile::kUnavailableDof)) {
     LOG(DFATAL) << "WorldFromObjectMatrix not setup for device: "
                 << GetDeviceName(device);
     return mathfu::mat4::Identity();
   }
 
-  const mathfu::quat& rot = params->has_rotation_dof
-                                ? buffer->GetCurrent().rotation[0]
-                                : mathfu::quat::identity;
-  const mathfu::vec3& pos = params->has_position_dof
-                                ? buffer->GetCurrent().position[0]
-                                : mathfu::kZeros3f;
+  const mathfu::quat& rot =
+      profile->rotation_dof != DeviceProfile::kUnavailableDof
+          ? buffer->GetCurrent().rotation[0]
+          : mathfu::quat::identity;
+  const mathfu::vec3& pos =
+      profile->position_dof != DeviceProfile::kUnavailableDof
+          ? buffer->GetCurrent().position[0]
+          : mathfu::kZeros3f;
 
   return CalculateTransformMatrix(pos, rot, mathfu::kOnes3f);
 }
@@ -864,8 +931,8 @@ int InputManager::GetScrollDelta(DeviceType device) const {
     return 0;
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || !params->has_scroll) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->scroll_wheels.empty()) {
     LOG(DFATAL) << "Scrolling not setup for device: " << GetDeviceName(device);
     return 0;
   }
@@ -881,8 +948,8 @@ mathfu::mat4 InputManager::GetEyeFromHead(DeviceType device,
     return mathfu::mat4::Identity();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_eyes <= static_cast<size_t>(eye)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->eyes.size() <= static_cast<size_t>(eye)) {
     LOG(DFATAL) << "Invalid eye [" << eye
                 << "] for device: " << GetDeviceName(device);
     return mathfu::mat4::Identity();
@@ -898,8 +965,8 @@ mathfu::rectf InputManager::GetEyeFOV(DeviceType device, EyeType eye) const {
     return mathfu::rectf();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_eyes <= static_cast<size_t>(eye)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->eyes.size() <= static_cast<size_t>(eye)) {
     LOG(DFATAL) << "Invalid eye [" << eye
                 << "] for device: " << GetDeviceName(device);
     return mathfu::rectf();
@@ -916,14 +983,49 @@ mathfu::recti InputManager::GetEyeViewport(DeviceType device,
     return mathfu::recti();
   }
 
-  const DeviceParams* params = GetDeviceParams(device);
-  if (!params || params->num_eyes <= static_cast<size_t>(eye)) {
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->eyes.size() <= static_cast<size_t>(eye)) {
     LOG(DFATAL) << "Invalid eye [" << eye
                 << "] for device: " << GetDeviceName(device);
     return mathfu::recti();
   }
 
   return buffer->GetCurrent().eye_viewport[eye];
+}
+
+uint8_t InputManager::GetBatteryCharge(DeviceType device) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return kInvalidBatteryCharge;
+  }
+
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || !profile->battery) {
+    LOG(DFATAL) << "Battery not supported for device: "
+                << GetDeviceName(device);
+    return kInvalidBatteryCharge;
+  }
+
+  return buffer->GetCurrent().battery_charge[0];
+}
+
+InputManager::BatteryState InputManager::GetBatteryState(
+    DeviceType device) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return BatteryState::kUnknown;
+  }
+
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || !profile->battery) {
+    LOG(DFATAL) << "Battery not supported for device: "
+                << GetDeviceName(device);
+    return BatteryState::kUnknown;
+  }
+
+  return buffer->GetCurrent().battery_state[0];
 }
 
 InputManager::DataBuffer* InputManager::GetDataBuffer(DeviceType device) {
@@ -961,16 +1063,9 @@ const InputManager::TouchGesture* InputManager::GetTouchGesturePtr(
   return &(buffer->GetCurrent().touch_gesture[0]);
 }
 
-const InputManager::DeviceParams* InputManager::GetDeviceParams(
-    DeviceType device) const {
-  return device != kMaxNumDeviceTypes ? &devices_[device].GetDeviceParams()
+const DeviceProfile* InputManager::GetDeviceProfile(DeviceType device) const {
+  return device != kMaxNumDeviceTypes ? &devices_[device].GetDeviceProfile()
                                       : nullptr;
-}
-
-InputManager::DeviceParams InputManager::GetDeviceParamsCopy(
-    DeviceType device) const {
-  const DeviceParams* params = GetDeviceParams(device);
-  return params ? *params : DeviceParams();
 }
 
 Variant InputManager::GetDeviceInfo(DeviceType device, HashValue key) const {
@@ -1056,35 +1151,40 @@ InputManager::ButtonState InputManager::GetButtonState(
 
 InputManager::Device::Device() : connected_(false) {}
 
-void InputManager::Device::Connect(const DeviceParams& params) {
+void InputManager::Device::Connect(const DeviceProfile& profile) {
   DCHECK(!connected_) << "Device is already connected.";
   connected_ = true;
-  params_ = params;
+  profile_ = profile;
 
   DeviceState state;
   // state.keys;
-  state.scroll.resize(params.has_scroll ? 1 : 0, 0);
-  state.buttons.resize(params.num_buttons, false);
-  state.repeat.resize(params.num_buttons, false);
-  state.button_press_times.resize(params.num_buttons, Clock::time_point());
-  state.joystick.resize(params.num_joysticks, mathfu::kZeros2f);
-  state.touch.resize(params.has_touchpad ? 1 : 0, TouchpadState());
-  state.touch_press_times.resize(params.has_touchpad ? 1 : 0,
-                                 Clock::time_point());
-  state.touch_gesture.resize(params.has_touch_gesture ? 1 : 0, TouchGesture());
-  state.position.resize(params.has_position_dof ? 1 : 0, mathfu::kZeros3f);
-  state.rotation.resize(params.has_rotation_dof ? 1 : 0,
-                        mathfu::quat::identity);
-  state.eye_from_head_matrix.resize(params.num_eyes, mathfu::mat4::Identity());
-  state.eye_viewport.resize(params.num_eyes);
-  state.eye_fov.resize(params.num_eyes);
+  state.scroll.resize(profile.scroll_wheels.size(), 0);
+  state.buttons.resize(profile.buttons.size(), false);
+  state.repeat.resize(profile.buttons.size(), false);
+  state.button_press_times.resize(profile.buttons.size(), Clock::time_point());
+  state.joystick.resize(profile.joysticks.size(), mathfu::kZeros2f);
+  state.touch.resize(profile.touchpads.size(), TouchpadState());
+  state.touch_press_times.resize(profile.touchpads.size(), Clock::time_point());
+  state.touch_gesture.resize(
+      !profile.touchpads.empty() && profile.touchpads[0].has_gestures ? 1 : 0,
+      TouchGesture());
+  bool has_pos = profile.position_dof != DeviceProfile::kUnavailableDof;
+  state.position.resize(has_pos ? 1 : 0, mathfu::kZeros3f);
+  bool has_rot = profile.rotation_dof != DeviceProfile::kUnavailableDof;
+  state.rotation.resize(has_rot ? 1 : 0, mathfu::quat::identity);
+  state.eye_from_head_matrix.resize(profile.eyes.size(),
+                                    mathfu::mat4::Identity());
+  state.eye_viewport.resize(profile.eyes.size());
+  state.eye_fov.resize(profile.eyes.size());
+  state.battery_state.resize(profile.battery ? 1 : 0, BatteryState::kUnknown);
+  state.battery_charge.resize(profile.battery ? 1 : 0, kInvalidBatteryCharge);
   buffer_.reset(new DataBuffer(state));
   info_.clear();
 }
 
 void InputManager::Device::Disconnect() {
   DCHECK(connected_) << "Device is not connected.";
-  params_ = DeviceParams();
+  profile_ = DeviceProfile();
   connected_ = false;
   buffer_.reset();
   info_.clear();

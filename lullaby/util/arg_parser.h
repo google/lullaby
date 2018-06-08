@@ -45,6 +45,9 @@ class ArgParser {
   // Returns the usage string that can be displayed.
   std::string GetUsage() const;
 
+  // Returns argv[0], the string describing the called program
+  std::string GetProgram() const;
+
   // Returns true if the specified argument was set.
   bool IsSet(string_view name) const;
 
@@ -78,6 +81,7 @@ class ArgParser {
   string_view GetValue(string_view name, size_t index) const;
   void AddValue(string_view name, string_view value);
 
+  std::string program_;
   std::vector<Arg> args_;
   std::vector<std::string> errors_;
   std::vector<string_view> positional_values_;

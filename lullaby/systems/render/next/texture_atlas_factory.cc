@@ -39,7 +39,7 @@ void TextureAtlasFactory::LoadTextureAtlas(const std::string& filename,
     auto* texture_factory =
         static_cast<TextureFactoryImpl*>(registry_->Get<TextureFactory>());
 
-    TextureFactory::CreateParams params;
+    TextureParams params;
     params.generate_mipmaps = create_mips;
     TexturePtr texture = texture_factory->LoadTexture(
         atlasdef->texture_filename()->c_str(), params);

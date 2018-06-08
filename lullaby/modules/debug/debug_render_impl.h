@@ -47,6 +47,12 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
   void DrawQuad2D(const Color4ub color, float x, float y, float w, float h,
                   const TexturePtr& texture) override;
 
+  void DrawQuad2DAbsolute(
+      const mathfu::vec4& color,
+      const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+      const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+      const TexturePtr& texture) const override;
+
  private:
   Registry* registry_;
   RenderSystem* render_system_;
@@ -56,11 +62,19 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
   ShaderPtr font_shader_;
   TexturePtr font_texture_;
   ShaderPtr texture_shader_;
+  ShaderPtr texture_2d_shader_;
   ShaderPtr shape_shader_;
+  MeshData quad_mesh_;
   std::vector<VertexPC> verts_;
 
   DebugRenderImpl(const DebugRenderImpl&) = delete;
   DebugRenderImpl& operator=(const DebugRenderImpl&) = delete;
+
+  void SubmitQuad2D(
+      const mathfu::vec4& color,
+      const mathfu::vec3& pos0, const mathfu::vec2& uv0,
+      const mathfu::vec3& pos1, const mathfu::vec2& uv1,
+      const TexturePtr& texture) const;
 };
 }  // namespace lull
 

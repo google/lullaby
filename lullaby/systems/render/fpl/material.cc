@@ -71,19 +71,6 @@ Material::UniformIndex Material::AddUniform(
   return index;
 }
 
-void Material::UpdateUniform(const Uniform::Description& description) {
-  const auto index = name_to_uniform_index_.find(Hash(description.name));
-  if (index == name_to_uniform_index_.end()) {
-    LOG(ERROR)
-        << "UpdateUniform was called with uniform name " << description.name
-        << ", however no uniform with this name is present on the material.";
-    return;
-  }
-
-  Uniform uniform(description);
-  uniforms_[index->second] = std::move(uniform);
-}
-
 Material::UniformIndex Material::AddUniform(Uniform uniform) {
   const UniformIndex index = static_cast<UniformIndex>(uniforms_.size());
   Uniform::Description& desc = uniform.GetDescription();
@@ -142,16 +129,15 @@ const Uniform* Material::GetUniformByHash(HashValue hash) const {
   return GetUniformByIndex(it->second);
 }
 
-void Material::SetUniformByIndex(UniformIndex index, const void* data,
-                                 size_t size, size_t offset) {
-  if (index >= uniforms_.size()) {
-    LOG(DFATAL) << "Attempting to set data to uniform at index " << index
-                << " but only " << uniforms_.size()
-                << " uniforms are declared.";
-    return;
+void Material::SetUniform(Uniform uniform) {
+  const HashValue name_hash = Hash(uniform.GetDescription().name);
+  auto iter = name_to_uniform_index_.find(name_hash);
+  if (iter != name_to_uniform_index_.end()) {
+    uniforms_[iter->second] = std::move(uniform);
+  } else {
+    name_to_uniform_index_[name_hash] = uniforms_.size();
+    uniforms_.emplace_back(std::move(uniform));
   }
-
-  uniforms_[index].SetData(data, size, offset);
 }
 
 const std::vector<Uniform>& Material::GetUniforms() const { return uniforms_; }

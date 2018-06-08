@@ -54,6 +54,10 @@ std::string RemoveDirectoryAndExtensionFromFilename(
 //   "lullaby/foo/" returns "lullaby/foo"
 std::string GetDirectoryFromFilename(const std::string& filename);
 
+// Joins a Directory and Basename into a Filename.  For example:
+//   ("lullaby/foo", "bar.png") returns "lullaby/foo/bar.png".
+std::string JoinPath(const std::string& directory, const std::string& basename);
+
 }  // namespace lull
 
 #endif  // LULLABY_UTIL_FILENAME_H_

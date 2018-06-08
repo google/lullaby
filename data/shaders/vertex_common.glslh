@@ -1,0 +1,50 @@
+#include "third_party/lullaby/data/shaders/common.glslh"
+
+// GLSL 130+ / es300+ don't support the "attribute" or "varying" keywords, so
+// provide a compatible way to declare vertex inputs & outputs.
+#if __VERSION__ >= GLES_ELSE(300, 130)
+#define STAGE_INPUT in
+#define STAGE_OUTPUT out
+#else
+#define STAGE_INPUT attribute
+#define STAGE_OUTPUT varying
+#endif
+
+
+// For multiview, there are a few changes that need to be made, which we'll try
+// to hide from most cases.
+//   1. GL_OVR_multiview[2] extension must be enabled
+//   2. layout(num_views = 2) must be specified
+//   3. MVP matrix declared as an array
+//   4. Use the gl_ViewID_OVR keyboard as view index
+//   5. Version must be 130+ / es300+
+
+#ifdef MULTIVIEW
+#if __VERSION__ < GLES_ELSE(300, 130)
+#error Multiview requires version 130 / es300.
+#endif
+
+// The OVR_multiview2 extension is required by Daydream spec.
+#extension GL_OVR_multiview2 : require
+
+layout(num_views = 2) in;
+
+uniform mat4 model_view_projection[2];
+uniform vec3 camera_dir[2];
+uniform int uIsRightEye[2];
+
+mat4 GetClipFromModelMatrix() { return model_view_projection[gl_ViewID_OVR]; }
+vec3 GetCameraDir() { return camera_dir[gl_ViewID_OVR]; }
+int IsRightEye() { return uIsRightEye[gl_ViewID_OVR]; }
+
+#else  // MULTIVIEW...
+
+uniform mat4 model_view_projection;
+uniform vec3 camera_dir;
+uniform int uIsRightEye;
+
+mat4 GetClipFromModelMatrix() { return model_view_projection; }
+vec3 GetCameraDir() { return camera_dir; }
+int IsRightEye() { return uIsRightEye; }
+
+#endif  // MULTIVIEW...

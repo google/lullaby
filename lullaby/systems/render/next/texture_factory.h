@@ -31,6 +31,7 @@ namespace lull {
 // See TextureFactory documentation for more information.
 class TextureFactoryImpl : public TextureFactory {
  public:
+  static void SetKtxFormatSupported(bool enable);
   explicit TextureFactoryImpl(Registry* registry);
   TextureFactoryImpl(const TextureFactoryImpl&) = delete;
   TextureFactoryImpl& operator=(const TextureFactoryImpl&) = delete;
@@ -51,14 +52,14 @@ class TextureFactoryImpl : public TextureFactory {
   /// Creates a texture using the |image| data and configured on the GPU using
   /// the creation |params|.
   TexturePtr CreateTexture(ImageData image,
-                           const CreateParams& params) override;
+                           const TextureParams& params) override;
 
   /// Creates a "named" texture using the |image| data and configured on the GPU
   /// using the creation |params|. Subsequent calls to this function with the
   /// same texture |name| will return the original texture as long as any
   /// references to that texture are still alive.
   TexturePtr CreateTexture(HashValue name, ImageData image,
-                           const CreateParams& params) override;
+                           const TextureParams& params) override;
 
   /// Loads a texture off disk with the given |filename| and uses the creation
   /// |params| to configure it for the GPU. The filename is also used as the
@@ -66,7 +67,7 @@ class TextureFactoryImpl : public TextureFactory {
   /// |filename| will return the original texture as long as any references to
   /// that texture are still alive.
   TexturePtr LoadTexture(string_view filename,
-                         const CreateParams& params) override;
+                         const TextureParams& params) override;
 
   /// Updates the entire image contents of |texture| using |image|. Image data
   /// is sent as-is. Returns false if the dimensions don't match or if the
@@ -82,10 +83,14 @@ class TextureFactoryImpl : public TextureFactory {
   TexturePtr CreateTexture(uint32_t texture_target, uint32_t texture_id,
                            const mathfu::vec2i& size);
 
+  /// Creates a texture that can be bound to an external texture (as specified
+  /// by the OES_EGL_image_external extension).
+  TexturePtr CreateExternalTexture();
+
   /// Creates an "empty" texture of the specified size. The |params| must
   /// specify a format for the texture.
   TexturePtr CreateTexture(const mathfu::vec2i& size,
-                           const CreateParams& params);
+                           const TextureParams& params);
 
   // Creates a texture as a subtexture of another texture.
   TexturePtr CreateSubtexture(const TexturePtr& texture,
@@ -105,13 +110,13 @@ class TextureFactoryImpl : public TextureFactory {
 
   // DEPRECATED. Old RenderSystem API passes ImageData by const reference which
   // can be redirected here.
-  TexturePtr CreateTexture(const ImageData* image, const CreateParams& params);
+  TexturePtr CreateTexture(const ImageData* image, const TextureParams& params);
   TexturePtr CreateTexture(HashValue name, const ImageData* image,
-                           const CreateParams& params);
+                           const TextureParams& params);
 
  private:
   void InitTextureImpl(const TexturePtr& texture, const ImageData* image,
-                       const TextureFactory::CreateParams& params);
+                       const TextureParams& params);
 
   Registry* registry_;
   ResourceManager<Texture> textures_;

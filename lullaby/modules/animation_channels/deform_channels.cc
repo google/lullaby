@@ -22,7 +22,8 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue DeformStrengthChannel::kChannelName = Hash("deform-strength");
+const HashValue DeformStrengthChannel::kChannelName =
+    ConstHash("deform-strength");
 
 DeformStrengthChannel::DeformStrengthChannel(Registry* registry,
                                              size_t pool_size)

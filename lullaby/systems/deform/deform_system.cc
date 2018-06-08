@@ -25,14 +25,9 @@ limitations under the License.
 
 namespace lull {
 namespace {
-const HashValue kDeformerHash = Hash("DeformerDef");
-const HashValue kWaypointDeformerHash = Hash("WaypointDeformerDef");
-const HashValue kDeformedHash = Hash("DeformedDef");
-
-// Returns the distance of the coordinate transform from the Y-axis.
-float GetRadius(const mathfu::mat4& mat) {
-  return std::sqrt(mat(0, 3) * mat(0, 3) + mat(2, 3) * mat(2, 3));
-}
+const HashValue kDeformerHash = ConstHash("DeformerDef");
+const HashValue kWaypointDeformerHash = ConstHash("WaypointDeformerDef");
+const HashValue kDeformedHash = ConstHash("DeformedDef");
 
 // Returns the standard transformation matrix given the SQT and a nullable
 // world_from_parent_mat
@@ -296,20 +291,9 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
   switch (deformer->mode) {
     case DeformMode_None:
       break;
-    case DeformMode_GlobalCylinder: {
-      const float radius = deformer->radius;
-      world_from_entity_fn =
-          [radius](const Sqt& local_sqt,
-                   const mathfu::mat4* world_from_parent_mat) -> mathfu::mat4 {
-        const float parent_radius =
-            world_from_parent_mat ? GetRadius(*world_from_parent_mat) : 0.f;
-        const auto tmp = CalculateCylinderDeformedTransformMatrix(
-            local_sqt, parent_radius, radius);
-        return world_from_parent_mat ? (*world_from_parent_mat) * tmp : tmp;
-      };
-      entity_from_world_fn = nullptr;
+    case DeformMode_Deprecated:
+      LOG(DFATAL) << "DeformMode_Deprecated should not be used.";
       break;
-    }
     case DeformMode_CylinderBend: {
       world_from_entity_fn =
           [this, e](const Sqt& local_sqt,
@@ -342,10 +326,6 @@ void DeformSystem::ApplyDeform(Entity e, const Deformer* deformer) {
 }
 
 void DeformSystem::DeformMesh(Entity e, MeshData* mesh) {
-  // There are two scenarios here that need to be accounted for: the first is
-  // the nominal case when we have a valid Deformed component, and the second is
-  // the legacy case where there is no Deformed component and instead the
-  // Deformer is stored in the deformers component pool keyed with this entity.
   Deformed* deformed = deformed_.Get(e);
   if (deformed) {
     const Deformer* deformer = deformers_.Get(deformed->deformer);
@@ -359,17 +339,10 @@ void DeformSystem::DeformMesh(Entity e, MeshData* mesh) {
       return;
     }
   } else {
-    const Deformer* deformer = deformers_.Get(e);
-    if (deformer != nullptr || deformer->mode != DeformMode_GlobalCylinder) {
-      LOG(ERROR) << "Invalid deformer, skipping deformation for entity: " << e;
-      return;
-    }
-    const float current_radius = GetRadius(
-        *registry_->Get<TransformSystem>()->GetWorldFromEntityMatrix(e));
-    const mathfu::vec3 translation = current_radius * mathfu::kAxisZ3f;
-    ApplyDeformation(mesh, [&](const mathfu::vec3& pos) {
-      return DeformPoint(pos - translation, deformer->radius) + translation;
-    });
+    LOG(ERROR)
+        << "No deformed component found, skipping deformation for entity: "
+        << e;
+    return;
   }
 }
 
@@ -530,13 +503,12 @@ void DeformSystem::CylinderBendDeformMesh(const Deformed& deformed,
       (*world_from_deformer_deformed_space) *
       mathfu::mat4::FromTranslationVector(radius * mathfu::kAxisZ3f);
 
-  ApplyDeformation(mesh,
-                   [&radius, &root_from_entity_undeformed_space,
-                    &entity_from_root_deformed_space](const mathfu::vec3& pos) {
-                     return entity_from_root_deformed_space *
-                            DeformPoint(root_from_entity_undeformed_space * pos,
-                                        radius);
-                   });
+  ApplyDeformation(
+      mesh, [&radius, &root_from_entity_undeformed_space,
+             &entity_from_root_deformed_space](const mathfu::vec3& pos) {
+        return entity_from_root_deformed_space *
+               DeformPoint(root_from_entity_undeformed_space * pos, radius);
+      });
 }
 
 void DeformSystem::OnParentChanged(const ParentChangedEvent& ev) {

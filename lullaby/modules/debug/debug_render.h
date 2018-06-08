@@ -63,10 +63,34 @@ void DrawBox3D(const char* tag_name,
                const mathfu::mat4& world_from_object_matrix, const Aabb& box,
                Color4ub color);
 
-// Adds a 2D screen space quad to the debug render queue.
+// Adds a 2D screen-space quad to the debug render queue.
 // Origin is at screen center and 1.0 is approximately screen height.
 void DrawQuad2D(const char* tag_name, Color4ub color, float x, float y, float w,
                 float h, const TexturePtr& texture);
+
+// Adds a 2D screen-space quad to the debug render queue, using pixel units.
+// * Origin is at the top-left and position is in pixel units.
+// * UVs default to the [0, 1] range.
+void DrawQuad2DAbsolute(
+    const char* tag_name, const mathfu::vec4& color,
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+    const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture);
+void DrawQuad2DAbsolute(
+    const char* tag_name, const mathfu::vec4& color,
+    const mathfu::vec2& pixel_pos0,
+    const mathfu::vec2& pixel_pos1,
+    const TexturePtr& texture);
+void DrawQuad2DAbsolute(
+    const char* tag_name, Color4ub color,
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+    const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture);
+void DrawQuad2DAbsolute(
+    const char* tag_name, Color4ub color,
+    const mathfu::vec2& pixel_pos0,
+    const mathfu::vec2& pixel_pos1,
+    const TexturePtr& texture);
 
 // Calls drawing for all enabled elements in element buffer. Must be callled in
 // between Begin() and End() after main render_system->Render().

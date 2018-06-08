@@ -5,8 +5,8 @@ namespace lull;
 
 // The different usages for a texture.
 enum MaterialTextureUsage : int {
-  Diffuse,
-  Gloss,
+  BaseColor,
+  Metallic,
   Normal,
   Bump,
   Height,
@@ -17,12 +17,18 @@ enum MaterialTextureUsage : int {
   Shadow,
   Reflection,
   Opacity,
+  Roughness,
+  Occlusion,
+  Shininess,
+  BrdfLookupTable,
+  DiffuseEnvironment,
+  SpecularEnvironment,
 }
 
 // Information about a texture associated with a material.
 table MaterialTextureDef {
   name: string;
-  usage: MaterialTextureUsage = Diffuse;
+  usage: MaterialTextureUsage = BaseColor;
 }
 
 /// A description of the Material to be used by the RenderSystem when drawing

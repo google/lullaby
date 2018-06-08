@@ -28,7 +28,7 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kPlanarGrabInputDef = Hash("PlanarGrabInputDef");
+const HashValue kPlanarGrabInputDef = ConstHash("PlanarGrabInputDef");
 // The rate which the difference between ideal and actual grab_offset decays.
 const float kOffsetDecay = 1.2f;
 

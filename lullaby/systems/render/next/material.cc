@@ -18,146 +18,231 @@ limitations under the License.
 
 #include <utility>
 
+#include "lullaby/systems/render/next/detail/glplatform.h"
+#include "lullaby/systems/render/next/shader.h"
+#include "lullaby/systems/render/next/texture.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {
 
-Material::Material(
-    const ShaderPtr& shader,
-    const std::vector<Uniform::Description>& uniform_descriptions) {
-  SetShader(shader);
-  for (const auto& it : uniform_descriptions) {
-    AddUniform(it);
-  }
+Material::Material() {
+  textures_.resize(MaterialTextureUsage_MAX + 1);
 }
 
 void Material::SetShader(const ShaderPtr& shader) {
   shader_ = shader;
-  for (auto& uniform : uniforms_) {
-    uniform.GetDescription().binding = -1;
+
+  // Update bindings for all uniforms based on the new shader.
+  for (auto& iter : uniform_index_map_) {
+    Uniform& uniform = uniforms_[iter.second];
+    if (shader_) {
+      uniform.binding = shader_->FindUniform(iter.first);
+    } else {
+      uniform.binding.Reset();
+    }
+  }
+
+  // Update bindings for all samplers based on the new shader.
+  for (auto& iter : sampler_index_map_) {
+    Uniform& uniform = uniforms_[iter.second];
+    if (shader_ ) {
+      const Shader::Sampler sampler = shader_->GetSampler(iter.first);
+      uniform.data.SetData(&sampler.texture_unit, 1);
+      uniform.binding = sampler.uniform;
+    } else {
+      uniform.binding.Reset();
+    }
   }
 }
+
 const ShaderPtr& Material::GetShader() const { return shader_; }
 
-void Material::SetTexture(int index, const TexturePtr& texture) {
-  // Texture unit is an int, but must be positive and below the number of
-  // samplers. Currently we aren't checking how many samplers are available,
-  // therefore we at best ensure the value is below 256.
-  DCHECK_GE(index, 0);
-  DCHECK_LE(index, 255);
-
-  if (texture == nullptr) {
-    textures_.erase(index);
-  } else {
-    textures_[index] = texture;
-  }
-}
-TexturePtr Material::GetTexture(int index) const {
-  const auto it = textures_.find(index);
-  if (it == textures_.end()) {
-    return nullptr;
-  } else {
-    return it->second;
-  }
-}
-
-Material::UniformIndex Material::AddUniform(
-    const Uniform::Description& description) {
-  const UniformIndex index = uniforms_.size();
-
-  uniforms_.emplace_back(description);
-  name_to_uniform_index_[Hash(description.name)] = index;
-
-  return index;
-}
-
-void Material::UpdateUniform(const Uniform::Description& description) {
-  const auto index = name_to_uniform_index_.find(Hash(description.name));
-  if (index == name_to_uniform_index_.end()) {
-    LOG(ERROR)
-        << "UpdateUniform was called with uniform name " << description.name
-        << ", however no uniform with this name is present on the material.";
+void Material::SetTexture(MaterialTextureUsage usage,
+                          const TexturePtr& texture) {
+  if (usage < MaterialTextureUsage_MIN || usage > MaterialTextureUsage_MAX) {
+    LOG(DFATAL) << "Invalid usage: " << usage;
     return;
   }
 
-  Uniform uniform(description);
-  uniforms_[index->second] = std::move(uniform);
-}
+  textures_[usage] = texture;
 
-Material::UniformIndex Material::AddUniform(Uniform uniform) {
-  const UniformIndex index = static_cast<UniformIndex>(uniforms_.size());
-  Uniform::Description& desc = uniform.GetDescription();
-  desc.binding = -1;
-
-  name_to_uniform_index_[Hash(desc.name)] = index;
-  uniforms_.emplace_back(std::move(uniform));
-
-  return index;
-}
-
-void Material::ClearUniforms() {
-  name_to_uniform_index_.clear();
-  uniforms_.clear();
-}
-
-Uniform* Material::GetUniformByName(string_view name) {
-  return GetUniformByHash(Hash(name));
-}
-
-const Uniform* Material::GetUniformByName(string_view name) const {
-  return GetUniformByHash(Hash(name));
-}
-
-Uniform* Material::GetUniformByIndex(UniformIndex index) {
-  if (index < uniforms_.size()) {
-    return &uniforms_[index];
+  // Ether create or find a new uniform and assign it the appropriate sampler
+  // from the current shader.
+  size_t index = uniforms_.size();
+  auto iter = sampler_index_map_.find(usage);
+  if (iter != sampler_index_map_.end()) {
+    index = iter->second;
+  } else {
+    // Samplers are 1-dimensional integers referencing the texture unit.
+    uniforms_.emplace_back(ShaderDataType_Int1, 1);
+    sampler_index_map_[usage] = index;
   }
 
-  return nullptr;
-}
-
-const Uniform* Material::GetUniformByIndex(UniformIndex index) const {
-  if (index < uniforms_.size()) {
-    return &uniforms_[index];
+  Uniform& uniform = uniforms_[index];
+  if (shader_) {
+    const Shader::Sampler sampler = shader_->GetSampler(usage);
+    uniform.data.SetData(&sampler.texture_unit, 1);
+    uniform.binding = sampler.uniform;
   }
-
-  return nullptr;
 }
 
-Uniform* Material::GetUniformByHash(HashValue hash) {
-  const auto it = name_to_uniform_index_.find(hash);
-  if (it == name_to_uniform_index_.end()) {
+TexturePtr Material::GetTexture(MaterialTextureUsage usage) const {
+  if (usage < MaterialTextureUsage_MIN || usage > MaterialTextureUsage_MAX) {
+    LOG(DFATAL) << "Invalid usage: " << usage;
     return nullptr;
   }
-
-  return GetUniformByIndex(it->second);
+  return textures_[usage];
 }
 
-const Uniform* Material::GetUniformByHash(HashValue hash) const {
-  const auto it = name_to_uniform_index_.find(hash);
-  if (it == name_to_uniform_index_.end()) {
-    return nullptr;
+void Material::SetUniform(HashValue name, ShaderDataType type,
+                          Span<uint8_t> data) {
+  const size_t bytes_per_element = UniformData::ShaderDataTypeToBytesSize(type);
+  const size_t count = data.size() / bytes_per_element;
+
+  // Ether create or find a new uniform and assign it the provided data value
+  // and appropriate uniform location from the current shader.
+  size_t index = uniforms_.size();
+  auto iter = uniform_index_map_.find(name);
+  if (iter != uniform_index_map_.end()) {
+    index = iter->second;
+  } else {
+    uniforms_.emplace_back(type, static_cast<int>(count));
+    uniform_index_map_[name] = index;
   }
 
-  return GetUniformByIndex(it->second);
+  Uniform& uniform = uniforms_[index];
+  if (uniform.data.Type() != type || uniform.data.Count() != count) {
+    uniforms_[index].data = UniformData(type, static_cast<int>(count));
+  }
+
+  uniform.data.SetData(data.data(), data.size());
+  uniform.binding = shader_ ? shader_->FindUniform(name).Get() : UniformHnd();
 }
 
-void Material::SetUniformByIndex(UniformIndex index, const void* data,
-                                 size_t size, size_t offset) {
-  if (index >= uniforms_.size()) {
-    LOG(DFATAL) << "Attempting to set data to uniform at index " << index
-                << " but only " << uniforms_.size()
-                << " uniforms are declared.";
+const UniformData* Material::GetUniformData(HashValue name) const {
+  auto iter = uniform_index_map_.find(name);
+  if (iter == uniform_index_map_.end()) {
+    return nullptr;
+  }
+  return &uniforms_[iter->second].data;
+}
+
+void Material::ApplyProperties(const VariantMap& properties) {
+  auto iter = properties.find(ConstHash("IsOpaque"));
+  if (iter != properties.end()) {
+    const Variant& is_opaque = iter->second;
+    if (is_opaque.ValueOr(true)) {
+      BlendStateT blend_state;
+      blend_state.enabled = false;
+      SetBlendState(&blend_state);
+
+      DepthStateT depth_state;
+      depth_state.function = RenderFunction_Less;
+      depth_state.test_enabled = true;
+      depth_state.write_enabled = true;
+      SetDepthState(&depth_state);
+    } else {
+      BlendStateT blend_state;
+      blend_state.enabled = true;
+      blend_state.dst_color = BlendFactor_OneMinusSrcAlpha;
+      blend_state.dst_alpha = BlendFactor_OneMinusSrcAlpha;
+      SetBlendState(&blend_state);
+
+      DepthStateT depth_state;
+      depth_state.function = RenderFunction_Less;
+      depth_state.test_enabled = true;
+      depth_state.write_enabled = false;
+      SetDepthState(&depth_state);
+    }
+  }
+
+  for (const auto& iter : properties) {
+    const HashValue name = iter.first;
+    const Variant& var = iter.second;
+    const TypeId type = var.GetTypeId();
+    if (type == GetTypeId<float>()) {
+      SetUniform<float>(name, ShaderDataType_Float1, {var.Get<float>(), 1});
+    } else if (type == GetTypeId<mathfu::vec2>()) {
+      SetUniform<float>(name, ShaderDataType_Float2,
+                        {&var.Get<mathfu::vec2>()->x, 1});
+    } else if (type == GetTypeId<mathfu::vec3>()) {
+      SetUniform<float>(name, ShaderDataType_Float3,
+                        {&var.Get<mathfu::vec3>()->x, 1});
+    } else if (type == GetTypeId<mathfu::vec4>()) {
+      SetUniform<float>(name, ShaderDataType_Float4,
+                        {&var.Get<mathfu::vec4>()->x, 1});
+    }
+  }
+}
+
+template <typename T>
+static Span<uint8_t> ToSpan(ShaderDataType type, const T& data) {
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data.data());
+  const size_t num_bytes =
+      data.size() * UniformData::ShaderDataTypeToBytesSize(type);
+  return {bytes, num_bytes};
+}
+
+void Material::Bind(int max_texture_units) {
+  if (shader_ == nullptr) {
     return;
   }
 
-  uniforms_[index].SetData(data, size, offset);
+  for (const Uniform& uniform : uniforms_) {
+    shader_->BindUniform(uniform.binding, uniform.data);
+  }
+
+  for (size_t i = 0; i < textures_.size(); ++i) {
+    TexturePtr texture = textures_[i];
+
+    const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(i);
+    const int texture_unit = shader_->GetSampler(usage).texture_unit;
+    if (texture_unit < 0 || texture_unit >= max_texture_units) {
+      if (texture) {
+        LOG(ERROR) << "Invalid unit for texture: " << texture->GetName();
+      }
+      continue;
+    }
+
+    if (texture) {
+      texture->Bind(texture_unit);
+    } else {
+      GL_CALL(glActiveTexture(GL_TEXTURE0 + texture_unit));
+      GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+    }
+  }
+
+  const Shader::Description& desc = shader_->GetDescription();
+  for (const auto& shader_uniform : desc.uniforms) {
+    const HashValue name = Hash(shader_uniform.name);
+
+    // This uniform has been set by the material, so no need to set a default
+    // value for it.
+    if (uniform_index_map_.find(name) != uniform_index_map_.end()) {
+      continue;
+    }
+
+    if (!shader_uniform.values.empty()) {
+      const UniformHnd binding = shader_->FindUniform(name);
+      const Span<uint8_t> data =
+          ToSpan(shader_uniform.type, shader_uniform.values);
+      shader_->BindUniform(binding, shader_uniform.type, data);
+    } else if (!shader_uniform.values_int.empty()) {
+      const UniformHnd binding = shader_->FindUniform(name);
+      const Span<uint8_t> data =
+          ToSpan(shader_uniform.type, shader_uniform.values_int);
+      shader_->BindUniform(binding, shader_uniform.type, data);
+    }
+  }
 }
 
-const std::vector<Uniform>& Material::GetUniforms() const { return uniforms_; }
-std::vector<Uniform>& Material::GetUniforms() { return uniforms_; }
-const std::unordered_map<int, TexturePtr>& Material::GetTextures() const {
-  return textures_;
+void Material::CopyUniforms(const Material& rhs) {
+  for (auto& iter : uniform_index_map_) {
+    Uniform& uniform = uniforms_[iter.second];
+    const uint8_t* bytes = uniform.data.GetData<uint8_t>();
+    const size_t size = uniform.data.Size();
+    SetUniform(iter.first, uniform.data.Type(), {bytes, size});
+  }
 }
 
 void Material::SetBlendState(const BlendStateT* blend_state) {

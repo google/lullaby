@@ -19,16 +19,17 @@ limitations under the License.
 
 #include <vector>
 
+#include "lullaby/util/hash.h"
+#include "lullaby/util/logging.h"
+#include "lullaby/util/span.h"
 #include "mathfu/constants.h"
 #include "mathfu/glsl_mappings.h"
-#include "lullaby/util/logging.h"
-#include "lullaby/util/hash.h"
 
 namespace lull {
 
-static constexpr float kPi = static_cast<float>(M_PI);
-static constexpr float kDegreesToRadians = kPi / 180.0f;
-static constexpr float kRadiansToDegrees = 180.0f / kPi;
+using mathfu::kDegreesToRadians;
+using mathfu::kPi;
+using mathfu::kRadiansToDegrees;
 static constexpr float kDefaultEpsilon = 1.0e-5f;
 static constexpr float kDefaultEpsilonSqr = 1.0e-10f;
 
@@ -36,11 +37,13 @@ struct Sqt;
 struct Ray;
 struct Plane;
 struct Aabb;
+struct Sphere;
 
 std::ostream& operator<<(std::ostream& os, const Sqt& sqt);
 std::ostream& operator<<(std::ostream& os, const Ray& ray);
 std::ostream& operator<<(std::ostream& os, const Plane& plane);
 std::ostream& operator<<(std::ostream& os, const Aabb& aabb);
+std::ostream& operator<<(std::ostream& os, const Sphere& sphere);
 
 struct Sqt {
   Sqt()
@@ -65,6 +68,7 @@ struct Sqt {
 };
 
 struct Ray {
+  Ray() : origin(mathfu::kZeros3f), direction(-mathfu::kAxisZ3f) {}
   Ray(const mathfu::vec3& origin, const mathfu::vec3& direction)
       : origin(origin), direction(direction) {}
 
@@ -91,7 +95,7 @@ struct Plane {
   Plane(const mathfu::vec3& point, const mathfu::vec3& normal)
       : distance(dot(point, normal.Normalized())), normal(normal) {}
 
-  float distance;      // distance from world origin along the normal
+  float distance;  // distance from world origin along the normal
   mathfu::vec3 normal;
 
   mathfu::vec3 Origin() const { return distance * normal; }
@@ -110,9 +114,7 @@ struct Aabb {
   mathfu::vec3 min;
   mathfu::vec3 max;
 
-  mathfu::vec3 Size() const {
-    return max - min;
-  }
+  mathfu::vec3 Size() const { return max - min; }
 
   mathfu::vec3 Center() const { return (max + min) * 0.5f; }
 
@@ -129,6 +131,21 @@ struct Aabb {
     array[3] = max.x;
     array[4] = max.y;
     array[5] = max.z;
+  }
+};
+
+struct Sphere {
+  Sphere() : position(mathfu::kZeros3f), radius(0.0f) {}
+  Sphere(const mathfu::vec3& position, const float radius)
+      : position(position), radius(radius) {}
+
+  mathfu::vec3 position;
+  float radius;
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&position, ConstHash("position"));
+    archive(&radius, ConstHash("radius"));
   }
 };
 
@@ -168,13 +185,6 @@ mathfu::mat4 CalculateTransformMatrix(const Sqt& sqt);
 // Calculate the relative a_to_b_matrix from two world matrices
 mathfu::mat4 CalculateRelativeMatrix(const mathfu::mat4& world_to_a_matrix,
                                      const mathfu::mat4& world_to_b_matrix);
-
-// Calculate the local transform matrix from an sqt and deformation parameters.
-// *DEPRECATED* this version of the function doesn't properly handle
-// non-uniform scales or rotations.
-// TODO(b/29100730) Remove this
-mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
-    const Sqt& sqt, const float parent_radius, const float deform_radius);
 
 // Calculate a deformed version of a transform matrix. The angle of the
 // deformation will be optionally clamped at the clamp_angle for positive
@@ -302,11 +312,22 @@ mathfu::vec3 DeformPoint(const mathfu::vec3& point, float radius);
 mathfu::vec3 UndeformPoint(const mathfu::vec3& point, float radius);
 
 // Computes the local ray collision point.
+// * The OBB world matrix is optional.  If unspecified, the ray intersects the
+//   untransformed AABB.
+bool ComputeLocalRayAABBCollision(const Ray& ray, const Aabb& aabb,
+                                  bool collision_on_exit = false,
+                                  mathfu::vec3* out = nullptr);
 bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
                                  const Aabb& aabb,
                                  bool collision_on_exit = false,
                                  mathfu::vec3* out = nullptr);
 
+// Check if a ray intersects an OBB and return the distance along the ray to the
+// point of intersection.  Returns kNoHitDistance if there is no intersection.
+// * The OBB world matrix is optional.  If unspecified, the ray intersects the
+//   untransformed AABB.
+float CheckRayAABBCollision(const Ray& ray, const Aabb& aabb,
+                            bool collision_on_exit = false);
 float CheckRayOBBCollision(const Ray& ray, const mathfu::mat4& world_transform,
                            const Aabb& aabb, bool collision_on_exit = false);
 
@@ -317,7 +338,7 @@ bool CheckPointOBBCollision(const mathfu::vec3& point,
                             const Aabb& aabb);
 
 // Returns true if a |point| lies within |aabb|.
-bool CheckPointOBBCollision(const mathfu::vec3& point, const Aabb& aabb);
+bool CheckPointAABBCollision(const mathfu::vec3& point, const Aabb& aabb);
 
 // Project |point| onto |plane|.
 mathfu::vec3 ProjectPointOntoPlane(const Plane& plane,
@@ -329,8 +350,7 @@ bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
 
 // Compute the first ray-sphere collision.
 bool ComputeRaySphereCollision(const Ray& ray, const mathfu::vec3& center,
-                              const float radius, mathfu::vec3* out);
-
+                               const float radius, mathfu::vec3* out);
 
 // Project |point| onto |line| and return the position.
 mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point);
@@ -406,6 +426,11 @@ bool AreNearlyEqual(const mathfu::vec4& one, const mathfu::vec4& two,
 bool AreNearlyEqual(const mathfu::vec3& one, const mathfu::vec3& two,
                     float epsilon = kDefaultEpsilon);
 
+// Returns true if every element of |one| is within the |epsilon| of the
+// counterpart of |two|.
+bool AreNearlyEqual(const Aabb& one, const Aabb& two,
+                    float epsilon = kDefaultEpsilon);
+
 // Returns the |index|th 3D column vector of |mat|.
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index);
 
@@ -449,29 +474,6 @@ void FindPositionBetweenPoints(const float current_point,
                                size_t* min_index, size_t* max_index,
                                float* match_percent);
 
-// Returns the distance between |a| and |b|.
-// TODO(b/27938041) move into mathfu.
-template <typename T, int Dimension>
-inline float DistanceBetween(const mathfu::Vector<T, Dimension>& a,
-                             const mathfu::Vector<T, Dimension>& b) {
-  return (a - b).Length();
-}
-
-// Returns the angle between |a| and |b| in radians.
-template <typename T, int Dimension>
-inline T AngleBetween(const mathfu::Vector<T, Dimension>& a,
-                      const mathfu::Vector<T, Dimension>& b) {
-  // Applying law of cosines.
-  // https://stackoverflow.com/questions/10507620/finding-the-angle-between-vectors
-  const T divisor = a.Length() * b.Length();
-  if (divisor == T(0)) {
-    return T(0);
-  }
-  const T cos_val = mathfu::Vector<T, Dimension>::DotProduct(a, b) / divisor;
-  // If floating point error makes cos_val > 1, then acos will return nan.
-  return cos_val <= T(1) ? std::acos(cos_val) : T(0);
-}
-
 // Given a line of startPosition to endPosition, return the % of the line
 // segment closest to testPosition. Return result could be < 0 or > 1
 float GetPercentageOfLineClosestToPoint(const mathfu::vec3& start_position,
@@ -497,6 +499,17 @@ inline float RadiansToDegrees(float radians) {
   return radians * kRadiansToDegrees;
 }
 
+template<class T, int d>
+inline mathfu::Vector<T, d> VectorFromSpan(const Span<uint8_t>& span) {
+  CHECK(span.size() == sizeof(T) * d);
+  return mathfu::Vector<T, d>(reinterpret_cast<const T*>(span.data()));
+}
+
+template<class T, int d>
+inline Span<uint8_t> SpanFromVector(const mathfu::Vector<T, d>& vect) {
+  return Span<uint8_t>(reinterpret_cast<const uint8_t*>(&vect[0]),
+                       sizeof(T) * d);
+}
 }  // namespace lull
 
 #endif  // LULLABY_UTIL_MATH_H_

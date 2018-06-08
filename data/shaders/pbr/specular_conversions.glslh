@@ -1,0 +1,54 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
+
+/// Utility functions for converting among "smoothness" (per Unity nomenclature,
+/// this is always a perceptually linear quantity) and "perceptual roughness" //
+/// (its inverse) and "roughness" (aka Beckmann roughness). Roughness is the //
+/// standard way to define light scattering in a microfacet model, and it is //
+/// perceptually nonlinear. Some components of our PBR shader directly use //
+/// perceptual smoothness or perceptual roughness, but most use (Beckmann) //
+/// roughness.
+///
+/// There's also code here to convert between smoothness or roughness and a
+/// Blinn-Phong exponent approximating the same specular lobe.
+
+float SmoothnessToPerceptualRoughness(float smoothness) {
+  return 1.0 - smoothness;
+}
+float PerceptualRoughnessToSmoothness(float perceptual_roughness) {
+  return 1.0 - perceptual_roughness;
+}
+float PerceptualRoughnessToRoughness(float perceptual_roughness) {
+  return perceptual_roughness * perceptual_roughness;
+}
+float RoughnessToPerceptualRoughness(float roughness) {
+  return sqrt(roughness);
+}
+
+/// Converts Beckmann roughness to the equivalent Blinn-Phong exponent.
+float RoughnessToSpecPower(float roughness) {
+  const float kEpsilon = 0.001;
+  return 2.0 / (max(roughness * roughness, kEpsilon)) - 2.0;
+}
+
+/// Converts a Blinn-Phong exponent to the equivalent Beckmann roughness.
+float SpecPowerToRoughness(float power) {
+  return sqrt(2.0 / (power + 2.0));
+}
+
+/// Converts perceptual smoothness to the equivalent Blinn-Phong exponent.
+float SmoothnessToSpecPower(float smoothness) {
+  const float kEpsilon = 0.001;
+  float perceptual_roughness = SmoothnessToPerceptualRoughness(smoothness);
+  float roughness = PerceptualRoughnessToRoughness(perceptual_roughness);
+  return RoughnessToSpecPower(roughness);
+}
+
+/// Converts a Blinn-Phong exponent to the equivalent perceptual smoothness.
+float SpecPowerToSmoothness(float power) {
+  float roughness = SpecPowerToRoughness(power);
+  float perceptual_roughness = RoughnessToPerceptualRoughness(roughness);
+  return PerceptualRoughnessToSmoothness(perceptual_roughness);
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_

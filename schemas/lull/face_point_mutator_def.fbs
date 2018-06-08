@@ -1,0 +1,23 @@
+include "lull/lull_common.fbs";
+include "lull/mutator_def.fbs";
+
+namespace lull;
+
+/// A mutator which will rotates an entity facing a certain point.
+table FacePointMutatorDef {
+  /// The order to apply this mutation in.  Mutations that are in the same group
+  /// will be applied from lowest to highest.
+  order: int = 0;
+
+  /// Hash of the name of the group of mutations this is associated with.
+  group: uint = 0 (hashvalue);
+
+  /// Indicates whether the entity should always face the HMD position. If it is
+  /// true, the target_point value will be ignored.
+  face_hmd: bool = false;
+
+  /// The target point in world space that the entity should face if face_hmd is
+  /// set false.
+  target_point: Vec3 (native_default:"{0.f, 0.f, 0.f}");
+
+}

@@ -41,6 +41,13 @@ struct RenderComponent : Component {
   mathfu::vec4 default_color = {1, 1, 1, 1};
   bool hidden = false;
   RenderQuad quad = {};
+
+  // Material properties that are set across the component, or before materials
+  // have been added, are collected in a default material.
+  Material default_material;
+
+  // Callback invoked after every SetUniform().
+  RenderSystem::UniformChangedCallback uniform_changed_callback;
 };
 
 }  // namespace lull

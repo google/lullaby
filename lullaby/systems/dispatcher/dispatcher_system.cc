@@ -21,7 +21,7 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 
 namespace lull {
-const HashValue kEventResponseDefHash = Hash("EventResponseDef");
+const HashValue kEventResponseDefHash = ConstHash("EventResponseDef");
 bool DispatcherSystem::enable_queued_dispatch_ = false;
 
 DispatcherSystem::DispatcherSystem(Registry* registry) : System(registry) {
@@ -31,6 +31,10 @@ DispatcherSystem::DispatcherSystem(Registry* registry) : System(registry) {
   if (binder) {
     binder->RegisterMethod("lull.Dispatcher.Send",
                            &lull::DispatcherSystem::SendImpl);
+    binder->RegisterFunction("lull.Dispatcher.SendGlobal",
+                             [registry](const EventWrapper& event) {
+                               registry->Get<lull::Dispatcher>()->Send(event);
+                             });
   }
 }
 
@@ -38,6 +42,7 @@ DispatcherSystem::~DispatcherSystem() {
   FunctionBinder* binder = registry_->Get<FunctionBinder>();
   if (binder) {
     binder->UnregisterFunction("lull.Dispatcher.Send");
+    binder->UnregisterFunction("lull.Dispatcher.SendGlobal");
   }
 }
 

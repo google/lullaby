@@ -1,0 +1,94 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_GLSLH_
+
+/// A port of Unity's Standard PBR surface shader, limited to directional
+/// lights.
+
+#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "third_party/lullaby/data/shaders/pbr/math_common.glslh"
+#include "third_party/lullaby/data/shaders/pbr/pbr_surface_common.glslh"
+#include "third_party/lullaby/data/shaders/pbr/rgb2hsv.glslh"
+#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
+
+#define CLAMP_LIGHT_OUTPUT 1
+
+float SmithJointVisibilityTerm(float n_dot_l, float n_dot_v, float roughness) {
+  const float kEpsilon = 1e-5;
+  float lambda_v = n_dot_l * mix(n_dot_v, 1.0, roughness);
+  float lambda_l = n_dot_v * mix(n_dot_l, 1.0, roughness);
+  return 0.5 / (lambda_v + lambda_l + kEpsilon);
+}
+
+float GgxDistributionTerm(float n_dot_h, float roughness) {
+  const float kEpsilon = 1e-7;
+  float a2 = roughness * roughness;
+  float d = (n_dot_h * a2 - n_dot_h) * n_dot_h + 1.0;
+  return 1.0 / kPi * a2 / (d * d + kEpsilon);
+}
+
+/// Implements Schlick's approximation to Fresnel. IoR is implied by f_0, which
+/// contains minimum reflectance values (per RGB color).
+vec3 FresnelTerm(vec3 f_0, float cos_a) {
+  float t = Pow5(1.0 - cos_a);
+  return f_0 + (1. - f_0) * t;
+}
+
+/// An emulation of Unity 5.5's Surface shader, minus the global illumination
+/// part. Returns a per-light color contribution to the shaded surface. Ambient
+/// illumination needs to be added separately.
+vec3 LightShader(
+    vec3 normal,            // Unit surface normal.
+    vec3 cam_dir,           // Unit vector from shading point to camera.
+    vec3 light_dir,         // Unit vector from shading point to light.
+    vec3 light_color,       // RGB color of the light.
+    float smoothness,       // Unity's perceptual smoothness, in [0.0, 1.0].
+    float reflectivity,     // Surface reflectivity, based on metallic + more.
+    vec3 diffuse_color,     // Surface diffuse color, based on albedo + more.
+    vec3 specular_color) {  // Surface specular color, based on albedo + more.
+  float perceptual_roughness = SmoothnessToPerceptualRoughness(smoothness);
+  vec3 half_vector = normalize(light_dir + cam_dir);
+
+  float n_dot_v = abs(dot(normal, cam_dir));
+
+  float n_dot_l = clamp(dot(normal, light_dir), 0.0, 1.0);
+  float n_dot_h = clamp(dot(normal, half_vector), 0.0, 1.0);
+  float l_dot_h = clamp(dot(light_dir, half_vector), 0.0, 1.0);
+
+  float diffuse_term = n_dot_l *
+      DisneyDiffuseTerm(n_dot_v, n_dot_l, l_dot_h, perceptual_roughness);
+
+  float roughness = PerceptualRoughnessToRoughness(perceptual_roughness);
+
+  // The V term includes both the traditional G term and the BRDF divisors.
+  float V = SmithJointVisibilityTerm(n_dot_l, n_dot_v, roughness);
+  float D = GgxDistributionTerm(n_dot_h, roughness);
+  float specular_term = V * D * kPi;  // RGB-based Fresnel terms applied below.
+  specular_term = max(0.0, specular_term * n_dot_l);
+
+  // Treats specular_color as spectral f_0 components of Schlick's formula.
+  vec3 fresnel_color = FresnelTerm(specular_color, l_dot_h);
+
+  vec3 scaled_fresnel = specular_scale * fresnel_color;
+  vec3 out_color =
+      diffuse_term * diffuse_color + specular_term * scaled_fresnel;
+
+#if CLAMP_LIGHT_OUTPUT
+  // Limits the output color to the light's nominal color. This violates the
+  // energy-preserving nature of the PBR model, but it guards against blown-out
+  // (> 1.0) highlights. This clamping only makes sense for non-area lights,
+  // which lack a well-defined lighting integral in the first place.
+  //
+  // We darken uniformly to limit luminance and preserve color.
+  vec3 hsv = Rgb2Hsv(out_color);
+  if (hsv.z > 1.0) {
+    hsv.z = 1.0;
+    out_color = Hsv2Rgb(hsv);
+  }
+#endif  // CLAMP_LIGHT_OUTPUT
+
+  out_color *= light_color;
+
+  return out_color;
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_H_

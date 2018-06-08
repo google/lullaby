@@ -22,7 +22,7 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/reticle/reticle_system.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/controller_util.h"
+#include "lullaby/util/device_util.h"
 #include "lullaby/util/math.h"
 
 namespace lull {
@@ -34,7 +34,8 @@ static const float kMinPitch = -kPi / 3;  // -60 degrees in radians.
 static const float kMaxPitch = kPi / 3;   // 60 degrees in randians.
 static const float kDefaultControllerHeight = -0.6f;
 
-const HashValue kReticleBoundedMovementDefHash = Hash("ReticleBoundaryDef");
+const HashValue kReticleBoundedMovementDefHash =
+    ConstHash("ReticleBoundaryDef");
 const lull::InputManager::DeviceType kDevice = lull::InputManager::kController;
 const int kDefaultStabilizationFrames = 20;
 

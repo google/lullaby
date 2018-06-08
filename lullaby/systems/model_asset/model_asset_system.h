@@ -21,6 +21,8 @@ limitations under the License.
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/systems/model_asset/model_asset.h"
+#include "lullaby/systems/render/render_system.h"
+#include "lullaby/systems/rig/rig_system.h"
 #include "lullaby/util/resource_manager.h"
 #include "lullaby/util/string_view.h"
 
@@ -35,6 +37,8 @@ class ModelAssetSystem : public System {
   ModelAssetSystem(const ModelAssetSystem&) = delete;
   ModelAssetSystem& operator=(const ModelAssetSystem&) = delete;
 
+  void Initialize() override;
+
   /// Sets up the mesh and surface properties for an Entity using the model
   /// file references in the def.
   void PostCreateInit(Entity entity, HashValue type, const Def* def) override;
@@ -46,13 +50,50 @@ class ModelAssetSystem : public System {
 
   /// Explicitly loads the specified model file and stores it in the internal
   /// cache.
-  void LoadModel(string_view filename, const ModelAssetDef* data = nullptr);
+  void LoadModel(string_view filename);
 
   /// Releases the loaded model file from the internal cache.
   void ReleaseModel(HashValue key);
 
  private:
-  ResourceManager<ModelAsset> models_;
+  class ModelAssetInstance {
+   public:
+    ModelAssetInstance(Registry* registry, std::shared_ptr<ModelAsset> asset);
+    ~ModelAssetInstance();
+
+    void Finalize();
+    bool IsReady() const;
+
+    MeshPtr GetMesh() const;
+    std::shared_ptr<ModelAsset> GetAsset() const { return model_asset_; }
+
+   private:
+    Registry* registry_;
+    MeshPtr mesh_;
+    std::unordered_map<HashValue, TexturePtr> textures_;
+    std::shared_ptr<ModelAsset> model_asset_;
+  };
+
+  struct EntitySetupInfo {
+    Entity entity = kNullEntity;
+    std::shared_ptr<ModelAssetInstance> instance;
+    ModelAssetDefT def;
+  };
+
+  void Finalize(HashValue key);
+
+  void RegisterEntity(const EntitySetupInfo& setup);
+  void FinalizeEntity(const EntitySetupInfo& setup);
+  void SetMesh(const EntitySetupInfo& setup);
+  void SetMaterials(const EntitySetupInfo& setup);
+  void SetRig(const EntitySetupInfo& setup);
+  void ApplyUniforms(Entity entity, HashValue pass, int submesh_index,
+                     const MaterialInfo& material,
+                     const ModelAssetMaterialDefT* def);
+
+  ResourceManager<ModelAssetInstance> models_;
+  std::unordered_map<HashValue, std::vector<EntitySetupInfo>> pending_entities_;
+  MeshPtr empty_mesh_;
 };
 
 }  // namespace lull

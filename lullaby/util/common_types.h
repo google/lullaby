@@ -47,6 +47,8 @@ LULLABY_SETUP_TYPEID(mathfu::vec3i);
 LULLABY_SETUP_TYPEID(mathfu::vec4);
 LULLABY_SETUP_TYPEID(mathfu::vec4i);
 LULLABY_SETUP_TYPEID(mathfu::quat);
+LULLABY_SETUP_TYPEID(mathfu::rectf);
+LULLABY_SETUP_TYPEID(mathfu::recti);
 LULLABY_SETUP_TYPEID(mathfu::mat4);
 LULLABY_SETUP_TYPEID(lull::Aabb);
 LULLABY_SETUP_TYPEID(lull::ByteArray);

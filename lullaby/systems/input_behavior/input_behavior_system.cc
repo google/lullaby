@@ -27,7 +27,7 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kInputBehaviorDef = Hash("InputBehaviorDef");
+const HashValue kInputBehaviorDef = ConstHash("InputBehaviorDef");
 
 InputBehaviorSystem::InputBehaviorSystem(Registry* registry)
     : System(registry), input_behaviors_(16) {
@@ -42,12 +42,20 @@ void InputBehaviorSystem::Create(Entity entity, HashValue type,
   if (type == kInputBehaviorDef) {
     const auto* data = ConvertDef<InputBehaviorDef>(def);
     auto* behavior = input_behaviors_.Emplace(entity);
+    if (behavior == nullptr) {
+      behavior = input_behaviors_.Get(entity);
+    }
     if (data->focus_start_dead_zone()) {
       mathfu::vec3 out_vec;
       MathfuVec3FromFbVec3(data->focus_start_dead_zone(), &out_vec);
       behavior->focus_start_dead_zone = out_vec;
     }
     behavior->behavior_type = data->behavior_type();
+
+    if (data->draggable() != OptionalBool::OptionalBool_Unset) {
+      behavior->draggable =
+          data->draggable() == OptionalBool::OptionalBool_True;
+    }
   } else {
     DCHECK(false) << "Unsupported ComponentDef type: " << type;
   }
@@ -77,6 +85,19 @@ void InputBehaviorSystem::Destroy(Entity entity) {
   input_behaviors_.Destroy(entity);
 }
 
+void InputBehaviorSystem::SetDraggable(Entity entity, bool draggable) {
+  auto* behavior = input_behaviors_.Get(entity);
+  if (behavior == nullptr) {
+    behavior = input_behaviors_.Emplace(entity);
+  }
+  behavior->draggable = draggable;
+}
+
+bool InputBehaviorSystem::IsDraggable(Entity entity) const {
+  auto* behavior = input_behaviors_.Get(entity);
+  return behavior != nullptr ? behavior->draggable : false;
+}
+
 void InputBehaviorSystem::UpdateInputFocus(InputFocus* focus) const {
   // Finalize what entity to actually target
   const Entity original_target = focus->target;
@@ -90,16 +111,18 @@ void InputBehaviorSystem::UpdateInputFocus(InputFocus* focus) const {
   const auto* input_processor = registry_->Get<InputProcessor>();
   const InputFocus* current_focus =
       input_processor->GetInputFocus(focus->device);
-  if (current_focus == nullptr) {
-    return;
+  if (current_focus != nullptr) {
+    // If the target entity would change, check for deadzone.
+    const bool changing_target =
+        current_focus == nullptr || focus->target != current_focus->target;
+    if (changing_target &&
+        IsInsideEntityDeadZone(original_target, focus->collision_ray)) {
+      focus->target = kNullEntity;
+    }
   }
 
-  // If the target entity would change, check for deadzone.
-  const bool changing_target =
-      current_focus == nullptr || focus->target != current_focus->target;
-  if (changing_target &&
-      IsInsideEntityDeadZone(original_target, focus->collision_ray)) {
-    focus->target = kNullEntity;
+  if (focus->target != kNullEntity) {
+    focus->draggable = IsDraggable(focus->target);
   }
 }
 

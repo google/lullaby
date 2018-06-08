@@ -39,6 +39,8 @@ struct InputFocus {
   mathfu::vec3 no_hit_cursor_position = mathfu::kZeros3f;
   /// True if the selected entity is interactive.
   bool interactive = false;
+  /// True if the selected entity is draggable.
+  bool draggable = false;
   /// The device this focus is associated with.
   InputManager::DeviceType device = InputManager::kMaxNumDeviceTypes;
 };

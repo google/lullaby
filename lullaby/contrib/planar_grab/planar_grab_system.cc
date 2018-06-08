@@ -30,7 +30,7 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kPlanarGrabbableDefHash = Hash("PlanarGrabbableDef");
+const HashValue kPlanarGrabbableDefHash = ConstHash("PlanarGrabbableDef");
 }  // namespace
 
 PlanarGrabSystem::PlanarGrabSystem(Registry* registry)

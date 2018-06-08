@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "lullaby/systems/name/name_system.h"
 
+#include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/generated/name_def_generated.h"
@@ -25,7 +26,7 @@ namespace lull {
 namespace {
 
 const char* kEmptyString = "";
-const HashValue kNameDefHash = Hash("NameDef");
+const HashValue kNameDefHash = ConstHash("NameDef");
 }  // namespace
 
 NameSystem::NameSystem(Registry* registry, bool allow_duplicate_names)
@@ -37,6 +38,13 @@ NameSystem::NameSystem(Registry* registry, bool allow_duplicate_names)
     binder->RegisterMethod("lull.Name.FindEntity", &NameSystem::FindEntity);
     binder->RegisterMethod("lull.Name.FindDescendant",
                            &NameSystem::FindDescendant);
+    binder->RegisterMethod("lull.Name.SetName", &NameSystem::GetName);
+  }
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  if(dispatcher) {
+    dispatcher->Connect(this, [this](const SetNameEvent& e) {
+      SetName(e.entity, e.name);
+    });
   }
 }
 
@@ -46,6 +54,11 @@ NameSystem::~NameSystem() {
     binder->UnregisterFunction("lull.Name.GetName");
     binder->UnregisterFunction("lull.Name.FindEntity");
     binder->UnregisterFunction("lull.Name.FindDescendant");
+    binder->UnregisterFunction("lull.Name.SetName");
+  }
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
   }
 }
 

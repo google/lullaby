@@ -61,7 +61,8 @@ uint8_t* DataContainer::GetData() {
 }
 
 uint8_t* DataContainer::GetAppendPtr(size_t size) {
-  if (!IsWritable()) {
+  // Allow appending 0 size.
+  if (!IsWritable() && size > 0) {
     LOG(ERROR) << "Tried to get append pointer without write access; "
                << "returning nullptr instead.";
     return nullptr;

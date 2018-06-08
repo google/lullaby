@@ -43,6 +43,12 @@ class DebugRenderDrawInterface {
 
   virtual void DrawQuad2D(const Color4ub color, float x, float y, float w,
                           float h, const TexturePtr& texture) = 0;
+
+  virtual void DrawQuad2DAbsolute(
+      const mathfu::vec4& color,
+      const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+      const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+      const TexturePtr& texture) const = 0;
 };
 
 }  // namespace debug

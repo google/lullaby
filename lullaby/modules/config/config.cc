@@ -58,12 +58,16 @@ void SetConfigFromFlatbuffer(Config* config, const ConfigDef* config_def) {
 
 void LoadConfigFromFile(Registry* registry, Config* config,
                         string_view filename) {
+  if (!registry || !config) {
+    return;
+  }
+
   AssetLoader* asset_loader = registry->Get<AssetLoader>();
   if (!asset_loader) {
     return;
   }
   auto asset = asset_loader->LoadNow<SimpleAsset>(filename.to_string());
-  if (!asset) {
+  if (!asset || asset->GetSize() == 0) {
     return;
   }
   const auto* config_def = flatbuffers::GetRoot<ConfigDef>(asset->GetData());

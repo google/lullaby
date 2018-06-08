@@ -70,9 +70,14 @@ class ShaderClipSystem : public System {
     mathfu::vec3 min_in_clip_region_space;
     mathfu::vec3 max_in_clip_region_space;
 
-    // Stored to make it faster to compute the
+    // Cache of world_from_clip_region_matrix to reduce calculating the below
+    // inverse.
+    mathfu::mat4 world_from_clip_region_matrix;
+    // Whether the cache changed this frame.
+    bool world_from_clip_region_matrix_changed = true;
+    // Inverse of the above to make it faster to compute the
     // |clip_region_from_model_space_matrix| per target per frame.
-    mathfu::mat4 clip_region_from_start_space_matrix;
+    mathfu::mat4 clip_region_from_world_matrix;
   };
 
   // A target will only draw geometry inside the box volume defined in |region|.
@@ -82,6 +87,9 @@ class ShaderClipSystem : public System {
     Entity region;
     // This target was enabled through AddTarget() or ShaderClipTargetDef.
     bool manually_enabled;
+    // Cache of world_from_model_matrix to reduce calculations and setting the
+    // uniform.
+    mathfu::mat4 world_from_model_matrix;
   };
 
   ClipTarget* GetTarget(Entity entity);

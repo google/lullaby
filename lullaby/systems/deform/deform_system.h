@@ -30,23 +30,27 @@ limitations under the License.
 
 namespace lull {
 
-// Handles cylindrical deformation logic for transform and render systems.
-// Deformation is applied in two parts:
+// Handles cylindrical and waypoint deformation logic for transform and render
+// systems. Deformation is applied in two parts:
 //
 //  1) Transform - Every time a deformed entity is moved or reparented in the
 //     transform system, the deform system will recalculate the correct deformed
 //     world_from_entity matrix for that entity.  Moving an object in the x axis
 //     will be re-interpreted to a movement along the circumference of the
-//     deformer's cylinder.
-//  2) Render - When a mesh is first created, the vertices of that mesh will be
-//     deformed according to the entity's current position and deformer.  This
-//     mesh will not be updated unless it is recreated / reloaded by the render
-//     system.
+//     deformer's cylinder or along a waypoint path.
+//  2) Render - For CylinderBend, on the next RenderSystem::ProcessTasks() after
+//     a mesh is first created, the vertices of that mesh will be deformed
+//     according to the entity's current position and deformer.  This mesh will
+//     not be updated unless it is recreated / reloaded by the render system.
+//     Note that render_system_mock is an empty implementation and no deform
+//     will be applied.
+//     No mesh alteration is applied for Waypoint.
 //
 // Deformation should be accomplished by adding a DeformerDef component to
-// the root object of the deformation, and a DeformedDef component to any
-// children that should deform.  If a DeformedDef Entity is a child of an
-// undeformed parent, it will not apply any deformation.
+// the root object of the deformation, and a contiguous chain of DeformedDef
+// components to any children that should deform.  If a DeformedDef Entity
+// cannot follow a contiguous ancestry to a DeformerDef, it will not apply any
+// deformation.
 class DeformSystem : public System {
  public:
   // Note: DeformMode enum is in deform_def.fbs
@@ -140,7 +144,7 @@ class DeformSystem : public System {
     explicit Deformer(Entity e)
         : Component(e),
           radius(0.f),
-          mode(DeformMode::DeformMode_GlobalCylinder) {}
+          mode(DeformMode::DeformMode_None) {}
     Deformer(Entity e, const Deformer& prototype)
         : Component(e), radius(prototype.radius), mode(prototype.mode) {}
     float radius;

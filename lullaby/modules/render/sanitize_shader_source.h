@@ -39,8 +39,7 @@ enum class ShaderProfile {
 ///    code.
 /// 3. Identify the first non-empty, non-comment, non-preprocessor line, and
 ///    insert a default precision float specifier before it if necessary.
-std::string SanitizeShaderSource(string_view code, ShaderProfile profile,
-                                 Span<string_view> defines);
+std::string SanitizeShaderSource(string_view code, ShaderProfile profile);
 
 }  // namespace lull
 

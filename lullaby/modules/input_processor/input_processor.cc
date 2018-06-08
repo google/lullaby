@@ -179,8 +179,10 @@ void InputProcessor::UpdateButtons(const Clock::duration& delta_time,
               .count();
 
       if (button_state.focused_entity != current) {
-        // Cancel the press on the previous target
-        HandleCancel(device, button_id, &button_state);
+        if (button_state.state != kCanceled) {
+          // Cancel the press on the previous target
+          HandleCancel(device, button_id, &button_state);
+        }
 
         // Set the button to be targeting the new focus.
         SetButtonTarget(device, &button_state);
@@ -201,17 +203,19 @@ void InputProcessor::UpdateButtons(const Clock::duration& delta_time,
           if (slop_angle <= kRayDragSlop) {
             new_state = kInsideSlop;
           } else if (slop_angle <= kRayCancelSlop) {
-            // TODO(b/69130001) need to set state to inside_slop if the entity
-            // isn't draggable.
-            new_state = kDragging;
+            if (focus.draggable) {
+              new_state = kDragging;
+            } else {
+              new_state = kInsideSlop;
+            }
           }
         }
       }
 
       if (new_state == kCanceled && button_state.state != kCanceled) {
         // Just left Cancel threshold for first time.
-        button_state.state = kCanceled;
         HandleCancel(device, button_id, &button_state);
+        button_state.state = kCanceled;
       }
 
       if (new_state == kDragging && button_state.state == kInsideSlop) {
@@ -276,7 +280,7 @@ void InputProcessor::HandlePress(InputManager::DeviceType device,
   button_state->ms_since_press = 0;
   SetButtonTarget(device, button_state);
   VariantMap values;
-  values.emplace(kLocationHash, button_state->focus_location);
+  values.emplace(kLocationHash, button_state->pressed_location);
   SendButtonEvent(device, button_id, kPress, button_state->focused_entity,
                   &values);
 }
@@ -394,13 +398,14 @@ void InputProcessor::SetButtonTarget(InputManager::DeviceType device,
   button_state->focused_entity =
       focus.current.interactive ? focus.current.target : kNullEntity;
 
-  button_state->focus_location = mathfu::kZeros3f;
-  if (button_state->focused_entity != kNullEntity) {
+  button_state->pressed_location = mathfu::kZeros3f;
+  if (button_state->state != kReleased &&
+      button_state->focused_entity != kNullEntity) {
     auto transform_system = registry_->Get<TransformSystem>();
     const mathfu::mat4* world_mat = transform_system->GetWorldFromEntityMatrix(
         button_state->focused_entity);
     if (world_mat != nullptr) {
-      button_state->focus_location =
+      button_state->pressed_location =
           world_mat->Inverse() * focus.current.cursor_position;
     } else {
       LOG(DFATAL) << "no world matrix on focused_entity";
@@ -411,7 +416,7 @@ void InputProcessor::SetButtonTarget(InputManager::DeviceType device,
 void InputProcessor::ResetButton(ButtonState* button_state) {
   button_state->pressed_entity = kNullEntity;
   button_state->focused_entity = kNullEntity;
-  button_state->focus_location = mathfu::kZeros3f;
+  button_state->pressed_location = mathfu::kZeros3f;
   button_state->ms_since_press = 0;
 }
 
@@ -427,13 +432,14 @@ float InputProcessor::CalculateRaySlop(const ButtonState& button_state,
   if (world_mat == nullptr) {
     return std::numeric_limits<float>::max();
   }
-  const mathfu::vec3 press_point = (*world_mat) * button_state.focus_location;
+  const mathfu::vec3 pressed_location_in_world_space =
+      (*world_mat) * button_state.pressed_location;
 
   const mathfu::vec3 source_to_original =
-      press_point - focus.collision_ray.origin;
+      pressed_location_in_world_space - focus.collision_ray.origin;
   const mathfu::vec3 source_to_current =
       focus.no_hit_cursor_position - focus.collision_ray.origin;
-  return AngleBetween(source_to_original, source_to_current);
+  return mathfu::vec3::Angle(source_to_original, source_to_current);
 }
 
 void InputProcessor::SetPrimaryDevice(InputManager::DeviceType device) {

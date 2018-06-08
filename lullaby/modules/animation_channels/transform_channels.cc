@@ -16,22 +16,27 @@ limitations under the License.
 
 #include "lullaby/modules/animation_channels/transform_channels.h"
 
-#include "mathfu/constants.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
+#include "mathfu/constants.h"
 
 namespace lull {
 
-const HashValue PositionChannel::kChannelName = Hash("transform-position");
-const HashValue PositionXChannel::kChannelName = Hash("transform-position-x");
-const HashValue PositionYChannel::kChannelName = Hash("transform-position-y");
-const HashValue PositionZChannel::kChannelName = Hash("transform-position-z");
-const HashValue RotationChannel::kChannelName = Hash("transform-rotation");
-const HashValue ScaleChannel::kChannelName = Hash("transform-scale");
-const HashValue ScaleFromRigChannel::kChannelName = Hash("transform-scale-rig");
-const HashValue AabbMinChannel::kChannelName = Hash("transform-aabb-min");
-const HashValue AabbMaxChannel::kChannelName = Hash("transform-aabb-max");
+const HashValue PositionChannel::kChannelName = ConstHash("transform-position");
+const HashValue PositionXChannel::kChannelName =
+    ConstHash("transform-position-x");
+const HashValue PositionYChannel::kChannelName =
+    ConstHash("transform-position-y");
+const HashValue PositionZChannel::kChannelName =
+    ConstHash("transform-position-z");
+const HashValue RotationChannel::kChannelName = ConstHash("transform-rotation");
+const HashValue ScaleChannel::kChannelName = ConstHash("transform-scale");
+const HashValue ScaleFromRigChannel::kChannelName =
+    ConstHash("transform-scale-rig");
+const HashValue AabbMinChannel::kChannelName = ConstHash("transform-aabb-min");
+const HashValue AabbMaxChannel::kChannelName = ConstHash("transform-aabb-max");
 
 namespace {
 
@@ -59,6 +64,17 @@ void PositionChannel::Setup(Registry* registry, size_t pool_size) {
   }
   AnimationChannelPtr ptr(new PositionChannel(registry, pool_size));
   animation_system->AddChannel(kChannelName, std::move(ptr));
+
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (animation_system && dispatcher) {
+    dispatcher->Connect(
+        animation_system, [animation_system](const AnimatePositionEvent& e) {
+          const auto duration = std::chrono::duration_cast<Clock::duration>(
+              std::chrono::duration<float, std::milli>(e.time_ms));
+          animation_system->SetTarget(e.entity, kChannelName, &e.position[0], 3,
+                                      duration);
+        });
+  }
 }
 
 const motive::MatrixOperationType* PositionChannel::GetOperations() const {
@@ -213,6 +229,17 @@ void RotationChannel::Setup(Registry* registry, size_t pool_size) {
   } else {
     LOG(DFATAL) << "Failed to setup RotationChannel.";
   }
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (animation_system && dispatcher) {
+    dispatcher->Connect(
+        animation_system, [animation_system](const AnimateRotationEvent& e) {
+          auto angles = e.rotation.ToEulerAngles();
+          const auto duration = std::chrono::duration_cast<Clock::duration>(
+              std::chrono::duration<float, std::milli>(e.time_ms));
+          animation_system->SetTarget(e.entity, kChannelName, &angles[0], 3,
+                                      duration);
+        });
+  }
 }
 
 const motive::MatrixOperationType* RotationChannel::GetOperations() const {
@@ -255,6 +282,16 @@ void ScaleChannel::Setup(Registry* registry, size_t pool_size) {
     animation_system->AddChannel(kChannelName, std::move(ptr));
   } else {
     LOG(DFATAL) << "Failed to setup ScaleChannel.";
+  }
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (animation_system && dispatcher) {
+    dispatcher->Connect(
+        animation_system, [animation_system](const AnimateScaleEvent& e) {
+          const auto duration = std::chrono::duration_cast<Clock::duration>(
+              std::chrono::duration<float, std::milli>(e.time_ms));
+          animation_system->SetTarget(e.entity, kChannelName, &e.scale[0], 3,
+                                      duration);
+        });
   }
 }
 

@@ -19,6 +19,6 @@ cc_library(
         "..",
     ],
     deps = [
-        "@flatbuffers//:flatbuffers",
+        "@flatbuffers",
     ],
 )

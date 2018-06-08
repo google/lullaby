@@ -1,0 +1,11 @@
+include "lull/common.fbs";
+
+include "lull/model_asset_def.fbs";
+include "lull/render_def.fbs";
+include "lull/transform_def.fbs";
+
+union ComponentDefType {
+  lull.ModelAssetDef,
+  lull.RenderDef,
+  lull.TransformDef,
+}

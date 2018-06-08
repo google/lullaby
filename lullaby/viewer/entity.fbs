@@ -1,0 +1,22 @@
+include "lull/common.fbs";
+
+include "lull/animation_def.fbs";
+include "lull/light_def.fbs";
+include "lull/name_def.fbs";
+include "lull/model_asset_def.fbs";
+include "lull/render_def.fbs";
+include "lull/stategraph_def.fbs";
+include "lull/transform_def.fbs";
+
+union ComponentDefType {
+  lull.AmbientLightDef,
+  lull.AnimationDef,
+  lull.DirectionalLightDef,
+  lull.EnvironmentLightDef,
+  lull.LightableDef,
+  lull.NameDef,
+  lull.ModelAssetDef,
+  lull.RenderDef,
+  lull.StategraphDef,
+  lull.TransformDef,
+}

@@ -1,0 +1,13 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
+
+#include "third_party/lullaby/data/shaders/math.glslh"
+
+/// Math constants and functions specific to the PBR shader.
+
+float Pow5(float x) {
+  float xx = x * x;
+  return xx * xx * x;
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_

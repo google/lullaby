@@ -40,8 +40,8 @@ struct GrabReleasedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&final_sqt, Hash("final_sqt"));
+    archive(&entity, ConstHash("entity"));
+    archive(&final_sqt, ConstHash("final_sqt"));
   }
 };
 
@@ -62,8 +62,8 @@ struct GrabCanceledEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&starting_sqt, Hash("starting_sqt"));
+    archive(&entity, ConstHash("entity"));
+    archive(&starting_sqt, ConstHash("starting_sqt"));
   }
 };
 

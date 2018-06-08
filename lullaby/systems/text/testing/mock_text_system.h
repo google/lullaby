@@ -48,6 +48,7 @@ class MockTextSystem : public TextSystemImpl {
   MOCK_CONST_METHOD1(IsTextReady, bool(Entity));
   MOCK_METHOD0(ProcessTasks, void());
   MOCK_METHOD0(WaitForAllTasks, void());
+  MOCK_METHOD0(ReprocessAllText, void());
 };
 
 }  // namespace lull

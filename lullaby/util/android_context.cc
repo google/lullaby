@@ -16,14 +16,14 @@ limitations under the License.
 
 #include "lullaby/util/android_context.h"
 
-#include "lullaby/util/logging.h"
-#include "lullaby/util/make_unique.h"
-
 #ifdef __ANDROID__
 
 #include <pthread.h>
 
 #include <atomic>
+
+#include "lullaby/util/logging.h"
+#include "lullaby/util/make_unique.h"
 
 namespace lull {
 
@@ -98,6 +98,10 @@ AndroidContext::AndroidContext(JavaVM* jvm, jint version) {
   SetJavaVM(jvm, version);
 }
 
+AndroidContext::AndroidContext(AAssetManager* asset_manager) {
+  asset_manager_ptr_ = asset_manager;
+}
+
 AndroidContext::~AndroidContext() {
   JNIEnv* env = AttachCurrentThread();
   if (asset_manager_ != nullptr) {
@@ -106,14 +110,15 @@ AndroidContext::~AndroidContext() {
   if (context_ != nullptr) {
     env->DeleteWeakGlobalRef(context_);
   }
+  if (activity_ != nullptr) {
+    env->DeleteWeakGlobalRef(activity_);
+  }
   if (class_loader_ != nullptr) {
     env->DeleteWeakGlobalRef(class_loader_);
   }
 }
 
-JNIEnv* AndroidContext::GetJniEnv() const {
-  return AttachCurrentThread();
-}
+JNIEnv* AndroidContext::GetJniEnv() const { return AttachCurrentThread(); }
 
 void AndroidContext::SetApplicationContext(jobject context) {
   JNIEnv* env = AttachCurrentThread();
@@ -132,7 +137,29 @@ void AndroidContext::SetApplicationContext(jobject context) {
 ScopedJavaLocalRef AndroidContext::GetApplicationContext() const {
   JNIEnv* env = AttachCurrentThread();
   CHECK_NOTNULL(env);
-  return ScopedJavaLocalRef(env->NewLocalRef(context_), env);
+  CHECK_NOTNULL(context_);
+  return ScopedJavaLocalRef(context_, env);
+}
+
+void AndroidContext::SetActivity(jobject activity) {
+  JNIEnv* env = AttachCurrentThread();
+  CHECK_NOTNULL(env);
+  if (activity_ != nullptr) {
+    env->DeleteWeakGlobalRef(activity_);
+    activity_ = nullptr;
+  }
+
+  if (activity) {
+    activity_ = env->NewWeakGlobalRef(activity);
+    CHECK_NOTNULL(activity_);
+  }
+}
+
+ScopedJavaLocalRef AndroidContext::GetActivity() const {
+  JNIEnv* env = AttachCurrentThread();
+  CHECK_NOTNULL(env);
+  CHECK_NOTNULL(activity_);
+  return ScopedJavaLocalRef(activity_, env);
 }
 
 void AndroidContext::SetClassLoader(jobject loader) {
@@ -152,7 +179,8 @@ void AndroidContext::SetClassLoader(jobject loader) {
 ScopedJavaLocalRef AndroidContext::GetClassLoader() const {
   JNIEnv* env = AttachCurrentThread();
   CHECK_NOTNULL(env);
-  return ScopedJavaLocalRef(env->NewLocalRef(class_loader_), env);
+  CHECK_NOTNULL(class_loader_);
+  return ScopedJavaLocalRef(class_loader_, env);
 }
 
 void AndroidContext::SetAndroidAssetManager(jobject manager) {
@@ -166,7 +194,13 @@ void AndroidContext::SetAndroidAssetManager(jobject manager) {
   if (manager) {
     asset_manager_ = env->NewWeakGlobalRef(manager);
     CHECK_NOTNULL(asset_manager_);
+    ScopedJavaLocalRef ref(asset_manager_, env);
+    SetAndroidAssetManagerFromPtr(AAssetManager_fromJava(env, ref.Get()));
   }
+}
+
+void AndroidContext::SetAndroidAssetManagerFromPtr(AAssetManager* manager) {
+  asset_manager_ptr_ = manager;
 }
 
 void AndroidContext::SetAndroidAssetManagerFromContext(jobject context) {
@@ -184,15 +218,7 @@ void AndroidContext::SetAndroidAssetManagerFromContext(jobject context) {
 }
 
 AAssetManager* AndroidContext::GetAndroidAssetManager() {
-  JNIEnv* env = AttachCurrentThread();
-  CHECK_NOTNULL(env);
-
-  if (asset_manager_) {
-    ScopedJavaLocalRef ref(env->NewLocalRef(asset_manager_), env);
-    return AAssetManager_fromJava(env, ref.Get());
-  } else {
-    return nullptr;
-  }
+  return asset_manager_ptr_;
 }
 
 }  // namespace lull

@@ -24,9 +24,11 @@ cc_library(
         "//lullaby/systems/rig",
         "//lullaby/util:entity",
         "//lullaby/util:filename",
+        "//lullaby/util:flatbuffer_reader",
         "//lullaby/util:make_unique",
         "//lullaby/util:registry",
         "//lullaby/util:resource_manager",
+        "//lullaby/util:span",
         "//lullaby/util:string_view",
     ],
 )

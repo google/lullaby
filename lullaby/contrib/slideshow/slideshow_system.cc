@@ -29,9 +29,9 @@ limitations under the License.
 
 namespace lull {
 namespace {
-const HashValue kShowSlideshowHash = Hash("SlideshowShow");
-const HashValue kHideSlideshowHash = Hash("SlideshowHide");
-const HashValue kSlideshowDefHash = Hash("SlideshowDef");
+const HashValue kShowSlideshowHash = ConstHash("SlideshowShow");
+const HashValue kHideSlideshowHash = ConstHash("SlideshowHide");
+const HashValue kSlideshowDefHash = ConstHash("SlideshowDef");
 }  // namespace
 
 SlideshowSystem::SlideshowSystem(Registry* registry)

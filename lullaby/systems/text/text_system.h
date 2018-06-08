@@ -168,6 +168,10 @@ class TextSystem : public System {
 
   static std::string GetUnprocessedText(const std::string& text);
 
+  // Forces all text entities to re-process their strings.  Call this when to
+  // dynamically update a locale.
+  void ReprocessAllText();
+
  private:
   std::unique_ptr<TextSystemImpl> impl_;
 };
@@ -225,11 +229,27 @@ class TextSystemImpl : public System {
   virtual void ProcessTasks() = 0;
 
   virtual void WaitForAllTasks() = 0;
+
+  virtual void ReprocessAllText() = 0;
+};
+
+struct SetTextEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&text, ConstHash("text"));
+    archive(&literal, ConstHash("literal"));
+  }
+
+  Entity entity = kNullEntity;
+  std::string text;
+  bool literal = false;
 };
 
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::TextSystemPreprocessingModes);
 LULLABY_SETUP_TYPEID(lull::TextSystem);
+LULLABY_SETUP_TYPEID(lull::SetTextEvent);
 
 #endif  // LULLABY_SYSTEMS_TEXT_TEXT_SYSTEM_H_

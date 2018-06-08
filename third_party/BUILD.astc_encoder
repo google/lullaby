@@ -1,0 +1,18 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "astc_encoder",
+    srcs = glob([
+        "Source/*.cpp"
+    ], exclude = [
+        "Source/exr_to_htga.cpp",
+        "Source/astc_stb_tga.cpp"
+    ]),
+    hdrs = glob(["Source/*.h"]),
+    includes = ["Source"],
+    deps = [
+      "@stb//:stb",
+    ]
+)

@@ -94,7 +94,7 @@ class ScriptedAnimationSelector : public StategraphState::TrackSelector {
         }
         ScriptEnvScope scope(env);
         env->SetValue(Symbol("tracks"), env->Create(tracks));
-        ret = env->Eval(code_).NumericCast<size_t>();
+        ret = env->Eval(code_).ImplicitCast<size_t>();
       }
     }
     return ret;

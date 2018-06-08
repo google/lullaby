@@ -1,0 +1,83 @@
+/// This header contains helper macros and functions to perform skinning.
+///
+/// Before including this header, make sure that you have bone_transforms
+/// uniform array of type Vec4f.
+
+// Helper function to convert from 3x vec4 from 'bone_transforms' to a mat4.
+// Since we store elements in the 'bone_transforms' as a vec4 array, which
+// represent a mat3x4, this function combines them into a single mat4 with
+// a 'w' row set to (0, 0, 0, 1).
+// Note: This function returns the transpose of the bone affine transform.
+mat4 BoneTransformMatrixTranspose(int i) {
+  return mat4(bone_transforms[i * 3 + 0],
+              bone_transforms[i * 3 + 1],
+              bone_transforms[i * 3 + 2],
+              vec4(0, 0, 0, 1));
+}
+
+vec4 GetSkinnedVertex(vec4 position, int bone_index) {
+  return position * BoneTransformMatrixTranspose(bone_index);
+}
+
+void GetSkinnedVertex(vec4 position, vec3 normal, vec3 tangent, vec3 binormal,
+                      int bone_index, out vec4 out_position,
+                      out vec3 out_normal, out vec3 out_tangent,
+                      out vec3 out_binormal) {
+  mat4 bone_mat = BoneTransformMatrixTranspose(bone_index);
+  out_position = position * bone_mat;
+
+  // Note: This does not work for non-uniform scale.
+  out_normal = normalize((vec4(normal, 0.0) * bone_mat).xyz);
+  out_tangent = normalize((vec4(tangent, 0.0) * bone_mat).xyz);
+  out_binormal = normalize((vec4(binormal, 0.0) * bone_mat).xyz);
+}
+
+// Return vertex position w.r.t. bone positions.
+vec4 FourBoneSkinnedVertex(vec4 bone_indices, vec4 bone_weights,
+                           vec4 position) {
+  vec4 p0 = bone_weights.x * GetSkinnedVertex(position, int(bone_indices.x));
+  vec4 p1 = bone_weights.y * GetSkinnedVertex(position, int(bone_indices.y));
+  vec4 p2 = bone_weights.z * GetSkinnedVertex(position, int(bone_indices.z));
+  vec4 p3 = bone_weights.w * GetSkinnedVertex(position, int(bone_indices.w));
+  return p0 + p1 + p2 + p3;
+}
+
+// Return vertex position w.r.t. bone positions.
+void FourBoneSkinnedVertex(vec4 bone_indices, vec4 bone_weights,
+                           vec4 position, vec3 normal, vec3 tangent,
+                           vec3 binormal, out vec4 out_position,
+                           out vec3 out_normal, out vec3 out_tangent,
+                           out vec3 out_binormal) {
+  vec4 p0, p1, p2, p3;
+  vec3 n0, n1, n2, n3;
+  vec3 t0, t1, t2, t3;
+  vec3 b0, b1, b2, b3;
+  GetSkinnedVertex(position, normal, tangent, binormal, int(bone_indices.x),
+                   p0, n0, t0, b0);
+  GetSkinnedVertex(position, normal, tangent, binormal, int(bone_indices.y),
+                   p1, n1, t1, b1);
+  GetSkinnedVertex(position, normal, tangent, binormal, int(bone_indices.z),
+                   p2, n2, t2, b2);
+  GetSkinnedVertex(position, normal, tangent, binormal, int(bone_indices.w),
+                   p3, n3, t3, b3);
+  out_position =
+    p0*bone_weights.x +
+    p1*bone_weights.y +
+    p2*bone_weights.z +
+    p3*bone_weights.w;
+  out_normal =
+    n0*bone_weights.x +
+    n1*bone_weights.y +
+    n2*bone_weights.z +
+    n3*bone_weights.w;
+  out_tangent =
+    t0*bone_weights.x +
+    t1*bone_weights.y +
+    t2*bone_weights.z +
+    t3*bone_weights.w;
+  out_binormal =
+    b0*bone_weights.x +
+    b1*bone_weights.y +
+    b2*bone_weights.z +
+    b3*bone_weights.w;
+}

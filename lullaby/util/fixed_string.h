@@ -212,6 +212,23 @@ inline auto operator+(const FixedString<N>& lhs, const FixedString<T>& rhs)
 }
 
 template <size_t N>
+inline FixedString<N> operator+(const FixedString<N>& lhs,
+                                const FixedString<N>& rhs) {
+  FixedString<N> res;
+  res.append(lhs);
+  res.append(rhs);
+  return res;
+}
+
+template <size_t N>
+inline FixedString<N> operator+(const FixedString<N>& lhs, string_view rhs) {
+  FixedString<N> res;
+  res.append(lhs.data());
+  res.append(rhs);
+  return res;
+}
+
+template <size_t N>
 inline bool operator==(const FixedString<N>& lhs, const FixedString<N>& rhs) {
   return lhs.compare(rhs.data()) == 0;
 }

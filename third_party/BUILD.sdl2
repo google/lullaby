@@ -112,10 +112,16 @@ cc_library(
         "-DHAVE_SQRTF=1",
         "-DHAVE_TAN=1",
         "-DHAVE_TANF=1",
+        "-DSDL_VIDEO_DRIVER_X11_SUPPORTS_GENERIC_EVENTS=1",
     ],
     includes = ["include"],
     linkstatic = 1,
     linkopts = [
         "-ldl",
-    ]
+        "-lX11",
+        "-lXext",
+    ],
+    defines = [
+        "SDL_VIDEO_DRIVER_X11",
+    ],
 )

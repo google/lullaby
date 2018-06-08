@@ -18,9 +18,23 @@ limitations under the License.
 
 #include "lullaby/events/render_events.h"
 #include "lullaby/systems/render/render_system.h"
+#include "lullaby/systems/render/texture_factory.h"
 
 namespace lull {
 namespace {
+static constexpr char kLightMatrixUniformName[] =
+    "directional_light_shadow_matrix";
+static constexpr char kColorUniformName[] = "light_directional_color";
+static constexpr char kDirectionUniformName[] = "light_directional_dir";
+static constexpr char kExponentUniformName[] = "light_directional_exponent";
+
+static constexpr char kShadowColorUniformName[] =
+    "light_directional_shadow_color";
+static constexpr char kShadowDirectionUniformName[] =
+    "light_directional_shadow_dir";
+static constexpr char kShadowExponentUniformName[] =
+    "light_directional_shadow_exponent";
+
 HashValue RenderPassNameFromEntityAndLightGroup(Entity entity,
                                                 HashValue group) {
   return entity + group;
@@ -43,6 +57,27 @@ void AddEmptyShadow(AmbientLightDefT* light) {}
 void AddEmptyShadow(DirectionalLightDefT* light) {
   light->shadow_def.template set<ShadowMapDefT>();
 }
+
+void UpdateRenderViewTransform(const TransformSystem* transform_system,
+                               Entity entity, RenderView* render_view) {
+  if (!transform_system || !render_view || entity == kNullEntity) {
+    return;
+  }
+
+  const mathfu::mat4* entity_world_matrix =
+      transform_system->GetWorldFromEntityMatrix(entity);
+  if (entity_world_matrix) {
+    render_view->world_from_eye_matrix = *entity_world_matrix;
+  } else {
+    render_view->world_from_eye_matrix = mathfu::mat4::Identity();
+    LOG(ERROR) << "Directional light entity " << entity
+               << " lacks a transform component.";
+  }
+
+  render_view->clip_from_world_matrix =
+      render_view->clip_from_eye_matrix *
+      render_view->world_from_eye_matrix.Inverse();
+}
 }  // namespace
 
 static Sqt GetWorldFromEntitySqt(const TransformSystem* transform_system,
@@ -55,14 +90,11 @@ static Sqt GetWorldFromEntitySqt(const TransformSystem* transform_system,
 LightSystem::LightSystem(Registry* registry) : System(registry) {
   RegisterDef(this, ConstHash("AmbientLightDef"));
   RegisterDef(this, ConstHash("DirectionalLightDef"));
+  RegisterDef(this, ConstHash("EnvironmentLightDef"));
   RegisterDef(this, ConstHash("PointLightDef"));
   RegisterDef(this, ConstHash("LightableDef"));
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
-}
-
-void LightSystem::SetDepthShader(const ShaderPtr& depth_shader) {
-  depth_shader_ = depth_shader;
 }
 
 void LightSystem::CreateLight(Entity entity, const AmbientLightDefT& data) {
@@ -76,24 +108,13 @@ void LightSystem::CreateLight(Entity entity, const DirectionalLightDefT& data) {
   directionals_.insert(entity);
   entity_to_group_map_[entity] = data.group;
 
-  auto* transform_system = registry_->Get<lull::TransformSystem>();
-  group.AddLight(transform_system, entity, data);
+  group.AddLight(registry_, entity, data);
+}
 
-  if (HasShadows(data)) {
-    CreateShadowRenderPass(entity, data);
-
-    const HashValue pass =
-        RenderPassNameFromEntityAndLightGroup(entity, data.group);
-    group.CreateShadowPass(pass);
-
-    auto* render_system = registry_->Get<RenderSystem>();
-    auto* dispatcher_system = registry_->Get<lull::DispatcherSystem>();
-    const auto& lightables = group.GetLightables();
-    for (const auto& lightable : lightables) {
-      AddLightableToShadowPass(render_system, dispatcher_system,
-                               lightable.first, pass, lightable.second);
-    }
-  }
+void LightSystem::CreateLight(Entity entity, const EnvironmentLightDefT& data) {
+  LightGroup& group = groups_[data.group];
+  group.AddLight(registry_, entity, data);
+  entity_to_group_map_[entity] = data.group;
 }
 
 void LightSystem::CreateLight(Entity entity, const PointLightDefT& data) {
@@ -105,18 +126,8 @@ void LightSystem::CreateLight(Entity entity, const PointLightDefT& data) {
 
 void LightSystem::CreateLight(Entity entity, const LightableDefT& data) {
   LightGroup& group = groups_[data.group];
-  group.AddLightable(entity, data);
+  group.AddLightable(registry_, entity, data);
   entity_to_group_map_[entity] = data.group;
-
-  if (data.shadow_interaction == ShadowInteraction_CastAndReceive) {
-    auto* render_system = registry_->Get<RenderSystem>();
-    auto* dispatcher_system = registry_->Get<lull::DispatcherSystem>();
-    const auto& passes = group.GetShadowPasses();
-    for (HashValue pass : passes) {
-      AddLightableToShadowPass(render_system, dispatcher_system, entity, pass,
-                               data);
-    }
-  }
 }
 
 void LightSystem::PostCreateComponent(Entity entity,
@@ -136,6 +147,10 @@ void LightSystem::PostCreateComponent(Entity entity,
     CreateLight(entity, light);
   } else if (blueprint.Is<DirectionalLightDefT>()) {
     DirectionalLightDefT light;
+    blueprint.Read(&light);
+    CreateLight(entity, light);
+  } else if (blueprint.Is<EnvironmentLightDefT>()) {
+    EnvironmentLightDefT light;
     blueprint.Read(&light);
     CreateLight(entity, light);
   } else if (blueprint.Is<LightableDefT>()) {
@@ -174,7 +189,7 @@ void LightSystem::AdvanceFrame() {
 
   auto* render_system = registry_->Get<RenderSystem>();
   for (auto& iter : groups_) {
-    iter.second.Update(render_system);
+    iter.second.Update(transform_system, render_system);
   }
 }
 
@@ -198,13 +213,32 @@ void LightSystem::LightGroup::AddLight(Entity entity,
   dirty_ = true;
 }
 
-void LightSystem::LightGroup::AddLight(TransformSystem* transform_system,
-                                       Entity entity,
+void LightSystem::LightGroup::AddLight(Registry* registry, Entity entity,
                                        const DirectionalLightDefT& light) {
+  auto* transform_system = registry->Get<lull::TransformSystem>();
   const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
   auto& new_light = directionals_[entity];
   new_light = light;
   new_light.rotation = sqt.rotation;
+  dirty_ = true;
+
+  if (HasShadows(light)) {
+    CreateShadowPass(registry, entity, light);
+  }
+}
+
+void LightSystem::LightGroup::AddLight(Registry* registry, Entity entity,
+                                       const EnvironmentLightDefT& light) {
+  auto* texture_factory = registry->Get<TextureFactory>();
+  if (texture_factory) {
+    environment_entity_ = entity;
+    environment_diffuse_texture_ =
+        texture_factory->CreateTexture(light.diffuse);
+    environment_specular_texture_ =
+        texture_factory->CreateTexture(light.specular);
+    environment_brdf_lookup_table_ =
+        texture_factory->CreateTexture(light.brdf_lookup);
+  }
   dirty_ = true;
 }
 
@@ -218,18 +252,28 @@ void LightSystem::LightGroup::AddLight(TransformSystem* transform_system,
   dirty_ = true;
 }
 
-void LightSystem::LightGroup::AddLightable(Entity entity,
+void LightSystem::LightGroup::AddLightable(Registry* registry, Entity entity,
                                            const LightableDefT& lightable) {
   auto& new_lightable = lightables_[entity];
   new_lightable = lightable;
   dirty_lightables_.insert(entity);
+
+  if (lightable.shadow_interaction == ShadowInteraction_CastAndReceive) {
+    auto* render_system = registry->Get<RenderSystem>();
+    auto* dispatcher_system = registry->Get<lull::DispatcherSystem>();
+    for (const auto& shadow_pass_data : shadow_passes_) {
+      AddLightableToShadowPass(render_system, dispatcher_system, entity,
+                               shadow_pass_data.pass, lightable);
+    }
+  }
 }
 
 void LightSystem::LightGroup::Remove(Registry* registry, Entity entity) {
   if (lightables_.erase(entity)) {
     auto* render_system = registry->Get<RenderSystem>();
-    for (const auto& pass : shadow_passes_) {
-      RemoveLightableFromShadowPass(render_system, entity, pass);
+    for (const auto& shadow_pass_data : shadow_passes_) {
+      RemoveLightableFromShadowPass(render_system, entity,
+                                    shadow_pass_data.pass);
     }
   }
 
@@ -250,10 +294,23 @@ void LightSystem::LightGroup::Remove(Registry* registry, Entity entity) {
   if (points_.erase(entity)) {
     dirty_ = true;
   }
+  if (environment_entity_ == entity) {
+    environment_diffuse_texture_ = nullptr;
+    environment_specular_texture_ = nullptr;
+    environment_brdf_lookup_table_ = nullptr;
+    environment_entity_ = kNullEntity;
+    dirty_ = true;
+  }
 }
 
-void LightSystem::LightGroup::Update(RenderSystem* render_system) {
+void LightSystem::LightGroup::Update(TransformSystem* transform_system,
+                                     RenderSystem* render_system) {
   if (dirty_) {
+    for (auto& shadow_pass_data : shadow_passes_) {
+      UpdateRenderViewTransform(transform_system,
+                                shadow_pass_data.transform_entity,
+                                &shadow_pass_data.view);
+    }
     for (auto& lightable : lightables_) {
       UpdateLightable(render_system, lightable.first, lightable.second);
     }
@@ -267,15 +324,6 @@ void LightSystem::LightGroup::Update(RenderSystem* render_system) {
     }
   }
   dirty_lightables_.clear();
-}
-
-const std::vector<HashValue>& LightSystem::LightGroup::GetShadowPasses() const {
-  return shadow_passes_;
-}
-
-const std::unordered_map<Entity, LightableDefT>&
-LightSystem::LightGroup::GetLightables() const {
-  return lightables_;
 }
 
 template <typename T>
@@ -331,6 +379,23 @@ void LightSystem::LightGroup::UpdateLightable(RenderSystem* render_system,
       (data.shadow_interaction == ShadowInteraction_CastAndReceive) ? 1 : 0);
   UpdateUniforms(&uniforms, points_, data.max_point_lights, 0);
   uniforms.Apply(render_system, entity);
+
+  // Special case: Also update the shadow matrices.
+  for (const auto& shadow_pass : shadow_passes_) {
+    render_system->SetUniform(entity, kLightMatrixUniformName,
+                              &shadow_pass.view.clip_from_world_matrix[0],
+                              16 /*=dimensions*/, 1 /*=count*/);
+  }
+
+  // Special case: environment lighting.
+  if (data.apply_environment_light) {
+    render_system->SetTexture(entity, MaterialTextureUsage_DiffuseEnvironment,
+                              environment_diffuse_texture_);
+    render_system->SetTexture(entity, MaterialTextureUsage_SpecularEnvironment,
+                              environment_specular_texture_);
+    render_system->SetTexture(entity, MaterialTextureUsage_BrdfLookupTable,
+                              environment_brdf_lookup_table_);
+  }
 }
 
 void LightSystem::LightGroup::UpdateLight(TransformSystem* transform_system,
@@ -362,15 +427,12 @@ bool LightSystem::LightGroup::Empty() const {
          lightables_.empty();
 }
 
-void LightSystem::LightGroup::CreateShadowPass(HashValue pass) {
-  DCHECK(std::find(shadow_passes_.cbegin(), shadow_passes_.cend(), pass) ==
-         shadow_passes_.cend());
-  shadow_passes_.push_back(pass);
-}
-
 void LightSystem::LightGroup::DestroyShadowPass(RenderSystem* render_system,
                                                 HashValue pass) {
-  auto iter = std::find(shadow_passes_.begin(), shadow_passes_.end(), pass);
+  auto iter = std::find_if(shadow_passes_.begin(), shadow_passes_.end(),
+                           [pass](const ShadowPassData& shadow_pass_data) {
+                             return pass == shadow_pass_data.pass;
+                           });
   if (iter == shadow_passes_.end()) {
     return;
   }
@@ -394,17 +456,6 @@ void LightSystem::UniformData::Add(const AmbientLightDefT& light) {
 }
 
 void LightSystem::UniformData::Add(const DirectionalLightDefT& light) {
-  static constexpr char kColorUniformName[] = "light_directional_color";
-  static constexpr char kDirectionUniformName[] = "light_directional_dir";
-  static constexpr char kExponentUniformName[] = "light_directional_exponent";
-
-  static constexpr char kShadowColorUniformName[] =
-      "light_directional_shadow_color";
-  static constexpr char kShadowDirectionUniformName[] =
-      "light_directional_shadow_dir";
-  static constexpr char kShadowExponentUniformName[] =
-      "light_directional_shadow_exponent";
-
   const bool has_shadow = HasShadows(light);
   auto& colors =
       buffers[has_shadow ? kShadowColorUniformName : kColorUniformName];
@@ -467,20 +518,22 @@ void LightSystem::UniformData::Apply(RenderSystem* render_system,
 void LightSystem::RenderShadowMaps() {
   auto* render_system = registry_->Get<RenderSystem>();
 
+  for (const auto& group : groups_) {
+    group.second.RenderShadowMaps(render_system);
+  }
+}
+
+void LightSystem::LightGroup::RenderShadowMaps(
+    RenderSystem* render_system) const {
   for (const auto& shadow_pass : shadow_passes_) {
     render_system->Render(&shadow_pass.view, 1,
                           static_cast<RenderPass>(shadow_pass.pass));
   }
 }
 
-void LightSystem::AddLightableToShadowPass(RenderSystem* render_system,
-                                           DispatcherSystem* dispatcher_system,
-                                           Entity entity, HashValue pass,
-                                           const LightableDefT& lightable) {
-  if (!depth_shader_) {
-    LOG(FATAL) << "Must have a depth shader to use shadows.";
-    return;
-  }
+void LightSystem::LightGroup::AddLightableToShadowPass(
+    RenderSystem* render_system, DispatcherSystem* dispatcher_system,
+    Entity entity, HashValue pass, const LightableDefT& lightable) {
   if (!dispatcher_system) {
     LOG(FATAL) << "Must create the DispatcherSystem to use shadows.";
     return;
@@ -491,24 +544,14 @@ void LightSystem::AddLightableToShadowPass(RenderSystem* render_system,
   // TODO(b/65262474): Currently there is no GetMesh function to return the mesh
   // of the default entity so we cheat by supplying component id of 0.
   render_system->SetMesh(entity, pass, render_system->GetMesh(entity, 0));
-  if (!lightable.depth_shader.empty()) {
-    render_system->SetShader(entity, pass,
-                             render_system->LoadShader(lightable.depth_shader));
+  if (lightable.depth_shader.empty()) {
+    LOG(DFATAL) << "Missing depth shader for shadow casting entity.";
   } else {
-    render_system->SetShader(entity, pass, depth_shader_);
+    render_system->SetMaterial(entity, pass, NullOpt,
+                               MaterialInfo(lightable.depth_shader));
   }
   render_system->SetTexture(entity, 0, lightable.shadow_sampler,
                             render_system->GetTexture(pass));
-
-  static constexpr char kLightMatrixUniformName[] =
-      "directional_light_shadow_matrix";
-  for (const auto& shadow_pass : shadow_passes_) {
-    if (shadow_pass.pass == pass) {
-      render_system->SetUniform(entity, kLightMatrixUniformName,
-                                &shadow_pass.view.clip_from_world_matrix[0],
-                                16 /*=dimensions*/, 1 /*=count*/);
-    }
-  }
 
   dispatcher_system->Connect(
       entity, this,
@@ -518,19 +561,20 @@ void LightSystem::AddLightableToShadowPass(RenderSystem* render_system,
                                  render_system->GetMesh(entity, event.pass));
         }
       });
+  dirty_lightables_.insert(entity);
 }
 
-void LightSystem::CreateShadowRenderPass(Entity entity,
-                                         const DirectionalLightDefT& data) {
+void LightSystem::LightGroup::CreateShadowPass(
+    Registry* registry, Entity entity, const DirectionalLightDefT& data) {
   const ShadowMapDefT* shadow_def = data.shadow_def.get<ShadowMapDefT>();
   if (!shadow_def) {
     return;
   }
 
   // Create the render target.
+  auto* render_system = registry->Get<RenderSystem>();
   const HashValue pass =
       RenderPassNameFromEntityAndLightGroup(entity, data.group);
-  auto* render_system = registry_->Get<RenderSystem>();
   RenderTargetCreateParams create_params;
   create_params.dimensions = mathfu::vec2i(shadow_def->shadow_resolution,
                                            shadow_def->shadow_resolution);
@@ -560,30 +604,32 @@ void LightSystem::CreateShadowRenderPass(Entity entity,
 
   // Create the viewport for rendering the shadow pass.
   ShadowPassData shadow_pass_data;
+  shadow_pass_data.transform_entity = entity;
   shadow_pass_data.pass = pass;
   shadow_pass_data.view.viewport.x = 0;
   shadow_pass_data.view.viewport.y = 0;
   shadow_pass_data.view.dimensions = create_params.dimensions;
 
   // Construct the view and projection matrices.
-  auto* transform_system = registry_->Get<lull::TransformSystem>();
-  const mathfu::mat4* entity_world_matrix =
-      transform_system->GetWorldFromEntityMatrix(entity);
-  if (entity_world_matrix) {
-    shadow_pass_data.view.world_from_eye_matrix = *entity_world_matrix;
-  } else {
-    shadow_pass_data.view.world_from_eye_matrix = mathfu::mat4::Identity();
-    LOG(ERROR) << "Directional light entity " << entity
-               << " lacks a transform component.";
-  }
   const float half_shadow_volume = shadow_def->shadow_volume * 0.5f;
   shadow_pass_data.view.clip_from_eye_matrix = mathfu::mat4::Ortho(
       -half_shadow_volume, half_shadow_volume, -half_shadow_volume,
       half_shadow_volume, shadow_def->shadow_min_distance,
       shadow_def->shadow_max_distance, 1.0f);
-  shadow_pass_data.view.clip_from_world_matrix =
-      shadow_pass_data.view.clip_from_eye_matrix *
-      shadow_pass_data.view.world_from_eye_matrix.Inverse();
+
+  auto* transform_system = registry->Get<lull::TransformSystem>();
+  UpdateRenderViewTransform(transform_system, entity, &shadow_pass_data.view);
+
+  // Add lightables to the shadow pass.
+  auto* dispatcher_system = registry->Get<lull::DispatcherSystem>();
+  for (const auto& lightable : lightables_) {
+    if (lightable.second.shadow_interaction ==
+        ShadowInteraction_CastAndReceive) {
+      AddLightableToShadowPass(render_system, dispatcher_system,
+                               lightable.first, shadow_pass_data.pass,
+                               lightable.second);
+    }
+  }
 
   // Add the shadow pass.
   shadow_passes_.push_back(std::move(shadow_pass_data));

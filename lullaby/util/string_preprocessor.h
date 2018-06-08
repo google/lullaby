@@ -19,7 +19,6 @@ limitations under the License.
 
 #include <string>
 
-#include "lullaby/util/entity.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -81,13 +80,6 @@ class StringPreprocessor {
   // RenderDef's text field.
   // This function should return a corresponding localized or modified string.
   virtual std::string ProcessString(const std::string& input) = 0;
-
-  // Processes |input| and the returned string is expected be set as text on
-  // |entity|. The default implementation simply calls |ProcessString|.
-  virtual std::string ProcessEntityText(lull::Entity entity,
-                                        const std::string& input) {
-    return ProcessString(input);
-  }
 
   // CheckPrefix will check for and remove a prefix, returning a mode to
   // indicate how the string should be processed.  This is intended for

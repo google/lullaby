@@ -22,6 +22,7 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
+#include "lullaby/modules/input/device_profile.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/typeid.h"
 #include "lullaby/util/variant.h"
@@ -134,6 +135,18 @@ class InputManager {
     kDown,
   };
 
+  // Battery states:
+  enum class BatteryState {
+    kUnknown,
+    kAlert,
+    kDraining,
+    kCharging,
+  };
+
+  // Number returned by GetBatteryCharge when the charge is unknown or not
+  // supported
+  static const uint8_t kInvalidBatteryCharge;
+
   static const char* GetDeviceName(DeviceType device);
 
   // Gets the current state of a keyboard's |key|.
@@ -229,6 +242,15 @@ class InputManager {
   // Gets the viewport for the specified |eye| on the |device|.
   mathfu::recti GetEyeViewport(DeviceType device, EyeType eye) const;
 
+  // Returns the current charge level of the device, from 0 to 100.
+  // Returns 255 if the battery state is unknown or the device doesn't report
+  // a battery level.
+  uint8_t GetBatteryCharge(DeviceType device) const;
+
+  // Returns the current state of the battery.
+  // Returns kUnknown if the device doesn't report a battery state.
+  BatteryState GetBatteryState(DeviceType device) const;
+
   // Queries for the capabilities of a |device|.
   bool HasPositionDof(DeviceType device) const;
   bool HasRotationDof(DeviceType device) const;
@@ -239,6 +261,7 @@ class InputManager {
   size_t GetNumButtons(DeviceType device) const;
   bool HasEye(DeviceType device, EyeType eye) const;
   size_t GetNumEyes(DeviceType device) const;
+  bool HasBattery(DeviceType device) const;
 
   // Updates the internal buffers such that the write-state is now the first
   // read-only state and a new write-state is available.
@@ -246,7 +269,7 @@ class InputManager {
   // function.
   void AdvanceFrame(Clock::duration delta_time);
 
-  // Structure that provides information about a device being connected.
+  // DEPRECATED: use lull::DeviceProfile from device_profile.h instead.
   struct DeviceParams {
     DeviceParams();
 
@@ -255,13 +278,16 @@ class InputManager {
     bool has_touchpad;
     bool has_touch_gesture;
     bool has_scroll;
+    bool has_battery;
     size_t num_joysticks;
     size_t num_buttons;
     size_t num_eyes;
     Clock::duration long_press_time;
   };
 
-  // Enables the |device| with the given |params|.
+  // Enables the |device| with the given |profile|.
+  void ConnectDevice(DeviceType device, const DeviceProfile& profile);
+  // Support for deprecated path:
   void ConnectDevice(DeviceType device, const DeviceParams& params);
 
   // Disables the |device|.
@@ -317,8 +343,12 @@ class InputManager {
                  const mathfu::rectf& eye_fov,
                  const mathfu::recti& eye_viewport = {0, 0, 0, 0});
 
-  // Gets the DeviceParams for a |device|.
-  DeviceParams GetDeviceParamsCopy(DeviceType device) const;
+  // Updates the battery charge and state for the |device|.  |charge| should be
+  // a percentage (0-100).
+  void UpdateBattery(DeviceType device, BatteryState state, uint8_t charge);
+
+  // Gets the DeviceProfile for a |device|.
+  const DeviceProfile* GetDeviceProfile(DeviceType device) const;
 
   // Gets an arbitrary piece of data for the |device| that was previously set.
   // This should be used for unchanging data about the connected device.
@@ -366,6 +396,8 @@ class InputManager {
     std::vector<mathfu::recti> eye_viewport;
     std::vector<mathfu::rectf> eye_fov;
     std::vector<TouchGesture> touch_gesture;
+    std::vector<uint8_t> battery_charge;
+    std::vector<BatteryState> battery_state;
     Clock::time_point time_stamp;
   };
 
@@ -400,7 +432,7 @@ class InputManager {
    public:
     Device();
 
-    void Connect(const DeviceParams& params);
+    void Connect(const DeviceProfile& profile);
 
     void Disconnect();
 
@@ -412,14 +444,14 @@ class InputManager {
 
     const DataBuffer* GetDataBuffer() const { return buffer_.get(); }
 
-    const DeviceParams& GetDeviceParams() const { return params_; }
+    const DeviceProfile& GetDeviceProfile() const { return profile_; }
 
     VariantMap& GetDeviceInfo() { return info_; }
     const VariantMap& GetDeviceInfo() const { return info_; }
 
    private:
     bool connected_;
-    DeviceParams params_;
+    DeviceProfile profile_;
     std::unique_ptr<DataBuffer> buffer_;
     VariantMap info_;
   };
@@ -435,7 +467,6 @@ class InputManager {
   DataBuffer* GetDataBuffer(DeviceType device);
   const DataBuffer* GetDataBuffer(DeviceType device) const;
   const DataBuffer* GetConnectedDataBuffer(DeviceType device) const;
-  const DeviceParams* GetDeviceParams(DeviceType device) const;
   DeviceState* GetDeviceStateForWriteLocked(DeviceType device);
   const TouchGesture* GetTouchGesturePtr(DeviceType device) const;
 

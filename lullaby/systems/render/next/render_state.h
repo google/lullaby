@@ -32,6 +32,16 @@ void Apply(fplbase::RenderState* target, const ScissorStateT* state);
 void Apply(fplbase::RenderState* target, const StencilStateT* state);
 void Apply(fplbase::RenderState* target, const RenderStateT& state);
 
+// Converts the specified fplbase |state| to the lull equivalent.
+AlphaTestStateT Convert(const fplbase::AlphaTestState& state);
+BlendStateT Convert(const fplbase::BlendState& state);
+CullStateT Convert(const fplbase::CullState& state);
+DepthStateT Convert(const fplbase::DepthState& state);
+PointStateT Convert(const fplbase::PointState& state);
+ScissorStateT Convert(const fplbase::ScissorState& state);
+StencilStateT Convert(const fplbase::StencilState& state);
+RenderStateT Convert(const fplbase::RenderState& state);
+
 }  // namespace lull
 
 #endif  // LULLABY_SYSTEMS_RENDER_NEXT_RENDER_STATE_H_

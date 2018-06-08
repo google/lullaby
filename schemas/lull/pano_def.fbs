@@ -4,8 +4,8 @@ namespace lull;
 
 /// Defines a stereo panorama to render.
 table PanoDef {
-  /// DEPRECATED. Use the filename field instead.
-  panos: [string];
+  /// DEPRECATED. Left here for backwards compatibility.
+  deprecated: [string];
   /// The radius to the sphere that the pano is rendered on. This only applies
   /// to the Ion render system backend.
   radius: float;

@@ -1,0 +1,8 @@
+
+// This macro provides a way to do a ternary operator in the preprocessor, ie
+// (GL_ES ? _es : _desktop).
+#ifdef GL_ES
+#define GLES_ELSE(_es, _desktop) _es
+#else
+#define GLES_ELSE(_es, _desktop) _desktop
+#endif

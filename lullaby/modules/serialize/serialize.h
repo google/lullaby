@@ -40,7 +40,7 @@ namespace lull {
 //     int base_value;
 //     template <typename Archive>
 //     void Serialize(Archive archive) {
-//       archive(&base_value, Hash("base_value"));
+//       archive(&base_value, ConstHash("base_value"));
 //     }
 //   };
 //
@@ -49,7 +49,7 @@ namespace lull {
 //     template <typename Archive>
 //     void Serialize(Archive archive) {
 //       BaseClass::Serialize(archive);
-//       archive(&child_value, Hash("child_value"));
+//       archive(&child_value, ConstHash("child_value"));
 //     }
 //   };
 //
@@ -59,28 +59,28 @@ namespace lull {
 //     std::string value;
 //     template <typename Archive>
 //     void Serialize(Archive archive) {
-//       archive(&child1, Hash("child1"));
-//       archive(&child2, Hash("child2"));
-//       archive(&value, Hash("value"));
+//       archive(&child1, ConstHash("child1"));
+//       archive(&child2, ConstHash("child2"));
+//       archive(&value, ConstHash("value"));
 //     }
 //   };
 //
 // The following code snippet:
 //   Serializer s;
 //   CompositeClass cc;
-//   Serialize(&s, &cc, Hash("cc"));
+//   Serialize(&s, &cc, ConstHash("cc"));
 //
 // Will be the equivalent of the following function calls:
 //   s.Begin(Hash("cc"));
 //   s.Begin(Hash("child1"));
-//   s(&cc.child1.base_value, Hash("base_value"));
-//   s(&cc.child1.child_value, Hash("child_value"));
+//   s(&cc.child1.base_value, ConstHash("base_value"));
+//   s(&cc.child1.child_value, ConstHash("child_value"));
 //   s.End();
 //   s.Begin(Hash("child2"));
-//   s(&cc.child2.base_value, Hash("base_value"));
-//   s(&cc.child2.child_value, Hash("child_value"));
+//   s(&cc.child2.base_value, ConstHash("base_value"));
+//   s(&cc.child2.child_value, ConstHash("child_value"));
 //   s.End();
-//   s(&cc.value, Hash("value"));
+//   s(&cc.value, ConstHash("value"));
 //   s.End();
 //
 // What's happening is that, if the Value instance being serialized has a member

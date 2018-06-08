@@ -41,6 +41,13 @@ struct Rect (native_type: "mathfu::rectf") {
   h: float;
 }
 
+struct Recti (native_type: "mathfu::recti") {
+  x: int;
+  y: int;
+  w: int;
+  h: int;
+}
+
 struct Color (native_type: "lull::Color4ub") {
   r: float;
   g: float;
@@ -143,4 +150,13 @@ enum DeviceType : int {
   Controller,
   Controller2,
   Hand,
+}
+
+enum OptionalBool: int {
+  /// Don't force the value on entity create.
+  Unset,
+  /// Force the value to true when created.
+  True,
+  /// Force the value to false when created.
+  False,
 }

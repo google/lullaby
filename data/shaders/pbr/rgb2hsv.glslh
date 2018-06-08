@@ -1,0 +1,52 @@
+#ifndef THIRD_PARTY_LULLABY_EXAMPLES_HELLO_PBR_DATA_SHADERS_RGB2HSV_GLSLH_
+#define THIRD_PARTY_LULLABY_EXAMPLES_HELLO_PBR_DATA_SHADERS_RGB2HSV_GLSLH_
+
+/// Helper functions to convert between RGB and HSV color spaces, for use in
+/// fake image-based lighting, where HSV space can be used to desaturate a
+/// color. See also:
+/// https://stackoverflow.com/questions/15095909/from-rgb-to-hsv-in-opengl-glsl
+
+#include "third_party/lullaby/data/shaders/pbr/gamma.glslh"
+
+const vec4 kRgb2HsvK = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+const vec4 kHsv2RgbK = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+const float kENegTen = 1.0e-10;
+
+const vec3 kRgbLumaWeights = vec3(0.2126, 0.7152, 0.0722);
+
+
+vec3 Rgb2Hsv(vec3 color) {
+  vec4 p = mix(vec4(color.bg, kRgb2HsvK.wz), vec4(color.gb, kRgb2HsvK.xy),
+               step(color.b, color.g));
+  vec4 q = mix(vec4(p.xyw, color.r), vec4(color.r, p.yzx), step(p.x, color.r));
+  float d = q.x - min(q.w, q.y);
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + kENegTen)),
+    d / (q.x + kENegTen), q.x);
+}
+
+vec3 Hsv2Rgb(vec3 color) {
+  vec3 p = abs(fract(color.xxx + kHsv2RgbK.xyz) * 6.0 - kHsv2RgbK.www);
+  return color.z * mix(kHsv2RgbK.xxx, clamp(p - kHsv2RgbK.xxx, 0.0, 1.0),
+                       color.y);
+}
+
+// Converts RGB to luma. Note that unlike the V component of HSV, this is a
+// perceptually weighted luminance value.
+//
+// TODO(74979497): Rename this file to something more general, like
+// color_space.glslh.
+float Rgb2Luma(vec3 rgb) {
+  return dot(rgb, kRgbLumaWeights);
+}
+
+vec3 LinearRgb2Hsv(vec3 rgb_color_linear){
+  vec3 rgb_color_gamma = ApplyGamma(rgb_color_linear);
+  return Rgb2Hsv(rgb_color_gamma);
+}
+
+vec3 Hsv2LinearRgb(vec3 hsv_color){
+  vec3 rgb_color_gamma = Hsv2Rgb(hsv_color);
+  return RemoveGamma(rgb_color_gamma);
+}
+
+#endif  // THIRD_PARTY_LULLABY_EXAMPLES_HELLO_PBR_DATA_SHADERS_RGB2HSV_GLSLH_

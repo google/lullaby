@@ -26,7 +26,7 @@ limitations under the License.
 // following algorithm:
 // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 //
-// Note: The has algorithm is implemented twice: once in Hash and once in
+// Note: The hash algorithm is implemented twice: once in Hash and once in
 // ConstHash.  It is important to keep both implementations the same if a
 // new algorithm is ever chosen.
 namespace lull {

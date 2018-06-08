@@ -49,6 +49,8 @@ struct RenderComponent : Component {
   int stencil_value = 0;
   bool hidden = false;
   RenderQuad quad = {};
+  // Callback invoked after every SetUniform().
+  RenderSystem::UniformChangedCallback uniform_changed_callback;
 };
 
 }  // namespace detail

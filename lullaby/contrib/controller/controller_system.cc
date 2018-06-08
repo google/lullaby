@@ -18,24 +18,29 @@ limitations under the License.
 
 #include "lullaby/generated/controller_def_generated.h"
 #include "lullaby/contrib/fade/fade_system.h"
+#include "lullaby/events/input_events.h"
 #include "lullaby/events/lifetime_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/flatbuffers/common_fb_conversions.h"
 #include "lullaby/modules/input_processor/input_processor.h"
 #include "lullaby/modules/reticle/reticle_util.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/device_util.h"
+#include "lullaby/util/interpolation.h"
 #include "lullaby/util/time.h"
 #include "lullaby/util/trace.h"
 
 namespace lull {
 
 namespace {
-const HashValue kControllerDefHash = Hash("ControllerDef");
-const HashValue kLaserDefHash = Hash("LaserDef");
+const HashValue kControllerDefHash = ConstHash("ControllerDef");
+const HashValue kLaserDefHash = ConstHash("LaserDef");
 const float kControllerFadeCos = 0.94f;
 const Clock::duration kControllerFadeTime = std::chrono::milliseconds(250);
 
+// Laser Constants
 const float kLaserBendLimit = 60.0f * kDegreesToRadians;
 const float kLaserBendThrow = 0.5f;
 const mathfu::vec2 kLaserCornerOffsetRange = mathfu::vec2(0.1f, 0.45f);
@@ -45,6 +50,10 @@ const mathfu::vec2 kLaserAlphaRange = mathfu::vec2(0.5f, 0.95f);
 constexpr const char* kEntityFromWorld = "entity_from_world";
 constexpr const char* kControlPoints = "control_points";
 
+// Controller Constants
+const Clock::duration kButtonAnimationDuration = std::chrono::milliseconds(100);
+const mathfu::vec4 kButtonPressColor = mathfu::vec4(0.161f, 0.475f, 1.0f, 1.0f);
+const mathfu::vec4 kTouchColor = mathfu::vec4(0.161f, 0.475f, 1.0f, 1.0f);
 }  // namespace
 
 ControllerSystem::Controller::Controller(Entity entity) : Component(entity) {}
@@ -55,19 +64,6 @@ ControllerSystem::ControllerSystem(Registry* registry)
   RegisterDef(this, kLaserDefHash);
   RegisterDependency<InputManager>(this);
   RegisterDependency<TransformSystem>(this);
-
-  // Reset controller stabilization counters on resume since data can be flaky.
-  auto* dispatcher = registry_->Get<Dispatcher>();
-  if (dispatcher) {
-    dispatcher->Connect(this, [this](const OnResumeEvent& event) {
-      auto* transform_system = registry_->Get<TransformSystem>();
-      controllers_.ForEach([transform_system](Controller& controller) {
-        transform_system->Disable(controller.GetEntity());
-        controller.stabilization_counter = controller.stabilization_frames;
-        controller.is_visible = false;
-      });
-    });
-  }
 }
 
 ControllerSystem::~ControllerSystem() {
@@ -79,8 +75,27 @@ ControllerSystem::~ControllerSystem() {
 
 void ControllerSystem::AdvanceFrame(const Clock::duration& delta_time) {
   LULLABY_CPU_TRACE_CALL();
-  if (show_controls_) {
-    HandleControllerTransforms();
+  if (!show_controls_) {
+    return;
+  }
+  auto* input = registry_->Get<InputManager>();
+  for (auto& controller : controllers_) {
+    const bool connected = input->IsConnected(controller.controller_type);
+    if (connected != controller.connected) {
+      if (connected) {
+        OnControllerConnected(&controller);
+      } else {
+        OnControllerDisconnected(&controller);
+      }
+    }
+    HandleControllerTransforms(delta_time, &controller);
+    if (controller.is_visible) {
+      if (controller.is_laser) {
+        UpdateBendUniforms(&controller);
+      } else {
+        UpdateControllerUniforms(delta_time, &controller);
+      }
+    }
   }
 }
 
@@ -89,12 +104,9 @@ void ControllerSystem::Create(Entity entity, HashValue type, const Def* def) {
     Controller* controller = controllers_.Emplace(entity);
 
     auto* data = ConvertDef<ControllerDef>(def);
-
     controller->enable_events = data->enable_events();
     controller->disable_events = data->disable_events();
-
-    controller->stabilization_frames = data->stabilization_frames();
-    controller->stabilization_counter = controller->stabilization_frames;
+    controller->use_device_profile = data->use_device_profile();
 
     if (data->controller_type()) {
       if (data->controller_type() == ControllerType_Controller1) {
@@ -107,10 +119,6 @@ void ControllerSystem::Create(Entity entity, HashValue type, const Def* def) {
     Controller* controller = controllers_.Emplace(entity);
     controller->is_laser = true;
     controller->controller_type = InputManager::kController;
-
-    auto* data = ConvertDef<LaserDef>(def);
-    controller->stabilization_frames = data->stabilization_frames();
-    controller->stabilization_counter = controller->stabilization_frames;
   } else {
     LOG(DFATAL)
         << "Invalid def passed to Create. Expecting ControllerDef or LaserDef!";
@@ -119,100 +127,99 @@ void ControllerSystem::Create(Entity entity, HashValue type, const Def* def) {
 
 void ControllerSystem::Destroy(Entity entity) { controllers_.Destroy(entity); }
 
-void ControllerSystem::HandleControllerTransforms() {
-  auto* input = registry_->Get<InputManager>();
+void ControllerSystem::HandleControllerTransforms(
+    const Clock::duration& delta_time, Controller* controller) {
   auto* transform_system = registry_->Get<TransformSystem>();
+
+  // Retrieve the current sqt from the transform system to maintain scale
+  // and default settings.
+  const Sqt* controller_sqt = transform_system->GetSqt(controller->GetEntity());
+  if (!controller_sqt) {
+    LOG(DFATAL) << "Missing controller transform. Was it destroyed without "
+                   "the controller component being destroyed?";
+    return;
+  }
+
+  // Assign the laser to the controller currently used by the cursor.
+  if (controller->is_laser) {
+    const auto* input_processor = registry_->Get<InputProcessor>();
+    const auto device = input_processor->GetPrimaryDevice();
+    if (device == InputManager::kController ||
+        device == InputManager::kController2) {
+      controller->controller_type = device;
+    }
+  }
+
+  // If the controller is not enabled than it is definitely not visible. The
+  // converse is not true. It could be enabled but in the process of fading out,
+  // in which case it is still considered not visible.
+  const bool is_enabled =
+      transform_system->IsLocallyEnabled(controller->GetEntity());
+  if (!is_enabled) {
+    controller->is_visible = false;
+  }
+
+  Sqt device_sqt = *controller_sqt;
+  if (!GetSqtForDevice(registry_, controller->controller_type, &device_sqt)) {
+    // If we cannot get the SQT because the controller is not connected than
+    // disable it immediately and wait for valid data.
+    if (is_enabled) {
+      SendEventDefs(registry_, controller->GetEntity(),
+                    controller->disable_events);
+      // The is_visible flag will be set to false next time time through.
+      transform_system->Disable(controller->GetEntity());
+    }
+    return;
+  }
+
+  // If the controller is pointing too far up then it should be disabled/faded
+  // out so that it doesn't block the entire view.
+  const mathfu::vec3 controller_dir =
+      (device_sqt.rotation * -mathfu::kAxisZ3f).Normalized();
+  if (controller_dir.y < kControllerFadeCos) {
+    MaybeFadeInController(controller);
+  } else {
+    MaybeFadeOutController(controller);
+  }
+
+  transform_system->SetSqt(controller->GetEntity(),
+                           controller->is_laser
+                               ? AdjustSqtForReticle(registry_, device_sqt)
+                               : device_sqt);
+}
+
+void ControllerSystem::MaybeFadeInController(Controller* controller) {
+  if (controller->is_visible) {
+    return;
+  }
+
+  controller->is_visible = true;
+  SendEventDefs(registry_, controller->GetEntity(), controller->enable_events);
+
   auto* fade_system = registry_->Get<FadeSystem>();
+  if (fade_system) {
+    fade_system->FadeToEnabledState(controller->GetEntity(), true,
+                                    kControllerFadeTime);
+  } else {
+    registry_->Get<TransformSystem>()->Enable(controller->GetEntity());
+  }
+}
 
-  controllers_.ForEach([this, input, transform_system,
-                        fade_system](Controller& controller) {
-    // Retrieve the current sqt from the transform system to maintain scale
-    // and default settings.
-    const Sqt* controller_sqt =
-        transform_system->GetSqt(controller.GetEntity());
-    if (!controller_sqt) {
-      LOG(DFATAL) << "Missing controller transform. Was it destroyed without "
-                     "the controller component being destroyed?";
-      return;
-    }
+void ControllerSystem::MaybeFadeOutController(Controller* controller) {
+  if (!controller->is_visible) {
+    return;
+  }
 
-    if (controller.is_laser) {
-      // Assign the laser to the controller currently used by the cursor.
-      const auto* input_processor = registry_->Get<InputProcessor>();
-      const auto device = input_processor->GetPrimaryDevice();
-      if (device == InputManager::kController ||
-          device == InputManager::kController2) {
-        controller.controller_type = device;
-      }
-    }
+  controller->is_visible = false;
+  SendEventDefs(registry_, controller->GetEntity(), controller->disable_events);
 
-    Sqt device_sqt = *controller_sqt;
-    if (!GetSqtForDevice(registry_, controller.controller_type, &device_sqt)) {
-      controller.is_visible = false;
-      // Reset the stabilization period since the device will have to reconnect,
-      // which may result in a number of frames with bad transforms.
-      controller.stabilization_counter = controller.stabilization_frames;
-      if (fade_system) {
-        fade_system->FadeToEnabledState(controller.GetEntity(), false,
-                                        kControllerFadeTime);
-      } else {
-        transform_system->Disable(controller.GetEntity());
-      }
-
-      SendEventDefs(registry_, controller.GetEntity(),
-                    controller.disable_events);
-      return;
-    }
-
-    if (controller.stabilization_counter >= 0) {
-      controller.stabilization_counter--;
-    }
-    // A controller is considered "stable" if it has not missed a device
-    // transform for a set number of frames.
-    const bool is_stable = controller.stabilization_counter < 0;
-
-    // We check for fading before we offset the laser so that the controller and
-    // laser fade at the same time
-    if (fade_system) {
-      mathfu::vec3 controller_forward = device_sqt.rotation * -mathfu::kAxisZ3f;
-      controller_forward.Normalize();
-      const float dot_y =
-          mathfu::vec3::DotProduct(controller_forward, mathfu::kAxisY3f);
-      const bool is_within_angle_threshold = dot_y < kControllerFadeCos;
-
-      const bool is_enabled =
-          transform_system->IsLocallyEnabled(controller.GetEntity());
-      if (controller.is_visible && !is_within_angle_threshold) {
-        controller.is_visible = false;
-
-        SendEventDefs(registry_, controller.GetEntity(),
-                      controller.disable_events);
-        fade_system->FadeToEnabledState(controller.GetEntity(), false,
-                                        kControllerFadeTime);
-      } else if ((!controller.is_visible || !is_enabled) &&
-                 is_within_angle_threshold && is_stable) {
-        controller.is_visible = true;
-
-        SendEventDefs(registry_, controller.GetEntity(),
-                      controller.enable_events);
-        fade_system->FadeToEnabledState(controller.GetEntity(), true,
-                                        kControllerFadeTime);
-      }
-    } else if (is_stable) {
-      transform_system->Enable(controller.GetEntity());
-      controller.is_visible = true;
-    }
-
-    if (controller.is_laser) {
-      device_sqt = AdjustSqtForReticle(registry_, device_sqt);
-    }
-
-    transform_system->SetSqt(controller.GetEntity(), device_sqt);
-
-    if (controller.is_laser && controller.is_visible) {
-      UpdateBendUniforms(controller);
-    }
-  });
+  auto* fade_system = registry_->Get<FadeSystem>();
+  if (fade_system) {
+    fade_system->FadeToEnabledState(controller->GetEntity(), false,
+                                    kControllerFadeTime);
+  } else {
+    registry_->Get<TransformSystem>()->Disable(controller->GetEntity());
+  }
 }
 
 void ControllerSystem::ShowControls(bool hard_enable) {
@@ -233,15 +240,80 @@ void ControllerSystem::HideControls() {
   });
 }
 
-void ControllerSystem::UpdateBendUniforms(Controller& laser) {
+void ControllerSystem::OnControllerConnected(Controller* controller) {
+  controller->connected = true;
+  if (controller->use_device_profile) {
+    auto* input = registry_->Get<InputManager>();
+    auto* render_system = registry_->Get<RenderSystem>();
+
+    const Entity entity = controller->GetEntity();
+    const InputManager::DeviceType device = controller->controller_type;
+    const size_t num_buttons = input->GetNumButtons(device);
+    controller->buttons.resize(num_buttons);
+
+    const DeviceProfile* profile = input->GetDeviceProfile(device);
+    if (profile) {
+      render_system->SetMesh(controller->GetEntity(), profile->assets.mesh);
+      render_system->SetTexture(controller->GetEntity(), 0,
+                                profile->assets.unlit_texture);
+
+      // TODO(b/73106522) remove this when all no apps are still using the old
+      // controller model.
+      input->SetDeviceInfo(InputManager::kController, kSelectionRayHash,
+                           profile->selection_ray);
+    }
+
+    // Button init.
+    const float button_zeros[kControllerMaxColoredButtons * 4] = {0.0f};
+    render_system->SetUniform(entity, kControllerButtonUVRectsUniform,
+                              &button_zeros[0], 4,
+                              kControllerMaxColoredButtons);
+    render_system->SetUniform(entity, kControllerButtonColorsUniform,
+                              &button_zeros[0], 4,
+                              kControllerMaxColoredButtons);
+
+    // Touchpad init.
+    const float radius_squared = 0.0f;
+    render_system->SetUniform(entity, kControllerTouchRadiusSquaredUniform,
+                              &radius_squared, 1, 1);
+    render_system->SetUniform(entity, kControllerTouchColorUniform,
+                              &kTouchColor[0], 4, 1);
+
+    if (profile) {
+      const mathfu::vec4 uv_rect = profile->touchpads[0].uv_coords;
+      render_system->SetUniform(entity, kControllerTouchpadRectUniform,
+                                &uv_rect[0], 4, 1);
+    }
+
+    // Battery init.
+    controller->last_battery_level = InputManager::kInvalidBatteryCharge;
+    render_system->SetUniform(entity, kControllerBatteryUVRectUniform,
+                              &mathfu::kZeros4f[0], 4, 1);
+  }
+
+  if (!controller->is_laser) {
+    auto* dispatcher = registry_->Get<Dispatcher>();
+    dispatcher->Send(DeviceConnectedEvent(controller->controller_type,
+                                          controller->GetEntity()));
+  }
+}
+
+void ControllerSystem::OnControllerDisconnected(Controller* controller) {
+  controller->connected = false;
+  if (controller->use_device_profile) {
+    controller->buttons.resize(0);
+  }
+}
+
+void ControllerSystem::UpdateBendUniforms(Controller* laser) {
   LULLABY_CPU_TRACE_CALL();
-  Entity entity = laser.GetEntity();
+  Entity entity = laser->GetEntity();
   auto* input_processor = registry_->Get<InputProcessor>();
   const InputFocus* focus =
-      input_processor->GetInputFocus(laser.controller_type);
+      input_processor->GetInputFocus(laser->controller_type);
 
   if (!focus) {
-    DCHECK(false) << "No input focus for device " << laser.controller_type;
+    DCHECK(false) << "No input focus for device " << laser->controller_type;
     return;
   }
 
@@ -293,7 +365,7 @@ void ControllerSystem::UpdateBendUniforms(Controller& laser) {
 
   auto* render_system = registry_->Get<RenderSystem>();
   const mathfu::mat4 entity_from_world = world_from_entity_mat->Inverse();
-  if (laser.last_bend_fraction != laser_bend) {
+  if (laser->last_bend_fraction != laser_bend) {
     const auto alpha =
         mathfu::Lerp(kLaserAlphaRange.x, kLaserAlphaRange.y, laser_bend);
 
@@ -301,13 +373,172 @@ void ControllerSystem::UpdateBendUniforms(Controller& laser) {
     render_system->GetColor(entity, &color);
     color[3] = alpha;
     render_system->SetColor(entity, color);
-    laser.last_bend_fraction = laser_bend;
+    laser->last_bend_fraction = laser_bend;
   }
 
   render_system->SetUniform(entity, kEntityFromWorld, &entity_from_world[0],
                             16);
   render_system->SetUniform(entity, kControlPoints, &curve_points[0].data[0], 3,
                             4);
+}
+
+void ControllerSystem::UpdateControllerUniforms(
+    const Clock::duration& delta_time, Controller* controller) {
+  UpdateControllerButtonUniforms(delta_time, controller);
+  UpdateControllerTouchpadUniforms(delta_time, controller);
+  UpdateControllerBatteryUniforms(delta_time, controller);
+}
+
+void ControllerSystem::UpdateControllerButtonUniforms(
+    const Clock::duration& delta_time, Controller* controller) {
+  auto* input = registry_->Get<InputManager>();
+  const InputManager::DeviceType device = controller->controller_type;
+  const DeviceProfile* profile = input->GetDeviceProfile(device);
+  if (!profile) {
+    return;
+  }
+
+  const size_t num_buttons = input->GetNumButtons(device);
+  const std::vector<DeviceProfile::Button>& buttons = profile->buttons;
+
+  bool update_uniform = false;
+  for (uint8_t i = 0; i < num_buttons; ++i) {
+    const InputManager::ButtonState state = input->GetButtonState(device, i);
+    const bool pressed = CheckBit(state, InputManager::kPressed);
+    Button& button = controller->buttons[i];
+    if (pressed != button.was_pressed) {
+      button.was_pressed = pressed;
+      button.anim_start_alpha = button.current_alpha;
+      button.anim_time_left = kButtonAnimationDuration;
+      if (pressed) {
+        button.target_alpha = 1.0f;
+      } else {
+        button.target_alpha = 0.0f;
+      }
+    }
+
+    if (button.anim_time_left > Clock::duration::zero()) {
+      button.anim_time_left -= delta_time;
+      update_uniform = true;
+      if (button.anim_time_left < Clock::duration::zero()) {
+        button.anim_time_left = Clock::duration::zero();
+        button.current_alpha = button.target_alpha;
+      } else {
+        const float percent =
+            1.0f - SecondsFromDuration(button.anim_time_left) * 1.0f /
+                       SecondsFromDuration(kButtonAnimationDuration);
+        button.current_alpha = QuadraticEaseOut(button.anim_start_alpha,
+                                                button.target_alpha, percent);
+      }
+    }
+  }
+
+  if (update_uniform) {
+    auto* render_system = registry_->Get<RenderSystem>();
+    const Entity entity = controller->GetEntity();
+
+    float button_uv_rects[kControllerMaxColoredButtons * 4] = {0.0f};
+    float button_colors[kControllerMaxColoredButtons * 4] = {0.0f};
+    size_t num_colored = 0;
+    for (uint8_t i = 0; i < num_buttons && i < buttons.size() &&
+                        num_colored < kControllerMaxColoredButtons;
+         ++i) {
+      // TODO(b/74081101) update bone transforms
+      if (controller->buttons[i].current_alpha > 0.0f) {
+        if (buttons[i].type == DeviceProfile::Button::kTouchpad) {
+          // Grow the touch indicator instead of using a button press.
+          controller->touch_ripple_factor =
+              controller->buttons[i].current_alpha;
+        } else {
+          button_colors[num_colored * 4 + 0] = kButtonPressColor[0];
+          button_colors[num_colored * 4 + 1] = kButtonPressColor[1];
+          button_colors[num_colored * 4 + 2] = kButtonPressColor[2];
+          button_colors[num_colored * 4 + 3] =
+              kButtonPressColor[3] * controller->buttons[i].current_alpha;
+
+          button_uv_rects[num_colored * 4 + 0] = buttons[i].uv_coords[0];
+          button_uv_rects[num_colored * 4 + 1] = buttons[i].uv_coords[1];
+          button_uv_rects[num_colored * 4 + 2] = buttons[i].uv_coords[2];
+          button_uv_rects[num_colored * 4 + 3] = buttons[i].uv_coords[3];
+          ++num_colored;
+        }
+      }
+    }
+    render_system->SetUniform(entity, kControllerButtonUVRectsUniform,
+                              &button_uv_rects[0], 4,
+                              kControllerMaxColoredButtons);
+    render_system->SetUniform(entity, kControllerButtonColorsUniform,
+                              &button_colors[0], 4,
+                              kControllerMaxColoredButtons);
+  }
+}
+
+void ControllerSystem::UpdateControllerTouchpadUniforms(
+    const Clock::duration& delta_time, Controller* controller) {
+  auto* input = registry_->Get<InputManager>();
+  const InputManager::DeviceType device = controller->controller_type;
+  const DeviceProfile* profile = input->GetDeviceProfile(device);
+  if (!profile) {
+    return;
+  }
+
+  auto* render_system = registry_->Get<RenderSystem>();
+  const Entity entity = controller->GetEntity();
+  if (input->HasTouchpad(device) && input->IsValidTouch(device)) {
+    const DeviceProfile::Touchpad& touchpad = profile->touchpads[0];
+    controller->was_touched = true;
+    mathfu::vec2 pos = input->GetTouchLocation(device);
+    const mathfu::vec4 uv_rect = touchpad.uv_coords;
+    pos.x = uv_rect[0] + pos.x * (uv_rect[2] - uv_rect[0]);
+    pos.y = uv_rect[1] + pos.y * (uv_rect[3] - uv_rect[1]);
+    const float largest_dimension =
+        std::max((uv_rect[2] - uv_rect[0]), (uv_rect[3] - uv_rect[1]));
+    const float radius =
+        std::max(touchpad.touch_radius,
+                 controller->touch_ripple_factor * largest_dimension);
+    const float radius_squared = radius * radius;
+
+    render_system->SetUniform(entity, kControllerTouchPositionUniform, &pos[0],
+                              2, 1);
+    render_system->SetUniform(entity, kControllerTouchRadiusSquaredUniform,
+                              &radius_squared, 1, 1);
+  } else if (controller->was_touched) {
+    controller->was_touched = false;
+    const float radius_squared = 0.0f;
+    render_system->SetUniform(entity, kControllerTouchRadiusSquaredUniform,
+                              &radius_squared, 1, 1);
+  }
+}
+
+void ControllerSystem::UpdateControllerBatteryUniforms(
+    const Clock::duration& delta_time, Controller* controller) {
+  auto* input = registry_->Get<InputManager>();
+  const InputManager::DeviceType device = controller->controller_type;
+  const DeviceProfile* profile = input->GetDeviceProfile(device);
+  if (!profile || !input->HasBattery(device) || !profile->battery) {
+    return;
+  }
+
+  auto* render_system = registry_->Get<RenderSystem>();
+  const Entity entity = controller->GetEntity();
+  const DeviceProfile::Battery* battery = profile->battery.get();
+  const uint8_t battery_level_percent = input->GetBatteryCharge(device);
+
+  if (controller->last_battery_level != battery_level_percent) {
+    controller->last_battery_level = battery_level_percent;
+    const float segments = static_cast<float>(battery->segments);
+    const float battery_level =
+        std::round(battery_level_percent * segments / 100.0f) / segments;
+    mathfu::vec4 uv_rect = battery->uv_coords;
+    uv_rect[2] = mathfu::Lerp(uv_rect[0], uv_rect[2], battery_level);
+    const mathfu::vec2 offset = battery_level > battery->critical_percentage
+                                    ? battery->charged_offset
+                                    : battery->critical_offset;
+    render_system->SetUniform(entity, kControllerBatteryUVRectUniform,
+                              &uv_rect[0], 4, 1);
+    render_system->SetUniform(entity, kControllerBatteryUVOffsetUniform,
+                              &offset[0], 2, 1);
+  }
 }
 
 }  // namespace lull

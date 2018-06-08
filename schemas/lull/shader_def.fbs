@@ -1,8 +1,58 @@
 include "lull/lull_common.fbs";
+include "lull/material_def.fbs";
+include "lull/texture_def.fbs";
 include "lull/vertex_attribute_def.fbs";
-include "lull/shader_uniform_def.fbs";
 
 namespace lull;
+
+/// Shader data types.
+enum ShaderDataType : uint {
+  Float1,
+  Float2,
+  Float3,
+  Float4,
+  Int1,
+  Int2,
+  Int3,
+  Int4,
+  Float2x2,
+  Float3x3,
+  Float4x4,
+  /// Complex types that may contain |ShaderDataType| inside of them.
+  Struct,
+  BufferObject,
+  StorageBufferObject,
+  // Texture types.
+  Sampler2D,
+}
+
+/// Description of a shader uniform that is defined inside the shader program.
+table ShaderUniformDef {
+  /// Name of the uniform inside the shader.
+  name: string;
+  /// The uniform data type.
+  type: ShaderDataType;
+  /// Length of the array if it is an array [0 = not an array].
+  array_size: uint = 0;
+  /// Sub data fields [only valid if |type| is Struct, BufferObject or
+  ///                  StorageBufferObject].
+  fields: [ShaderUniformDef];
+  /// The default values (of type float) to initialize this uniform. If the
+  /// uniform isn't of float type, the values will be cast if possible.
+  values: [float];
+  /// The default values (of type int) to initialize this uniform.
+  values_int: [int];
+}
+
+/// Associates a name with a texture usage and texture type.
+table ShaderSamplerDef {
+  /// The name of the sampler in the shader.
+  name: string;
+  /// The texture usage used to associate a texture with this sampler.
+  usage: MaterialTextureUsage;
+  /// The type of texture sampler (e.g. 2D, cube, etc).
+  type: TextureTargetType;
+}
 
 /// Types of programmable shader stages.
 enum ShaderStageType : ushort {
@@ -18,6 +68,9 @@ enum ShaderStageType : ushort {
 /// Snippet containing shader source code or reference to a file containing the
 /// source code.
 table ShaderSnippetDef {
+  // Name identifier for this snippet. This is mostly for debug purposes.
+  name: string;
+
   /// Features implemented by this snippet.
   features: [uint] (hashvalue);
   /// Environment flags required for this snippet to work.
@@ -25,13 +78,18 @@ table ShaderSnippetDef {
 
   /// Uniforms used by this snippet's shader code.
   uniforms: [ShaderUniformDef];
-  /// Vertex attributes used by this snippet's shader code.
-  attributes: [ShaderVertexAttributeDef];
+  /// Input data received by the snippet in the form of attributes or varying.
+  inputs: [ShaderAttributeDef];
+  /// Output data sent by the snippet in the form of attributes or varying.
+  outputs: [ShaderAttributeDef];
 
   /// Shader source code for this snippet.
   code: string;
   /// Shader main() function implementation code for this snippet.
   main_code: string;
+
+  /// Samplers used by this snippet's shader code.
+  samplers: [ShaderSamplerDef];
 }
 
 /// A shader stage and associated snippets.
@@ -42,9 +100,9 @@ table ShaderStageDef {
   snippets: [ShaderSnippetDef];
 }
 
-/// Shader attributes used to map vertex attributes as inputs at different
-/// shader stages.
-table ShaderVertexAttributeDef {
+/// Shader attributes used to map shader inputs/outputs and vertex attributes as
+///  inputs/outputs at different shader stages.
+table ShaderAttributeDef {
   /// Name of the variable this attribute binds to.
   name: string;
   /// The data type of the attribute.

@@ -18,6 +18,7 @@ limitations under the License.
 #define LULLABY_SYSTEMS_RENDER_TEXTURE_FACTORY_H_
 
 #include "lullaby/modules/render/image_data.h"
+#include "lullaby/modules/render/texture_params.h"
 #include "lullaby/systems/render/texture.h"
 #include "lullaby/util/typeid.h"
 #include "lullaby/generated/texture_def_generated.h"
@@ -32,18 +33,6 @@ namespace lull {
 /// name will return the same Texture object.
 class TextureFactory {
  public:
-  /// Information on how to configure the texture on the GPU.
-  struct CreateParams {
-    Optional<ImageData::Format> format;
-    TextureFiltering min_filter = TextureFiltering_NearestMipmapLinear;
-    TextureFiltering mag_filter = TextureFiltering_Linear;
-    TextureWrap wrap_s = TextureWrap_Repeat;
-    TextureWrap wrap_t = TextureWrap_Repeat;
-    bool premultiply_alpha = true;
-    bool generate_mipmaps = false;
-    bool is_cubemap = false;
-  };
-
   virtual ~TextureFactory() {}
 
   /// Caches a texture for later retrieval. Effectively stores the shared_ptr
@@ -62,14 +51,22 @@ class TextureFactory {
   /// Creates a texture using the |image| data and configured on the GPU using
   /// the creation |params|.
   virtual TexturePtr CreateTexture(ImageData image,
-                                   const CreateParams& params) = 0;
+                                   const TextureParams& params) = 0;
 
   /// Creates a "named" texture using the |image| data and configured on the GPU
   /// using the creation |params|. Subsequent calls to this function with the
   /// same texture |name| will return the original texture as long as any
   /// references to that texture are still alive.
   virtual TexturePtr CreateTexture(HashValue name, ImageData image,
-                                   const CreateParams& params) = 0;
+                                   const TextureParams& params) = 0;
+
+  /// Creates a texture using the specified TextureDef. If the |texture_def| has
+  /// a name, it will cache the texture internally.
+  TexturePtr CreateTexture(const TextureDef* texture_def);
+
+  /// Creates a texture using the specified TextureDef. If the |texture_def| has
+  /// a name, it will cache the texture internally.
+  TexturePtr CreateTexture(const TextureDefT& texture_def);
 
   /// Loads a texture off disk with the given |filename| and uses the creation
   /// |params| to configure it for the GPU. The filename is also used as the
@@ -77,7 +74,7 @@ class TextureFactory {
   /// |filename| will return the original texture as long as any references to
   /// that texture are still valid.
   virtual TexturePtr LoadTexture(string_view filename,
-                                 const CreateParams& params) = 0;
+                                 const TextureParams& params) = 0;
 
   /// Updates the entire image contents of |texture| using |image|. The image
   /// data is sent as-is (this does not perform alpha premultiplication).

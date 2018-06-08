@@ -1,0 +1,43 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
+
+/// Performs conversions between linear and gamma space on scalars and colors.
+///
+/// Note that our gamma curve approximates sRGB, but ignores the linear part
+/// near zero for efficiency.
+
+const float kScreenGamma = 2.2;
+
+float ApplyGamma(float linear_val) {
+  return pow(linear_val, 1.0 / kScreenGamma);
+}
+
+float RemoveGamma(float gamma_applied_val) {
+  return pow(gamma_applied_val, kScreenGamma);
+}
+
+vec2 ApplyGamma(vec2 linear_color) {
+  return pow(linear_color, vec2(1.0 / kScreenGamma));
+}
+
+vec2 RemoveGamma(vec2 gamma_applied_color) {
+  return pow(gamma_applied_color, vec2(kScreenGamma));
+}
+
+vec3 ApplyGamma(vec3 linear_color) {
+  return pow(linear_color, vec3(1.0 / kScreenGamma));
+}
+
+vec3 RemoveGamma(vec3 gamma_applied_color) {
+  return pow(gamma_applied_color, vec3(kScreenGamma));
+}
+
+vec4 ApplyGamma(vec4 linear_color) {
+  return pow(linear_color, vec4(1.0 / kScreenGamma));
+}
+
+vec4 RemoveGamma(vec4 gamma_applied_color) {
+  return pow(gamma_applied_color, vec4(kScreenGamma));
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_

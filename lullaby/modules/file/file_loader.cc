@@ -18,7 +18,7 @@ limitations under the License.
 
 #include <fstream>
 
-#include "fplbase/utilities.h"
+#include "fplbase/file_utilities.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {

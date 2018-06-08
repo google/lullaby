@@ -18,191 +18,44 @@ limitations under the License.
 
 #include "lullaby/modules/render/image_data.h"
 #include "lullaby/modules/render/image_decode.h"
-#include "lullaby/systems/render/mesh_factory.h"
-#include "lullaby/systems/render/texture_factory.h"
+#include "lullaby/util/flatbuffer_reader.h"
 #include "lullaby/util/make_unique.h"
 
 namespace lull {
 
-ModelAsset::ModelAsset(Registry* registry, const ModelAssetDef* asset_def)
-    : registry_(registry), asset_def_(asset_def) {}
-
-ModelAsset::~ModelAsset() {
-  auto* texture_factory = registry_->Get<TextureFactory>();
-  for (const auto& texture : textures_) {
-    texture_factory->ReleaseTexture(texture);
-  }
-}
+ModelAsset::ModelAsset(std::function<void()> finalize_callback)
+    : finalize_callback_(std::move(finalize_callback)) {}
 
 void ModelAsset::OnLoad(const std::string& filename, std::string* data) {
-  raw_data_ = std::move(*data);
-  model_def_ = GetModelDef(raw_data_.c_str());
-  if (model_def_ == nullptr) {
-    return;
-  }
-  if (model_def_->lods() == nullptr || model_def_->lods()->size() == 0) {
-    model_def_ = nullptr;
+  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(data->data()),
+                                 data->size());
+  if (!verifier.VerifyBuffer<ModelDef>()) {
+    LOG(DFATAL) << filename << " is an invalid model_asset.";
     return;
   }
 
-  BuildMesh();
-  BuildMaterials();
+  model_def_.Set(std::move(*data));
+  if (!model_def_) {
+    return;
+  }
+  PrepareMesh();
+  PrepareMaterials();
+  PrepareTextures();
+  PrepareSkeleton();
 }
 
 void ModelAsset::OnFinalize(const std::string& filename, std::string* data) {
-  if (model_def_ == nullptr) {
-    return;
-  }
-
-  PrepareTextures();
-
-  ready_ = true;
-  for (const Entity entity : pending_entities_) {
-    AddEntity(entity);
-  }
-  pending_entities_.clear();
-}
-
-void ModelAsset::AddEntity(Entity entity) {
-  if (entity == kNullEntity) {
-    return;
-  } else if (!ready_) {
-    pending_entities_.push_back(entity);
-    return;
-  }
-  if (model_def_) {
-    SetMesh(entity);
-    SetMaterials(entity);
-    SetRig(entity);
+  if (finalize_callback_) {
+    finalize_callback_();
   }
 }
 
-void ModelAsset::SetMesh(Entity entity) {
-  if (mesh_ == nullptr && mesh_data_ != nullptr) {
-    auto* mesh_factory = registry_->Get<MeshFactory>();
-    if (mesh_factory) {
-      mesh_ = mesh_factory->CreateMesh(std::move(*mesh_data_));
-      mesh_data_.reset();
-    }
-  }
-
-  auto* render_system = registry_->Get<RenderSystem>();
-  if (render_system && mesh_) {
-    HashValue pass = RenderSystem::kDefaultPass;
-    if (asset_def_ && asset_def_->pass() != 0) {
-      pass = asset_def_->pass();
-    }
-    render_system->Create(entity, pass);
-    render_system->SetMesh(entity, pass, mesh_);
-  }
-}
-
-void ModelAsset::SetMaterials(Entity entity) {
-  auto* render_system = registry_->Get<RenderSystem>();
-  if (render_system == nullptr) {
-    return;
-  }
-
-  for (size_t i = 0; i < materials_.size(); ++i) {
-    render_system->SetMaterial(entity, static_cast<int>(i), materials_[i]);
-    if (asset_def_ && asset_def_->materials()) {
-      for (const auto mat : *asset_def_->materials()) {
-        // We only support LOD 0 for now.  An LOD of -1 applies to all LODs.
-        if (mat->lod() != -1 && mat->lod() != 0) {
-          continue;
-        } else if (mat->submesh() != -1 && mat->submesh() != i) {
-          continue;
-        } else {
-          ApplyUniforms(entity, materials_[i], mat);
-          break;
-        }
-      }
-    }
-  }
-}
-
-void ModelAsset::ApplyUniforms(Entity entity, const MaterialInfo& material,
-                               const ModelAssetMaterialDef* def) {
-  if (!def->shading_uniforms()) {
-    return;
-  }
-
-  auto* render_system = registry_->Get<RenderSystem>();
-  for (const ShaderUniformDef* uniform : *def->shading_uniforms()) {
-    const int count = uniform->array_size();
-    CHECK(count == 0);
-
-    const char* name = uniform->name()->c_str();
-    if (name == nullptr || *name == 0) {
-      continue;
-    }
-    const HashValue key = Hash(name);
-
-    int dimension = 0;
-    const float* data = nullptr;
-    switch (uniform->type()) {
-      case ShaderUniformType_Float1: {
-        const auto* ptr = material.GetProperty<float>(key);
-        data = ptr;
-        dimension = 1;
-        break;
-      }
-      case ShaderUniformType_Float3: {
-        const auto* ptr = material.GetProperty<mathfu::vec3>(key);
-        data = ptr ? &ptr->x : nullptr;
-        dimension = 3;
-        break;
-      }
-      case ShaderUniformType_Float4: {
-        const auto* ptr = material.GetProperty<mathfu::vec4>(key);
-        data = ptr ? &ptr->x : nullptr;
-        dimension = 4;
-        break;
-      }
-      default:
-        LOG(ERROR) << "Only support 1d, 3d, and 4d float types.";
-        break;
-    }
-    if (data) {
-      HashValue pass = RenderSystem::kDefaultPass;
-      if (asset_def_ && asset_def_->pass() != 0) {
-        pass = asset_def_->pass();
-      }
-      render_system->SetUniform(entity, pass, name, data, dimension, 1);
-    }
-  }
-}
-
-void ModelAsset::SetRig(Entity entity) {
-  auto* rig_system = registry_->Get<RigSystem>();
-  const auto* skeleton = model_def_->skeleton();
-  if (rig_system && skeleton) {
-    const ModelInstanceDef* model = model_def_->lods()->Get(0);
-
-    std::vector<std::string> bone_names;
-    bone_names.reserve(skeleton->bone_names()->size());
-    for (size_t i = 0; i < bone_names.capacity(); ++i) {
-      bone_names.push_back(
-          skeleton->bone_names()->Get(static_cast<uint32_t>(i))->str());
-    }
-    RigSystem::BoneIndices parent_indices(skeleton->bone_parents()->data(),
-                                          skeleton->bone_parents()->size());
-    RigSystem::BoneIndices shader_indices(
-        model->shader_to_mesh_bones()->data(),
-        model->shader_to_mesh_bones()->size());
-    RigSystem::Pose inverse_bind_pose(
-        reinterpret_cast<const mathfu::AffineTransform*>(
-            skeleton->bone_transforms()->data()),
-        skeleton->bone_transforms()->size());
-    rig_system->SetRig(entity, parent_indices, inverse_bind_pose,
-                       shader_indices, std::move(bone_names));
-  }
-}
-
-void ModelAsset::BuildMesh() {
+void ModelAsset::PrepareMesh() {
   const int lod = 0;
-  DCHECK(model_def_->lods()->size() == 1)
-      << "Only support single LODs for now.";
+  if (model_def_->lods() == nullptr || model_def_->lods()->size() != 1) {
+    LOG(DFATAL) << "Only support single LODs for now.";
+    return;
+  }
   const ModelInstanceDef* model = model_def_->lods()->Get(lod);
 
   const uint32_t num_vertices = model->num_vertices();
@@ -217,13 +70,11 @@ void ModelAsset::BuildMesh() {
 
   if (model->indices16()) {
     index_type = MeshData::kIndexU16;
-    index_bytes =
-        reinterpret_cast<const uint8_t*>(model->indices16()->data());
+    index_bytes = reinterpret_cast<const uint8_t*>(model->indices16()->data());
     num_indices = model->indices16()->size();
   } else if (model->indices32()) {
     index_type = MeshData::kIndexU32;
-    index_bytes =
-        reinterpret_cast<const uint8_t*>(model->indices32()->data());
+    index_bytes = reinterpret_cast<const uint8_t*>(model->indices32()->data());
     num_indices = model->indices32()->size();
   } else {
     LOG(DFATAL) << "Model must have indices.";
@@ -261,67 +112,28 @@ void ModelAsset::BuildMesh() {
       DataContainer::WrapDataAsReadOnly(index_bytes, index_num_bytes);
   DataContainer submeshes =
       DataContainer::WrapDataAsReadOnly(range_bytes, range_num_bytes);
-  mesh_data_ = MakeUnique<MeshData>(MeshData::kTriangles, vertex_format,
-                                    std::move(vertices), index_type,
-                                    std::move(indices), std::move(submeshes));
+  mesh_data_ =
+      MeshData(MeshData::kTriangles, vertex_format, std::move(vertices),
+               index_type, std::move(indices), std::move(submeshes));
 }
 
-void ModelAsset::BuildMaterials() {
-  const int lod = 0;
-  DCHECK(model_def_->lods()->size() == 1)
-      << "Only support single LODs for now.";
-  const ModelInstanceDef* model = model_def_->lods()->Get(lod);
-  const uint32_t num_materials =
-      model->materials() ? model->materials()->size() : 0;
-
-  materials_.reserve(num_materials);
-  for (uint32_t i = 0; i < num_materials; ++i) {
-    const MaterialDef* material_def = model->materials()->Get(i);
-    materials_.emplace_back(BuildMaterialInfo(material_def, lod, i));
-  }
-}
-
-MaterialInfo ModelAsset::BuildMaterialInfo(
-    const MaterialDef* material_def, int lod, int submesh_index) {
-  const ModelAssetMaterialDef* extra_material_def = nullptr;
-  if (asset_def_ && asset_def_->materials()) {
-    for (const auto mat : *asset_def_->materials()) {
-      if (mat->lod() != -1 && mat->lod() != lod) {
-        continue;
-      } else if (mat->submesh() != -1 && mat->submesh() != submesh_index) {
-        continue;
-      } else {
-        extra_material_def = mat;
-        break;
-      }
-    }
-  }
-
+static MaterialInfo BuildMaterialInfo(const MaterialDef* material_def) {
   VariantMap properties;
-  if (material_def) {
-    VariantMapFromFbVariantMap(material_def->properties(), &properties);
-  }
-  if (extra_material_def && extra_material_def->properties()) {
-    VariantMapFromFbVariantMap(extra_material_def->properties(), &properties);
-  }
+  VariantMapFromFbVariantMap(material_def->properties(), &properties);
 
   std::string shading_model;
   constexpr HashValue kShadingModel = ConstHash("ShadingModel");
   auto iter = properties.find(kShadingModel);
   if (iter != properties.end()) {
-    shading_model = iter->second.ValueOr(std::string());
-  }
-  if (extra_material_def && extra_material_def->shading_model()) {
-    shading_model = extra_material_def->shading_model()->str();
+    shading_model = iter->second.ValueOr(shading_model);
   }
 
   MaterialInfo material(shading_model);
   material.SetProperties(std::move(properties));
 
-  if (material_def && material_def->textures()) {
+  if (material_def->textures()) {
     for (uint32_t i = 0; i < material_def->textures()->size(); ++i) {
-      const MaterialTextureDef* texture_def =
-          material_def->textures()->Get(i);
+      const MaterialTextureDef* texture_def = material_def->textures()->Get(i);
       if (texture_def->name()) {
         material.SetTexture(texture_def->usage(), texture_def->name()->c_str());
       }
@@ -330,76 +142,103 @@ MaterialInfo ModelAsset::BuildMaterialInfo(
   return material;
 }
 
-void ModelAsset::PrepareTextures() {
-  if (model_def_->textures()) {
-    for (auto texture : *model_def_->textures()) {
-      CreateTexture(texture);
-    }
+void ModelAsset::PrepareMaterials() {
+  if (model_def_->lods() == nullptr) {
+    LOG(DFATAL) << "No geometry/model data in the lullmodel file.";
+    return;
   }
-  if (asset_def_ && asset_def_->materials()) {
-    for (auto material : *asset_def_->materials()) {
-      const int lod = material->lod();
-      if (material->textures() == nullptr) {
-        continue;
-      }
+  if (model_def_->lods()->size() != 1) {
+    LOG(DFATAL) << "Lullaby currently does not support multiple LODs";
+    return;
+  }
 
-      for (auto texture_def : *material->textures()) {
-        if (texture_def->texture() == nullptr) {
-          continue;
-        }
+  const int lod = 0;
+  const ModelInstanceDef* model = model_def_->lods()->Get(lod);
+  const uint32_t num_materials =
+      model->materials() ? model->materials()->size() : 0;
 
-        const std::string name = CreateTexture(texture_def->texture());
-        const MaterialTextureUsage usage = texture_def->usage();
-        if (lod != -1 && lod < materials_.size()) {
-          materials_[lod].SetTexture(usage, name);
-        } else {
-          for (auto& m : materials_) {
-            m.SetTexture(usage, name);
-          }
-        }
-      }
+  materials_.reserve(num_materials);
+  for (uint32_t i = 0; i < num_materials; ++i) {
+    const MaterialDef* material_def = model->materials()->Get(i);
+    if (material_def) {
+      materials_.emplace_back(BuildMaterialInfo(material_def));
+    } else {
+      LOG(DFATAL) << "Invalid/missing MaterialDef.";
     }
   }
 }
 
-std::string ModelAsset::CreateTexture(const TextureDef* texture_def) {
-  auto* texture_factory = registry_->Get<TextureFactory>();
-  if (texture_factory == nullptr) {
-    LOG(DFATAL) << "Missing texture factory.";
-    return "";
+static ModelAsset::TextureInfo BuildTextureInfo(const TextureDef* texture_def) {
+  ModelAsset::TextureInfo info;
+  if (texture_def->name()) {
+    info.name = texture_def->name()->str();
   }
-  if (!texture_def->name()) {
-    LOG(DFATAL) << "Texture must have a name.";
-    return "";
+  if (texture_def->file()) {
+    info.file = texture_def->file()->str();
   }
-
-  TextureFactory::CreateParams params;
-  params.generate_mipmaps = texture_def->generate_mipmaps();
-  params.premultiply_alpha = texture_def->premultiply_alpha();
-  params.min_filter = texture_def->min_filter();
-  params.mag_filter = texture_def->mag_filter();
-  params.wrap_s = texture_def->wrap_s();
-  params.wrap_t = texture_def->wrap_t();
-
-  TexturePtr texture;
+  info.params.generate_mipmaps = texture_def->generate_mipmaps();
+  info.params.premultiply_alpha = texture_def->premultiply_alpha();
+  info.params.min_filter = texture_def->min_filter();
+  info.params.mag_filter = texture_def->mag_filter();
+  info.params.wrap_s = texture_def->wrap_s();
+  info.params.wrap_t = texture_def->wrap_t();
   if (texture_def->data() && texture_def->data()->data()) {
     const uint8_t* bytes = texture_def->data()->data();
     const size_t num_bytes = texture_def->data()->size();
-    ImageData image = DecodeImage(bytes, num_bytes, kDecodeImage_None);
-    texture = texture_factory->CreateTexture(std::move(image), params);
-  } else if (texture_def->file()) {
-    const char* filename = texture_def->file()->c_str();
-    texture = texture_factory->LoadTexture(filename, params);
+    info.data = DecodeImage(bytes, num_bytes, kDecodeImage_None);
+  }
+  return info;
+}
+
+void ModelAsset::PrepareTextures() {
+  const uint32_t num_textures =
+      model_def_->textures() ? model_def_->textures()->size() : 0;
+
+  textures_.reserve(num_textures);
+  for (uint32_t i = 0; i < num_textures; ++i) {
+    const TextureDef* texture_def = model_def_->textures()->Get(i);
+    if (texture_def) {
+      textures_.emplace_back(BuildTextureInfo(texture_def));
+    }
+  }
+}
+
+bool ModelAsset::HasValidSkeleton() const {
+  const auto* skeleton = model_def_->skeleton();
+  return skeleton != nullptr && skeleton->bone_names() != nullptr;
+}
+
+void ModelAsset::PrepareSkeleton() {
+  const auto* skeleton = model_def_->skeleton();
+  if (!HasValidSkeleton()) {
+    return;
   }
 
-  std::string texture_name;
-  if (texture) {
-    texture_name = texture_def->name()->str();
-    const HashValue key = Hash(texture_name);
-    texture_factory->CacheTexture(key, texture);
-    textures_.emplace_back(key);
+  bone_names_.reserve(skeleton->bone_names()->size());
+  for (size_t i = 0; i < bone_names_.capacity(); ++i) {
+    bone_names_.push_back(
+        skeleton->bone_names()->Get(static_cast<uint32_t>(i))->str());
   }
-  return texture_name;
 }
+
+Span<uint8_t> ModelAsset::GetParentBoneIndices() const {
+  const auto* skeleton = model_def_->skeleton();
+  return {skeleton->bone_parents()->data(), skeleton->bone_parents()->size()};
+}
+
+Span<uint8_t> ModelAsset::GetShaderBoneIndices() const {
+  const ModelInstanceDef* model = model_def_->lods()->Get(0);
+  return {model->shader_to_mesh_bones()->data(),
+          model->shader_to_mesh_bones()->size()};
+}
+
+Span<mathfu::AffineTransform> ModelAsset::GetInverseBindPose() const {
+  const auto* skeleton = model_def_->skeleton();
+  return {reinterpret_cast<const mathfu::AffineTransform*>(
+              skeleton->bone_transforms()->data()),
+          skeleton->bone_transforms()->size()};
+}
+
+const ModelDef* ModelAsset::GetModelDef() { return model_def_.get(); }
 
 }  // namespace lull

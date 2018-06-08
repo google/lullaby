@@ -26,12 +26,12 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kScriptOnEventDefHash = Hash("ScriptOnEventDef");
-const HashValue kScriptEveryFrameDefHash = Hash("ScriptEveryFrameDef");
-const HashValue kScriptOnCreateDefHash = Hash("ScriptOnCreateDef");
+const HashValue kScriptOnEventDefHash = ConstHash("ScriptOnEventDef");
+const HashValue kScriptEveryFrameDefHash = ConstHash("ScriptEveryFrameDef");
+const HashValue kScriptOnCreateDefHash = ConstHash("ScriptOnCreateDef");
 const HashValue kScriptOnPostCreateInitDefHash =
-    Hash("ScriptOnPostCreateInitDef");
-const HashValue kScriptOnDestroyDefHash = Hash("ScriptOnDestroyDef");
+    ConstHash("ScriptOnPostCreateInitDef");
+const HashValue kScriptOnDestroyDefHash = ConstHash("ScriptOnDestroyDef");
 }  // namespace
 
 ScriptSystem::ScriptSystem(Registry* registry)

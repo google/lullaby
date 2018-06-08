@@ -22,14 +22,38 @@ limitations under the License.
 
 namespace lull {
 
+// Invokes FadeSystem::FadeIn(entity, time_ms)
+struct FadeInEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&time_ms, ConstHash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  float time_ms = 0.f;
+};
+
+// Invokes FadeSystem::FadeOut(entity, time_ms)
+struct FadeOutEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&time_ms, ConstHash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  float time_ms = 0.f;
+};
+
 struct FadeInCompleteEvent {
   FadeInCompleteEvent() {}
   FadeInCompleteEvent(Entity e, bool interrupted)
       : target(e), interrupted(interrupted) {}
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&interrupted, Hash("interrupted"));
+    archive(&target, ConstHash("target"));
+    archive(&interrupted, ConstHash("interrupted"));
   }
 
   Entity target = kNullEntity;
@@ -44,8 +68,8 @@ struct FadeOutCompleteEvent {
       : target(e), interrupted(interrupted) {}
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&interrupted, Hash("interrupted"));
+    archive(&target, ConstHash("target"));
+    archive(&interrupted, ConstHash("interrupted"));
   }
 
   Entity target = kNullEntity;
@@ -57,6 +81,8 @@ struct FadeOutCompleteEvent {
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::FadeInCompleteEvent);
+LULLABY_SETUP_TYPEID(lull::FadeInEvent);
 LULLABY_SETUP_TYPEID(lull::FadeOutCompleteEvent);
+LULLABY_SETUP_TYPEID(lull::FadeOutEvent);
 
 #endif  // LULLABY_EVENTS_FADE_EVENTS_H_

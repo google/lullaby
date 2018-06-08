@@ -34,9 +34,9 @@ class InputFocusLocker {
   explicit InputFocusLocker(Registry* registry) : registry_(registry) {}
 
   /// Lock the device to focus on a specific entity.  For the duration of the
-  /// lock, the device's cursor entity will maintain a constant offset from the
-  /// target entity's world location.
-  /// Pass kNullEntity to unlock the device.
+  /// lock, the device's cursor entity will maintain a constant local space
+  /// offset from the target entity's world location. Pass kNullEntity to unlock
+  /// the device.
   void LockOn(InputManager::DeviceType device, Entity entity,
               const mathfu::vec3& offset);
 

@@ -19,13 +19,14 @@ limitations under the License.
 #include "lullaby/generated/grab_def_generated.h"
 #include "lullaby/contrib/mutator/mutator_system.h"
 #include "lullaby/systems/dispatcher/event.h"
+#include "lullaby/systems/input_behavior/input_behavior_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/modules/flatbuffers/common_fb_conversions.h"
 
 namespace lull {
 
 namespace {
-const HashValue kGrabDef = Hash("GrabDef");
+const HashValue kGrabDef = ConstHash("GrabDef");
 }  // namespace
 
 GrabSystem::GrabSystem(Registry* registry) : System(registry) {
@@ -60,6 +61,11 @@ void GrabSystem::Create(Entity entity, HashValue type, const Def* def) {
   if (data->release_events()) {
     ConnectEventDefs(registry_, entity, data->release_events(),
                      [this, entity](const EventWrapper&) { Release(entity); });
+  }
+
+  auto* input_behavior_system = registry_->Get<InputBehaviorSystem>();
+  if (input_behavior_system) {
+    input_behavior_system->SetDraggable(entity, true);
   }
 }
 

@@ -1,0 +1,248 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_LIGHT_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_LIGHT_GLSLH_
+
+/// This file contains helper structures and functions to add lighting
+/// operations to shaders.
+///
+/// To use this, follow the instructions for your vertex and fragment shaders.
+///
+///
+/// ----------------------------------------------------------------------------
+/// Vertex Shader Instructions:
+/// ----------------------------------------------------------------------------
+/// Lighting requires the position of the pixel and the world space normal.
+///
+/// 1. Ensure your vertex shader is receiving normals in the vertex data by
+///     by adding: STAGE_INPUT vec3 aNormal;
+///
+/// 2. Declare a STAGE_OUTPUT to pass the normal to the fragment shader:
+///        STAGE_OUTPUT vec3 vNormal;
+///
+/// 3. The fragment shader also requires the world space vertex position. Setup
+///    a STAGE_OUTPUT to pass the position to the fragment shader:
+///        STAGE_OUTPUT vec3 vVertPos;
+///
+/// 4. The vertex shader requires the "normal" and "world/model" matrices.
+///    Lullaby sets them for you if you have the uniforms declared with the
+///    correct name. Declare the following uniforms:
+///        uniform mat4 model;
+///        uniform mat3 mat_normal;
+///
+/// 5. Pass the normal space normal and world space vertex position to the
+///    fragment shader. In your main(), do the following:
+///        vNormal = mat_normal * aNormal;
+///        vVertPos = (model * aPosition).xyz;
+///
+///
+/// ----------------------------------------------------------------------------
+/// Fragment Shader Instructions:
+/// ----------------------------------------------------------------------------
+/// In this stage at initialization: you'll receive the normal and position
+/// variables outputted from the vertex shader, declare a "camera_dir" uniform
+/// that is needed for lighting calculations and declare the lights you'll be
+/// using.
+///
+/// At your main stage you will: re-normalize the input normal, create a vec3 to
+/// store the color output from each light stage and run the light calculations.
+///
+/// 1. Setup the fragment shader to receive the normal and position sent from
+///    the vertex stage:
+///        STAGE_INPUT mediump vec3 vNormal;
+///        STAGE_INPUT mediump vec3 vVertPos;
+///
+/// 2. Declare the lights you will be having. This is done using the following
+///    macros: LIGHT_DECL_AMBIENT(N), LIGHT_DECL_DIRECTIONAL(N),
+///            LIGHT_DECL_POINT(N).
+///    For examples, 1 ambient light, 1 directional light and 2 point lights:
+///        LIGHT_DECL_AMBIENT(1);
+///        LIGHT_DECL_DIRECTIONAL(1);
+///        LIGHT_DECL_POINT(2);
+///
+/// 3. Declare the "vec3 camera_dir" uniform. Lullaby will set up for you:
+///        uniform vec3 camera_dir;
+///
+/// 4. In your main, re-normalize the normal you've received:
+///        vec3 normal = normalize(vNormal);
+///
+/// 5. Create a variable to store the output from the light calculations:
+///        vec3 light = vec3(0.0, 0.0, 0.0);
+///
+/// 6. Perform the light calculations needed by using the following macros:
+///        LIGHT_CALCULATE_AMBIENTS(OUT_COLOR)
+///        LIGHT_CALCULATE_DIRECTIONALS(OUT_COLOR, POS, NORMAL, VIEW_DIR)
+///        LIGHT_CALCULATE_POINTS(OUT_COLOR, POS, NORMAL, VIEW_DIR)
+///    For example, for 1 ambient light, 1 directional light and 2 point lights:
+///        LIGHT_CALCULATE_AMBIENTS(light)
+///        LIGHT_CALCULATE_DIRECTIONALS(light, vVertPos, vNormal, camera_dir)
+///        LIGHT_CALCULATE_POINTS(light, vVertPos, vNormal, camera_dir)
+///
+/// You now have the final light value in your light variable! Add it to your
+/// fragment output as you wish.
+
+#include "third_party/lullaby/data/shaders/math.glslh"
+
+/// Structure describing a directional light.
+struct DirectionalLight {
+  vec3 direction;
+  vec3 color;
+  float exponent;
+};
+
+/// Structure describing a point light.
+struct PointLight {
+  vec3 position;
+  vec3 color;
+  float intensity;
+  float exponent;
+};
+
+/// Helper macro to declare a number |N| ambient lights.
+#define LIGHT_DECL_AMBIENT(N) const int kNumAmbientLights = N; uniform vec3 light_ambient_color[N]
+
+/// Helper macro to declare a number |N| directional lights.
+#define LIGHT_DECL_DIRECTIONAL(N) const int kNumDirectionalLights = N; uniform vec3 light_directional_dir[N]; uniform vec3 light_directional_color[N]; uniform float light_directional_exponent[N]
+
+/// Helper macro to declare a directional light with shadow.
+#define LIGHT_DECL_DIRECTIONAL_SHADOW_5 STAGE_INPUT highp vec4 vVertPosLightSpace; const int kNumDirectionalShadowLights = 1; uniform vec3 light_directional_shadow_dir[1]; uniform vec3 light_directional_shadow_color[1]; uniform float light_directional_shadow_exponent[1]; uniform sampler2D texture_unit_5
+
+/// Helper macro to declare a number |N| point lights.
+#define LIGHT_DECL_POINT(N) const int kNumPointLights = N; uniform vec3 light_point_pos[N]; uniform vec3 light_point_color[N]; uniform float light_point_intensity[N]; uniform float light_point_exponent[N]
+
+
+/// Calculate and return the color (diffuse and specular together) reflected by
+/// a directional light.
+vec3 GetDirectionalLight(vec3 pos, vec3 normal, vec3 view_dir,
+                                                      DirectionalLight light)
+{
+  //
+  // Diffuse:
+  //
+  // Intensity of the diffuse light. Saturate to keep within the 0-1 range.
+  float normal_dot_light_dir = dot(normal, -light.direction);
+  float intensity = clamp(normal_dot_light_dir, 0.0, 1.0);
+
+  // Calculate the diffuse light.
+  vec3 diffuse = intensity * light.color;
+
+  //
+  // Specular light:
+  //
+  // http://www.rorydriscoll.com/2009/01/25/energy-conservation-in-games/
+  float kEnergyConservation = (2.0 + light.exponent) / (2.0 * kPi);
+  vec3 reflect_dir = reflect(light.direction, normal);
+
+  // Intensity of the specular light.
+  float view_dot_reflect = dot(-view_dir, reflect_dir);
+  intensity = kEnergyConservation *
+                        pow(clamp(view_dot_reflect, 0.0, 1.0), light.exponent);
+
+  // Specular color:
+  vec3 specular = intensity * light.color;
+
+  return diffuse + specular;
+}
+
+/// Calculate and return the color (diffuse and specular together) reflected by
+/// a point light.
+vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light)
+{
+  if (light.intensity > 0.0)
+  {
+    vec3 light_to_pos = pos - light.position;
+    float distance = length(light_to_pos);
+    vec3 light_dir = light_to_pos / distance; // normalize.
+    float distance2 = distance * distance;
+
+    //
+    // Diffuse:
+    //
+    // Intensity of the diffuse light. Saturate to keep within the 0-1 range.
+    float normal_dot_light_dir = dot(normal, -light_dir);
+    float intensity = clamp(normal_dot_light_dir, 0.0, 1.0);
+
+    // Light attenuation (how much it fades over distance).
+    float attenuation = light.intensity / distance2;
+
+    // Calculate the diffuse light.
+    vec3 diffuse = intensity * light.color * attenuation;
+
+    //
+    // Specular light:
+    //
+    // http://www.rorydriscoll.com/2009/01/25/energy-conservation-in-games/
+    float kEnergyConservation = (2.0 + light.exponent) / (2.0 * kPi);
+    vec3 reflect_dir = reflect(light_dir, normal);
+
+    // Intensity of the specular light.
+    float view_dot_reflect = dot(-view_dir, reflect_dir);
+    intensity = kEnergyConservation *
+                        pow(clamp(view_dot_reflect, 0.0, 1.0), light.exponent);
+
+    // Specular color:
+    vec3 specular = intensity * light.color * light.intensity / distance2;
+
+    return diffuse + specular;
+  }
+  return vec3(0, 0, 0);
+}
+
+/// Helper macro to calculate and sum all ambient lights into a variable.
+#define LIGHT_CALCULATE_AMBIENTS(OUT_COLOR) for (int i = 0; i < kNumAmbientLights; ++i) { OUT_COLOR += light_ambient_color[i]; }
+
+
+/// Helper macro to calculate and sum all directional lights into a variable.
+///
+/// @param OUT_COLOR The output variable to add the reflected light color to.
+/// @param POS The world space position of the pixel.
+/// @param NORMAL A normalized surface normal of the mesh.
+/// @param VIEW_DIR The camera view direction.
+#define LIGHT_CALCULATE_DIRECTIONALS(OUT_COLOR, POS, NORMAL, VIEW_DIR) for (int i = 0; i < kNumDirectionalLights; ++i) { DirectionalLight dl; dl.direction = light_directional_dir[i]; dl.color = light_directional_color[i]; dl.exponent = light_directional_exponent[i]; OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl); }
+
+/// Helper function to calculate the shadow coordinates from the fragment
+/// position in light space.
+///
+/// @param frag_pos_light_space The fragment's position in light space.
+vec3 CalculateShadowCoords(vec4 frag_pos_light_space)
+{
+    // Perform perspective divide.
+    vec3 projection_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
+    // Transform to [0,1] range.
+    projection_coords = projection_coords * 0.5 + 0.5;
+
+    return projection_coords;
+}
+
+/// Helper function to calculate the shadow occlusion value.
+///
+/// @param projection_coords The shadow projection coordinates.
+/// @param fragment_depth The distance of the fragment from the light.
+float ShadowCalculation(vec3 projection_coords, float fragment_depth)
+{
+    // Get depth of current fragment from light's perspective.
+    float current_depth = projection_coords.z;
+    // Check whether current frag pos is in shadow.
+    float shadow = current_depth < fragment_depth  ? 1.0 : 0.0;
+
+    return shadow;
+}
+
+/// Helper macro to calculate and sum all directional lights into a variable.
+///
+/// @param OUT_COLOR The output variable to add the reflected light color to.
+/// @param POS The world space position of the pixel.
+/// @param NORMAL A normalized surface normal of the mesh.
+/// @param VIEW_DIR The camera view direction.
+/// @param S The sampler index for the shadow texture.
+///
+/// TODO(b/65169179).
+#define LIGHT_CALCULATE_DIRECTIONALS_SHADOW_5(OUT_COLOR, POS, NORMAL, VIEW_DIR) vec3 shadow_coords = CalculateShadowCoords(vVertPosLightSpace); float fragment_depth = texture2D(texture_unit_5, shadow_coords.xy).r; for (int i = 0; i < kNumDirectionalShadowLights; ++i) { DirectionalLight dl; dl.direction = light_directional_shadow_dir[i]; dl.color = light_directional_shadow_color[i]; dl.exponent = light_directional_shadow_exponent[i]; float shadow_bias = max(0.05 * (dot(NORMAL, dl.direction)), 0.005); OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl) * ShadowCalculation(shadow_coords, fragment_depth + shadow_bias); }
+
+/// Helper macro to calculate and sum all point lights into a variable.
+///
+/// @param OUT_COLOR The output variable to add the reflected light color to.
+/// @param POS The world space position of the pixel.
+/// @param NORMAL A normalized surface normal of the mesh.
+/// @param VIEW_DIR The camera view direction.
+#define LIGHT_CALCULATE_POINTS(OUT_COLOR, POS, NORMAL, VIEW_DIR) for (int i = 0; i < kNumPointLights; ++i) { PointLight pl; pl.position = light_point_pos[i]; pl.color = light_point_color[i]; pl.intensity = light_point_intensity[i]; pl.exponent = light_point_exponent[i]; OUT_COLOR += GetPointLight(POS, NORMAL, VIEW_DIR, pl); }
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_LIGHT_GLSLH_

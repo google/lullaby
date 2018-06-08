@@ -32,8 +32,8 @@ limitations under the License.
 namespace lull {
 namespace {
 
-const HashValue kAnimationDef = Hash("AnimationDef");
-const HashValue kAnimationResponseDef = Hash("AnimationResponseDef");
+const HashValue kAnimationDef = ConstHash("AnimationDef");
+const HashValue kAnimationResponseDef = ConstHash("AnimationResponseDef");
 constexpr const char* kMotiveListExtension = "motivelist";
 
 inline bool IsMotiveListFile(const std::string& filename, size_t start_pos,

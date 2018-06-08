@@ -16,7 +16,7 @@ limitations under the License.
 
 #include "lullaby/systems/render/next/gl_helpers.h"
 
-#include "fplbase/renderer.h"
+#include "lullaby/systems/render/next/next_renderer.h"
 
 namespace lull {
 // Predefined attributes supported in shaders.
@@ -92,11 +92,8 @@ GLenum GetGlFormat(TextureFormat format) {
     case TextureFormat_A8:
       return GL_ALPHA;
     case TextureFormat_R8:
-#ifdef FPLBASE_GLES
-      return GL_RGB;  // For GLES2, the format must match internalformat.
-#else
-      return GL_RED;
-#endif
+      // For GLES2, the format must match internalformat.
+      return NextRenderer::IsGles() ? GL_RGB : GL_RED;
     case TextureFormat_RGB8:
       return GL_RGB;
     case TextureFormat_RGBA8:
@@ -247,37 +244,129 @@ GLenum GetGlIndexType(MeshData::IndexType type) {
   }
 }
 
+GLuint GetGlRenderFunction(fplbase::RenderFunction func) {
+  switch (func) {
+    case fplbase::kRenderAlways:
+      return GL_ALWAYS;
+    case fplbase::kRenderEqual:
+      return GL_EQUAL;
+    case fplbase::kRenderGreater:
+      return GL_GREATER;
+    case fplbase::kRenderGreaterEqual:
+      return GL_GEQUAL;
+    case fplbase::kRenderLess:
+      return GL_LESS;
+    case fplbase::kRenderLessEqual:
+      return GL_LEQUAL;
+    case fplbase::kRenderNever:
+      return GL_NEVER;
+    case fplbase::kRenderNotEqual:
+      return GL_NOTEQUAL;
+    default:
+      LOG(DFATAL) << "Unknown function type: " << func;
+      return GL_ALWAYS;
+  }
+}
+
+GLuint GetGlBlendStateFactor(fplbase::BlendState::BlendFactor factor) {
+  switch (factor) {
+    case fplbase::BlendState::kZero:
+      return GL_ZERO;
+    case fplbase::BlendState::kOne:
+      return GL_ONE;
+    case fplbase::BlendState::kSrcColor:
+      return GL_SRC_COLOR;
+    case fplbase::BlendState::kOneMinusSrcColor:
+      return GL_ONE_MINUS_SRC_COLOR;
+    case fplbase::BlendState::kDstColor:
+      return GL_DST_COLOR;
+    case fplbase::BlendState::kOneMinusDstColor:
+      return GL_ONE_MINUS_DST_COLOR;
+    case fplbase::BlendState::kSrcAlpha:
+      return GL_SRC_ALPHA;
+    case fplbase::BlendState::kOneMinusSrcAlpha:
+      return GL_ONE_MINUS_SRC_ALPHA;
+    case fplbase::BlendState::kDstAlpha:
+      return GL_DST_ALPHA;
+    case fplbase::BlendState::kOneMinusDstAlpha:
+      return GL_ONE_MINUS_DST_ALPHA;
+    case fplbase::BlendState::kConstantColor:
+      return GL_CONSTANT_COLOR;
+    case fplbase::BlendState::kOneMinusConstantColor:
+      return GL_ONE_MINUS_CONSTANT_COLOR;
+    case fplbase::BlendState::kConstantAlpha:
+      return GL_CONSTANT_ALPHA;
+    case fplbase::BlendState::kOneMinusConstantAlpha:
+      return GL_ONE_MINUS_CONSTANT_ALPHA;
+    case fplbase::BlendState::kSrcAlphaSaturate:
+      return GL_SRC_ALPHA_SATURATE;
+    default:
+      LOG(DFATAL) << "Unknown factor: " << factor;
+      return GL_ZERO;
+  }
+}
+
+GLuint GetGlCullFace(fplbase::CullState::CullFace face) {
+  switch (face) {
+    case fplbase::CullState::kFront:
+      return GL_FRONT;
+    case fplbase::CullState::kBack:
+      return GL_BACK;
+    case fplbase::CullState::kFrontAndBack:
+      return GL_FRONT_AND_BACK;
+    default:
+      LOG(DFATAL) << "Unknown cull face: " << face;
+      return GL_FRONT;
+  }
+}
+
+GLuint GetGlFrontFace(fplbase::CullState::FrontFace front_face) {
+  switch (front_face) {
+    case fplbase::CullState::kClockWise:
+      return GL_CW;
+    case fplbase::CullState::kCounterClockWise:
+      return GL_CCW;
+    default:
+      LOG(DFATAL) << "Unknown front face: " << front_face;
+      return GL_CW;
+  }
+}
+
+GLuint GetGlStencilOp(fplbase::StencilOperation::StencilOperations op) {
+  switch (op) {
+    case fplbase::StencilOperation::kKeep:
+      return GL_KEEP;
+    case fplbase::StencilOperation::kZero:
+      return GL_ZERO;
+    case fplbase::StencilOperation::kReplace:
+      return GL_REPLACE;
+    case fplbase::StencilOperation::kIncrement:
+      return GL_INCR;
+    case fplbase::StencilOperation::kIncrementAndWrap:
+      return GL_INCR_WRAP;
+    case fplbase::StencilOperation::kDecrement:
+      return GL_DECR;
+    case fplbase::StencilOperation::kDecrementAndWrap:
+      return GL_DECR_WRAP;
+    case fplbase::StencilOperation::kInvert:
+      return GL_INVERT;
+    default:
+      LOG(DFATAL) << "Unknown stencil op: " << op;
+      return GL_KEEP;
+  }
+}
+
 ShaderProfile GetShaderProfile() {
-#ifdef FPLBASE_GLES
-  return ShaderProfile::Gles;
-#else
-  return ShaderProfile::Core;
-#endif
+  return NextRenderer::IsGles() ? ShaderProfile::Gles : ShaderProfile::Core;
 }
 
-int GlMaxVertexUniformComponents() {
-  return fplbase::RendererBase::Get()->max_vertex_uniform_components();
-}
+bool GlSupportsVertexArrays() { return NextRenderer::SupportsVertexArrays(); }
 
-bool GlSupportsVertexArrays() {
-  return fplbase::RendererBase::Get()->feature_level() >=
-         fplbase::kFeatureLevel30;
-}
+bool GlSupportsTextureNpot() { return NextRenderer::SupportsTextureNpot(); }
 
-bool GlSupportsTextureNpot() {
-  return fplbase::RendererBase::Get()->SupportsTextureNpot();
-}
+bool GlSupportsAstc() { return NextRenderer::SupportsAstc(); }
 
-bool GlSupportsAstc() {
-  return fplbase::RendererBase::Get()->SupportsTextureFormat(
-      fplbase::kFormatASTC);
-}
-
-bool GlSupportsEtc2() {
-  // FPLBase uses ktx (or pkm) to store etc2 data.
-  return fplbase::RendererBase::Get()->SupportsTextureFormat(
-      fplbase::kFormatKTX);
-}
+bool GlSupportsEtc2() { return NextRenderer::SupportsEtc2(); }
 
 void SetVertexAttributes(const VertexFormat& vertex_format,
                          const uint8_t* buffer) {
@@ -373,6 +462,17 @@ void UnsetVertexAttributes(const VertexFormat& vertex_format) {
         break;
     }
   }
+}
+
+void UnsetDefaultAttributes() {
+  // Can leave position set.
+  GL_CALL(glDisableVertexAttribArray(kAttribNormal));
+  GL_CALL(glDisableVertexAttribArray(kAttribTangent));
+  GL_CALL(glDisableVertexAttribArray(kAttribTexCoord));
+  GL_CALL(glDisableVertexAttribArray(kAttribTexCoord1));
+  GL_CALL(glDisableVertexAttribArray(kAttribColor));
+  GL_CALL(glDisableVertexAttribArray(kAttribBoneIndices));
+  GL_CALL(glDisableVertexAttribArray(kAttribBoneWeights));
 }
 
 void DrawMeshData(const MeshData& mesh_data) {

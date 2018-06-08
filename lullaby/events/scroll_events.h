@@ -38,9 +38,9 @@ struct ScrollOffsetChanged {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&old_offset, Hash("old_offset"));
-    archive(&new_offset, Hash("new_offset"));
+    archive(&target, ConstHash("target"));
+    archive(&old_offset, ConstHash("old_offset"));
+    archive(&new_offset, ConstHash("new_offset"));
   }
 
   Entity target = kNullEntity;
@@ -55,9 +55,9 @@ struct ScrollVisibilityChanged {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&scroll_view, Hash("scroll_view"));
-    archive(&visible, Hash("visible"));
+    archive(&target, ConstHash("target"));
+    archive(&scroll_view, ConstHash("scroll_view"));
+    archive(&visible, ConstHash("visible"));
   }
 
   Entity target = kNullEntity;
@@ -72,8 +72,8 @@ struct ScrollSnappedToEntity {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&snapped_entity, Hash("snapped_entity"));
+    archive(&entity, ConstHash("entity"));
+    archive(&snapped_entity, ConstHash("snapped_entity"));
   }
 
   Entity entity = kNullEntity;
@@ -87,7 +87,7 @@ struct ScrollActivateEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -100,7 +100,7 @@ struct ScrollDeactivateEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -114,9 +114,9 @@ struct ScrollSnapByDelta {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&delta, Hash("delta"));
-    archive(&time_ms, Hash("time_ms"));
+    archive(&entity, ConstHash("entity"));
+    archive(&delta, ConstHash("delta"));
+    archive(&time_ms, ConstHash("time_ms"));
   }
 
   Entity entity = kNullEntity;
@@ -133,9 +133,9 @@ struct ScrollSetViewOffsetEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&offset, Hash("offset"));
-    archive(&time_ms, Hash("time_ms"));
+    archive(&entity, ConstHash("entity"));
+    archive(&offset, ConstHash("offset"));
+    archive(&time_ms, ConstHash("time_ms"));
   }
 
   Entity entity = kNullEntity;

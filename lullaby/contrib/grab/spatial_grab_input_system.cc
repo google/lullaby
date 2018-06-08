@@ -28,7 +28,7 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kSpatialGrabInputDef = Hash("SpatialGrabInputDef");
+const HashValue kSpatialGrabInputDef = ConstHash("SpatialGrabInputDef");
 }  // namespace
 
 SpatialGrabInputSystem::SpatialGrabInputSystem(Registry* registry)

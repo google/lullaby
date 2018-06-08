@@ -146,6 +146,23 @@ class AlphaMultiplierDescendantsChannel : public AnimationChannel {
   RenderSystem* render_system_;
 };
 
+struct AnimateColorEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&color, ConstHash("color"));
+    archive(&int_argb, ConstHash("int_argb"));
+    archive(&time_ms, ConstHash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec4 color = mathfu::kZeros4f;
+  int int_argb = 0;
+  float time_ms = 0.f;
+};
+
 }  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::AnimateColorEvent);
 
 #endif  // LULLABY_MODULES_ANIMATION_CHANNELS_RENDER_CHANNELS_H_

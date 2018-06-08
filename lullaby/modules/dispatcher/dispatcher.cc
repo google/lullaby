@@ -85,6 +85,10 @@ Dispatcher::Dispatcher() { handlers_.reset(new EventHandlerMap()); }
 
 void Dispatcher::Send(const EventWrapper& event) { SendImpl(event); }
 
+void Dispatcher::SendImmediately(const EventWrapper& event) {
+  Dispatcher::SendImpl(event);
+}
+
 Dispatcher::ScopedConnection Dispatcher::Connect(TypeId type,
                                                  EventHandler handler) {
   return ConnectImpl(type, nullptr, std::move(handler));
@@ -101,6 +105,10 @@ Dispatcher::ScopedConnection Dispatcher::ConnectToAll(EventHandler handler) {
 
 void Dispatcher::Disconnect(TypeId type, const void* owner) {
   DisconnectImpl(type, owner);
+}
+
+void Dispatcher::Disconnect(TypeId type, ConnectionId id) {
+  handlers_->Remove(type, id, nullptr);
 }
 
 void Dispatcher::SendImpl(const EventWrapper& event) {
@@ -140,6 +148,8 @@ void Dispatcher::Connection::Disconnect() {
     handlers_.reset();
   }
 }
+
+Dispatcher::ConnectionId Dispatcher::Connection::GetId() const { return id_; }
 
 Dispatcher::ScopedConnection::ScopedConnection(ScopedConnection&& rhs)
     : connection_(rhs.connection_) {

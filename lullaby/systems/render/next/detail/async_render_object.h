@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_DETAIL_ASYNC_RENDER_OBJECT_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_DETAIL_ASYNC_RENDER_OBJECT_H_
 
+#include <functional>
 #include <memory>
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/util/thread_safe_queue.h"

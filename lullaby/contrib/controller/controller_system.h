@@ -20,8 +20,8 @@ limitations under the License.
 #include <memory>
 
 #include "lullaby/modules/ecs/component.h"
-#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/modules/ecs/system.h"
+#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/math.h"
@@ -51,29 +51,53 @@ class ControllerSystem : public System {
   void HideControls();
 
  private:
+  struct Button {
+    bool was_pressed = false;
+
+    float anim_start_alpha = 0.0f;
+    float target_alpha = 0.0f;
+    float current_alpha = 0.0f;
+    Clock::duration anim_time_left = Clock::duration::zero();
+  };
+
   struct Controller : Component {
     explicit Controller(Entity entity);
     InputManager::DeviceType controller_type = InputManager::kController;
     bool is_laser = false;
     bool is_visible = false;
+    bool use_device_profile = false;
+    bool connected = false;
 
-    // The number of frames to let device data stabilize to avoid eye strain
-    // from the controller / laser models jumping around. This many frames are
-    // ignored before enabling the controller. The counter will be reset when
-    // the device disconnects.
-    int stabilization_frames = 0;
-
-    // The number of frames that still need to be ignored before allowing the
-    // controller to be enabled.
-    int stabilization_counter = 0;
     const EventDefArray* enable_events = nullptr;
     const EventDefArray* disable_events = nullptr;
 
+    // Laser specific variables.
     float last_bend_fraction = 0.0f;
+
+    // Controller specific variables;
+    std::vector<Button> buttons = std::vector<Button>(3);
+    float touch_ripple_factor = 0.0f;
+    bool was_touched = false;
+    uint8_t last_battery_level = InputManager::kInvalidBatteryCharge;
   };
 
-  void HandleControllerTransforms();
-  void UpdateBendUniforms(Controller& laser);
+  void OnControllerConnected(Controller* controller);
+  void OnControllerDisconnected(Controller* controller);
+
+  void HandleControllerTransforms(const Clock::duration& delta_time,
+                                  Controller* controller);
+  void MaybeFadeInController(Controller* controller);
+  void MaybeFadeOutController(Controller* controller);
+
+  void UpdateBendUniforms(Controller* laser);
+  void UpdateControllerUniforms(const Clock::duration& delta_time,
+                                Controller* controller);
+  void UpdateControllerButtonUniforms(const Clock::duration& delta_time,
+                                      Controller* controller);
+  void UpdateControllerTouchpadUniforms(const Clock::duration& delta_time,
+                                        Controller* controller);
+  void UpdateControllerBatteryUniforms(const Clock::duration& delta_time,
+                                       Controller* controller);
 
   ComponentPool<Controller> controllers_;
   bool show_controls_ = true;

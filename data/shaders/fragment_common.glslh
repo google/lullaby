@@ -1,0 +1,38 @@
+#include "third_party/lullaby/data/shaders/common.glslh"
+
+// Define our default float precision for GL ES.
+#ifdef GL_ES
+precision highp float;
+#endif
+
+// Changes in GLSL 130 / es300:
+// - "varying" keyword removed, superseded by "in".  We declare the STAGE_INPUT
+//   definition to abstract this change.
+// - "gl_FragColor" keyword removed. We redeclare it for compatibility.
+#if __VERSION__ >= GLES_ELSE(300, 130)
+
+#define STAGE_INPUT in
+
+out vec4 _lullaby_out_color;
+#define gl_FragColor _lullaby_out_color
+
+#else  // __VERSION__ >= GLES_ELSE(300, 130)...
+
+#define STAGE_INPUT varying
+
+#endif  // __VERSION__ >= GLES_ELSE(300, 130)...
+
+
+// Changes in GLSL 330 / es300:
+// - Various texture sample functions removed (eg texture2D).  We provide some
+//   compatibility macros to keep some of these working.
+
+#if __VERSION__ >= GLES_ELSE(300, 330)
+#define texture2D(_sampler, _uv) texture(_sampler, _uv)
+#define texture2DWithBias(_sampler, _uv, _bias) texture(_sampler, _uv, _bias)
+#define textureCube(_sampler, _uvw) texture(_sampler, _uvw)
+#define textureCubeWithBias(_sampler, _uvw, _bias) texture(_sampler, _uvw, _bias)
+#else
+#define texture2DWithBias(_sampler, _uv, _bias) texture2D(_sampler, _uv, _bias)
+#define textureCubeWithBias(_sampler, _uvw, _bias) textureCube(_sampler, _uvw, _bias)
+#endif  // __VERSION__ >= GLES_ELSE(300, 330)

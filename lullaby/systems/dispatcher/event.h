@@ -74,6 +74,29 @@ void ConnectEventDefs(Registry* registry, Entity entity,
                       const std::vector<EventDefT>& events,
                       const Dispatcher::EventHandler& handler);
 
+// Connects an event handler that will disconnect when run for the first time.
+// If entity != kNullEntity and there is a DispatcherSystem, the handler will
+// be connected via the DispatcherSystem.  Otherwise it will be connected via
+// the Dispatcher.
+template <typename Fn>
+void ConnectEventOnce(Registry* registry, Entity entity, const Fn& handler) {
+  auto connection = std::make_shared<Dispatcher::ScopedConnection>();
+
+  using FnType = typename std::remove_reference<Fn>::type;
+  using Event = decltype(Dispatcher::ConnectHelper(&FnType::operator()));
+  auto only_once = [handler, connection](const EventWrapper& wrapper) mutable {
+    if (connection) {
+      connection.reset();
+      handler(*wrapper.Get<Event>());
+    }
+  };
+  const TypeId type = GetTypeId<Event>();
+  auto* dispatcher_system = registry->Get<DispatcherSystem>();
+  if (dispatcher_system != nullptr) {
+    *connection = dispatcher_system->Connect(entity, type, only_once);
+  }
+}
+
 }  // namespace lull
 
 #endif  // LULLABY_SYSTEMS_DISPATCHER_EVENT_H_

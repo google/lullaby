@@ -25,7 +25,7 @@ limitations under the License.
 
 namespace lull {
 namespace {
-static const HashValue kTrackHmdDef = Hash("TrackHmdDef");
+static const HashValue kTrackHmdDef = ConstHash("TrackHmdDef");
 }
 
 TrackHmdSystem::TrackHmdSystem(Registry* registry)

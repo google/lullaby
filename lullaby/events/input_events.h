@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef LULLABY_EVENTS_INPUT_EVENTS_H_
 #define LULLABY_EVENTS_INPUT_EVENTS_H_
 
+#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/entity.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/typeid.h"
@@ -72,10 +73,10 @@ constexpr HashValue kLongPressEventHash = ConstHash("LongPressEvent");
 /// cancellation threshold.
 constexpr HashValue kCancelEventHash = ConstHash("CancelEvent");
 /// Sent when a button is held down until the device's collision ray leaves the
-/// drag threshold.
+/// drag threshold.  Only sent if InputFocus.draggable is true for this entity.
 constexpr HashValue kDragStartEventHash = ConstHash("DragStartEvent");
 /// Sent when a release or cancel event is sent to an entity that received a
-/// DragStartEvent.
+/// DragStartEvent.  Only sent if InputFocus.draggable is true for this entity.
 constexpr HashValue kDragStopEventHash = ConstHash("DragStopEvent");
 
 /// Input Events with the "Any" prefix.  Sent out by every device being updated
@@ -107,6 +108,26 @@ constexpr HashValue kLocationHash = ConstHash("location");
 constexpr HashValue kPressedEntityHash = ConstHash("pressed_entity");
 /// A duration of time in milliseconds.
 constexpr HashValue kDurationHash = ConstHash("duration");
+
+// Event sent when a new device is connected.  This should be sent by the
+// ControllerSystem for devices that are being displayed. May be sent multiple
+// times if multiple entities are displaying the same device.
+struct DeviceConnectedEvent {
+  DeviceConnectedEvent(){};
+  DeviceConnectedEvent(InputManager::DeviceType device, Entity display_entity)
+      : device(device), display_entity(display_entity){};
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    int device_int = static_cast<int>(device);
+    archive(&device_int, ConstHash("device"));
+    device = static_cast<InputManager::DeviceType>(device_int);
+    archive(&display_entity, ConstHash("display_entity"));
+  }
+
+  InputManager::DeviceType device = InputManager::kMaxNumDeviceTypes;
+  Entity display_entity = kNullEntity;
+};
 
 // The below events are deprecated, and are only used if the reticle_system is
 // still used by the application.
@@ -291,6 +312,9 @@ struct GlobalRecenteredEvent {
 
 }  // namespace lull
 
+LULLABY_SETUP_TYPEID(lull::DeviceConnectedEvent);
+
+// Deprecated Events:
 LULLABY_SETUP_TYPEID(lull::StartHoverEvent);
 LULLABY_SETUP_TYPEID(lull::StopHoverEvent);
 LULLABY_SETUP_TYPEID(lull::ClickEvent);

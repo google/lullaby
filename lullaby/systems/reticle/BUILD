@@ -44,7 +44,7 @@ cc_library(
         "//lullaby/systems/transform",
         "//lullaby/util:bits",
         "//lullaby/util:clock",
-        "//lullaby/util:controller_util",
+        "//lullaby/util:device_util",
         "//lullaby/util:entity",
         "//lullaby/util:math",
         "//lullaby/util:trace",

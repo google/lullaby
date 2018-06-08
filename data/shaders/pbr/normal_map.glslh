@@ -1,0 +1,48 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
+
+// Applies a tangent-space normal map to a given shading normal. If smoothness
+// is passed in, its value is modified to compensate for the smoothing effect of
+// normal map mip-mapping (see ToksvigSmoothness() below).
+
+#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
+
+STAGE_INPUT mediump vec3 vBinormal;
+STAGE_INPUT mediump vec3 vTangent;
+
+// Returns a potentially reduced smoothness value to compensate for the
+// smoothing effect of mip-mapping a normal map---which causes the mapped normal
+// vector to have less than unit length. This comes from research by Michael
+// Toksvig: http://blog.selfshadow.com/2011/07/22/specular-showdown/.
+float ToksvigSmoothness(float smoothness, float normal_len) {
+  const float kEpsilon = 0.001;
+  float normal_len_rec = 1.0 / max(kEpsilon, normal_len);
+  float spec_power = SmoothnessToSpecPower(smoothness);
+  float toksvig_divisor = 1.0 + spec_power * max(0.0, normal_len_rec - 1.0);
+  return SpecPowerToSmoothness(spec_power / toksvig_divisor);
+}
+
+// Alters normal based on normal_map color (in linear space).
+void ApplyNormalMap(vec3 normal_map, inout vec3 normal) {
+  normal_map = normal_map * 2.0 - 1.0;
+  float len = length(normal_map);
+  normal_map /= len;
+  normal =
+      normalize(normal_map.x * normalize(vTangent) +
+                normal_map.y * normalize(vBinormal) + normal_map.z * normal);
+}
+
+// Alters normal and smoothness based on normal_map color (in linear space).
+void ApplyNormalMap(vec3 normal_map, inout vec3 normal,
+                    inout float smoothness) {
+  normal_map = normal_map * 2.0 - 1.0;
+  float len = length(normal_map);
+  normal_map /= len;
+  smoothness = ToksvigSmoothness(smoothness, len);
+  normal =
+      normalize(normal_map.x * normalize(vTangent) +
+                normal_map.y * normalize(vBinormal) + normal_map.z * normal);
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_

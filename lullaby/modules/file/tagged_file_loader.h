@@ -20,8 +20,9 @@ limitations under the License.
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
-#include "fplbase/utilities.h"
+#include "fplbase/file_utilities.h"
 
 // This file implements a "tagging" system that allows for asset filenames to
 // change at runtime, which is necessary in certain contexts..

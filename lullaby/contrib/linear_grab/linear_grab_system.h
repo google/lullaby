@@ -46,8 +46,8 @@ struct LinearGrabEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
-    archive(&location, Hash("location"));
+    archive(&entity, ConstHash("entity"));
+    archive(&location, ConstHash("location"));
   }
 };
 
@@ -60,7 +60,7 @@ struct LinearGrabReleasedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 };
 

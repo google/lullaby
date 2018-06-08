@@ -50,6 +50,16 @@ class Texture {
   // loading.
   void AddOnLoadCallback(const std::function<void()>& callback);
 
+  // Like the above, but invokes the callback immediately if the texture is
+  // loaded.
+  void AddOrInvokeOnLoadCallback(const std::function<void()>& callback) {
+    if (IsLoaded()) {
+      callback();
+    } else {
+      AddOnLoadCallback(callback);
+    }
+  }
+
   // Gets the dimensions of the underlying texture.
   mathfu::vec2i GetDimensions() const;
 

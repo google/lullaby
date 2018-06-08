@@ -30,8 +30,8 @@ struct TextureReadyEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&texture_unit, Hash("texture_unit"));
+    archive(&target, ConstHash("target"));
+    archive(&texture_unit, ConstHash("texture_unit"));
   }
 
   Entity target = kNullEntity;
@@ -42,13 +42,17 @@ struct TextureReadyEvent {
 struct ReadyToRenderEvent {
   ReadyToRenderEvent() {}
   explicit ReadyToRenderEvent(Entity entity) : entity(entity) {}
+  explicit ReadyToRenderEvent(Entity entity, HashValue pass)
+      : entity(entity), pass(pass) {}
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
+    archive(&pass, ConstHash("pass"));
   }
 
   Entity entity = kNullEntity;
+  HashValue pass = 0;
 };
 
 // Dispatched when an entity is hidden (via RenderSystem::Hide).
@@ -58,7 +62,7 @@ struct HiddenEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -71,7 +75,7 @@ struct UnhiddenEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -84,7 +88,7 @@ struct HideEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
@@ -97,10 +101,42 @@ struct ShowEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;
+};
+
+// Invokes RenderSystem::SetGroupId(entity, group_id)
+struct SetRenderGroupIdEvent {
+  SetRenderGroupIdEvent() {}
+  explicit SetRenderGroupIdEvent(Entity entity, HashValue group_id)
+      : entity(entity), group_id(group_id) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&group_id, ConstHash("group_id"));
+  }
+
+  Entity entity = kNullEntity;
+  HashValue group_id = 0;
+};
+
+// Invokes RenderSystem::SetGroupParams(group_id, {sort_order_offset})
+struct SetRenderGroupParamsEvent {
+  SetRenderGroupParamsEvent() {}
+  explicit SetRenderGroupParamsEvent(HashValue group_id, int sort_order_offset)
+      : group_id(group_id), sort_order_offset(sort_order_offset) {}
+
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&group_id, ConstHash("group_id"));
+    archive(&sort_order_offset, ConstHash("sort_order_offset"));
+  }
+
+  HashValue group_id = 0;
+  int sort_order_offset = 0;
 };
 
 /// Dispatched when an entity's mesh had been changed.
@@ -111,8 +147,8 @@ struct MeshChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("target"));
-    archive(&pass, Hash("pass"));
+    archive(&entity, ConstHash("target"));
+    archive(&pass, ConstHash("pass"));
   }
 
   /// The entity whose mesh was changed.
@@ -129,6 +165,8 @@ LULLABY_SETUP_TYPEID(lull::HiddenEvent);
 LULLABY_SETUP_TYPEID(lull::UnhiddenEvent);
 LULLABY_SETUP_TYPEID(lull::HideEvent);
 LULLABY_SETUP_TYPEID(lull::ShowEvent);
+LULLABY_SETUP_TYPEID(lull::SetRenderGroupIdEvent);
+LULLABY_SETUP_TYPEID(lull::SetRenderGroupParamsEvent);
 LULLABY_SETUP_TYPEID(lull::MeshChangedEvent);
 
 #endif  // LULLABY_EVENTS_RENDER_EVENTS_H_

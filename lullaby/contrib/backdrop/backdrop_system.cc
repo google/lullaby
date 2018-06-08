@@ -29,12 +29,14 @@ limitations under the License.
 namespace lull {
 namespace {
 const size_t kBackdropPoolPageSize = 4;
-const HashValue kBackdropDefHash = Hash("BackdropDef");
+const HashValue kBackdropDefHash = ConstHash("BackdropDef");
+const HashValue kBackdropExclusionDefHash = ConstHash("BackdropExclusionDef");
 }  // namespace
 
 BackdropSystem::BackdropSystem(Registry* registry)
-    : System(registry), backdrops_(kBackdropPoolPageSize) {
+    : System(registry), backdrops_(kBackdropPoolPageSize), exclusions_() {
   RegisterDef(this, kBackdropDefHash);
+  RegisterDef(this, kBackdropExclusionDefHash);
 
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
@@ -92,6 +94,10 @@ void BackdropSystem::Initialize() {
 }
 
 void BackdropSystem::Create(Entity e, HashValue type, const Def* def) {
+  if (type == kBackdropExclusionDefHash) {
+    exclusions_.emplace(e);
+    return;
+  }
   if (type != kBackdropDefHash) {
     LOG(DFATAL) << "Invalid type passed to Create. Expecting BackdropDef!";
     return;
@@ -153,7 +159,10 @@ void BackdropSystem::Create(Entity e, HashValue type, const Def* def) {
   }
 }
 
-void BackdropSystem::Destroy(Entity e) { backdrops_.Destroy(e); }
+void BackdropSystem::Destroy(Entity e) {
+  backdrops_.Destroy(e);
+  exclusions_.erase(e);
+}
 
 bool BackdropSystem::HasBackdrop(const Entity e) const {
   return backdrops_.Get(e) != nullptr;
@@ -307,6 +316,10 @@ void BackdropSystem::UpdateBackdrop(Backdrop* backdrop) {
 
   for (Entity child : *children) {
     if (child == backdrop->renderable) {
+      continue;
+    }
+    auto excluded = exclusions_.find(child);
+    if (excluded != exclusions_.end()) {
       continue;
     }
 

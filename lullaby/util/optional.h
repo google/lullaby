@@ -211,13 +211,13 @@ class Optional {
     }
 
     bool set = set_;
-    archive(&set, Hash("set"));
+    archive(&set, ConstHash("set"));
 
     if (set) {
       if (archive.IsDestructive()) {
         emplace();
       }
-      archive(get(), Hash("value"));
+      archive(get(), ConstHash("value"));
     }
   }
 

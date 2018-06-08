@@ -25,7 +25,7 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kReticleTrailDef = Hash("ReticleTrailDef");
+const HashValue kReticleTrailDef = ConstHash("ReticleTrailDef");
 
 ReticleTrailSystem::ReticleTrailSystem(Registry* registry) : System(registry) {
   RegisterDef(this, kReticleTrailDef);

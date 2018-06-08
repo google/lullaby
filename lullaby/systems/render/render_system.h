@@ -28,17 +28,18 @@ limitations under the License.
 #include "lullaby/modules/render/mesh_util.h"
 #include "lullaby/modules/render/render_view.h"
 #include "lullaby/modules/render/vertex.h"
+#include "lullaby/systems/render/detail/sort_order.h"
 #include "lullaby/systems/render/mesh.h"
 #include "lullaby/systems/render/render_target.h"
 #include "lullaby/systems/render/render_types.h"
 #include "lullaby/systems/render/shader.h"
 #include "lullaby/systems/render/texture.h"
-#include "lullaby/systems/render/uniform.h"
 #include "lullaby/util/bits.h"
 #include "lullaby/generated/material_def_generated.h"
 #include "lullaby/generated/render_def_generated.h"
 #include "lullaby/generated/render_pass_def_generated.h"
 #include "lullaby/generated/render_target_def_generated.h"
+#include "lullaby/generated/shader_def_generated.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
@@ -50,7 +51,7 @@ using FontPtr = std::shared_ptr<Font>;
 // with create_mips = false.  Useful when running on ANGLE as a GL backend.
 // TODO(b/69430678): Fix the bug inside of ANGLE and eliminate this.
 const HashValue kExplicitTextureMipLevels =
-    Hash("lull.Render.ExplicitTextureMipLevels");
+    ConstHash("lull.Render.ExplicitTextureMipLevels");
 
 class RenderSystemImpl;
 
@@ -64,6 +65,15 @@ class RenderSystem : public System {
     InitParams() : native_window(nullptr), enable_stereo_multiview(false) {}
     void* native_window;
     bool enable_stereo_multiview;
+  };
+
+  /// Params describing the properties of a Group.
+  struct GroupParams {
+    GroupParams() {}
+    explicit GroupParams(int sort_order_offset)
+        : sort_order_offset(sort_order_offset) {}
+    /// Sort order offset of this Group relative to other Groups.
+    int sort_order_offset = 0;
   };
 
   // A special pass id that allows the RenderSystem to use whatever pass it
@@ -115,6 +125,14 @@ class RenderSystem : public System {
   /// Renders all objects in |views| for the specified |pass|.
   void Render(const RenderView* views, size_t num_views, HashValue pass);
 
+  /// Sets the RenderPass value to use when RenderSystem::kDefaultPass is
+  /// specified as an argument to a function.
+  void SetDefaultRenderPass(HashValue pass);
+
+  /// Returns the RenderPass that is used when RenderSystem::kDefaultPass is
+  /// specified as an argument to a function.
+  HashValue GetDefaultRenderPass() const;
+
   /// Sets |pass|'s clear params.
   void SetClearParams(HashValue pass, const RenderClearParams& clear_params);
 
@@ -123,6 +141,9 @@ class RenderSystem : public System {
 
   /// Sets |pass|'s sort mode.
   void SetSortMode(HashValue pass, SortMode mode);
+
+  /// Sets the |pass|'s sort vector (for WorldSpaceVector** sort modes).
+  void SetSortVector(HashValue pass, const mathfu::vec3& vector);
 
   /// Sets |pass|'s cull mode.
   void SetCullMode(HashValue pass, RenderCullMode mode);
@@ -150,6 +171,9 @@ class RenderSystem : public System {
 
   /// Sets the render target to be used when rendering a specific pass.
   void SetRenderTarget(HashValue pass, HashValue render_target_name);
+
+  // Gets the content of the render target on the CPU.
+  ImageData GetRenderTargetData(HashValue render_target_name);
 
   /// Creates a render target that can be used in a pass for rendering, and as a
   /// texture on top of an object.
@@ -191,9 +215,6 @@ class RenderSystem : public System {
   /// Immediately binds |uniform| on the currently bound shader.
   void BindUniform(const char* name, const float* data, int dimension);
 
-  /// Bind a uniform to the currently bound shader.
-  void BindUniform(const Uniform& uniform);
-
   /// Immediately draws |mesh|.
   void DrawMesh(const MeshData& mesh);
 
@@ -209,8 +230,10 @@ class RenderSystem : public System {
   /// the specified ComponentDef.
   void Create(Entity entity, HashValue type, const Def* def) override;
 
-  /// Creates an empty render component for an Entity. It is expected to be
-  /// populated in code.
+  /// Creates an empty render component for |entity| in |pass|. It is expected
+  /// to be populated in code. Does nothing if a render component already exists
+  /// for this |pass|. RenderSystemFpl and RenderSystemIon only support one
+  /// component per entity, so they will change an existing component to |pass|.
   void Create(Entity entity, HashValue pass);
 
   /// Performs post creation initialization.
@@ -235,6 +258,10 @@ class RenderSystem : public System {
   /// known to RenderSystem.
   HashValue GetRenderPass(Entity entity) const;
 
+  /// Returns a list of all render passes that |entity| has a component for.
+  /// Can be empty if |entity| isn't known to RenderSystem.
+  std::vector<HashValue> GetRenderPasses(Entity entity) const;
+
   /// Returns |entity|'s default color, as specified in its json.
   const mathfu::vec4& GetDefaultColor(Entity entity) const;
 
@@ -249,41 +276,45 @@ class RenderSystem : public System {
   /// Sets the shader's color uniform for the specified |entity|.
   void SetColor(Entity entity, const mathfu::vec4& color);
 
-  /// Sets a shader uniform value for the specified Entity for all passes.  The
-  /// |dimension| must be 1, 2, 3, 4, or 16. Arrays of vector with dimension 2
-  /// or 3 should contain vec2_packed or vec3_packed. The size of the |data|
-  /// array is assumed to be the same as |dimension|.
-  void SetUniform(Entity entity, const char* name, const float* data,
-                  int dimension);
+  /// Sets the |data| on the shader uniform of given |type| with the given
+  /// |name| on the |entity|.  The |count| parameter is used to specify uniform
+  /// array data.
+  void SetUniform(Entity entity, string_view name, ShaderDataType type,
+                  Span<uint8_t> data, int count = 1);
 
-  /// Sets an array of shader uniform values for the specified Entity for all
-  /// passes.  The |dimension| must be 1, 2, 3, 4, or 16. Arrays of vector with
-  /// dimension 2 or 3 should contain vec2_packed or vec3_packed.  The size of
-  /// the |data| array is assumed to be the same as |dimension| * |count|.
-  void SetUniform(Entity entity, const char* name, const float* data,
-                  int dimension, int count);
+  void SetUniform(Entity entity, string_view name, Span<float> data,
+                  int count = 1);
 
-  /// Sets an array of shader uniform values for the specified Entity identified
-  /// via |pass|.  The |dimension| must be 1, 2, 3, 4, or 16. Arrays of vector
-  /// with dimension 2 or 3 should contain vec2_packed or vec3_packed.  The size
-  /// of the |data| array is assumed to be the same as |dimension| * |count|.
-  void SetUniform(Entity entity, HashValue pass, const char* name,
-                  const float* data, int dimension, int count);
+  void SetUniform(Entity entity, string_view name, Span<int> data,
+                  int count = 1);
 
-  /// Copies the cached value of the uniform |name| into |data_out|, respecting
-  /// the |length| limit. Returns false if the value of the uniform was not
-  /// found.
-  bool GetUniform(Entity entity, const char* name, size_t length,
-                  float* data_out) const;
+  /// Same as above, but also allows the caller to specify a |pass| and/or
+  /// |submesh_index|.
+  void SetUniform(Entity entity, Optional<HashValue> pass,
+                  Optional<int> submesh_index, string_view name,
+                  ShaderDataType type, Span<uint8_t> data, int count = 1);
 
-  /// Copies an |entity|'s (associated with an |pass|) cached value of the
-  /// uniform |name| into |data_out|, respecting the |length| limit. Returns
-  /// false if the value of the uniform was not found.
-  bool GetUniform(Entity entity, HashValue pass, const char* name,
-                  size_t length, float* data_out) const;
+  /// Copies the cached value of the uniform |name| into |data_out|,
+  /// respecting the |length| limit. Returns false if the value of the uniform
+  /// was not found.
+  bool GetUniform(Entity entity, string_view name, size_t length,
+                  uint8_t* data_out) const;
+
+  /// Same as above, but also allows the caller to specify a |pass| and/or
+  /// |submesh_index|.
+  bool GetUniform(Entity entity, Optional<HashValue> pass,
+                  Optional<int> submesh_index, string_view name, size_t length,
+                  uint8_t* data_out) const;
 
   /// Makes |entity| use all the same uniform values as |source|.
   void CopyUniforms(Entity entity, Entity source);
+
+  /// Sets a callback that is invoked every time SetUniform is called.
+  using UniformChangedCallback =
+      std::function<void(int submesh_index, string_view name,
+                         ShaderDataType type, Span<uint8_t> data, int count)>;
+  void SetUniformChangedCallback(Entity entity, HashValue pass,
+                                 UniformChangedCallback callback);
 
   /// Attaches a texture to the specified Entity for all passes.
   void SetTexture(Entity entity, int unit, const TexturePtr& texture);
@@ -291,6 +322,11 @@ class RenderSystem : public System {
   /// Attaches a texture to the specified Entity for the specified pass.
   void SetTexture(Entity entity, HashValue pass, int unit,
                   const TexturePtr& texture);
+
+  /// Sets an external texture to the specified Entity for the specified pass.
+  /// This is only valid on platforms like mobile that support external
+  /// textures.
+  void SetTextureExternal(Entity e, HashValue pass, int unit);
 
   /// Loads and attaches a texture to the specified Entity for all passes.
   void SetTexture(Entity entity, int unit, const std::string& file);
@@ -327,7 +363,8 @@ class RenderSystem : public System {
 
   /// Sets the material (which is a combination of shaders, textures, render
   /// state, etc.) on the specified Entity.
-  void SetMaterial(Entity entity, int submesh_index, const MaterialInfo& info);
+  void SetMaterial(Entity entity, Optional<HashValue> pass,
+                   Optional<int> submesh_index, const MaterialInfo& info);
 
   /// Returns |entity|'s sort order.
   RenderSortOrder GetSortOrder(Entity entity) const;
@@ -356,6 +393,13 @@ class RenderSystem : public System {
   /// Returns true if all currently set assets have loaded.
   bool IsReadyToRender(Entity entity) const;
 
+  /// Returns true if all currently set assets have loaded for the pass.
+  bool IsReadyToRender(Entity entity, HashValue pass) const;
+
+  /// Executes the callback when the entity's pass is ready to render.
+  void OnReadyToRender(Entity entity, HashValue pass,
+                       const std::function<void()>& fn) const;
+
   /// Returns whether or not |e| is hidden / rendering. If the entity is not
   /// registered with the RenderSystem, this will return true.
   bool IsHidden(Entity entity) const;
@@ -382,7 +426,29 @@ class RenderSystem : public System {
   void UpdateDynamicMesh(Entity entity, MeshData::PrimitiveType primitive_type,
                          const VertexFormat& vertex_format,
                          const size_t max_vertices, const size_t max_indices,
+                         MeshData::IndexType index_type,
+                         const size_t max_ranges,
                          const std::function<void(MeshData*)>& update_mesh);
+  /// See UpdateDynamicMesh above.  Does not include support for submeshes or
+  /// 32-bit indices.
+  void UpdateDynamicMesh(Entity entity, MeshData::PrimitiveType primitive_type,
+                         const VertexFormat& vertex_format,
+                         const size_t max_vertices, const size_t max_indices,
+                         const std::function<void(MeshData*)>& update_mesh);
+
+  /// Get the id of the Group associated with |entity|, or null if no
+  /// component or Group.
+  Optional<HashValue> GetGroupId(Entity entity) const;
+
+  /// Assigns |entity| to Group |group_id| if not null.
+  void SetGroupId(Entity entity, const Optional<HashValue>& group_id);
+
+  /// Get the GroupParams for the Group |group_id|, or nullptr if it doesnt
+  /// exist.
+  const GroupParams* GetGroupParams(HashValue group_id) const;
+
+  /// Set the GroupParams for the Group |group_id|.
+  void SetGroupParams(HashValue group_id, const GroupParams& group_params);
 
   /// Returns the underlyng RenderSystemImpl (eg. RenderSystemFpl,
   /// RenderSystemIon) to expose implementation-specific behaviour depending on
@@ -392,10 +458,6 @@ class RenderSystem : public System {
   RenderSystemImpl* GetImpl();
 
   /// IMPORTANT: The following legacy functions are deprecated.
-
-  /// DEPRECATED: use Create(entity, pass) instead.
-  /// Creates an empty render component for an Entity identified by |pass|.
-  void Create(Entity entity, HashValue pass, HashValue pass_enum);
 
   /// DEPRECATED: Waits for all outstanding rendering assets to finish loading.
   void WaitForAssetsToLoad();
@@ -469,24 +531,10 @@ class RenderSystem : public System {
   /// DEPRECATED: Loads a font.
   void PreloadFont(const char* name);
 
-  /// DEPRECATED.
-  /// FPL: Loads a list of fonts.  Each glyph will check each font in the list
-  /// until it finds one that supports it.
-  /// Ion: Only the first font is loaded.
-  FontPtr LoadFonts(const std::vector<std::string>& names);
-
   /// DEPRECATED: Updates the entity to display a text string. If there is a
   /// deformation function set on this entity then the quad generation will be
   /// deferred until ProcessTasks is called.
   void SetText(Entity entity, const std::string& text);
-
-  /// DEPRECATED: Sets |font| on |entity|.  Takes effect on the next call to
-  /// SetText.
-  void SetFont(Entity entity, const FontPtr& font);
-
-  /// DEPRECATED: Sets |entity|'s text size to |size|, which measures mm between
-  /// lines.
-  void SetTextSize(Entity entity, int size);
 
   /// DEPRECATED: Copies the cached value of the |entity|'s Quad into |quad|.
   /// Returns false if no quad is found.
@@ -496,7 +544,41 @@ class RenderSystem : public System {
   /// function set on this entity then the quad generation will be deferred
   /// until ProcessTasks is called.
   void SetQuad(Entity entity, const RenderQuad& quad);
-  void SetQuad(Entity entity, HashValue pass, const RenderQuad& quad);
+
+  /// DEPRECATED: Sets a shader uniform value for the specified Entity for all
+  /// passes.  The |dimension| must be 1, 2, 3, 4, or 16. Arrays of vector with
+  /// dimension 2 or 3 should contain vec2_packed or vec3_packed. The size of
+  /// the |data| array is assumed to be the same as |dimension|.
+  void SetUniform(Entity entity, const char* name, const float* data,
+                  int dimension);
+
+  /// DEPRECATED: Sets an array of shader uniform values for the specified
+  /// Entity for all passes.  The |dimension| must be 1, 2, 3, 4, or 16. Arrays
+  /// of vector with dimension 2 or 3 should contain vec2_packed or vec3_packed.
+  /// The size of the |data| array is assumed to be the same as |dimension| *
+  /// |count|.
+  void SetUniform(Entity entity, const char* name, const float* data,
+                  int dimension, int count);
+
+  /// DEPRECATED: Sets an array of shader uniform values for the specified
+  /// Entity identified via |pass|.  The |dimension| must be 1, 2, 3, 4, or 16.
+  /// Arrays of vector with dimension 2 or 3 should contain vec2_packed or
+  /// vec3_packed.  The size of the |data| array is assumed to be the same as
+  /// |dimension| * |count|.
+  void SetUniform(Entity entity, HashValue pass, const char* name,
+                  const float* data, int dimension, int count);
+
+  /// DEPRECATED: Copies the cached value of the uniform |name| into |data_out|,
+  /// respecting the |length| limit. Returns false if the value of the uniform
+  /// was not found.
+  bool GetUniform(Entity entity, const char* name, size_t length,
+                  float* data_out) const;
+
+  /// DEPRECATED: Copies an |entity|'s (associated with an |pass|) cached value
+  /// of the uniform |name| into |data_out|, respecting the |length| limit.
+  /// Returns false if the value of the uniform was not found.
+  bool GetUniform(Entity entity, HashValue pass, const char* name,
+                  size_t length, float* data_out) const;
 
   /// DEPRECATED: Returns the number of bones associated with |entity|.
   int GetNumBones(Entity entity) const;
@@ -521,39 +603,6 @@ class RenderSystem : public System {
                          const mathfu::AffineTransform* transforms,
                          int num_transforms);
 
-  /// DEPRECATED: use DrawMesh instead.
-  /// Immediately draws a list of vertices arranged by |primitive_type|.
-  void DrawPrimitives(MeshData::PrimitiveType primitive_type,
-                      const VertexFormat& vertex_format,
-                      const void* vertex_data, size_t num_vertices);
-
-  template <typename Vertex>
-  void DrawPrimitives(MeshData::PrimitiveType primitive_type,
-                      const Vertex* vertices, size_t num_vertices);
-
-  template <typename Vertex>
-  void DrawPrimitives(MeshData::PrimitiveType primitive_type,
-                      const std::vector<Vertex>& vertices);
-
-  /// DEPRECATED: use DrawMesh instead.
-  /// Immediately draws an indexed list of vertices arranged by
-  /// |primitive_type|.
-  void DrawIndexedPrimitives(MeshData::PrimitiveType primitive_type,
-                             const VertexFormat& vertex_format,
-                             const void* vertex_data, size_t num_vertices,
-                             const uint16_t* indices, size_t num_indices);
-
-  template <typename Vertex>
-  void DrawIndexedPrimitives(MeshData::PrimitiveType primitive_type,
-                             const Vertex* vertices, size_t num_vertices,
-                             const uint16_t* indices, size_t num_indices);
-
-  template <typename Vertex>
-  void DrawIndexedPrimitives(MeshData::PrimitiveType primitive_type,
-                             const std::vector<Vertex>& vertices,
-                             const std::vector<uint16_t>& indices);
-
-  /// DEPRECATED. Returns the render state cached by the renderer.
   const fplbase::RenderState& GetCachedRenderState() const;
 
   /// DEPRECATED. Updates the render state cached in the renderer. This should
@@ -562,10 +611,6 @@ class RenderSystem : public System {
   /// Lullaby.
   void UpdateCachedRenderState(const fplbase::RenderState& render_state);
 
-  /// BEGIN-GOOGLE-INTERNAL
-  /// Loads and sets the pano on the entity.
-  void SetPano(Entity entity, const std::string& filename,
-               float heading_offset_deg);
 
   /// DEPRECATED. Type aliases for backwards compatibility.
   using Deformation = DeformationFn;
@@ -584,37 +629,95 @@ class RenderSystem : public System {
   std::unique_ptr<RenderSystemImpl> impl_;
 };
 
-template <typename Vertex>
-inline void RenderSystem::DrawPrimitives(MeshData::PrimitiveType primitive_type,
-                                         const Vertex* vertices,
-                                         size_t num_vertices) {
-  DrawPrimitives(primitive_type, Vertex::kFormat, vertices, num_vertices);
-}
+struct SetColorEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&color, ConstHash("color"));
+    archive(&int_argb, ConstHash("int_argb"));
+  }
 
-template <typename Vertex>
-inline void RenderSystem::DrawPrimitives(MeshData::PrimitiveType primitive_type,
-                                         const std::vector<Vertex>& vertices) {
-  DrawPrimitives(primitive_type, vertices.data(), vertices.size());
-}
+  Entity entity = kNullEntity;
+  mathfu::vec4 color = mathfu::kZeros4f;
+  int int_argb = 0;
+};
 
-template <typename Vertex>
-inline void RenderSystem::DrawIndexedPrimitives(
-    MeshData::PrimitiveType primitive_type, const Vertex* vertices,
-    size_t num_vertices, const uint16_t* indices, size_t num_indices) {
-  DrawIndexedPrimitives(primitive_type, Vertex::kFormat, vertices, num_vertices,
-                        indices, num_indices);
-}
+struct SetDefaultColorEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&color, ConstHash("color"));
+    archive(&int_argb, ConstHash("int_argb"));
+  }
 
-template <typename Vertex>
-inline void RenderSystem::DrawIndexedPrimitives(
-    MeshData::PrimitiveType primitive_type, const std::vector<Vertex>& vertices,
-    const std::vector<uint16_t>& indices) {
-  DrawIndexedPrimitives(primitive_type, Vertex::kFormat, vertices.data(),
-                        vertices.size(), indices.data(), indices.size());
-}
+  Entity entity = kNullEntity;
+  mathfu::vec4 color = mathfu::kZeros4f;
+  int int_argb = 0;
+};
+
+struct SetTextureIdEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&texture_target, ConstHash("texture_target"));
+    archive(&texture_id, ConstHash("texture_id"));
+  }
+
+  Entity entity = kNullEntity;
+  int32_t texture_target = 0;
+  int32_t texture_id = 0;
+};
+
+struct SetTextureEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&filename, ConstHash("filename"));
+  }
+
+  Entity entity = kNullEntity;
+  std::string filename;
+};
+
+struct SetImageEvent {
+  Entity entity = kNullEntity;
+  std::string id;
+  std::shared_ptr<ImageData> image;
+  bool create_mips = false;
+};
+
+
+struct SetSortOffsetEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&sort_offset, ConstHash("sort_offset"));
+  }
+
+  Entity entity = kNullEntity;
+  int32_t sort_offset = 0;
+};
+
+struct SetRenderPassEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&render_pass, ConstHash("render_pass"));
+  }
+
+  Entity entity = kNullEntity;
+  int32_t render_pass = -1;
+};
 
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::RenderSystem);
+LULLABY_SETUP_TYPEID(lull::SetColorEvent);
+LULLABY_SETUP_TYPEID(lull::SetDefaultColorEvent);
+LULLABY_SETUP_TYPEID(lull::SetImageEvent);
+LULLABY_SETUP_TYPEID(lull::SetRenderPassEvent);
+LULLABY_SETUP_TYPEID(lull::SetSortOffsetEvent);
+LULLABY_SETUP_TYPEID(lull::SetTextureEvent);
+LULLABY_SETUP_TYPEID(lull::SetTextureIdEvent);
 
 #endif  // LULLABY_SYSTEMS_RENDER_RENDER_SYSTEM_H_

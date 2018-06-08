@@ -46,6 +46,8 @@ class NavButtonSystem : public System {
     mathfu::vec4 label_hover_color = mathfu::kOnes4f;
     mathfu::vec4 background_color = mathfu::kOnes4f;
     mathfu::vec4 background_hover_color = mathfu::kOnes4f;
+    mathfu::vec4 icon_color = mathfu::kOnes4f;
+    mathfu::vec4 icon_hover_color = mathfu::kOnes4f;
     std::chrono::milliseconds start_hover_duration;
     std::chrono::milliseconds stop_hover_duration;
   };

@@ -1,0 +1,9 @@
+include "lull/lull_common.fbs";
+
+include "lull/blend_shape_def.fbs";
+include "lull/transform_def.fbs";
+
+union ComponentDefType {
+  lull.TransformDef,
+  lull.BlendShapeDef,
+}

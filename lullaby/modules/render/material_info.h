@@ -30,9 +30,11 @@ class MaterialInfo {
   explicit MaterialInfo(std::string shading_model)
       : shading_model_(std::move(shading_model)) {}
 
-  /// Sets all the material properties.
-  void SetProperties(VariantMap properties) {
-    properties_ = std::move(properties);
+  /// Adds the specified material properties to the material.
+  void SetProperties(const VariantMap& properties) {
+    for (auto& iter : properties) {
+      properties_.emplace(iter.first, std::move(iter.second));
+    }
   }
 
   /// Associates a texture usage with a texture name that can be retrieved from
@@ -40,6 +42,9 @@ class MaterialInfo {
   void SetTexture(MaterialTextureUsage usage, std::string texture) {
     textures_[usage] = std::move(texture);
   }
+
+  /// Sets the Shading Model to be used by the material.
+  void SetShadingModel(std::string model) { shading_model_ = std::move(model); }
 
   /// Returns the Shading Model to be used by the material.
   const std::string& GetShadingModel() const { return shading_model_; }
@@ -66,15 +71,18 @@ class MaterialInfo {
     return default_value;
   }
 
+  /// Returns the entire list of material properties.
+  const VariantMap& GetProperties() const { return properties_; }
+
   /// Returns the texture name associated with the given texture usage.
   const std::string& GetTexture(MaterialTextureUsage usage) const {
     return textures_[usage];
   }
 
  private:
-  const std::string shading_model_;
+  std::string shading_model_;
   VariantMap properties_;
-  std::string textures_[MaterialTextureUsage_MAX];
+  std::string textures_[MaterialTextureUsage_MAX + 1];
 };
 
 }  // namespace lull

@@ -1,40 +1,8 @@
+include "lull/axis_system.fbs";
 include "lull/material_def.fbs";
 include "lull/vertex_attribute_def.fbs";
 
 namespace lull;
-
-/// List of different ways to interpret the orientation axis of an asset when
-/// importing it.
-enum AxisSystem : int {
-  Unspecified = -1,
-
-  XUp_YFront_ZLeft,
-  XUp_YFront_ZRight,
-  XUp_YBack_ZLeft,
-  XUp_YBack_ZRight,
-  XUp_ZFront_YLeft,
-  XUp_ZFront_YRight,
-  XUp_ZBack_YLeft,
-  XUp_ZBack_YRight,
-
-  YUp_XFront_ZLeft,
-  YUp_XFront_ZRight,
-  YUp_XBack_ZLeft,
-  YUp_XBack_ZRight,
-  YUp_ZFront_XLeft,
-  YUp_ZFront_XRight,
-  YUp_ZBack_XLeft,
-  YUp_ZBack_XRight,
-
-  ZUp_XFront_YLeft,
-  ZUp_XFront_YRight,
-  ZUp_XBack_YLeft,
-  ZUp_XBack_YRight,
-  ZUp_YFront_XLeft,
-  ZUp_YFront_XRight,
-  ZUp_YBack_XLeft,
-  ZUp_YBack_XRight,
-}
 
 /// Information about how to import an asset into the model_pipeline.
 table ModelPipelineImportDef {
@@ -54,6 +22,23 @@ table ModelPipelineImportDef {
 
   /// The axis system used by the model asset.
   axis_system: AxisSystem = Unspecified;
+
+  /// The limit angle (in degrees) between two normals being considered for
+  /// tangent space smoothing.
+  smoothing_angle : float = 45;
+
+  /// Limit per-vertex bone weights to the N most significant bones.
+  max_bone_weights : int = 4;
+
+  /// some clients do not use LOG to report errors
+  report_errors_to_stdout : bool = false;
+
+  /// Inverts vertical texture coordinates when enabled (D3D/OGL difference).
+  flip_texture_coordinates : bool = false;
+
+  /// Pre-transforms vertices by their node hierarchy so that all vertices are
+  /// in the same object-space, and the node hierarchy is flattened.
+  flatten_hierarchy_and_transform_vertices_to_root_space : bool = false;
 }
 
 /// Information about a renderable model.

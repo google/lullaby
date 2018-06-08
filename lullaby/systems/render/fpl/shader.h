@@ -20,6 +20,7 @@ limitations under the License.
 #include <memory>
 #include "fplbase/renderer.h"
 #include "fplbase/shader.h"
+#include "lullaby/systems/render/fpl/uniform.h"
 #include "lullaby/systems/render/shader.h"
 
 namespace lull {
@@ -49,6 +50,9 @@ class Shader {
   // Binds the shader (ie. glUseProgram) for rendering.  Common uniform values
   // are automatically updated from the FPL Renderer instance.
   void Bind();
+
+  // Binds a uniform.
+  void BindUniform(const Uniform& uniform) const;
 
  private:
   ShaderImplPtr impl_;

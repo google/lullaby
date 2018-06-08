@@ -37,7 +37,7 @@ namespace {
 
 constexpr const char* kGutterUniform = "slider_value";
 
-const HashValue kSliderDefHash = Hash("SliderDef");
+const HashValue kSliderDefHash = ConstHash("SliderDef");
 
 }  // namespace
 

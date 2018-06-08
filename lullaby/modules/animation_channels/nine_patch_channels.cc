@@ -21,9 +21,10 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue NinePatchSizeChannel::kChannelName = Hash("nine-patch-size");
+const HashValue NinePatchSizeChannel::kChannelName =
+    ConstHash("nine-patch-size");
 const HashValue NinePatchOriginalSizeChannel::kChannelName =
-    Hash("nine-patch-original-size");
+    ConstHash("nine-patch-original-size");
 
 NinePatchSizeChannel::NinePatchSizeChannel(Registry* registry, size_t pool_size)
     : AnimationChannel(registry, 2, pool_size),

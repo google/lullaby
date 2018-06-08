@@ -1,0 +1,13 @@
+// This is not a complete schema and is only meant to be used by the
+// generate_entity_schema build extension.
+
+table ComponentDef {
+  def: ComponentDefType;
+}
+
+table EntityDef {
+  components: [ComponentDef];
+  children: [EntityDef];
+}
+
+root_type EntityDef;

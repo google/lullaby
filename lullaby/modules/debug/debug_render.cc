@@ -54,6 +54,15 @@ class DebugRender {
   void AddQuad2D(const string_view tag, Color4ub color, float x, float y,
                  float w, float h, const TexturePtr& texture);
 
+  // Adds a 2D screen-space quad to the debug render queue, using pixel units.
+  // * Origin is at the top-left and position is in pixel units.
+  // * UVs default to the [0, 1] range.
+  void AddQuad2DAbsolute(
+      string_view tag, const mathfu::vec4& color,
+      const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+      const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+      const TexturePtr& texture);
+
   // Swaps write and read buffers.
   void Swap();
 
@@ -71,15 +80,19 @@ class DebugRender {
     kLine,
     kText2D,
     kQuad2D,
+    kQuad2DAbsolute,
   };
 
+  // TODO(b/109863487): Use a union or type-specific structures to save space.
   struct DrawElement {
     string_view tag;
     mathfu::mat4 world_from_object_matrix;
+    mathfu::vec3 pos0;
     mathfu::vec3 pos1;
-    mathfu::vec3 pos2;
+    mathfu::vec2 uv0;
+    mathfu::vec2 uv1;
     Aabb box;
-    Color4ub color;
+    mathfu::vec4 color;
     TexturePtr texture;
     char text[kMaxTextLength];
     Type type;
@@ -116,9 +129,9 @@ void DebugRender::AddLine(const string_view tag,
   IsEnabled(tag);
   DebugRender::DrawElement element;
   element.tag = tag;
-  element.pos1 = start_point;
-  element.pos2 = end_point;
-  element.color = color;
+  element.pos0 = start_point;
+  element.pos1 = end_point;
+  element.color = Color4ub::ToVec4(color);
   element.type = DebugRender::Type::kLine;
 
   Lock lock(mutex_);
@@ -143,8 +156,8 @@ void DebugRender::AddText3D(const string_view tag, const mathfu::vec3& pos,
   IsEnabled(tag);
   DebugRender::DrawElement element;
   element.tag = tag;
-  element.pos1 = pos;
-  element.color = color;
+  element.pos0 = pos;
+  element.color = Color4ub::ToVec4(color);
   strncpy(element.text, text, sizeof(element.text));
   element.type = DebugRender::Type::kText3D;
 
@@ -158,7 +171,7 @@ void DebugRender::AddText2D(const string_view tag, const Color4ub color,
   IsEnabled(tag);
   DebugRender::DrawElement element;
   element.tag = tag;
-  element.color = color;
+  element.color = Color4ub::ToVec4(color);
   strncpy(element.text, text, sizeof(element.text));
   element.type = DebugRender::Type::kText2D;
 
@@ -175,7 +188,7 @@ void DebugRender::AddBox3D(const string_view tag,
   element.tag = tag;
   element.world_from_object_matrix = world_from_object_matrix;
   element.box = box;
-  element.color = color;
+  element.color = Color4ub::ToVec4(color);
   element.type = DebugRender::Type::kBox3D;
 
   Lock lock(mutex_);
@@ -189,11 +202,32 @@ void DebugRender::AddQuad2D(const string_view tag, Color4ub color, float x,
   IsEnabled(tag);
   DebugRender::DrawElement element;
   element.tag = tag;
-  element.pos1 = mathfu::vec3(x, y, 0);
-  element.pos2 = mathfu::vec3(w, h, 0);
-  element.color = color;
+  element.pos0 = mathfu::vec3(x, y, 0);
+  element.pos1 = mathfu::vec3(w, h, 0);
+  element.color = Color4ub::ToVec4(color);
   element.texture = texture;
   element.type = DebugRender::Type::kQuad2D;
+
+  Lock lock(mutex_);
+  const int write_index = 1 - read_index_;
+  buffers_[write_index].emplace_back(element);
+}
+
+void DebugRender::AddQuad2DAbsolute(
+    string_view tag, const mathfu::vec4& color,
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+    const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture) {
+  IsEnabled(tag);
+  DebugRender::DrawElement element;
+  element.tag = tag;
+  element.pos0 = mathfu::vec3(pixel_pos0.x, pixel_pos0.y, 0.0f);
+  element.pos1 = mathfu::vec3(pixel_pos1.x, pixel_pos1.y, 0.0f);
+  element.uv0 = uv0;
+  element.uv1 = uv1;
+  element.color = color;
+  element.texture = texture;
+  element.type = DebugRender::Type::kQuad2DAbsolute;
 
   Lock lock(mutex_);
   const int write_index = 1 - read_index_;
@@ -208,26 +242,34 @@ void DebugRender::Swap() {
 void DebugRender::Submit() {
   Swap();
   std::vector<DrawElement>& curr_buffer = buffers_[read_index_];
-  std::sort(curr_buffer.begin(), curr_buffer.end());
+  std::stable_sort(curr_buffer.begin(), curr_buffer.end());
   for (DrawElement& element : curr_buffer) {
     if (IsEnabled(element.tag)) {
+      const mathfu::vec4& color = element.color;
       switch (element.type) {
         case DebugRender::Type::kLine:
-          draw_->DrawLine(element.pos1, element.pos2, element.color);
+          draw_->DrawLine(element.pos0, element.pos1, lull::Color4ub(color));
           break;
         case DebugRender::Type::kText3D:
-          draw_->DrawText3D(element.pos1, element.color, element.text);
+          draw_->DrawText3D(element.pos0, lull::Color4ub(color), element.text);
           break;
         case DebugRender::Type::kBox3D:
           draw_->DrawBox3D(element.world_from_object_matrix, element.box,
-                           element.color);
+                           lull::Color4ub(color));
           break;
         case DebugRender::Type::kText2D:
-          draw_->DrawText2D(element.color, element.text);
+          draw_->DrawText2D(lull::Color4ub(color), element.text);
           break;
         case DebugRender::Type::kQuad2D:
-          draw_->DrawQuad2D(element.color, element.pos1.x, element.pos1.y,
-                            element.pos2.x, element.pos2.y, element.texture);
+          draw_->DrawQuad2D(lull::Color4ub(color),
+                            element.pos0.x, element.pos0.y,
+                            element.pos1.x, element.pos1.y, element.texture);
+          break;
+        case DebugRender::Type::kQuad2DAbsolute:
+          draw_->DrawQuad2DAbsolute(color,
+                                    element.pos0.xy(), element.uv0,
+                                    element.pos1.xy(), element.uv1,
+                                    element.texture);
           break;
       }
     }
@@ -297,6 +339,50 @@ void DrawQuad2D(const char* tag_name, Color4ub color, float x, float y, float w,
   if (gDebugRender) {
     gDebugRender->AddQuad2D(tag_name, color, x, y, w, h, texture);
   }
+}
+
+void DrawQuad2DAbsolute(
+    const char* tag_name, const mathfu::vec4& color,
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+    const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture) {
+  if (gDebugRender) {
+    gDebugRender->AddQuad2DAbsolute(
+        tag_name, color, pixel_pos0, uv0, pixel_pos1, uv1, texture);
+  }
+}
+
+void DrawQuad2DAbsolute(const char* tag_name,
+                      const mathfu::vec4& color,
+                      const mathfu::vec2& pixel_pos0,
+                      const mathfu::vec2& pixel_pos1,
+                      const TexturePtr& texture) {
+  DrawQuad2DAbsolute(tag_name, color,
+                     pixel_pos0, mathfu::kZeros2f,
+                     pixel_pos1, mathfu::kOnes2f,
+                     texture);
+}
+
+void DrawQuad2DAbsolute(
+    const char* tag_name, Color4ub color,
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+    const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture) {
+  DrawQuad2DAbsolute(tag_name, Color4ub::ToVec4(color),
+                     pixel_pos0, uv0,
+                     pixel_pos1, uv1,
+                     texture);
+}
+
+void DrawQuad2DAbsolute(
+    const char* tag_name, Color4ub color,
+    const mathfu::vec2& pixel_pos0,
+    const mathfu::vec2& pixel_pos1,
+    const TexturePtr& texture) {
+  DrawQuad2DAbsolute(tag_name, Color4ub::ToVec4(color),
+                     pixel_pos0, mathfu::kZeros2f,
+                     pixel_pos1, mathfu::kOnes2f,
+                     texture);
 }
 
 void Submit() {

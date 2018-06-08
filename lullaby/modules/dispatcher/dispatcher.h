@@ -84,19 +84,17 @@ namespace lull {
 ///
 /// Alternatively, clients can provide an additional "owner" const void* tag
 /// when connecting to a Dispatcher.  In this case, a non-scoped Connection
-/// object is returned.  The client can then either call Disconnect on the
-/// Connection object, or disconnect from the Dispatcher using the same "owner"
-/// pointer as a way to identify the connection to close.  A single "owner"
-/// pointer can be associated with multiple connections.
+/// object is returned.  The client can then call Disconnect on the Connection
+/// object, use Dispatcher's Disconnect with the object's ConnectionId, or
+/// disconnect from the Dispatcher using the same "owner" pointer as a way to
+/// identify the connection to close.  A single "owner" pointer can be
+/// associated with multiple connections.
 ///
 /// In addition to sending/receiving concrete Event types, clients can connect
 /// and send EventWrapper objects directly.  This allows clients to process
 /// events in a more generic way.
 class Dispatcher {
  private:
-  /// Unique identifier given to each connection.
-  typedef uint32_t ConnectionId;
-
   /// Internal class that stores the map of TypeId to EventHandlers (and
   /// associated typedefs).
   class EventHandlerMap;
@@ -104,6 +102,8 @@ class Dispatcher {
   typedef std::weak_ptr<EventHandlerMap> EventHandlerMapWeakPtr;
 
  public:
+  /// Unique identifier given to each connection.
+  typedef uint32_t ConnectionId;
   /// The underlying functor used for handling events.
   using EventHandler = std::function<void(const EventWrapper&)>;
 
@@ -118,6 +118,9 @@ class Dispatcher {
     /// Disconnect event handler from the dispatcher.  It is safe to call this
     /// function multiple times.
     void Disconnect();
+
+    /// Get the ConnectionId that can be passed to Dispatcher::Disconnect()
+    ConnectionId GetId() const;
 
    private:
     TypeId type_;
@@ -169,6 +172,10 @@ class Dispatcher {
   /// with the same TypeId as the EventWrapper.
   void Send(const EventWrapper& event);
 
+  /// Same as the above Send function, but this will be sent immediately
+  /// regardless of thread safety, order, etc.
+  void SendImmediately(const EventWrapper& event);
+
   /// Connects the |handler| to listen to events, where the type of event is
   /// specified by the signature of the |handler| (eg. void(const Event&));
   /// Returns: ScopedConnection which will automatically disconnect the function
@@ -209,6 +216,9 @@ class Dispatcher {
   /// associated with the specified |owner|.
   void Disconnect(TypeId type, const void* owner);
 
+  /// Disconnect the connection with specified |type| and |id|.
+  void Disconnect(TypeId type, ConnectionId id);
+
   /// Disconnects all functions with the specified |owner|.
   void DisconnectAll(const void* owner);
 
@@ -218,22 +228,22 @@ class Dispatcher {
   /// Returns the number of functions listening for an event of |type|.
   size_t GetHandlerCount(TypeId type) const;
 
+  /// Helper function declaration that is used to extract the Event type from
+  /// an event handler.
+  template <typename Fn, typename Arg>
+  static Arg ConnectHelper(void (Fn::*)(const Arg&) const);
+
+  /// Mutable helper function declaration that is used to extract the Event type
+  /// from an event handler.
+  template <typename Fn, typename Arg>
+  static Arg ConnectHelper(void (Fn::*)(const Arg&));
+
  protected:
   /// Passes the EventWrapper to all the functions Connected with the Dispatcher
   /// with the same TypeId as the EventWrapper.
   virtual void SendImpl(const EventWrapper& event);
 
  private:
-  /// Helper function declaration that is used to extract the Event type from
-  /// an event handler.
-  template <typename Fn, typename Arg>
-  Arg ConnectHelper(void (Fn::*)(const Arg&) const);
-
-  /// Mutable helper function declaration that is used to extract the Event type
-  /// from an event handler.
-  template <typename Fn, typename Arg>
-  Arg ConnectHelper(void (Fn::*)(const Arg&));
-
   /// Creates the actual Handler instance, registers it with the map, and
   /// returns the corresponding Connection object.
   Connection ConnectImpl(TypeId type, const void* owner, EventHandler handler);

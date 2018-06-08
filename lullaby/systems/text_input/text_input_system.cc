@@ -45,10 +45,10 @@ size_t GetCaretIndexFromPosition(const std::vector<mathfu::vec3>* positions,
   }
 
   size_t min_index = 0;
-  float min_dist = lull::DistanceBetween(target, (*positions)[0]);
+  float min_dist = mathfu::vec3::Distance(target, (*positions)[0]);
 
   for (size_t i = 1; i < positions->size(); ++i) {
-    const float dist = lull::DistanceBetween(target, (*positions)[i]);
+    const float dist = mathfu::vec3::Distance(target, (*positions)[i]);
     if (min_dist > dist) {
       min_dist = dist;
       min_index = i;
@@ -60,7 +60,7 @@ size_t GetCaretIndexFromPosition(const std::vector<mathfu::vec3>* positions,
 }  // namespace
 
 namespace lull {
-const HashValue kTextInputDefHash = Hash("TextInputDef");
+const HashValue kTextInputDefHash = ConstHash("TextInputDef");
 TextInputSystem::TextInput::TextInput(Entity e) : Component(e) {}
 
 TextInputSystem::TextInputSystem(Registry* registry)
@@ -200,31 +200,29 @@ void TextInputSystem::Deactivate() {
 }
 
 void TextInputSystem::AdvanceFrame(const Clock::duration& delta_time) {
-  auto input_manager = registry_->Get<InputManager>();
-  if (!input_manager->IsConnected(InputManager::kKeyboard)) {
-    return;
-  }
-
   auto input = inputs_.Get(active_input_);
   if (!input) {
     return;
   }
 
-  auto keys = input_manager->GetPressedKeys(InputManager::kKeyboard);
-  bool text_changed = false;
-  for (const std::string& key : keys) {
-    if (key == InputManager::kKeyBackspace) {
-      text_changed = input->text.Backspace();
-    } else if (key == InputManager::kKeyReturn) {
-      input->text.ClearComposingRegion();
-      AcceptText(active_input_);
-    } else {
-      text_changed = input->text.Insert(key);
+  auto input_manager = registry_->Get<InputManager>();
+  if (input_manager->IsConnected(InputManager::kKeyboard)) {
+    auto keys = input_manager->GetPressedKeys(InputManager::kKeyboard);
+    bool text_changed = false;
+    for (const std::string& key : keys) {
+      if (key == InputManager::kKeyBackspace) {
+        text_changed = input->text.Backspace();
+      } else if (key == InputManager::kKeyReturn) {
+        input->text.ClearComposingRegion();
+        AcceptText(active_input_);
+      } else {
+        text_changed = input->text.Insert(key);
+      }
     }
-  }
 
-  if (!keys.empty() && text_changed) {
-    UpdateText(active_input_);
+    if (!keys.empty() && text_changed) {
+      UpdateText(active_input_);
+    }
   }
 
   if (caret_animator_) {
@@ -248,6 +246,8 @@ void TextInputSystem::AcceptText(Entity e) {
     dispatcher->Send(e, event);
   }
 }
+
+void TextInputSystem::AcceptText() { return AcceptText(active_input_); }
 
 void TextInputSystem::SendTextChangedEvent() {
   auto input = inputs_.Get(active_input_);
@@ -345,6 +345,11 @@ void TextInputSystem::GetSelectionIndices(size_t* start_index,
 
 void TextInputSystem::SetSelectionIndices(Entity e, size_t start_index,
                                           size_t end_index) {
+  if (start_index == end_index) {
+    SetCaretIndex(e, start_index);
+    return;
+  }
+
   TextInput* input = inputs_.Get(e);
   if (!input) {
     return;

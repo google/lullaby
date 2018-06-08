@@ -23,7 +23,7 @@ limitations under the License.
 namespace lull {
 
 const HashValue ScrollViewOffsetChannel::kChannelName =
-    Hash("scroll-view-offset");
+    ConstHash("scroll-view-offset");
 
 ScrollViewOffsetChannel::ScrollViewOffsetChannel(Registry* registry,
                                                  size_t pool_size)

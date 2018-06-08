@@ -96,7 +96,7 @@ bool MeshData::AddIndex(uint32_t index) {
     indexed = index_range_data_.Append(reinterpret_cast<const uint8_t*>(&range),
                                        sizeof(range));
     if (!indexed) {
-      LOG(DFATAL) << "Could not append indices to mesh.";
+      LOG(DFATAL) << "Could not append ranges to mesh.";
       return false;
     }
   }

@@ -55,6 +55,12 @@ table NavButtonDef {
   /// When these events are received, if the event contains a "icon" string
   /// variant, it will set the texture on the icon.
   set_icon_events: [EventDef];
+
+  /// Background texture to be displayed.
+  background: string;
+
+  /// Color to animate the icon to on hover.
+  icon_hover_color_hex: string;
 }
 
 root_type NavButtonDef;

@@ -146,6 +146,7 @@ class TextInputSystem : public System {
   // Makes the current text the accepted text and broadcasts the appropriate
   // events.
   void AcceptText(Entity e);
+  void AcceptText();
 
   // Returns true if there is active input field currrently.
   bool HasActiveInput() const;

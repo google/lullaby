@@ -37,10 +37,10 @@ struct AnimationCompleteEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&id, Hash("id"));
+    archive(&target, ConstHash("target"));
+    archive(&id, ConstHash("id"));
     int r = static_cast<int>(reason);
-    archive(&r, Hash("reason"));
+    archive(&r, ConstHash("reason"));
   }
 
   Entity target = kNullEntity;
@@ -55,7 +55,7 @@ struct CancelAllAnimationsEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&entity, Hash("entity"));
+    archive(&entity, ConstHash("entity"));
   }
 
   Entity entity = kNullEntity;

@@ -1,0 +1,32 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "jpeg",
+    srcs = glob([
+        "*.c",
+    ], exclude = [
+        "jstdhuff.c",
+        "jccolext.c",
+        "jdcolext.c",
+        "jdmrg565.c",
+        "jdmrgext.c",
+        "jdcol565.c",
+        "turbojpeg-jni.c",
+        "tjunittest.c",
+    ]),
+    hdrs = glob([
+        "*.h",
+        "jstdhuff.c",
+        "jccolext.c",
+        "jdcolext.c",
+        "jdmrg565.c",
+        "jdmrgext.c",
+        "jdcol565.c",
+    ]),
+    includes = ["."],
+    deps = [
+        "@//third_party/libjpeg_turbo:config",
+    ],
+)

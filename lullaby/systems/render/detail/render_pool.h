@@ -20,6 +20,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/optional.h"
 
 namespace lull {
 namespace detail {
@@ -96,8 +97,16 @@ class RenderPool {
   // accordingly.
   void SetSortMode(SortMode mode);
 
+  // Sets the world-space vector along which entities will be sorted when using
+  // the WorldSpaceVector** sort mode variants.
+  void SetSortVector(const mathfu::vec3& vector);
+
   // Returns the pool's sort mode.
   SortMode GetSortMode() const { return sort_mode_; }
+
+  // Returns the pool's sort vector or an unset optional when the sort mode is
+  // not one of the WorldSpaceVector** variants.
+  Optional<mathfu::vec3> GetSortVector() const;
 
  private:
   void SyncTransformFlag() const;
@@ -105,6 +114,7 @@ class RenderPool {
   Registry* registry_;
   ComponentPool<Component> components_;
   SortMode sort_mode_;
+  mathfu::vec3 sort_vector_;
   RenderCullMode cull_mode_;
   mutable TransformSystem::TransformFlags transform_flag_;
 };
@@ -114,6 +124,7 @@ RenderPool<Component>::RenderPool(Registry* registry, size_t page_size)
     : registry_(registry),
       components_(page_size),
       sort_mode_(SortMode_None),
+      sort_vector_(mathfu::kAxisZ3f),
       cull_mode_(RenderCullMode::kNone),
       transform_flag_(TransformSystem::kInvalidFlag) {}
 
@@ -131,6 +142,21 @@ void RenderPool<Component>::SetSortMode(SortMode mode) {
     sort_mode_ = mode;
     SyncTransformFlag();
   }
+}
+
+template <typename Component>
+void RenderPool<Component>::SetSortVector(const mathfu::vec3& vector) {
+  sort_vector_ = vector;
+}
+
+template <typename Component>
+Optional<mathfu::vec3> RenderPool<Component>::GetSortVector() const {
+  Optional<mathfu::vec3> vector;
+  if (sort_mode_ == SortMode_WorldSpaceVectorBackToFront ||
+      sort_mode_ == SortMode_WorldSpaceVectorFrontToBack) {
+    vector = sort_vector_;
+  }
+  return vector;
 }
 
 template <typename Component>

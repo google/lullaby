@@ -113,7 +113,6 @@ class ReticleSystem : public System {
                                InputFocus* focus);
 
   std::unique_ptr<Reticle> reticle_;
-  std::unique_ptr<StandardInputPipeline> pipeline_;
 };
 
 }  // namespace lull

@@ -27,7 +27,7 @@ limitations under the License.
 
 namespace lull {
 
-static const HashValue kNinePatchDefHash = Hash("NinePatchDef");
+static const HashValue kNinePatchDefHash = ConstHash("NinePatchDef");
 
 NinePatchSystem::NinePatchSystem(Registry* registry)
     : System(registry), nine_patches_(16) {

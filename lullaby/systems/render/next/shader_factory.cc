@@ -21,6 +21,7 @@ limitations under the License.
 #include "lullaby/systems/render/next/detail/glplatform.h"
 #include "lullaby/systems/render/next/gl_helpers.h"
 #include "lullaby/systems/render/next/mesh.h"
+#include "lullaby/util/flatbuffer_reader.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {
@@ -46,7 +47,7 @@ void ReleaseShadersArray(Span<ShaderHnd> shaders) {
   }
 }
 
-ShaderUniformDefT CreateUniformDef(const char* name, ShaderUniformType type,
+ShaderUniformDefT CreateUniformDef(const char* name, ShaderDataType type,
                                    unsigned int array_size) {
   ShaderUniformDefT uniform_def;
   uniform_def.name = name;
@@ -56,151 +57,61 @@ ShaderUniformDefT CreateUniformDef(const char* name, ShaderUniformType type,
   return uniform_def;
 }
 
-const ShaderUniformDefT* FindShaderUniformDefByName(
-    const std::vector<ShaderUniformDefT>& uniforms, const std::string& name) {
-  for (const auto& it : uniforms) {
-    if (it.name == name) {
-      return &it;
-    }
+HashValue HashLoadParams(const ShaderCreateParams& params) {
+  HashValue hash = Hash(params.shading_model);
+  for (const HashValue it : params.environment) {
+    hash ^= it;
   }
-  return nullptr;
+  for (const auto& it : params.features) {
+    hash ^= it;
+  }
+  return hash;
 }
-
-const ShaderVertexAttributeDefT* FindShaderVertexAttributeDefByName(
-    const std::vector<ShaderVertexAttributeDefT>& attributes,
-    const std::string& name) {
-  for (const auto& it : attributes) {
-    if (it.name == name) {
-      return &it;
-    }
-  }
-  return nullptr;
-}
-
-bool CompareShaderDataDef(const ShaderDataDefT& lhs,
-                          const ShaderDataDefT& rhs) {
-  if (lhs.type != rhs.type) {
-    return false;
-  } else if (lhs.array_size != rhs.array_size) {
-    return false;
-  } else if (lhs.fields.size() != rhs.fields.size()) {
-    return false;
-  }
-
-  for (size_t i = 0; i < lhs.fields.size(); ++i) {
-    if (!CompareShaderDataDef(lhs.fields[i], rhs.fields[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool CompareShaderUniformDefs(const ShaderUniformDefT& lhs,
-                              const ShaderUniformDefT& rhs) {
-  if (lhs.type != rhs.type) {
-    return false;
-  } else if (lhs.array_size != rhs.array_size) {
-    return false;
-  } else if (lhs.fields.size() != rhs.fields.size()) {
-    return false;
-  }
-  for (size_t i = 0; i < lhs.fields.size(); ++i) {
-    if (!CompareShaderDataDef(lhs.fields[i], rhs.fields[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool CompareShaderVertexAttributeDefs(const ShaderVertexAttributeDefT& lhs,
-                                      const ShaderVertexAttributeDefT& rhs) {
-  return lhs.type == rhs.type && lhs.usage == rhs.usage;
-}
-
 }  // namespace
 
 ShaderFactory::ShaderFactory(Registry* registry) : registry_(registry) {}
 
-ShaderPtr ShaderFactory::LoadShader(const std::string& filename) {
-  const HashValue key = Hash(filename.c_str());
+ShaderPtr ShaderFactory::LoadShader(const ShaderCreateParams& params) {
+  const HashValue key = HashLoadParams(params);
+
   ShaderPtr shader =
-      shaders_.Create(key, [this, &filename]() { return LoadImpl(filename); });
+      shaders_.Create(key, [this, &params]() { return LoadImpl(params); });
   shaders_.Release(key);
   return shader;
 }
 
-ShaderPtr ShaderFactory::LoadShaderFromDef(const ShaderDefT& shader_def) {
-  // Shader sanitization variable used later inside the for loop.
-  const std::string max_uniform_components =
-      "MAX_VERTEX_UNIFORM_COMPONENTS " +
-      std::to_string(GlMaxVertexUniformComponents());
-  string_view defines[] = {
-    max_uniform_components
-  };
+ShaderPtr ShaderFactory::LoadImpl(const ShaderCreateParams& params) {
+  ShaderPtr shader =
+      LoadLullShaderImpl(params.shading_model + ".lullshader", params);
+  if (shader) {
+    return shader;
+  }
+  return LoadFplShaderImpl(params.shading_model + ".fplshader");
+}
 
-  // Shader information for constructing the shadeers.
-  std::array<ShaderHnd, ShaderStageType_MAX + 1> shader_handles;
-  Shader::Description shader_description;
+ShaderPtr ShaderFactory::LoadShaderFromDef(const ShaderDefT& shader_def,
+                                           const ShaderCreateParams& params) {
+  // Pass the shader def through the assembler.
+  const ShaderData shader_data(shader_def, params);
+  if (!shader_data.IsValid()) {
+    LOG(DFATAL) << "Failed to proces shader.";
+    return nullptr;
+  }
 
-  // Link the shader stages.
-  for (const auto& stage : shader_def.stages) {
-    if (shader_handles[stage.type]) {
-      LOG(DFATAL) << "Shader with two stages of the same type.";
-      ReleaseShadersArray(shader_handles);
-      return nullptr;
+  // Construct the shader handles.
+  std::array<ShaderHnd, ShaderData::kNumStages> shader_handles;
+  for (int i = static_cast<int>(ShaderStageType_MIN);
+       i <= static_cast<int>(ShaderStageType_MAX); ++i) {
+    const ShaderStageType shader_stage = static_cast<ShaderStageType>(i);
+    if (!shader_data.HasStage(shader_stage)) {
+      continue;
     }
-
-    // Assemble the shader stage from its snippets.
-    std::string stage_src = "";
-    for (const auto& snippet : stage.snippets) {
-      // Construct the source code for the stage.
-      if (!snippet.code.empty()) {
-        stage_src.append(snippet.code);
-      }
-
-      // Add the uniforms to the shader description.
-      for (const auto& uniform : snippet.uniforms) {
-        // Check for an existing uniform with the same name and that they match
-        // in definition.
-        const ShaderUniformDefT* stored_uniform = FindShaderUniformDefByName(
-            shader_description.uniforms, uniform.name);
-        if (stored_uniform &&
-            !CompareShaderUniformDefs(*stored_uniform, uniform)) {
-          LOG(DFATAL) << "Snippets contain uniforms with same name ("
-                      << uniform.name << ") but different definitions.";
-          ReleaseShadersArray(shader_handles);
-          return nullptr;
-        }
-        shader_description.uniforms.push_back(uniform);
-      }
-
-      // Add the vertex attributes to the shader description.
-      for (const auto& attribute : snippet.attributes) {
-        // Check for an existing attribute with the same name and that they
-        // match in definition.
-        const ShaderVertexAttributeDefT* stored_attribute =
-            FindShaderVertexAttributeDefByName(shader_description.attributes,
-                                               attribute.name);
-        if (stored_attribute &&
-            !CompareShaderVertexAttributeDefs(*stored_attribute, attribute)) {
-          LOG(DFATAL) << "Snippets contain vertex attributes with same name ("
-                      << attribute.name << ") but different definitions.";
-          ReleaseShadersArray(shader_handles);
-          return nullptr;
-        }
-        shader_description.attributes.push_back(attribute);
-      }
-    }
-
-    // Perform shader sanitization.
-    const std::string sanitized_stage_source =
-      SanitizeShaderSource(stage_src, GetShaderProfile(), defines);
 
     // Compile the shader stage.
-    shader_handles[stage.type] =
-        CompileShader(sanitized_stage_source.c_str(), stage.type);
-    if (!shader_handles[stage.type]) {
-      LOG(DFATAL) << "Failed to compile shader stage " << stage.type;
+    shader_handles[shader_stage] = CompileShader(
+        shader_data.GetStageCode(shader_stage).c_str(), shader_stage);
+    if (!shader_handles[shader_stage]) {
+      LOG(DFATAL) << "Failed to compile shader stage " << shader_stage;
       ReleaseShadersArray(shader_handles);
       return nullptr;
     }
@@ -227,7 +138,7 @@ ShaderPtr ShaderFactory::LoadShaderFromDef(const ShaderDefT& shader_def) {
   }
 
   // Initialize and return the shader.
-  ShaderPtr shader = std::make_shared<Shader>(std::move(shader_description));
+  ShaderPtr shader = std::make_shared<Shader>(shader_data.GetDescription());
   shader->Init(program, shader_handles[ShaderStageType_Vertex],
                shader_handles[ShaderStageType_Fragment]);
   return shader;
@@ -245,12 +156,33 @@ void ShaderFactory::ReleaseShaderFromCache(HashValue key) {
   shaders_.Release(key);
 }
 
-ShaderPtr ShaderFactory::LoadImpl(const std::string& filename) {
+ShaderPtr ShaderFactory::LoadLullShaderImpl(const std::string& filename,
+                                            const ShaderCreateParams& params) {
+  auto* asset_loader = registry_->Get<AssetLoader>();
+  auto asset = asset_loader->LoadNow<SimpleAsset>(filename);
+  if (!asset || asset->GetSize() == 0) {
+    return nullptr;
+  }
+  const ShaderDef* shader_flatbuffer =
+      flatbuffers::GetRoot<ShaderDef>(asset->GetData());
+  if (!shader_flatbuffer) {
+    return nullptr;
+  }
+
+  // TODO(b/73493108): Read shader from flatbuffer table instead of ShaderDefT.
+#ifdef SHADER_DEBUG
+  LOG(INFO) << "Building shader: " << filename << ".";
+#endif
+  ShaderDefT shader_def;
+  ReadFlatbuffer(&shader_def, shader_flatbuffer);
+  return LoadShaderFromDef(shader_def, params);
+}
+
+ShaderPtr ShaderFactory::LoadFplShaderImpl(const std::string& filename) {
   auto* asset_loader = registry_->Get<AssetLoader>();
   auto asset = asset_loader->LoadNow<SimpleAsset>(filename);
   const shaderdef::Shader* def = shaderdef::GetShader(asset->GetData());
   if (def == nullptr) {
-    LOG(DFATAL) << "Failed to read shaderdef.";
     return nullptr;
   } else if (def->vertex_shader() == nullptr) {
     LOG(DFATAL) << "Failed to read vertex shader code from shaderdef.";
@@ -278,27 +210,6 @@ ShaderPtr ShaderFactory::LoadImpl(const std::string& filename) {
     shader = CompileAndLink(kFallbackVS, kFallbackFS);
   }
 
-  // Declare default uniforms for the shader.
-  static const unsigned int kDefaultNumBoneTransformsAsVec4Array = 4 * 256;
-  const ShaderUniformDefT uniform_defs[] = {
-      CreateUniformDef("model_view_projection", ShaderUniformType_Float4x4, 0),
-      CreateUniformDef("model", ShaderUniformType_Float4x4, 0),
-      CreateUniformDef("view", ShaderUniformType_Float4x4, 0),
-      CreateUniformDef("projection", ShaderUniformType_Float4x4, 0),
-      CreateUniformDef("mat_normal", ShaderUniformType_Float3x3, 0),
-      CreateUniformDef("camera_pos", ShaderUniformType_Float4, 0),
-      CreateUniformDef("camera_dir", ShaderUniformType_Float3, 0),
-      CreateUniformDef("color", ShaderUniformType_Float4, 0),
-      CreateUniformDef("time", ShaderUniformType_Float1, 0),
-      CreateUniformDef("uv_bounds", ShaderUniformType_Float2, 0),
-      CreateUniformDef("clamp_bounds", ShaderUniformType_Float2, 0),
-      CreateUniformDef("uIsRightEye", ShaderUniformType_Int1, 0),
-      CreateUniformDef("light_pos", ShaderUniformType_Float4, 0),
-      CreateUniformDef("bone_transforms", ShaderUniformType_Float4,
-                       kDefaultNumBoneTransformsAsVec4Array)};
-
-  shader->SetUniformsDefs(uniform_defs);
-
   return shader;
 }
 
@@ -312,14 +223,8 @@ ShaderHnd ShaderFactory::CompileShader(const char* source,
     return shader;
   }
 
-  const std::string max_uniform_components =
-      "MAX_VERTEX_UNIFORM_COMPONENTS " +
-      std::to_string(GlMaxVertexUniformComponents());
-  string_view defines[] = {
-    max_uniform_components
-  };
   const std::string safe_source =
-      SanitizeShaderSource(source, GetShaderProfile(), defines);
+      SanitizeShaderSource(source, GetShaderProfile());
 
   const char* safe_source_cstr = safe_source.c_str();
   GL_CALL(glShaderSource(*shader, 1, &safe_source_cstr, nullptr));
@@ -342,8 +247,8 @@ ShaderHnd ShaderFactory::CompileShader(const char* source,
   return shader;
 }
 
-ProgramHnd ShaderFactory::LinkProgram(
-    ShaderHnd vs, ShaderHnd fs, Span<ShaderVertexAttributeDefT> attributes) {
+ProgramHnd ShaderFactory::LinkProgram(ShaderHnd vs, ShaderHnd fs,
+                                      Span<ShaderAttributeDefT> attributes) {
   if (!vs || !fs) {
     LOG(DFATAL) << "Invalid shaders for program.";
     return ProgramHnd();

@@ -40,8 +40,11 @@ class TransformSystem : public System {
   static const TransformFlags kInvalidFlag;
   static const TransformFlags kAllFlags;
 
-  enum AddChildMode {
+  /// Control the behavior of AddChild and RemoveParent.
+  enum ModifyParentChildMode {
+    /// Keep the local transform and update the world transform (Default).
     kPreserveParentToEntityTransform,
+    /// Keep the world transform and update the local transform.
     kPreserveWorldToEntityTransform,
   };
 
@@ -171,9 +174,9 @@ class TransformSystem : public System {
   Entity GetRoot(Entity entity) const;
 
   /// Establish a parent/child relationship between two Entities
-  void AddChild(
-      Entity parent, Entity child,
-      AddChildMode mode = AddChildMode::kPreserveParentToEntityTransform);
+  void AddChild(Entity parent, Entity child,
+                ModifyParentChildMode mode =
+                    ModifyParentChildMode::kPreserveParentToEntityTransform);
 
   /// Create an entity and add it as a child.  Shortcut to EntityFactory::Create
   /// followed by TransformSystem::AddChild that avoids an extra call to
@@ -201,7 +204,10 @@ class TransformSystem : public System {
   void MoveChild(Entity child, int index);
 
   /// Break a child's connection to its parent.
-  void RemoveParent(Entity child);
+  void RemoveParent(
+      Entity child,
+      ModifyParentChildMode mode =
+          ModifyParentChildMode::kPreserveParentToEntityTransform);
 
   /// Retrieve the list of children of an Entity
   const std::vector<Entity>* GetChildren(Entity parent) const;
@@ -284,6 +290,11 @@ class TransformSystem : public System {
   // all of its children. Potentially expensive, so should be called sparingly.
   void RecalculateWorldFromEntityMatrix(Entity child);
 
+  // Calculates the world_from_entity_matrix for the given local sqt and
+  // world_from_parent_matrix.
+  static mathfu::mat4 CalculateWorldFromEntityMatrix(
+      const Sqt& local_sqt, const mathfu::mat4* world_from_parent_mat);
+
  private:
   struct GraphNode : Component {
     explicit GraphNode(Entity e)
@@ -310,8 +321,6 @@ class TransformSystem : public System {
     Aabb box;
   };
 
-  static mathfu::mat4 CalculateWorldFromEntityMatrix(
-      const Sqt& local_sqt, const mathfu::mat4* world_from_parent_mat);
   static Sqt CalculateLocalSqt(const mathfu::mat4& world_from_entity_mat,
                                const mathfu::mat4* world_from_parent_mat);
   void SetEnabled(Entity e, bool enabled);
@@ -324,7 +333,7 @@ class TransformSystem : public System {
 
   // Establish a parent/child relationship between two Entities without
   // sending any events.
-  bool AddChildNoEvent(Entity parent, Entity child, AddChildMode mode);
+  bool AddChildNoEvent(Entity parent, Entity child, ModifyParentChildMode mode);
 
   ComponentPool<GraphNode> nodes_;
   ComponentPool<WorldTransform> world_transforms_;
@@ -339,8 +348,122 @@ class TransformSystem : public System {
   TransformSystem& operator=(const TransformSystem&);
 };
 
+struct CreateChildEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&child, ConstHash("child"));
+    archive(&parent, ConstHash("parent"));
+    archive(&blueprint, ConstHash("blueprint"));
+  }
+
+  Entity child = kNullEntity;
+  Entity parent = kNullEntity;
+  std::string blueprint;
+};
+
+struct InsertChildEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&child, ConstHash("child"));
+    archive(&index, ConstHash("index"));
+  }
+
+  Entity entity = kNullEntity;
+  Entity child = kNullEntity;
+  int index = -1;
+};
+
+struct MoveChildEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&index, ConstHash("index"));
+  }
+
+  Entity entity = kNullEntity;
+  int index = -1;
+};
+
+struct RemoveChildEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&child, ConstHash("child"));
+  }
+
+  Entity entity = kNullEntity;
+  Entity child = kNullEntity;
+};
+
+struct SetWorldFromEntityMatrixEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&transform, ConstHash("transform"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::mat4 transform = mathfu::mat4::Identity();
+};
+
+struct SetPositionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&position, ConstHash("position"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec3 position = mathfu::kZeros3f;
+};
+
+struct SetRotationEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&rotation, ConstHash("rotation"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::quat rotation = mathfu::quat::identity;
+};
+
+struct SetScaleEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&scale, ConstHash("scale"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec3 scale = mathfu::kZeros3f;
+};
+
+struct SetAabbEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&min, ConstHash("min"));
+    archive(&max, ConstHash("max"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec3 min = mathfu::kZeros3f;
+  mathfu::vec3 max = mathfu::kZeros3f;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::TransformSystem);
+LULLABY_SETUP_TYPEID(lull::CreateChildEvent);
+LULLABY_SETUP_TYPEID(lull::InsertChildEvent);
+LULLABY_SETUP_TYPEID(lull::MoveChildEvent);
+LULLABY_SETUP_TYPEID(lull::RemoveChildEvent);
+LULLABY_SETUP_TYPEID(lull::SetAabbEvent);
+LULLABY_SETUP_TYPEID(lull::SetPositionEvent);
+LULLABY_SETUP_TYPEID(lull::SetRotationEvent);
+LULLABY_SETUP_TYPEID(lull::SetScaleEvent);
+LULLABY_SETUP_TYPEID(lull::SetWorldFromEntityMatrixEvent);
 
 #endif  // LULLABY_SYSTEMS_TRANSFORM_TRANSFORM_SYSTEM_H_

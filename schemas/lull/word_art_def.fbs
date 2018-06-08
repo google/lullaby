@@ -1,0 +1,162 @@
+include "lull/common.fbs";
+include "lull/dispatcher_def.fbs";
+include "lull/model_asset_def.fbs";
+
+namespace lull;
+
+table WordArtPlayAnimFileDef {
+  // Motiveanim asset to be played, randomly picked from the provided list.
+  files: [string];
+  // Note: Delay is currenly only relevant for placement animation.
+  // Minimum and maximum intervals when staggering animation start between
+  // individual characters.  The actual interval is linearly interpolated
+  // between max_delay_s (at text length == 5) and min_delay_s (at text
+  // length == 30).
+  min_delay_s: float = 0.05;
+  max_delay_s: float = 0.1;
+  // If true, randomly choose an animation start time for each character
+  // in the range specified by min_delay_s/max_delay_s.
+  randomize_delay: bool = false;
+  // animation channel to play on.  If unset, uses the default passed to the
+  // WordArtSystem constructor.
+  animation_channel: uint = 0 (hashvalue);
+}
+
+// Enum controlling which sound files are played for each character.
+enum WordArtAudioSequence : int {
+  // Start with the first sound file and increment for each character
+  // thereafter. (Loops back to first file after playing last file).
+  SequenceFromFirst,
+  // Start with a random sound file and increment for each character thereafter.
+  // (Loops back to first file after playing last file).
+  SequenceFromRandom,
+  // Pick a random sound file for each character.
+  Random
+}
+
+// Behavior that plays audio either per word art asset or per character.
+table WordArtPlayAudioDef {
+  // List of audio files (.ogg) to play.
+  files: [string];
+  // Volume to play file(s), from 0.0 to 1.0.
+  volume: float = 1.0;
+  // If true, the first file played will loop until the word art asset is
+  // destroyed.  Only valid if 'per_character' is false.
+  loop: bool = false;
+  // If true, audio file is streamed from storage rather than loaded.
+  stream: bool = false;
+  // If true, a sound is played for each character in the string.
+  per_character: bool = false;
+  // Enum controlling which sound files are played for each character.
+  sequence: WordArtAudioSequence = SequenceFromFirst;
+  // Minimum and maximum intervals when staggering sound start between
+  // individual characters.  The actual interval is linearly interpolated
+  // between max_delay_s (at text length == 5) and min_delay_s (at text
+  // length == 30).
+  min_delay_s: float = 0.0;
+  max_delay_s: float = 0.0;
+}
+
+// Behavior that staggers an animation of each character from its current
+// color to the next color in the colors list.
+table WordArtColorChangeDef {
+  // List of colors that the text will cycle between when tapped (each tap
+  // triggers one color change).
+  colors: [lull.Color];
+  // Duration of the color fade for an individual character once triggered.
+  fade_s: float = 0.2;
+  // Minimum and maximum intervals when staggering color animation between
+  // individual characters.  The actual interval is linearly interpolated
+  // between max_delay_s (at text length == 5) and min_delay_s (at text
+  // length == 30).
+  min_delay_s: float = 0.05;
+  max_delay_s: float = 0.1;
+}
+
+// Behavior that animates a scale of each character's color.
+table WordArtColorScaleDef {
+  // A string representing the animation.  Each character in the 'animation'
+  // represents the scale value to apply for a duration of 'rate_s' seconds.
+  // Each scale value should be between 'a' and 'z' and represents a lerp
+  // from 'min_scale' (at 'a') to 'max_scale' (at 'z').
+  // Based on:   https://quakewiki.org/wiki/lightstyle
+  animation: string;
+  // The minimum value to scale (maps to 'a' in the animation string).
+  min_scale: float = 0.0;
+  // The maximum value to scale (maps to 'z' in the animation string).
+  max_scale: float = 1.0;
+  // The duration to apply each value in the animation string.
+  rate_s: float = 0.1;
+  // Minimum and maximum intervals when staggering color animation between
+  // individual characters.  The actual interval is linearly interpolated
+  // between max_delay_s (at text length == 5) and min_delay_s (at text
+  // length == 30).
+  min_delay_s: float = 0.0;
+  max_delay_s: float = 0.0;
+}
+
+// Behaviors that can be triggered by single tap or at initial placement.
+// If multiple behaviors are defined, they are applied in order declared
+// here.
+table WordArtBehaviorDef {
+  play_anim_file: WordArtPlayAnimFileDef (defaults_to_null);
+  play_audio: WordArtPlayAudioDef (defaults_to_null);
+  color_change: WordArtColorChangeDef (defaults_to_null);
+  color_scale: WordArtColorScaleDef (defaults_to_null);
+  // The event which triggers the behavior.
+  event: lull.EventDef;
+}
+
+table WordArtGlyphInfo {
+  glyph: string;
+  width: float = -1.0;
+}
+
+// Definition of word art root entity.  Each renderable character in the word
+// art string is created as a child entity of this root at runtime.
+table WordArtDef {
+  // Name of the blueprint to instantiate for each character in the word
+  // art text.  The character mesh file path is generated from mesh_base
+  // field and set on the entity after creation.
+  character_blueprint: string;
+  // Base path of character mesh files.  To load an individual character, the
+  // character token is appended as '_<character>.[mesh_extension]'.
+  // Examples: mesh_base_A.fplmesh or mesh_base_comma.fplmesh.
+  mesh_base: string;
+  // Distance from the base of one line to the base of the next line
+  // (in local character mesh units).
+  line_height: float = 200.0;
+  // Amount of extra space to add between characters in a line (as a
+  // percentage of the width of a space).
+  character_pad: float = 0.1;
+  // Behaviors triggered at initial placement.
+  place_behavior: WordArtBehaviorDef;
+  // Behaviors triggered by single tap.
+  tap_behavior: WordArtBehaviorDef;
+  // Behaviors looped during idle.  When any behavior completely ends (place,
+  // tap, idle), this is triggered to set up a new animation.
+  idle_behavior: WordArtBehaviorDef;
+  // If true, waits for all characters to finish animating before starting new
+  // idle animations.
+  sync_idle: bool = false;
+  // Initial color to set each character.
+  color: lull.Color;
+  // Name of shader uniform to set character color.  In addition to setting the
+  // initial color, this is used by the ColorChange and ColorScale behaviors.
+  // If empty, the color is set via RenderSystem::SetColor (which sets the
+  // "color" uniform under the hood).
+  color_uniform_name: string;
+  // Element size of the shader uniform to set, if color_uniform_name is
+  // non-empty.
+  color_uniform_size: int = 3;
+  // Information about the size of each glyph.  This would typically be auto
+  // generated and imported into the blueprint jsonnet.
+  glyph_info: [WordArtGlyphInfo];
+  // The suffix used for generating model names.  For backwards compatibility,
+  // the default if not supplied ".fplmesh" and due to backwards compatibility,
+  // this cannot be changed.
+  mesh_extension: string;
+  // The template ModelAssetDef to use for creating glyphs.
+  model_asset_def: lull.ModelAssetDef;
+}
+

@@ -29,9 +29,9 @@ struct RenderView {
   static const float kDefaultFarClipPlane;
 
   /// The offset of the viewport.
-  mathfu::vec2i viewport;
+  mathfu::vec2i viewport = mathfu::vec2i(0, 0);
   /// The size of the viewport in pixels.
-  mathfu::vec2i dimensions;
+  mathfu::vec2i dimensions = mathfu::vec2i(0, 0);
   /// The camera's world matrix. The inverse of this is the view matrix.
   mathfu::mat4 world_from_eye_matrix;
   /// The camera's view matrix. The inverse of this is the world matrix.

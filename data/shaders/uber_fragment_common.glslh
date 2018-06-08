@@ -1,0 +1,154 @@
+// Implements shared shader features that can be toggled by define flags.
+
+#ifdef SDF_DIST_AA
+#extension GL_OES_standard_derivatives : enable
+#endif  // SDF_DIST_AA
+
+#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+
+#ifdef BATCHED_INDICES
+STAGE_INPUT lowp vec4 vColor;
+STAGE_INPUT highp vec4 vClampBounds;
+
+vec4 GetColor() { return vColor; }
+vec4 GetClampBounds() { return vClampBounds; }
+#else  // BATCHED_INDICES
+uniform lowp vec4 color;
+
+vec4 GetColor() { return color; }
+#ifdef CLAMP
+uniform highp vec4 clamp_bounds;
+
+vec4 GetClampBounds() { return clamp_bounds; }
+#else   // CLAMP
+vec4 GetClampBounds() { return vec4(0.0, 0.0, 1.0, 1.0); }
+#endif  // CLAMP
+#endif  // BATCHED_INDICES
+vec4 PremultiplyAlpha(vec4 c) { return vec4(c.rgb * c.a, c.a); }
+
+#ifdef CLAMP
+vec2 ApplyClamp(vec2 uv) {
+  vec4 bounds = GetClampBounds();
+  return clamp(uv, bounds.xy, bounds.zw);
+}
+#else   // CLAMP
+vec2 ApplyClamp(vec2 uv) { return uv; }
+#endif  // CLAMP
+
+// Divide the distance by the rate of change of distance with respect to screen
+// pixels, which then allows us to precisely control the width of the
+// antialiasing band. This should be highp. Positive values will be clamped to
+// 1.0 and negative values will be clamped to 0.0, with the edge at 0.0. If
+// specified, PADDING pixels is added to ensure a minimum width of the 1.0 alpha
+// region. There is no line break to conform with GLSL ES 1.0.
+#ifdef SDF_DIST_AA
+#define GET_AA_FROM_SDF_PADDING(T, SDF_DIST, PADDING) clamp(SDF_DIST / fwidth(SDF_DIST) + PADDING, 0.0, 1.0)
+#else  // SDF_DIST_AA
+#define GET_AA_FROM_SDF_PADDING(T, SDF_DIST, PADDING) T(1.0)
+#endif  // SDF_DIST_AA
+#define GET_AA_FROM_SDF(T, SDF_DIST) GET_AA_FROM_SDF_PADDING(T, SDF_DIST, 0.0)
+
+#if defined(TEX_COORD) || defined(NINE_PATCH_TEX_COORD_ALT)
+#ifdef TEX_COORD_AA_PADDING
+// If enabled, this adds a minimum pixel width to the 1.0 alpha region within
+// the aa border. The visible region is still delineated with texture
+// coordinates (0, 0) to (1, 1), but to accomodate this padding the provided
+// mesh must be larger and hold texture coordinates similar to (-1, -1) to
+// (2, 2).
+uniform highp float tex_coord_aa_padding;
+
+float GetTexAAPadding() { return tex_coord_aa_padding; }
+#else   // TEX_COORD_AA_PADDING
+float GetTexAAPadding() { return 0.0; }
+#endif  // TEX_COORD_AA_PADDING
+
+STAGE_INPUT highp vec2 vTexCoord;
+#ifdef NINE_PATCH_TEX_COORD_ALT
+STAGE_INPUT highp vec2 vTexCoordAlt;
+
+vec2 GetVTexCoord() { return ApplyClamp(vTexCoordAlt); }
+
+// Distance to the edge of a circle with radius 0.5 centered at (0.5, 0.5).
+// To get a quad with corner radius, use a nine patch with all slices to 0.5 and
+// original_size = corner_radius * 2. The texture will still be uniformly
+// sampled using vTexCoordAlt.
+float GetTexAA() {
+  float sdf_dist = 0.5 - distance(vTexCoord, vec2(0.5));
+  return GET_AA_FROM_SDF_PADDING(float, sdf_dist, GetTexAAPadding());
+}
+#else   // NINE_PATCH_TEX_COORD_ALT
+vec2 GetVTexCoord() { return ApplyClamp(vTexCoord); }
+
+// Distance to quad edges, without rounded corners.
+float GetTexAA() {
+  vec4 bounds = GetClampBounds();
+  vec2 sdf_dist_min = vTexCoord - bounds.xy;
+  vec2 sdf_dist_max = bounds.zw - vTexCoord;
+  vec2 aa_min = GET_AA_FROM_SDF_PADDING(vec2, sdf_dist_min, GetTexAAPadding());
+  vec2 aa_max = GET_AA_FROM_SDF_PADDING(vec2, sdf_dist_max, GetTexAAPadding());
+  return aa_min.x * aa_min.y * aa_max.x * aa_max.y;
+}
+#endif  // NINE_PATCH_TEX_COORD_ALT
+#else   // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+vec2 GetVTexCoord() { return vec2(0.0); }
+float GetTexAA() { return 1.0; }
+#endif  // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+
+#ifdef CLIP_REGION
+#ifdef BATCHED_INDICES
+STAGE_INPUT highp vec3 vMinInClipRegionSpace;
+STAGE_INPUT highp vec3 vMaxInClipRegionSpace;
+
+vec3 GetMinInClipRegionSpace() { return vMinInClipRegionSpace; }
+vec3 GetMaxInClipRegionSpace() { return vMaxInClipRegionSpace; }
+#else   // BATCHED_INDICES
+uniform highp vec3 min_in_clip_region_space;
+uniform highp vec3 max_in_clip_region_space;
+
+vec3 GetMinInClipRegionSpace() { return min_in_clip_region_space; }
+vec3 GetMaxInClipRegionSpace() { return max_in_clip_region_space; }
+#endif  // BATCHED_INDICES
+STAGE_INPUT highp vec3 vClipRegionPosition;
+
+// Distance to the clip boundaries.
+float GetClipAA() {
+#ifdef CLIP_Y_ONLY
+  float sdf_dist_min_y = vClipRegionPosition.y - GetMinInClipRegionSpace().y;
+  float sdf_dist_max_y = GetMaxInClipRegionSpace().y - vClipRegionPosition.y;
+  float aa_min_y = GET_AA_FROM_SDF(float, sdf_dist_min_y);
+  float aa_max_y = GET_AA_FROM_SDF(float, sdf_dist_max_y);
+  return aa_min_y * aa_max_y;
+#else   // CLIP_Y_ONLY
+  vec3 sdf_dist_min = vClipRegionPosition - GetMinInClipRegionSpace();
+  vec3 sdf_dist_max = GetMaxInClipRegionSpace() - vClipRegionPosition;
+  vec3 aa_min = GET_AA_FROM_SDF(vec3, sdf_dist_min);
+  vec3 aa_max = GET_AA_FROM_SDF(vec3, sdf_dist_max);
+  return aa_min.x * aa_min.y * aa_min.z * aa_max.x * aa_max.y * aa_max.z;
+#endif  // CLIP_Y_ONLY
+}
+#else   // CLIP_REGION
+float GetClipAA() { return 1.0; }
+#endif  // CLIP_REGION
+
+// |frag_color| should already have premultiplied alpha.
+void SetFragColor(vec4 frag_color) {
+  float alpha_multiplier = GetClipAA() * GetTexAA();
+  gl_FragColor = frag_color * alpha_multiplier;
+}
+
+// Returns a float in the range [0.5/16, 15.5/16] based on the screen coordinate
+// of the current fragment.  This can be used for dithered transparency:
+//
+// if (alpha < Dither4x4()) {
+//   discard;
+// }
+// alpha = 1.0f;
+lowp float Dither4x4() {
+  ivec2 screen_pixel = ivec2(mod(gl_FragCoord.xy, vec2(4)));
+  return mat4(
+      0.5  / 16.0, 8.5  / 16.0, 2.5  / 16.0, 10.5 / 16.0,
+      12.5 / 16.0, 4.5  / 16.0, 14.5 / 16.0, 6.5  / 16.0,
+      3.5  / 16.0, 11.5 / 16.0, 1.5  / 16.0, 9.5  / 16.0,
+      15.5 / 16.0, 7.5  / 16.0, 13.5 / 16.0, 5.5  / 16.0
+    )[screen_pixel.x][screen_pixel.y];
+}

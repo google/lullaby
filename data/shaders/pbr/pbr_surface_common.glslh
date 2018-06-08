@@ -1,0 +1,96 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
+
+/// Shared functions used for physically based rendering by
+/// pbr_surface_light.glslh and pbr_surface_env.glslh.
+
+#include "third_party/lullaby/data/shaders/pbr/math_common.glslh"
+
+
+/// Multiplier for specular component of output color. Defaults to white.
+uniform vec3 specular_scale;
+
+
+/// Interpolating form of Schlick's approximation to Fresnel. Interpolates
+/// between straight-ahead color f_0 and grazing color f_90 based on the angle
+/// of // incidence.
+vec3 FresnelLerp(vec3 F0, vec3 F90, float cos_a) {
+    float t = Pow5(1.0 - cos_a);
+    return mix(F0, F90, t);
+}
+
+/// Populates diffuse_color, specular_color, and reflectivity based on the
+/// passed-in albedo and metallic values. Note that this formulation makes 0.04
+/// the minimum possible specular brightness, so there is no fully diffuse
+/// surface under the metallic workflow. This matches Unity.
+void DiffuseAndSpecularFromMetallic(vec3 albedo, float metallic,
+                                    out vec3 diffuse_color,
+                                    out vec3 specular_color,
+                                    out float reflectivity) {
+  // The linear-space unity_ColorSpaceDielectricSpec grayscale value.
+  const float kDielectricSpecular = 0.04;
+  specular_color = mix(vec3(kDielectricSpecular), albedo, metallic);
+  reflectivity = mix(kDielectricSpecular, 1.0, metallic);
+  diffuse_color = albedo * (1.0 - reflectivity);
+}
+
+/// Captures the diffuse Fresnel shadow that darkens diffuse reflectance at
+/// grazing angles. More info at:
+/// https://disney-animation.s3.amazonaws.com/library/s2012_pbs_disney_brdf_notes_v2.pdf
+float DisneyDiffuseTerm(float n_dot_v, float n_dot_l, float l_dot_h,
+                        float perceptual_roughness) {
+  float fd_90 = 0.5 + 2.0 * l_dot_h * l_dot_h * perceptual_roughness;
+  float light_scatter = 1.0 + (fd_90 - 1.0) * Pow5(1.0 - n_dot_l);
+  float view_scatter  = 1.0 + (fd_90 - 1.0) * Pow5(1.0 - n_dot_v);
+  return light_scatter * view_scatter;
+}
+
+float DistributionTrowbridgeReitz(float linear_roughness, float n_dot_h) {
+  float alpha_squared = linear_roughness * linear_roughness;
+  float f = (n_dot_h * alpha_squared - n_dot_h) * n_dot_h + 1.;
+  return alpha_squared / (kPi * f * f);
+}
+
+float VisibilityHammon(float linear_roughness, float n_dot_v, float n_dot_l) {
+  // Hammon 2017
+  n_dot_v = max(n_dot_v, 1e-5);
+  return 0.5 / mix(2. * n_dot_l * n_dot_v, n_dot_l + n_dot_v, linear_roughness);
+}
+
+vec3 EnvBRDFApproxKaris(float roughness, float n_dot_v, vec3 specular_color) {
+  // Karis 2014, "Physically Based Material on Mobile"
+  const vec4 c0 = vec4(-1, -0.0275, -0.572,  0.022);
+  const vec4 c1 = vec4(1, 0.0425,  1.04, -0.04);
+  vec4 r = roughness * c0 + c1;
+  float a004 = min(r.x * r.x, exp2(-9.28 * n_dot_v)) * r.x + r.y;
+  vec2 ab = vec2(-1.04, 1.04) * a004 + r.zw;
+  return specular_color * ab.x + ab.y;
+}
+
+float Lambert() {
+  return 1.0 / kPi;
+}
+
+/// Computes Lambertian diffuse term
+vec3 LambertianDiffuse(vec3 diffuse_color) {
+  return diffuse_color / kPi;
+}
+
+/// This calculates the specular geometric attenuation (aka G()),
+/// where rougher material will reflect less light back to the viewer.
+/// This implementation is based on Equation 4 from
+/// http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+/// with modifications to alpha_roughness as input as originally proposed in
+/// http://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v3.pdf
+float GeometricOcclusionEpic(float n_dot_l, float n_dot_v,
+                             float alpha_roughness){
+    float r = alpha_roughness;
+
+    float attenuation_l = 2.0 * n_dot_l /
+      (n_dot_l + sqrt(r * r + (1.0 - r * r) * (n_dot_l * n_dot_l)));
+    float attenuation_v = 2.0 * n_dot_v /
+      (n_dot_v + sqrt(r * r + (1.0 - r * r) * (n_dot_v * n_dot_v)));
+    return attenuation_l * attenuation_v;
+}
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_

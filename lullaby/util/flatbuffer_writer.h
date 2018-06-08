@@ -63,7 +63,8 @@ namespace lull {
 class FlatbufferWriter {
  public:
   template <typename T>
-  static void* SerializeObject(T* obj, InwardBuffer* buffer) {
+  static void* SerializeObject(T* obj, InwardBuffer* buffer,
+                               const char* file_identifier = nullptr) {
     const size_t start = buffer->FrontSize();
 
     // Write the obj to the buffer as a flatbuffer table.
@@ -72,7 +73,11 @@ class FlatbufferWriter {
     const size_t table_start = writer.StartTable();
     obj->SerializeFlatbuffer(writer);
     const size_t table_end = writer.EndTable(table_start);
-    writer.Finish(table_end);
+    if (file_identifier) {
+      writer.Finish(table_end, file_identifier);
+    } else {
+      writer.Finish(table_end, T::FileIdentifier());
+    }
 
     const size_t end = buffer->FrontSize();
     if (start != end) {
@@ -197,6 +202,7 @@ class FlatbufferWriter {
   // Serializes an array of scalar values.
   template <typename T, typename U = T>
   void VectorOfScalars(std::vector<T>* value, uint16_t offset) {
+    Prealign(alignof(T));
     const size_t start = StartVector();
     for (auto iter = value->rbegin(); iter != value->rend(); ++iter) {
       const U u = *iter;
@@ -219,6 +225,7 @@ class FlatbufferWriter {
   // Serializes an array of flatbuffer struct types.
   template <typename T>
   void VectorOfStructs(std::vector<T>* value, uint16_t offset) {
+    Prealign(alignof(T));
     const size_t start = StartVector();
     for (auto iter = value->rbegin(); iter != value->rend(); ++iter) {
       const T& t = *iter;
@@ -232,9 +239,12 @@ class FlatbufferWriter {
   // "native_type" attribute.
   template <typename T>
   void VectorOfNativeStructs(std::vector<T>* value, uint16_t offset) {
+    const size_t size = FlatbufferNativeType<T>::kFlatbufferStructSize;
+    const size_t align = FlatbufferNativeType<T>::kFlatbufferStructAlignment;
+
+    Prealign(align);
     const size_t start = StartVector();
     for (auto iter = value->rbegin(); iter != value->rend(); ++iter) {
-      const size_t size = FlatbufferNativeType<T>::kFlatbufferStructSize;
       void* ptr = buffer_->AllocBack(size);
       FlatbufferNativeType<T>::Write(*iter, ptr, size);
     }
@@ -287,6 +297,14 @@ class FlatbufferWriter {
     UpdateVTable(start, end, root_offset, vtable_offset);
 
     buffer_->EraseFront(end - start);
+
+    // Because we write the vtable after we have written the object data, it is
+    // possible that data alignment requirements for specific data may break.
+    // To ensure everything remains aligned, we align the table itself as well.
+    // Ideally, we should track the actual maximum alignment value of any
+    // field in the table and just align to that value, but since we do not
+    // track that information, we just do a worst-case alignment.
+    Prealign(kMaxAlignment);
     return root_offset;
   }
 
@@ -341,13 +359,22 @@ class FlatbufferWriter {
 
   // Finishes a table as a root of the flatbuffer.  This allows users to call
   // flatbuffers::GetRoot<T> on the data stored in the buffer.
-  const void* Finish(size_t root) {
+  const void* Finish(size_t root, const char* file_identifier = nullptr) {
+    // Length of the file identifier (in bytes).
+    constexpr size_t kFileIdentifierLength = 4;
+
+    if (file_identifier) {
+      DCHECK_EQ(strlen(file_identifier), kFileIdentifierLength);
+      buffer_->WriteBack(reinterpret_cast<const uint8_t*>(file_identifier),
+                         kFileIdentifierLength);
+    }
     WriteReference(root);
     return buffer_->BackAt(buffer_->BackSize());
   }
 
  private:
   void Prealign(size_t alignment) {
+    CHECK(alignment <= kMaxAlignment);
     while ((buffer_->BackSize()) % alignment != 0) {
       buffer_->WriteBack<uint8_t>(0);
     }
@@ -480,11 +507,14 @@ class FlatbufferWriter {
   };
 
   InwardBuffer* buffer_ = nullptr;
+
+  static const size_t kMaxAlignment = 16;
 };
 
 template <typename T>
-inline void* WriteFlatbuffer(T* obj, InwardBuffer* buffer) {
-  return FlatbufferWriter::SerializeObject(obj, buffer);
+inline void* WriteFlatbuffer(T* obj, InwardBuffer* buffer,
+                             const char* file_identifier = nullptr) {
+  return FlatbufferWriter::SerializeObject(obj, buffer, file_identifier);
 }
 
 }  // namespace lull

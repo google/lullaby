@@ -113,8 +113,9 @@ class VariantConverter {
   template <typename T>
   static auto ReadImpl(const Variant& var, T* out) ->
       typename std::enable_if<IsTrivial<T>::kValue, bool>::type {
-    const T* value = var.Get<T>();
-    if (value == nullptr) {
+    // If both T and the underlying type are numeric, it will be casted.
+    const Optional<T> value = var.ImplicitCast<T>();
+    if (!value) {
       return false;
     }
     *out = *value;

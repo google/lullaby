@@ -1,0 +1,47 @@
+#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
+#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
+
+// TODO(b/74979497): Switch to MaterialTextureUsage enums for these once all
+// required types are available.
+
+// List of texture units that may be referenced by the PBR shader, #defined to
+// meaningful names. Note that GLSL does not support variables for sampler2D /
+// samplerCube, hence the #defines.
+
+// These units are defined implcitly by textures in RenderDefs and do not
+// need to match anything on the C++ side.
+
+// Albedo in RGB.
+#define kAlbedoMapUnit texture_unit_0
+// Smoothness in R, Metallic in G, Ambient Occlusion in B.
+#define kSmoothnessMetallicAoMapUnit texture_unit_1
+
+// The next texture unit depends on whether there's a normal map.
+#ifdef LULLABY_PBR_NORMAL_MAP
+// Tangent-space normal in RGB.
+#define kNormalMapUnit texture_unit_2
+// Emissive color in RGB.
+#define kEmissiveMapUnit texture_unit_3
+#else  // LULLABY_PBR_NORMAL_MAP
+// Emissive color in RGB.
+#define kEmissiveMapUnit texture_unit_2
+#endif  // LULLABY_PBR_NORMAL_MAP
+
+// The following units are set up in C++ and must match the code there.
+
+// Environment cube map convolved for specular reflection in RGB.
+#define kSpecEnvMapUnit texture_unit_4
+// Shadow map (hard-coded by Lullaby, reserved for future use).
+#define kShadowMapUnit texture_unit_5
+// Environment cube map convolved for diffuse reflection in RGB.
+#define kDiffEnvMapUnit texture_unit_6
+// Filtered camera feed in RGB linear space; supports mipmaps.
+#define kCameraFeedMapUnit texture_unit_7
+
+// The following units are used by screen quad shaders for copying camera feed
+// or ARA photo.
+
+// Source for camera feed. May be external texture on Android.
+#define kInputCameraFeedMapUnit texture_unit_0
+
+#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_

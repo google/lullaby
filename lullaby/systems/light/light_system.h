@@ -49,9 +49,6 @@ class LightSystem : public System {
  public:
   explicit LightSystem(Registry* registry);
 
-  /// Sets the depth shader to be used for shadow mapping.
-  void SetDepthShader(const ShaderPtr& depth_shader);
-
   /// Creates a light or lightable component from a def.
   void PostCreateComponent(Entity entity, const Blueprint& blueprint) override;
 
@@ -75,6 +72,11 @@ class LightSystem : public System {
   /// @param entity The entity to which to attach the directional light.
   /// @param data The directional light definition for this light.
   void CreateLight(Entity entity, const DirectionalLightDefT& data);
+
+  /// Creates an environmental light.  Unlike other lights, environmental lights
+  /// belong to a group, rather than a specific entity within a group.
+  /// @param data The environmental light definition for this light.
+  void CreateLight(Entity entity, const EnvironmentLightDefT& data);
 
   /// Defines a lightable.
   /// @param entity The entity to which lights can be applied.
@@ -119,49 +121,64 @@ class LightSystem : public System {
     /// Add an ambient light to the group.
     void AddLight(Entity entity, const AmbientLightDefT& light);
     /// Add a directional light to the group.
-    void AddLight(TransformSystem* transform_system, Entity entity,
+    void AddLight(Registry* registry, Entity entity,
                   const DirectionalLightDefT& light);
+    /// Add an environment light to the group.
+    void AddLight(Registry* registry, Entity entity,
+                  const EnvironmentLightDefT& light);
     /// Add a point light to the group.
     void AddLight(TransformSystem* transform_system, Entity entity,
                   const PointLightDefT& light);
 
     /// Add a lightable to the group.
-    void AddLightable(Entity entity, const LightableDefT& lightable);
+    void AddLightable(Registry* registry, Entity entity,
+                      const LightableDefT& lightable);
 
     /// Updates the transforms of a light within the group.
     void UpdateLight(TransformSystem* transform_system, Entity entity);
 
     /// Updates the render system data of objects within this group.
-    void Update(RenderSystem* render_system);
+    void Update(TransformSystem* transform_system, RenderSystem* render_system);
 
     /// Remove an entity from the group.
     void Remove(Registry* registry, Entity entity);
 
+    /// Render the shadow maps for the passes.
+    void RenderShadowMaps(RenderSystem* render_system) const;
+
     /// Is this group empty?
     bool Empty() const;
 
-    /// Return the shadow passes within this group.
-    const std::vector<HashValue>& GetShadowPasses() const;
-
-    /// Return the lightables within this group.
-    const std::unordered_map<Entity, LightableDefT>& GetLightables() const;
-
-    /// Create a shadow pass.
-    void CreateShadowPass(HashValue pass);
-
    private:
+    struct ShadowPassData {
+      Entity transform_entity = kNullEntity;
+      HashValue pass;
+      RenderView view;
+    };
+
     void UpdateLightable(RenderSystem* render_system, Entity entity);
     void UpdateLightable(RenderSystem* render_system, Entity entity,
                          const LightableDefT& data);
     void DestroyShadowPass(RenderSystem* render_system, HashValue pass);
+    void AddLightableToShadowPass(RenderSystem* render_system,
+                                  DispatcherSystem* dispatcher_system,
+                                  Entity entity, HashValue pass,
+                                  const LightableDefT& lightable);
+    void CreateShadowPass(Registry* registry, Entity entity,
+                          const DirectionalLightDefT& data);
+
     mutable bool dirty_ = false;
 
     std::unordered_map<Entity, AmbientLightDefT> ambients_;
     std::unordered_map<Entity, DirectionalLightDefT> directionals_;
     std::unordered_map<Entity, PointLightDefT> points_;
     std::unordered_map<Entity, LightableDefT> lightables_;
+    Entity environment_entity_ = kNullEntity;
+    TexturePtr environment_diffuse_texture_;
+    TexturePtr environment_specular_texture_;
+    TexturePtr environment_brdf_lookup_table_;
     std::set<Entity> dirty_lightables_;
-    std::vector<HashValue> shadow_passes_;
+    std::vector<ShadowPassData> shadow_passes_;
   };
 
   // Update the transforms of light objects associated with a set of entities.
@@ -174,25 +191,12 @@ class LightSystem : public System {
   template <typename T>
   static void UpdateUniforms(UniformData* uniforms, const T& light,
                              int max_allowed, int* current_index);
-  void AddLightableToShadowPass(RenderSystem* render_system,
-                                DispatcherSystem* dispatcher_system,
-                                Entity entity, HashValue pass,
-                                const LightableDefT& lightable);
-  void CreateShadowRenderPass(Entity entity, const DirectionalLightDefT& data);
 
   std::unordered_map<HashValue, LightGroup> groups_;
   std::unordered_map<Entity, HashValue> entity_to_group_map_;
   std::unordered_set<Entity> ambients_;
   std::unordered_set<Entity> directionals_;
   std::unordered_set<Entity> points_;
-
-  ShaderPtr depth_shader_ = nullptr;
-
-  struct ShadowPassData {
-    HashValue pass;
-    RenderView view;
-  };
-  std::vector<ShadowPassData> shadow_passes_;
 };
 
 }  // namespace lull

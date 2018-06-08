@@ -60,6 +60,10 @@ void NavButtonSystem::Create(Entity entity, HashValue type, const Def* def) {
     button->background = transform_system->CreateChild(
         entity, data->background_blueprint()->c_str());
 
+    if (data->background()) {
+      render_system->SetTexture(button->background, 0,
+                                data->background()->c_str());
+    }
     if (data->background_color_hex()) {
       MathfuVec4FromFbColorHex(data->background_color_hex()->c_str(),
                                &button->background_color);
@@ -83,10 +87,14 @@ void NavButtonSystem::Create(Entity entity, HashValue type, const Def* def) {
       render_system->SetShader(button->icon, data->icon_shader()->c_str());
     }
     if (data->icon_color_hex()) {
-      mathfu::vec4 color;
-      MathfuVec4FromFbColorHex(data->icon_color_hex()->c_str(), &color);
-      render_system->SetColor(button->icon, color);
-      render_system->SetDefaultColor(button->icon, color);
+      MathfuVec4FromFbColorHex(data->icon_color_hex()->c_str(),
+                               &button->icon_color);
+      render_system->SetColor(button->icon, button->icon_color);
+      render_system->SetDefaultColor(button->icon, button->icon_color);
+    }
+    if (data->icon_hover_color_hex()) {
+      MathfuVec4FromFbColorHex(data->icon_hover_color_hex()->c_str(),
+                               &button->icon_hover_color);
     }
   }
 
@@ -174,6 +182,14 @@ void NavButtonSystem::OnStartHover(const StartHoverEvent& event) {
                                     button->start_hover_duration);
       }
     }
+    if (button->icon) {
+      dispatcher_system->Send(button->icon, event);
+      if (button->icon_hover_color != button->icon_color) {
+        animation_system->SetTarget(
+            button->icon, UniformChannel::kColorChannelName,
+            &button->icon_hover_color[0], 4, button->start_hover_duration);
+      }
+    }
     if (button->label) {
       dispatcher_system->Send(button->label, event);
       if (button->label_hover_color != button->label_color) {
@@ -194,11 +210,18 @@ void NavButtonSystem::OnStopHover(const StopHoverEvent& event) {
     }
     if (button->background) {
       dispatcher_system->Send(button->background, event);
-
       if (button->background_hover_color != button->background_color) {
         animation_system->SetTarget(
             button->background, UniformChannel::kColorChannelName,
             &button->background_color[0], 4, button->stop_hover_duration);
+      }
+    }
+    if (button->icon) {
+      dispatcher_system->Send(button->icon, event);
+      if (button->icon_hover_color != button->icon_color) {
+        animation_system->SetTarget(
+            button->icon, UniformChannel::kColorChannelName,
+            &button->icon_color[0], 4, button->start_hover_duration);
       }
     }
     if (button->label) {

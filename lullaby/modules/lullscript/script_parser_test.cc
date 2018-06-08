@@ -308,8 +308,8 @@ TEST(ScriptParserTest, HashParsing) {
   TestParserCallbacks callbacks;
   ParseScript("(:hello :world)", &callbacks);
   callbacks.Expect(ParserCallbacks::kPush, "(");
-  callbacks.Expect(ParserCallbacks::kHashValue, ":hello", Hash("hello"));
-  callbacks.Expect(ParserCallbacks::kHashValue, ":world", Hash("world"));
+  callbacks.Expect(ParserCallbacks::kHashValue, ":hello", ConstHash("hello"));
+  callbacks.Expect(ParserCallbacks::kHashValue, ":world", ConstHash("world"));
   callbacks.Expect(ParserCallbacks::kPop, ")");
   callbacks.Expect(ParserCallbacks::kEof);
   EXPECT_THAT(callbacks.parsed, Eq(callbacks.expected));

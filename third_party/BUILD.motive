@@ -1,5 +1,5 @@
 load(
-    "@//third_party/dev:flatbuffer_cc_library.bzl",
+    "@//third_party/flatbuffers:build_defs.bzl",
     "flatbuffer_cc_library",
 )
 

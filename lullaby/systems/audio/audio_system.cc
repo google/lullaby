@@ -39,7 +39,6 @@ limitations under the License.
 #include "lullaby/util/make_unique.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/random_number_generator.h"
-#include "lullaby/util/scoped_java_local_ref.h"
 #include "lullaby/util/trace.h"
 
 namespace lull {
@@ -139,10 +138,10 @@ gvr::Mat4f ConvertToGvrHeadPoseMatrix(
   return GvrMatFromMathfu(unscaled_world_mat.Inverse());
 }
 
-const HashValue kAudioEnvironmentDef = Hash("AudioEnvironmentDef");
-const HashValue kAudioListenerDef = Hash("AudioListenerDef");
-const HashValue kAudioResponseDef = Hash("AudioResponseDef");
-const HashValue kAudioSourceDef = Hash("AudioSourceDef");
+const HashValue kAudioEnvironmentDef = ConstHash("AudioEnvironmentDef");
+const HashValue kAudioListenerDef = ConstHash("AudioListenerDef");
+const HashValue kAudioResponseDef = ConstHash("AudioResponseDef");
+const HashValue kAudioSourceDef = ConstHash("AudioSourceDef");
 const gvr::AudioRenderingMode kQuality =
     gvr::AudioRenderingMode::GVR_AUDIO_RENDERING_BINAURAL_HIGH_QUALITY;
 
@@ -156,6 +155,7 @@ AudioSystem::AudioSystem(Registry* registry, std::unique_ptr<gvr::AudioApi> api)
       audio_(std::move(api)),
       listener_(kNullEntity),
       current_environment_(kNullEntity),
+      audio_running_(false),
       transform_flag_(TransformSystem::kInvalidFlag),
       master_volume_(1.0),
       muted_(false) {
@@ -196,7 +196,13 @@ AudioSystem::AudioSystem(Registry* registry, std::unique_ptr<gvr::AudioApi> api)
   dispatcher->Connect(this, [this](const OnResumeEvent& event) {
     std::lock_guard<std::mutex> lock(pause_mutex_);
     if (audio_) {
-      audio_->SetMasterVolume(listener_.initial_volume);
+      // Resuming acts like setting a new AudioListener. Re-set the master
+      // volume as if the current listener was just created, but respect any
+      // previous mute state that may have been set.
+      master_volume_ = listener_.initial_volume;
+      if (!muted_) {
+        audio_->SetMasterVolume(listener_.initial_volume);
+      }
       audio_->Resume();
       audio_running_ = true;
     }
@@ -216,6 +222,7 @@ AudioSystem::AudioSystem(Registry* registry, std::unique_ptr<gvr::AudioApi> api)
     binder->RegisterMethod("lull.Audio.Play", &AudioSystem::Play);
     binder->RegisterMethod("lull.Audio.Stop", &AudioSystem::Stop);
     binder->RegisterMethod("lull.Audio.StopAll", &AudioSystem::StopAll);
+    binder->RegisterMethod("lull.Audio.SetMute", &AudioSystem::SetMute);
 
     binder->RegisterFunction(
         "lull.Audio.Pause",
@@ -320,6 +327,7 @@ AudioSystem::~AudioSystem() {
     binder->UnregisterFunction("lull.Audio.Play");
     binder->UnregisterFunction("lull.Audio.Stop");
     binder->UnregisterFunction("lull.Audio.StopAll");
+    binder->UnregisterFunction("lull.Audio.SetMute");
     binder->UnregisterFunction("lull.Audio.Pause");
     binder->UnregisterFunction("lull.Audio.Resume");
     binder->UnregisterFunction("lull.Audio.SetVolume");

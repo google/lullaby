@@ -21,6 +21,7 @@ limitations under the License.
 #include "lullaby/modules/render/sanitize_shader_source.h"
 #include "lullaby/modules/render/vertex_format.h"
 #include "lullaby/systems/render/next/detail/glplatform.h"
+#include "lullaby/systems/render/next/render_state.h"
 #include "lullaby/util/span.h"
 #include "lullaby/generated/render_target_def_generated.h"
 #include "lullaby/generated/texture_def_generated.h"
@@ -41,10 +42,14 @@ GLenum GetGlVertexType(VertexAttributeType type);
 GLint GetNumElementsInVertexType(VertexAttributeType type);
 /// Returns the GLenum data type based on the index type.
 GLenum GetGlIndexType(MeshData::IndexType type);
+GLuint GetGlRenderFunction(fplbase::RenderFunction func);
+GLuint GetGlBlendStateFactor(fplbase::BlendState::BlendFactor factor);
+GLuint GetGlCullFace(fplbase::CullState::CullFace face);
+GLuint GetGlFrontFace(fplbase::CullState::FrontFace front_face);
+GLuint GetGlStencilOp(fplbase::StencilOperation::StencilOperations op);
 
 ShaderProfile GetShaderProfile();
 
-int GlMaxVertexUniformComponents();
 bool GlSupportsVertexArrays();
 bool GlSupportsTextureNpot();
 bool GlSupportsAstc();
@@ -55,6 +60,8 @@ void SetVertexAttributes(const VertexFormat& vertex_format,
                          const uint8_t* buffer = nullptr);
 /// Unsets a gl vertex format.
 void UnsetVertexAttributes(const VertexFormat& vertex_format);
+/// Unsets the default attributes.
+void UnsetDefaultAttributes();
 
 /// Draws mesh data.
 void DrawMeshData(const MeshData& mesh_data);

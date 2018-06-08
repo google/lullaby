@@ -31,6 +31,7 @@ namespace lull {
 class CollisionSystem : public System {
  public:
   explicit CollisionSystem(Registry* registry);
+  ~CollisionSystem() override;
 
   void Initialize() override;
 
@@ -110,8 +111,68 @@ class CollisionSystem : public System {
   CollisionSystem& operator=(const CollisionSystem&) = delete;
 };
 
+struct EnableInteractionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct DisableInteractionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct EnableDefaultInteractionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct DisableDefaultInteractionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct RestoreInteractionDescendantsEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
+struct DisableInteractionDescendantsEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+  }
+
+  Entity entity = kNullEntity;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::CollisionSystem);
+LULLABY_SETUP_TYPEID(lull::DisableDefaultInteractionEvent);
+LULLABY_SETUP_TYPEID(lull::DisableInteractionDescendantsEvent);
+LULLABY_SETUP_TYPEID(lull::DisableInteractionEvent);
+LULLABY_SETUP_TYPEID(lull::EnableDefaultInteractionEvent);
+LULLABY_SETUP_TYPEID(lull::EnableInteractionEvent);
+LULLABY_SETUP_TYPEID(lull::RestoreInteractionDescendantsEvent);
 
 #endif  // LULLABY_SYSTEMS_COLLISION_COLLISION_SYSTEM_H_

@@ -1,0 +1,11 @@
+include "lull/model_asset_def.fbs";
+
+namespace lull;
+
+table BlendShapeDef {
+  // Contains the model and all of the blend shapes.
+  model: ModelAssetDef;
+}
+
+root_type BlendShapeDef;
+file_extension "lullmodel";

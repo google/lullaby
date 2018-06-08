@@ -20,14 +20,29 @@ limitations under the License.
 #include <string>
 
 #include "lullaby/generated/script_def_generated.h"
+#include "lullaby/modules/function/function_call.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/logging.h"
 
-#ifdef LULLABY_SCRIPT_LUA
+#ifndef LULLABY_SCRIPT_LUA
+#define LULLABY_SCRIPT_LUA 0
+#endif
+
+#ifndef LULLABY_SCRIPT_LULLSCRIPT
+#define LULLABY_SCRIPT_LULLSCRIPT 1
+#endif
+
+#ifndef LULLABY_SCRIPT_JS
+#define LULLABY_SCRIPT_JS 0
+#endif
+
+#if LULLABY_SCRIPT_LUA
 #include "lullaby/modules/lua/engine.h"
 #endif
+#if LULLABY_SCRIPT_LULLSCRIPT
 #include "lullaby/modules/lullscript/lull_script_engine.h"
-#ifdef LULLABY_SCRIPT_JS
+#endif
+#if LULLABY_SCRIPT_JS
 #include "lullaby/modules/javascript/engine.h"
 #endif
 
@@ -111,11 +126,13 @@ class ScriptEngine {
  private:
   Registry* registry_;
 
+#if LULLABY_SCRIPT_LULLSCRIPT
   LullScriptEngine lull_engine_;
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
   script::lua::Engine lua_engine_;
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
   script::javascript::Engine js_engine_;
 #endif
 };
@@ -123,10 +140,10 @@ class ScriptEngine {
 template <typename Fn>
 void ScriptEngine::RegisterFunction(const std::string& name,
                                     const Fn& function) {
-#ifdef LULLABY_SCRIPT_LUA
+#if LULLABY_SCRIPT_LUA
   lua_engine_.RegisterFunction(name, function);
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
   js_engine_.RegisterFunction(name, function);
 #endif
 }
@@ -135,15 +152,17 @@ template <typename T>
 void ScriptEngine::SetValue(ScriptId id, const std::string& name,
                             const T& value) {
   switch (id.lang_) {
+#if LULLABY_SCRIPT_LULLSCRIPT
     case Language_LullScript:
       lull_engine_.SetValue(id.id_, name, value);
       return;
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
     case Language_Lua5_2:
       lua_engine_.SetValue(id.id_, name, value);
       return;
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
     case Language_JavaScript:
       js_engine_.SetValue(id.id_, name, value);
       return;
@@ -156,13 +175,15 @@ void ScriptEngine::SetValue(ScriptId id, const std::string& name,
 template <typename T>
 bool ScriptEngine::GetValue(ScriptId id, const std::string& name, T* t) {
   switch (id.lang_) {
+#if LULLABY_SCRIPT_LULLSCRIPT
     case Language_LullScript:
       return lull_engine_.GetValue<T>(id.id_, name, t);
-#ifdef LULLABY_SCRIPT_LUA
+#endif
+#if LULLABY_SCRIPT_LUA
     case Language_Lua5_2:
       return lua_engine_.GetValue<T>(id.id_, name, t);
 #endif
-#ifdef LULLABY_SCRIPT_JS
+#if LULLABY_SCRIPT_JS
     case Language_JavaScript:
       return js_engine_.GetValue<T>(id.id_, name, t);
 #endif

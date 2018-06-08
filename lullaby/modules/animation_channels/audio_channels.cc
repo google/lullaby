@@ -20,7 +20,7 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue VolumeChannel::kVolumeChannelName = Hash("audio-volume");
+const HashValue VolumeChannel::kVolumeChannelName = ConstHash("audio-volume");
 const int VolumeChannel::kNumDimensions = 1;
 
 VolumeChannel::VolumeChannel(Registry* registry, size_t pool_size)

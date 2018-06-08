@@ -3,14 +3,16 @@
 #include "lullaby/events/render_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/script/function_binder.h"
+#include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/transform/transform_system.h"
+#include "lullaby/util/color.h"
 
 namespace lull {
 
 RenderSystem::RenderSystem(Registry* registry, const InitParams& init_params)
     : System(registry), impl_(new RenderSystemImpl(registry, init_params)) {
-  RegisterDef(this, Hash("RenderDef"));
+  RegisterDef(this, ConstHash("RenderDef"));
 
   RegisterDependency<TransformSystem>(this);
 
@@ -58,6 +60,46 @@ RenderSystem::RenderSystem(Registry* registry, const InitParams& init_params)
                         [this](const HideEvent& event) { Hide(event.entity); });
     dispatcher->Connect(this,
                         [this](const ShowEvent& event) { Show(event.entity); });
+    dispatcher->Connect(this, [this](const SetRenderGroupIdEvent& event) {
+      SetGroupId(event.entity, event.group_id);
+    });
+    dispatcher->Connect(this, [this](const SetRenderGroupParamsEvent& event) {
+      SetGroupParams(event.group_id, GroupParams(event.sort_order_offset));
+    });
+    dispatcher->Connect(this, [this](const SetTextureIdEvent& e) {
+      const int texture_unit = 0;
+      SetTextureId(e.entity, texture_unit,
+                   static_cast<uint32_t>(e.texture_target),
+                   static_cast<uint32_t>(e.texture_id));
+    });
+    dispatcher->Connect(this, [this](const SetImageEvent& e) {
+      if (e.image) {
+        const int texture_unit = 0;
+        auto texture = CreateTexture(*e.image, e.create_mips);
+        SetTexture(e.entity, texture_unit, texture);
+      }
+    });
+    dispatcher->Connect(this, [this](const SetSortOffsetEvent& e) {
+      SetSortOrderOffset(e.entity, e.sort_offset);
+    });
+    dispatcher->Connect(this, [this](const SetRenderPassEvent& e) {
+      SetRenderPass(e.entity, static_cast<RenderPass>(e.render_pass));
+    });
+    dispatcher->Connect(this, [this](const SetTextureEvent& e) {
+      SetTexture(e.entity, 0, e.filename);
+    });
+    dispatcher->Connect(this, [this](const SetColorEvent& e) {
+      const auto color = e.int_argb
+                             ? Color4ub::ToVec4(Color4ub::FromARGB(e.int_argb))
+                             : e.color;
+      SetUniform(e.entity, "color", &color[0], 4);
+    });
+    dispatcher->Connect(this, [this](const SetDefaultColorEvent& e) {
+      const auto color = e.int_argb
+                             ? Color4ub::ToVec4(Color4ub::FromARGB(e.int_argb))
+                             : e.color;
+      SetDefaultColor(e.entity, color);
+    });
   }
 }
 
@@ -87,10 +129,6 @@ void RenderSystem::SetStereoMultiviewEnabled(bool enabled) {
 }
 
 void RenderSystem::PreloadFont(const char* name) { impl_->PreloadFont(name); }
-
-FontPtr RenderSystem::LoadFonts(const std::vector<std::string>& names) {
-  return impl_->LoadFonts(names);
-}
 
 const TexturePtr& RenderSystem::GetWhiteTexture() const {
   return impl_->GetWhiteTexture();
@@ -144,10 +182,6 @@ void RenderSystem::Create(Entity entity, HashValue pass) {
   impl_->Create(entity, pass);
 }
 
-void RenderSystem::Create(Entity entity, HashValue pass, HashValue pass_enum) {
-  impl_->Create(entity, pass, pass_enum);
-}
-
 void RenderSystem::PostCreateInit(Entity entity, HashValue type,
                                   const Def* def) {
   impl_->PostCreateInit(entity, type, def);
@@ -167,6 +201,10 @@ HashValue RenderSystem::GetRenderPass(Entity entity) const {
   return static_cast<HashValue>(impl_->GetRenderPass(entity));
 }
 
+std::vector<HashValue> RenderSystem::GetRenderPasses(Entity entity) const {
+  return impl_->GetRenderPasses(entity);
+}
+
 const mathfu::vec4& RenderSystem::GetDefaultColor(Entity entity) const {
   return impl_->GetDefaultColor(entity);
 }
@@ -181,6 +219,92 @@ bool RenderSystem::GetColor(Entity entity, mathfu::vec4* color) const {
 
 void RenderSystem::SetColor(Entity entity, const mathfu::vec4& color) {
   impl_->SetColor(entity, color);
+}
+
+void RenderSystem::SetUniform(Entity entity, string_view name,
+                              ShaderDataType type, Span<uint8_t> data,
+                              int count) {
+  impl_->SetUniform(entity, NullOpt, NullOpt, name, type, data, count);
+}
+
+void RenderSystem::SetUniform(Entity entity, string_view name, Span<float> data,
+                              int count) {
+  const size_t dimensions = data.size() / count;
+  ShaderDataType type;
+  switch (dimensions) {
+    case 1:
+      type = ShaderDataType_Float1;
+      break;
+    case 2:
+      type = ShaderDataType_Float2;
+      break;
+    case 3:
+      type = ShaderDataType_Float3;
+      break;
+    case 4:
+      type = ShaderDataType_Float4;
+      break;
+    case 9:
+      type = ShaderDataType_Float3x3;
+      break;
+    case 16:
+      type = ShaderDataType_Float4x4;
+      break;
+    default:
+      LOG(DFATAL) << "Unsupported shader uniform type.";
+      return;
+  }
+
+  SetUniform(entity, name, type,
+             {reinterpret_cast<const uint8_t*>(data.data()),
+              data.size() * sizeof(float)},
+             count);
+}
+
+void RenderSystem::SetUniform(Entity entity, string_view name, Span<int> data,
+                              int count) {
+  const size_t dimensions = data.size() / count;
+  ShaderDataType type;
+  switch (dimensions) {
+    case 1:
+      type = ShaderDataType_Int1;
+      break;
+    case 2:
+      type = ShaderDataType_Int2;
+      break;
+    case 3:
+      type = ShaderDataType_Int3;
+      break;
+    case 4:
+      type = ShaderDataType_Int4;
+      break;
+    default:
+      LOG(DFATAL) << "Unsupported shader uniform type.";
+      return;
+  }
+
+  SetUniform(entity, name, type,
+             {reinterpret_cast<const uint8_t*>(data.data()),
+              data.size() * sizeof(int)},
+             count);
+}
+
+void RenderSystem::SetUniform(Entity entity, Optional<HashValue> pass,
+                              Optional<int> submesh_index, string_view name,
+                              ShaderDataType type, Span<uint8_t> data,
+                              int count) {
+  impl_->SetUniform(entity, pass, submesh_index, name, type, data, count);
+}
+
+bool RenderSystem::GetUniform(Entity entity, string_view name,
+                                  size_t length, uint8_t* data_out) const {
+  return impl_->GetUniform(entity, NullOpt, NullOpt, name, length, data_out);
+}
+
+bool RenderSystem::GetUniform(Entity entity, Optional<HashValue> pass,
+                                  Optional<int> submesh_index, string_view name,
+                                  size_t length, uint8_t* data_out) const {
+  return impl_->GetUniform(entity, pass, submesh_index, name, length, data_out);
 }
 
 void RenderSystem::SetUniform(Entity entity, const char* name,
@@ -210,6 +334,11 @@ bool RenderSystem::GetUniform(Entity entity, const char* name, size_t length,
 
 void RenderSystem::CopyUniforms(Entity entity, Entity source) {
   impl_->CopyUniforms(entity, source);
+}
+
+void RenderSystem::SetUniformChangedCallback(Entity entity, HashValue pass,
+                                             UniformChangedCallback callback) {
+  impl_->SetUniformChangedCallback(entity, pass, std::move(callback));
 }
 
 int RenderSystem::GetNumBones(Entity entity) const {
@@ -285,6 +414,15 @@ void RenderSystem::SetTextureId(Entity entity, int unit,
   impl_->SetTextureId(entity, unit, texture_target, texture_id);
 }
 
+void RenderSystem::SetTextureExternal(Entity e, HashValue pass, int unit) {
+  // Texture unit is an int, but must be positive and below the number of
+  // samplers. Currently we aren't checking how many samplers are available,
+  // therefore we at best ensure the value is below 256.
+  DCHECK_GE(unit, 0);
+  DCHECK_LE(unit, 255);
+  impl_->SetTextureExternal(e, pass, unit);
+}
+
 TexturePtr RenderSystem::CreateProcessedTexture(
     const TexturePtr& source_texture, bool create_mips,
     TextureProcessor processor) {
@@ -313,11 +451,6 @@ bool RenderSystem::GetQuad(Entity entity, RenderQuad* quad) const {
 
 void RenderSystem::SetQuad(Entity entity, const RenderQuad& quad) {
   impl_->SetQuad(entity, quad);
-}
-
-void RenderSystem::SetQuad(Entity entity, HashValue pass,
-                           const RenderQuad& quad) {
-  impl_->SetQuad(entity, pass, quad);
 }
 
 MeshPtr RenderSystem::GetMesh(Entity entity, HashValue pass) {
@@ -361,17 +494,10 @@ void RenderSystem::SetShader(Entity entity, const std::string& file) {
   SetShader(entity, LoadShader(file));
 }
 
-void RenderSystem::SetMaterial(Entity entity, int submesh_index,
+void RenderSystem::SetMaterial(Entity entity, Optional<HashValue> pass,
+                               Optional<int> submesh_index,
                                const MaterialInfo& info) {
-  impl_->SetMaterial(entity, submesh_index, info);
-}
-
-void RenderSystem::SetFont(Entity entity, const FontPtr& font) {
-  impl_->SetFont(entity, font);
-}
-
-void RenderSystem::SetTextSize(Entity entity, int size) {
-  impl_->SetTextSize(entity, size);
+  impl_->SetMaterial(entity, pass, submesh_index, info);
 }
 
 RenderSystem::SortOrder RenderSystem::GetSortOrder(Entity e) const {
@@ -413,6 +539,32 @@ bool RenderSystem::IsReadyToRender(Entity entity) const {
   return impl_->IsReadyToRender(entity);
 }
 
+bool RenderSystem::IsReadyToRender(Entity entity, HashValue pass) const {
+  return impl_->IsReadyToRender(entity, pass);
+}
+
+void RenderSystem::OnReadyToRender(Entity entity, HashValue pass,
+                                   const std::function<void()>& fn) const {
+  if (impl_->IsReadyToRender(entity)) {
+    fn();
+  } else {
+    auto* dispatcher_system = registry_->Get<DispatcherSystem>();
+    if (!dispatcher_system) {
+      LOG(DFATAL) << "OnReadyToRender requires the DispatcherSystem.";
+      return;
+    }
+    auto connection = std::make_shared<Dispatcher::ScopedConnection>();
+    *connection = dispatcher_system->Connect(
+        entity, [=](const ReadyToRenderEvent& event) mutable {
+          DCHECK(event.entity == entity);
+          if (event.entity == entity && event.pass == pass) {
+            connection.reset();
+            fn();
+          }
+        });
+  }
+}
+
 bool RenderSystem::IsHidden(Entity entity) const {
   return impl_->IsHidden(entity);
 }
@@ -430,6 +582,14 @@ void RenderSystem::SetRenderPass(Entity entity, HashValue pass) {
   impl_->SetRenderPass(entity, pass);
 }
 
+void RenderSystem::SetDefaultRenderPass(HashValue pass) {
+  impl_->SetDefaultRenderPass(pass);
+}
+
+HashValue RenderSystem::GetDefaultRenderPass() const {
+  return impl_->GetDefaultRenderPass();
+}
+
 void RenderSystem::SetRenderState(HashValue pass,
                                   const fplbase::RenderState& render_state) {
   impl_->SetRenderState(pass, render_state);
@@ -444,6 +604,10 @@ void RenderSystem::SetSortMode(HashValue pass, SortMode mode) {
   impl_->SetSortMode(pass, mode);
 }
 
+void RenderSystem::SetSortVector(HashValue pass, const mathfu::vec3& vector) {
+  impl_->SetSortVector(pass, vector);
+}
+
 void RenderSystem::SetCullMode(HashValue pass, RenderCullMode mode) {
   impl_->SetCullMode(pass, mode);
 }
@@ -455,6 +619,10 @@ void RenderSystem::SetDefaultFrontFace(RenderFrontFace face) {
 void RenderSystem::SetRenderTarget(HashValue pass,
                                    HashValue render_target_name) {
   impl_->SetRenderTarget(pass, render_target_name);
+}
+
+ImageData RenderSystem::GetRenderTargetData(HashValue render_target_name) {
+  return impl_->GetRenderTargetData(render_target_name);
 }
 
 void RenderSystem::SetDepthTest(const bool enabled) {
@@ -538,7 +706,17 @@ void RenderSystem::UpdateDynamicMesh(
     const size_t max_indices,
     const std::function<void(MeshData*)>& update_mesh) {
   impl_->UpdateDynamicMesh(entity, primitive_type, vertex_format, max_vertices,
-                           max_indices, update_mesh);
+                           max_indices, MeshData::kIndexU16, 0, update_mesh);
+}
+
+void RenderSystem::UpdateDynamicMesh(
+    Entity entity, MeshData::PrimitiveType primitive_type,
+    const VertexFormat& vertex_format, const size_t max_vertices,
+    const size_t max_indices, MeshData::IndexType index_type,
+    const size_t max_ranges,
+    const std::function<void(MeshData*)>& update_mesh) {
+  impl_->UpdateDynamicMesh(entity, primitive_type, vertex_format, max_vertices,
+                           max_indices, index_type, max_ranges, update_mesh);
 }
 
 void RenderSystem::BindShader(const ShaderPtr& shader) {
@@ -554,34 +732,6 @@ void RenderSystem::BindUniform(const char* name, const float* data,
   impl_->BindUniform(name, data, dimension);
 }
 
-void RenderSystem::DrawPrimitives(MeshData::PrimitiveType primitive_type,
-                                  const VertexFormat& vertex_format,
-                                  const void* vertex_data,
-                                  size_t num_vertices) {
-  DataContainer vertex_wrapper = DataContainer::WrapDataAsReadOnly(
-      reinterpret_cast<const uint8_t*>(vertex_data),
-      num_vertices * vertex_format.GetVertexSize());
-  MeshData mesh(primitive_type, vertex_format, std::move(vertex_wrapper));
-  impl_->DrawMesh(mesh);
-}
-
-void RenderSystem::DrawIndexedPrimitives(MeshData::PrimitiveType primitive_type,
-                                         const VertexFormat& vertex_format,
-                                         const void* vertex_data,
-                                         size_t num_vertices,
-                                         const uint16_t* indices,
-                                         size_t num_indices) {
-  DataContainer vertex_wrapper = DataContainer::WrapDataAsReadOnly(
-      reinterpret_cast<const uint8_t*>(vertex_data),
-      num_vertices * vertex_format.GetVertexSize());
-  DataContainer index_wrapper = DataContainer::WrapDataAsReadOnly(
-      reinterpret_cast<const uint8_t*>(indices),
-      num_indices * sizeof(indices[0]));
-  MeshData mesh(primitive_type, vertex_format, std::move(vertex_wrapper),
-                MeshData::kIndexU16, std::move(index_wrapper));
-  impl_->DrawMesh(mesh);
-}
-
 void RenderSystem::DrawMesh(const MeshData& mesh) { impl_->DrawMesh(mesh); }
 
 void RenderSystem::CreateRenderTarget(
@@ -590,8 +740,23 @@ void RenderSystem::CreateRenderTarget(
   impl_->CreateRenderTarget(render_target_name, create_params);
 }
 
-void RenderSystem::BindUniform(const Uniform& uniform) {
-  impl_->BindUniform(uniform);
+Optional<HashValue> RenderSystem::GetGroupId(Entity entity) const {
+  return impl_->GetGroupId(entity);
+}
+
+void RenderSystem::SetGroupId(Entity entity,
+                              const Optional<HashValue>& group_id) {
+  impl_->SetGroupId(entity, group_id);
+}
+
+const RenderSystem::GroupParams* RenderSystem::GetGroupParams(
+    HashValue group_id) const {
+  return impl_->GetGroupParams(group_id);
+}
+
+void RenderSystem::SetGroupParams(HashValue group_id,
+                                  const GroupParams& group_params) {
+  impl_->SetGroupParams(group_id, group_params);
 }
 
 }  // namespace lull

@@ -111,30 +111,30 @@ TEST(ScriptValueTest, CopyAssignMove) {
   EXPECT_THAT(value4.Get<int>(), Eq(value5.Get<int>()));
 }
 
-TEST(ScriptValueTest, NumericCast) {
+TEST(ScriptValueTest, ImplicitCast) {
   ScriptValue value = ScriptValue::Create(123);
-  EXPECT_THAT(*value.NumericCast<int8_t>(), Eq(int8_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint8_t>(), Eq(uint8_t(123)));
-  EXPECT_THAT(*value.NumericCast<int16_t>(), Eq(int16_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint16_t>(), Eq(uint16_t(123)));
-  EXPECT_THAT(*value.NumericCast<int32_t>(), Eq(int32_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint32_t>(), Eq(uint32_t(123)));
-  EXPECT_THAT(*value.NumericCast<int64_t>(), Eq(int64_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint64_t>(), Eq(uint64_t(123)));
-  EXPECT_THAT(*value.NumericCast<float>(), Eq(123.f));
-  EXPECT_THAT(*value.NumericCast<double>(), Eq(123.0));
+  EXPECT_THAT(*value.ImplicitCast<int8_t>(), Eq(int8_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint8_t>(), Eq(uint8_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<int16_t>(), Eq(int16_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint16_t>(), Eq(uint16_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<int32_t>(), Eq(int32_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint32_t>(), Eq(uint32_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<int64_t>(), Eq(int64_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint64_t>(), Eq(uint64_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<float>(), Eq(123.f));
+  EXPECT_THAT(*value.ImplicitCast<double>(), Eq(123.0));
 
   value = ScriptValue::Create(123.f);
-  EXPECT_THAT(*value.NumericCast<int8_t>(), Eq(int8_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint8_t>(), Eq(uint8_t(123)));
-  EXPECT_THAT(*value.NumericCast<int16_t>(), Eq(int16_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint16_t>(), Eq(uint16_t(123)));
-  EXPECT_THAT(*value.NumericCast<int32_t>(), Eq(int32_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint32_t>(), Eq(uint32_t(123)));
-  EXPECT_THAT(*value.NumericCast<int64_t>(), Eq(int64_t(123)));
-  EXPECT_THAT(*value.NumericCast<uint64_t>(), Eq(uint64_t(123)));
-  EXPECT_THAT(*value.NumericCast<float>(), Eq(123.f));
-  EXPECT_THAT(*value.NumericCast<double>(), Eq(123.0));
+  EXPECT_THAT(*value.ImplicitCast<int8_t>(), Eq(int8_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint8_t>(), Eq(uint8_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<int16_t>(), Eq(int16_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint16_t>(), Eq(uint16_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<int32_t>(), Eq(int32_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint32_t>(), Eq(uint32_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<int64_t>(), Eq(int64_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<uint64_t>(), Eq(uint64_t(123)));
+  EXPECT_THAT(*value.ImplicitCast<float>(), Eq(123.f));
+  EXPECT_THAT(*value.ImplicitCast<double>(), Eq(123.0));
 }
 
 TEST(ScriptValueTest, Variant) {

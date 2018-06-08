@@ -1,8 +1,9 @@
 # Lullaby, a collection of C++ libraries for building XR applications.
 load(
-    "@//third_party/dev:generate_schema_cc_library.bzl",
+    "@//dev:generate_schema_cc_library.bzl",
     "generate_schema_cc_library",
 )
+
 
 package(
     default_visibility = ["//visibility:public"],
@@ -11,6 +12,22 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 exports_files(["LICENSE"])
+
+config_setting(
+    name = "is_debug",
+    values = {
+        "compilation_mode": "dbg",
+    },
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "is_fastbuild",
+    values = {
+        "compilation_mode": "fastbuild",
+    },
+    visibility = ["//visibility:public"],
+)
 
 lullaby_schemas = [
     "schemas/lull/animation_def.fbs",
@@ -21,7 +38,9 @@ lullaby_schemas = [
     "schemas/lull/audio_playback_types.fbs",
     "schemas/lull/audio_response_def.fbs",
     "schemas/lull/audio_source_def.fbs",
+    "schemas/lull/axis_system.fbs",
     "schemas/lull/backdrop_def.fbs",
+    "schemas/lull/blend_shape_def.fbs",
     "schemas/lull/clip_def.fbs",
     "schemas/lull/collision_def.fbs",
     "schemas/lull/common.fbs",
@@ -33,6 +52,7 @@ lullaby_schemas = [
     "schemas/lull/deform_def.fbs",
     "schemas/lull/dispatcher_def.fbs",
     "schemas/lull/fade_in_def.fbs",
+    "schemas/lull/face_point_mutator_def.fbs",
     "schemas/lull/grab_def.fbs",
     "schemas/lull/input_behavior_def.fbs",
     "schemas/lull/layout_def.fbs",
@@ -65,7 +85,6 @@ lullaby_schemas = [
     "schemas/lull/scroll_def.fbs",
     "schemas/lull/shader_clip_def.fbs",
     "schemas/lull/shader_def.fbs",
-    "schemas/lull/shader_uniform_def.fbs",
     "schemas/lull/shape_def.fbs",
     "schemas/lull/skeleton_def.fbs",
     "schemas/lull/slider_def.fbs",
@@ -73,6 +92,7 @@ lullaby_schemas = [
     "schemas/lull/snap_def.fbs",
     "schemas/lull/sort_mode.fbs",
     "schemas/lull/spatial_grab_input_def.fbs",
+    "schemas/lull/spherical_grab_input_def.fbs",
     "schemas/lull/stategraph_def.fbs",
     "schemas/lull/stay_in_box_mutator_def.fbs",
     "schemas/lull/text_def.fbs",
@@ -84,13 +104,15 @@ lullaby_schemas = [
     "schemas/lull/variant_def.fbs",
     "schemas/lull/vertex_attribute_def.fbs",
     "schemas/lull/visibility_def.fbs",
+    "schemas/lull/word_art_def.fbs",
 ]
 
 
 generate_schema_cc_library(
     name = "fbs",
     srcs = lullaby_schemas,
-    include_paths = ["schemas"],
+    filegroup_name = "fbs_schema_includes",
     visibility = ["//visibility:public"],
+    out_prefix = "lullaby/generated/"
 )
 

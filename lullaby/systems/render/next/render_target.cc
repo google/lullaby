@@ -18,10 +18,15 @@ limitations under the License.
 
 #include "lullaby/systems/render/next/gl_helpers.h"
 
+namespace {
+const int kRgbaStride = 4;
+}  // namespace
+
 namespace lull {
 
 RenderTarget::RenderTarget(const RenderTargetCreateParams& create_params)
-    : dimensions_(create_params.dimensions) {
+    : dimensions_(create_params.dimensions),
+      num_mip_levels_(create_params.num_mip_levels) {
   GLint original_frame_buffer = 0;
   GLint original_render_buffer = 0;
   GL_CALL(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &original_frame_buffer));
@@ -60,9 +65,9 @@ RenderTarget::RenderTarget(const RenderTargetCreateParams& create_params)
                                    gl_texture_id, 0));
     texture_ = gl_texture_id;
 
-    if (create_params.num_mip_levels == 0) {
+    if (num_mip_levels_ == 0) {
       glGenerateMipmap(GL_TEXTURE_2D);
-    } else if (create_params.num_mip_levels > 1) {
+    } else if (num_mip_levels_ > 1) {
       LOG(ERROR)
           << "Manually specified number of mipmaps is currently not supported.";
     }
@@ -112,10 +117,54 @@ RenderTarget::~RenderTarget() {
 
 void RenderTarget::Bind() const {
   if (frame_buffer_) {
+    GL_CALL(glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prev_frame_buffer_));
     GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_));
     GL_CALL(glViewport(0, 0, dimensions_.x, dimensions_.y));
   }
 }
 
-}  // namespace lull
+void RenderTarget::Unbind() const {
+  if (texture_ && num_mip_levels_ == 0) {
+    GLuint current_texture_id;
+    GL_CALL(glGetIntegerv(GL_TEXTURE_BINDING_2D,
+                          reinterpret_cast<GLint*>(&current_texture_id)));
 
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, *texture_));
+    GL_CALL(glGenerateMipmap(GL_TEXTURE_2D));
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, current_texture_id));
+  }
+  GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, prev_frame_buffer_));
+  prev_frame_buffer_ = 0;
+}
+
+ImageData RenderTarget::GetFrameBufferData() const {
+  if (!frame_buffer_) {
+    LOG(WARNING) << "No Framebuffer!";
+    return ImageData();
+  }
+  // Save previous OpenGL state.
+  GLint viewport[4];
+  GL_CALL(glGetIntegerv(GL_VIEWPORT, viewport));
+  GLint prev_frame_buffer;
+  GL_CALL(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_frame_buffer));
+  GLint prev_read_buffer;
+  GL_CALL(glGetIntegerv(GL_READ_BUFFER, &prev_read_buffer));
+
+  Bind();
+  const int size = dimensions_.x * dimensions_.y * kRgbaStride;
+  DataContainer container = DataContainer::CreateHeapDataContainer(size);
+  uint8_t* pixels = container.GetAppendPtr(size);
+
+  GL_CALL(glReadBuffer(GL_COLOR_ATTACHMENT0));
+  GL_CALL(glPixelStorei(GL_PACK_ALIGNMENT, 1));
+  GL_CALL(glReadPixels(0, 0, dimensions_.x, dimensions_.y, GL_RGBA,
+                       GL_UNSIGNED_BYTE, pixels));
+
+  // Restore OpenGL state.
+  GL_CALL(glViewport(viewport[0], viewport[1], viewport[2], viewport[3]));
+  GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, prev_frame_buffer));
+  GL_CALL(glReadBuffer(prev_read_buffer));
+
+  return ImageData(ImageData::kRgba8888, dimensions_, std::move(container));
+}
+}  // namespace lull

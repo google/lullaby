@@ -25,7 +25,7 @@ limitations under the License.
 
 namespace lull {
 
-static const HashValue kDatastoreDef = Hash("DatastoreDef");
+static const HashValue kDatastoreDef = ConstHash("DatastoreDef");
 
 DatastoreSystem::DatastoreSystem(Registry* registry) : System(registry) {
   RegisterDef(this, kDatastoreDef);

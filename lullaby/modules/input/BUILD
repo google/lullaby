@@ -8,10 +8,12 @@ licenses(["notice"])  # Apache 2.0
 cc_library(
     name = "input",
     srcs = [
+        "device_profile.cc",
         "input_manager.cc",
         "input_manager_util.cc",
     ],
     hdrs = [
+        "device_profile.h",
         "input_focus.h",
         "input_manager.h",
         "input_manager_util.h",

@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "lullaby/modules/render/sanitize_shader_source.h"
 
+#include <sstream>
 #include "lullaby/util/logging.h"
 
 namespace lull {
@@ -125,8 +126,7 @@ static const char* FindUnterminatedCommentInLine(const char* str, size_t len) {
   return nullptr;
 }
 
-std::string SanitizeShaderSource(string_view code, ShaderProfile profile,
-                                 Span<string_view> defines) {
+std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
   int if_depth = 0;
   int version_number = 0;
   bool found_precision = false;
@@ -251,13 +251,6 @@ std::string SanitizeShaderSource(string_view code, ShaderProfile profile,
     ss << "#define lowp" << std::endl;
     ss << "#define mediump" << std::endl;
     ss << "#define highp" << std::endl;
-  }
-
-  // Add custom defines.
-  for (string_view def : defines) {
-    if (!def.empty()) {
-      ss << "#define " << def << std::endl;
-    }
   }
 
   // Add the preamble (lines before any code). Make sure we don't go past

@@ -31,7 +31,7 @@ struct LayoutChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, ConstHash("target"));
   }
 
   Entity target = kNullEntity;
@@ -46,7 +46,7 @@ struct OriginalBoxChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, ConstHash("target"));
   }
 
   Entity target = kNullEntity;
@@ -55,6 +55,7 @@ struct OriginalBoxChangedEvent {
 // Used by the LayoutBoxSystem to notify when the desired size is changed.
 // See LayoutBoxSystem documentation for more details on how this event should
 // be used.
+// NOTE: Don't manually send this event. Call LayoutBoxSystem::SetDesiredSize().
 struct DesiredSizeChangedEvent {
   DesiredSizeChangedEvent() {}
   explicit DesiredSizeChangedEvent(Entity e, Entity source,
@@ -65,11 +66,11 @@ struct DesiredSizeChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&source, Hash("source"));
-    archive(&x, Hash("x"));
-    archive(&y, Hash("y"));
-    archive(&z, Hash("z"));
+    archive(&target, ConstHash("target"));
+    archive(&source, ConstHash("source"));
+    archive(&x, ConstHash("x"));
+    archive(&y, ConstHash("y"));
+    archive(&z, ConstHash("z"));
   }
 
   Entity target = kNullEntity;
@@ -89,8 +90,8 @@ struct ActualBoxChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&source, Hash("source"));
+    archive(&target, ConstHash("target"));
+    archive(&source, ConstHash("source"));
   }
 
   Entity target = kNullEntity;

@@ -58,6 +58,7 @@ class StubTextSystem : public TextSystemImpl {
   bool IsTextReady(Entity entity) const override { return false; }
   void ProcessTasks() override {}
   void WaitForAllTasks() override {}
+  void ReprocessAllText() override {}
 };
 
 }  // namespace lull

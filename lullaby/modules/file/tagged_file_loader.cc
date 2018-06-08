@@ -147,7 +147,7 @@ bool TaggedFileLoader::ApplySettingsToFile(
     std::string* const transformed_filename) {
   const auto it = tag_settings_map_.find(tag);
   if (it == tag_settings_map_.end()) {
-    LOG(WARNING) << "Unregistered tag " << tag << " in file " << filename;
+    LOG(WARNING) << "Unregistered tag " << tag << " for file " << filename;
     return false;
   }
   if (filename[0] == '/') {

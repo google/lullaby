@@ -1,11 +1,18 @@
 load(
-    "@//third_party/dev:flatbuffer_cc_library.bzl",
+    "@//third_party/flatbuffers:build_defs.bzl",
     "flatbuffer_cc_library",
 )
 
 package(
     default_visibility = ["//visibility:public"],
 )
+
+FPLBASE_DEFINES = [
+    "FPLBASE_DISABLE_NEW_DELETE_OPERATORS",
+    "FPLBASE_ANDROID_VR=0",
+    "FPLBASE_BACKEND_STDLIB",
+    "GL_GLEXT_PROTOTYPES",
+]
 
 flatbuffer_cc_library(
     name = "fbs",
@@ -22,18 +29,54 @@ flatbuffer_cc_library(
 )
 
 cc_library(
+    name = "glplatform",
+    hdrs = [
+        "include/fplbase/glplatform.h",
+    ],
+    deps = [
+        "@//third_party/gl",
+    ],
+)
+
+cc_library(
+    name = "render_state",
+    hdrs = [
+        "include/fplbase/internal/detailed_render_state.h",
+        "include/fplbase/render_state.h",
+        "include/fplbase/viewport.h",
+    ],
+    includes = ["include"],
+    deps = [
+        "@mathfu//:mathfu",
+    ],
+)
+
+cc_library(
+    name = "utilities",
+    srcs = [
+        "src/logging.cpp",
+        "src/logging_stdlib.cpp",
+        "src/file_utilities.cpp",
+        "src/file_utilities_stdlib.cpp",
+    ],
+    hdrs = [
+        "include/fplbase/config.h",
+        "include/fplbase/logging.h",
+        "include/fplbase/file_utilities.h",
+    ],
+    includes = ["include"],
+    defines = FPLBASE_DEFINES,
+)
+
+cc_library(
     name = "fplbase",
     srcs = [
         "src/asset_manager.cpp",
         "src/async_loader_stdlib.cpp",
         "src/environment_stdlib.cpp",
-        "src/file_utilities.cpp",
-        "src/file_utilities_stdlib.cpp",
         "src/gpu_debug_gl.cpp",
         "src/input.cpp",
         "src/input_stdlib.cpp",
-        "src/logging.cpp",
-        "src/logging_stdlib.cpp",
         "src/material.cpp",
         "src/mesh_common.cpp",
         "src/mesh_gl.cpp",
@@ -59,17 +102,13 @@ cc_library(
         "include/fplbase/asset.h",
         "include/fplbase/asset_manager.h",
         "include/fplbase/async_loader.h",
-        "include/fplbase/config.h",
         "include/fplbase/debug_markers.h",
         "include/fplbase/environment.h",
-        "include/fplbase/file_utilities.h",
         "include/fplbase/flatbuffer_utils.h",
         "include/fplbase/fpl_common.h",
-        "include/fplbase/glplatform.h",
         "include/fplbase/gpu_debug.h",
         "include/fplbase/handles.h",
         "include/fplbase/input.h",
-        "include/fplbase/internal/detailed_render_state.h",
         "include/fplbase/internal/type_conversions_gl.h",
         "include/fplbase/keyboard_keycodes.h",
         "include/fplbase/keyboard_scancodes.h",
@@ -77,7 +116,6 @@ cc_library(
         "include/fplbase/material.h",
         "include/fplbase/mesh.h",
         "include/fplbase/preprocessor.h",
-        "include/fplbase/render_state.h",
         "include/fplbase/render_target.h",
         "include/fplbase/render_utils.h",
         "include/fplbase/renderer.h",
@@ -101,11 +139,12 @@ cc_library(
     ],
     deps = [
         ":fbs",
-        "@//third_party/gl",
+        ":utilities",
+        ":render_state",
+        ":glplatform",
         "@flatbuffers//:flatbuffers",
         "@fplutil//:fplutil",
         "@libwebp//:webp_decode",
-        "@mathfu//:mathfu",
         "@stb//:stb",
         "@//third_party/stb_image_resize:stb_image_resize",
     ],

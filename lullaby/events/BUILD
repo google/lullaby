@@ -23,8 +23,8 @@ cc_library(
         "ui_events.h",
     ],
     deps = [
+        "//lullaby/modules/input",
         "//lullaby/util:entity",
-        "//lullaby/util:hash",
         "//lullaby/util:math",
         "//lullaby/util:optional",
         "//lullaby/util:typeid",

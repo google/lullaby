@@ -77,6 +77,9 @@ const KtxHeader* GetKtxHeader(const uint8_t* data, size_t len);
 // nullptr.
 const PkmHeader* GetPkmHeader(const uint8_t* data, size_t len);
 
+// Returns an int from a 3 byte array
+int GetAstcSize(const uint8_t (&size)[3]);
+
 // Returns the AstcHeader if the buffer is a ASTC image file, otherwise returns
 // nullptr.
 const AstcHeader* GetAstcHeader(const uint8_t* data, size_t len);

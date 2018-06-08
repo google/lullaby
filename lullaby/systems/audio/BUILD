@@ -45,7 +45,6 @@ cc_library(
         "//lullaby/util:make_unique",
         "//lullaby/util:math",
         "//lullaby/util:random_number_generator",
-        "//lullaby/util:scoped_java_local_ref",
         "//lullaby/util:string_view",
         "//lullaby/util:trace",
         "//lullaby/util:typeid",

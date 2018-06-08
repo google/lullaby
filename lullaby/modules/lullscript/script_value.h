@@ -86,11 +86,10 @@ class ScriptValue {
   const T* Get() const;
 
   // Similar to Get(), but attempts to perform a static_cast on the underlying
-  // type.  Both T and the stored type must be a numeric value (ie. int, float,
-  // etc.).  If neither type is numeric, returns an empty value.
+  // type if both T and the stored type are numeric (ie. int, float, enum,
+  // etc.).  Also performs some more conversions as detailed in variant.h.
   template <typename T>
-  auto NumericCast() const
-      -> Optional<typename Variant::EnableIfNumeric<T>::type>;
+  Optional<T> ImplicitCast() const;
 
   // Returns a pointer to the underlying variant (if available).
   Variant* GetVariant();
@@ -156,9 +155,8 @@ const T* ScriptValue::Get() const {
 }
 
 template <typename T>
-auto ScriptValue::NumericCast() const
-    -> Optional<typename Variant::EnableIfNumeric<T>::type> {
-  return impl_ ? impl_->var.NumericCast<T>() : NullOpt;
+Optional<T> ScriptValue::ImplicitCast() const {
+  return impl_ ? impl_->var.ImplicitCast<T>() : NullOpt;
 }
 
 inline bool ScriptValue::IsNil() const {

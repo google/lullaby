@@ -23,6 +23,7 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
+#include "lullaby/systems/input_behavior/input_behavior_system.h"
 #include "lullaby/systems/reticle/reticle_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "mathfu/io.h"
@@ -30,7 +31,7 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kLinearGrabbableDefHash = Hash("LinearGrabbableDef");
+const HashValue kLinearGrabbableDefHash = ConstHash("LinearGrabbableDef");
 }  // namespace
 
 LinearGrabSystem::LinearGrabSystem(Registry* registry)
@@ -58,6 +59,11 @@ void LinearGrabSystem::Create(Entity entity, HashValue type, const Def* def) {
   dispatcher_system->Connect(
       entity, kCancelEventHash, this,
       [this, entity](const EventWrapper& event) { OnGrabReleased(event); });
+
+  auto* input_behavior_system = registry_->Get<InputBehaviorSystem>();
+  if (input_behavior_system) {
+    input_behavior_system->SetDraggable(entity, true);
+  }
 }
 
 void LinearGrabSystem::Destroy(Entity entity) {

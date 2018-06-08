@@ -205,6 +205,8 @@ void Mesh::UnbindAttributes() {
   }
 }
 
+const VertexFormat& Mesh::GetVertexFormat() const { return vertex_format_; }
+
 size_t Mesh::TryUpdateRig(RigSystem* rig_system, Entity entity) {
   const size_t num_shader_bones = shader_bone_indices_.size();
   if (rig_system == nullptr) {

@@ -22,11 +22,12 @@ limitations under the License.
 #include <vector>
 
 #include "lullaby/util/entity.h"
-#include "lullaby/systems/render/render_types.h"
+#include "lullaby/systems/render/detail/sort_order_types.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/registry.h"
 
 namespace lull {
+
 namespace detail {
 
 /// A pair of an Entity and a HashValue id.
@@ -137,7 +138,7 @@ void SortOrderManager::UpdateSortOrder(EntityIdPair entity_id_pair,
       transform_system->GetChildren(entity_id_pair.entity);
   if (children) {
     for (const auto& child : *children) {
-      UpdateSortOrder(child, get_component);
+      UpdateSortOrder(EntityIdPair(child, entity_id_pair.id), get_component);
     }
   }
 }

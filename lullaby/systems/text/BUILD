@@ -21,6 +21,7 @@ cc_library(
     hdrs = public_headers,
     deps = [
         "//:fbs",
+        "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
         "//lullaby/modules/script",
         "//lullaby/util:math",
@@ -51,6 +52,7 @@ cc_library(
         ":text",
         "@flatui//:flatui",
         "@fplbase//:fplbase",
+        "@fplbase//:glplatform",
         "//:fbs",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",

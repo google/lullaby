@@ -28,10 +28,10 @@ limitations under the License.
 namespace lull {
 
 namespace {
-const HashValue kSnappableDefHash = Hash("SnappableDef");
-const HashValue kSnapTargetDefHash = Hash("SnapTargetDef");
+const HashValue kSnappableDefHash = ConstHash("SnappableDef");
+const HashValue kSnapTargetDefHash = ConstHash("SnapTargetDef");
 
-const HashValue kDefaultGroup = Hash("default");
+const HashValue kDefaultGroup = ConstHash("default");
 }  // namespace
 
 SnapSystem::Snappable::Snappable(Entity e)

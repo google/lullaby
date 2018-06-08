@@ -72,6 +72,9 @@ class Mesh {
   // Draws a portion of the mesh.
   void RenderSubmesh(size_t submesh);
 
+  // Returns the vertex format of this mesh.
+  const VertexFormat& GetVertexFormat() const;
+
   // If the mesh is still loading, this adds a function that will be called when
   // it finishes loading. If the mesh is already loaded, |callback| is
   // immediately invoked.

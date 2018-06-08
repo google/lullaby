@@ -1,5 +1,0 @@
-#include "third_party/lullaby/tests/data/shader_processor_test_include_0.glslh"
-
-int IncludedFoo_1(int x, int y) {
-  return x * y;
-}

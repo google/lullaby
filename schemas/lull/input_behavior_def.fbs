@@ -33,4 +33,11 @@ table InputBehaviorDef {
   /// and default interactivity will be set. Ignored if |behavior_type| is
   /// not HandleDescendants.
   interactive_if_handle_descendants: bool = true;
+
+  /// If set to True, the entity will receive DragStart and DragStop events.
+  /// If False, the entity can still receive Click events beyond the drag slop
+  /// ray threshold.
+  /// If Unset, it will default to False but won't overwrite any value set by
+  /// InputBehaviorSystem::SetDraggable().
+  draggable: OptionalBool = Unset;
 }

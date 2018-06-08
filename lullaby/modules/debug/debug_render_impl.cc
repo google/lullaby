@@ -23,17 +23,44 @@ namespace lull {
 
 constexpr const char* kShapeShader = "shaders/vertex_color.fplshader";
 constexpr const char* kTextureShader = "shaders/texture.fplshader";
+constexpr const char* kTexture2DShader = "shaders/texture_2d.fplshader";
 constexpr const char* kFontShader = "shaders/texture.fplshader";
 constexpr const char* kFontTexture = "textures/debug_font.webp";
 constexpr float kUVBounds[4] = {0.0f, 0.0f, 1.0f, 1.0f};
 constexpr float kFontSize = 0.12f;
 
+struct NormalizedCoordinates {
+  mathfu::vec3 pos0;
+  mathfu::vec3 pos1;
+};
+
+// Convert from screen coordinates to normalized device coordinates [-1.0, 1.0].
+static NormalizedCoordinates NormalizeScreenCoordinates(
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& pixel_pos1,
+    const mathfu::vec2i& dimensions) {
+  // Flip Y axis from Y-down to Y-up, preserving quad winding.
+  const float sx = 2.0f / dimensions.x;
+  const float sy = 2.0f / dimensions.y;
+  const float x0 = sx * pixel_pos0.x - 1.0f;
+  const float y0 = 1.0f - sy * pixel_pos0.y;
+  const float x1 = sx * pixel_pos1.x - 1.0f;
+  const float y1 = 1.0f - sy * pixel_pos1.y;
+  const float z = -1.0f;
+  const NormalizedCoordinates coords = {
+    mathfu::vec3(x0, y1, z),
+    mathfu::vec3(x1, y0, z)
+  };
+  return coords;
+}
+
 DebugRenderImpl::DebugRenderImpl(Registry* registry) : registry_(registry) {
   render_system_ = registry_->Get<RenderSystem>();
   shape_shader_ = render_system_->LoadShader(kShapeShader);
   texture_shader_ = render_system_->LoadShader(kTextureShader);
+  texture_2d_shader_ = render_system_->LoadShader(kTexture2DShader);
   font_shader_ = render_system_->LoadShader(kFontShader);
   font_texture_ = render_system_->LoadTexture(kFontTexture);
+  quad_mesh_ = CreateQuadMesh<VertexPT>(1.0f, 1.0f, 2, 2, 0.0f, 0);
   font_.reset(new SimpleFont(font_shader_, font_texture_));
 }
 
@@ -44,6 +71,7 @@ void DebugRenderImpl::Begin(const RenderSystem::View* views, size_t num_views) {
   num_views_ = num_views;
   render_system_->SetDepthTest(false);
   render_system_->SetDepthWrite(false);
+  render_system_->SetBlendMode(fplbase::kBlendModeAlpha);
 }
 
 void DebugRenderImpl::End() {
@@ -58,13 +86,15 @@ void DebugRenderImpl::DrawLine(const mathfu::vec3& start_point,
   verts_.clear();
   verts_.emplace_back(start_point.x, start_point.y, start_point.z, color);
   verts_.emplace_back(end_point.x, end_point.y, end_point.z, color);
+  MeshData mesh(
+      MeshData::PrimitiveType::kLines, VertexPC::kFormat,
+      DataContainer::WrapDataAsReadOnly(verts_.data(), verts_.size()));
 
   for (size_t i = 0; i < num_views_; ++i) {
     render_system_->SetViewport(views_[i]);
     render_system_->SetClipFromModelMatrix(views_[i].clip_from_world_matrix);
     render_system_->BindShader(shape_shader_);
-    render_system_->DrawPrimitives(lull::RenderSystem::PrimitiveType::kLines,
-                                   verts_);
+    render_system_->DrawMesh(mesh);
   }
 }
 
@@ -83,7 +113,7 @@ void DebugRenderImpl::DrawText3D(const mathfu::vec3& pos, const Color4ub color,
     render_system_->BindTexture(0, font_->GetTexture());
     render_system_->BindUniform("uv_bounds", kUVBounds, 4);
     render_system_->BindUniform("color", cf, 4);
-    registry_->Get<lull::RenderSystem>()->DrawMesh(mesh);
+    registry_->Get<RenderSystem>()->DrawMesh(mesh);
   }
 }
 
@@ -109,7 +139,7 @@ void DebugRenderImpl::DrawText2D(const Color4ub color, const char* text) {
     render_system_->BindTexture(0, font_->GetTexture());
     render_system_->BindUniform("uv_bounds", kUVBounds, 4);
     render_system_->BindUniform("color", cf, 4);
-    registry_->Get<lull::RenderSystem>()->DrawMesh(mesh);
+    registry_->Get<RenderSystem>()->DrawMesh(mesh);
   }
 }
 
@@ -141,46 +171,64 @@ void DebugRenderImpl::DrawBox3D(const mathfu::mat4& world_from_object_matrix,
       1, 5, 7, 1, 7, 3,
   };
 
+  MeshData mesh(MeshData::PrimitiveType::kTriangles, VertexPC::kFormat,
+                DataContainer::WrapDataAsReadOnly(verts_.data(), verts_.size()),
+                MeshData::kIndexU16,
+                DataContainer::WrapDataAsReadOnly(indices, kNumIndices));
   for (size_t i = 0; i < num_views_; ++i) {
     render_system_->SetViewport(views_[i]);
     render_system_->SetClipFromModelMatrix(views_[i].clip_from_world_matrix);
     render_system_->BindShader(shape_shader_);
-    render_system_->DrawIndexedPrimitives(MeshData::PrimitiveType::kTriangles,
-                                          verts_.data(), verts_.size(), indices,
-                                          kNumIndices);
+    render_system_->DrawMesh(mesh);
   }
 }
 
 void DebugRenderImpl::DrawQuad2D(const Color4ub color, float x, float y,
                                  float w, float h, const TexturePtr& texture) {
-  const int kNumVerts = 2;           // 2x2 verts.
-  const float kCornerRadius = 0.0f;  // No rounded corners.
-  const int kCornerVerts = 0;        // No corner verts.
   const float z = -1.0f;
-  const float tan_half_fov = 1.0f / views_[0].clip_from_eye_matrix[5];
-  const float w_scale = 2.0f * w * -z * tan_half_fov;
-  const float h_scale = 2.0f * h * -z * tan_half_fov;
-  const mathfu::vec3 offset = mathfu::vec3(x, y, z);
+  const mathfu::vec3 pos0(x - w, y - h, z);
+  const mathfu::vec3 pos1(x + w, y + h, z);
   const mathfu::vec4 cv = Color4ub::ToVec4(color);
-  const float cf[4] = {cv.x, cv.y, cv.z, cv.w};
   for (size_t i = 0; i < num_views_; ++i) {
-    render_system_->SetViewport(views_[i]);
-    render_system_->SetClipFromModelMatrix(views_[i].clip_from_eye_matrix);
-    MeshData mesh = CreateQuadMesh<VertexPTN>(w_scale, h_scale,
-                                              kNumVerts, kNumVerts,
-                                              kCornerRadius, kCornerVerts);
-    VertexPTN* vertices = mesh.GetMutableVertexData<VertexPTN>();
-    for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
-      vertices[i].x += offset.x;
-      vertices[i].y += offset.y;
-      vertices[i].z += offset.z;
-    }
-    render_system_->BindShader(texture_shader_);
-    render_system_->BindTexture(0, texture);
-    render_system_->BindUniform("uv_bounds", kUVBounds, 4);
-    render_system_->BindUniform("color", cf, 4);
-    registry_->Get<lull::RenderSystem>()->DrawMesh(mesh);
+    const RenderSystem::View& view = views_[i];
+    render_system_->SetViewport(view);
+    SubmitQuad2D(cv, pos0, mathfu::kZeros2f, pos1, mathfu::kOnes2f, texture);
   }
+}
+
+void DebugRenderImpl::DrawQuad2DAbsolute(
+    const mathfu::vec4& color,
+    const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
+    const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture) const {
+  for (size_t i = 0; i < num_views_; ++i) {
+    const RenderSystem::View& view = views_[i];
+    render_system_->SetViewport(view);
+    const NormalizedCoordinates coords = NormalizeScreenCoordinates(
+        pixel_pos0, pixel_pos1, view.dimensions);
+    SubmitQuad2D(color, coords.pos0, uv0, coords.pos1, uv1, texture);
+  }
+}
+
+void DebugRenderImpl::SubmitQuad2D(
+    const mathfu::vec4& color,
+    const mathfu::vec3& pos0, const mathfu::vec2& uv0,
+    const mathfu::vec3& pos1, const mathfu::vec2& uv1,
+    const TexturePtr& texture) const {
+  const mathfu::vec3 center = 0.5f * (pos0 + pos1);
+  const mathfu::vec3 dpos = pos1 - pos0;
+  const mathfu::vec2 duv = uv1 - uv0;
+  const float uv_bounds[] = {uv0.x, uv0.y, duv.x, duv.y};
+  const float position_scale[] = {dpos.x, dpos.y, dpos.z, 0.0f};
+  const float position_offset[] = {center.x, center.y, center.z, 1.0f};
+
+  render_system_->BindShader(texture_2d_shader_);
+  render_system_->BindTexture(0, texture);
+  render_system_->BindUniform("uv_bounds", uv_bounds, 4);
+  render_system_->BindUniform("position_offset", position_offset, 4);
+  render_system_->BindUniform("position_scale", position_scale, 4);
+  render_system_->BindUniform("color", &color.x, 4);
+  render_system_->DrawMesh(quad_mesh_);
 }
 
 }  // namespace lull

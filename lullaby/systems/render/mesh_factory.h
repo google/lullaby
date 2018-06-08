@@ -53,6 +53,11 @@ class MeshFactory {
   /// this function with the same mesh |name| will return the original mesh as
   /// long as any references to that mesh are still valid.
   virtual MeshPtr CreateMesh(HashValue name, MeshData mesh_data) = 0;
+
+  /// Returns an empty mesh.  Intended for use as a placeholder for some other
+  /// mesh.  The returned mesh will never be 'loaded' so ReadyToRender checks
+  /// will fail when this mesh is set.
+  virtual MeshPtr EmptyMesh() = 0;
 };
 
 }  // namespace lull

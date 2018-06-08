@@ -30,8 +30,8 @@ struct ButtonClickEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&id, Hash("id"));
+    archive(&target, ConstHash("target"));
+    archive(&id, ConstHash("id"));
   }
 
   Entity target = kNullEntity;
@@ -44,8 +44,8 @@ struct TextChangedEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&text, Hash("text"));
+    archive(&target, ConstHash("target"));
+    archive(&text, ConstHash("text"));
   }
 
   Entity target = kNullEntity;
@@ -58,8 +58,8 @@ struct TextEnteredEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&text, Hash("text"));
+    archive(&target, ConstHash("target"));
+    archive(&text, ConstHash("text"));
   }
 
   Entity target = kNullEntity;
@@ -73,9 +73,9 @@ struct SliderEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
-    archive(&id, Hash("id"));
-    archive(&value, Hash("value"));
+    archive(&target, ConstHash("target"));
+    archive(&id, ConstHash("id"));
+    archive(&value, ConstHash("value"));
   }
 
   Entity target = kNullEntity;

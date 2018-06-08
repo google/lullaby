@@ -36,7 +36,7 @@ limitations under the License.
 namespace lull {
 namespace {
 
-const HashValue kScrollDefHash = Hash("ScrollDef");
+const HashValue kScrollDefHash = ConstHash("ScrollDef");
 constexpr float kResistanceExponent = 8.0f;
 
 static float GetDragTarget(float target, float offset, float min, float max,

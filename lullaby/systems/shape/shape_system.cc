@@ -24,6 +24,7 @@ namespace lull {
 
 ShapeSystem::ShapeSystem(Registry* registry) : System(registry) {
   RegisterDef(this, ConstHash("SphereDef"));
+  RegisterDef(this, ConstHash("RectMeshDef"));
   RegisterDependency<RenderSystem>(this);
 }
 
@@ -37,8 +38,17 @@ void ShapeSystem::PostCreateComponent(Entity entity,
 
     auto* render_system = registry_->Get<RenderSystem>();
     render_system->SetMesh(entity, mesh);
+  } else if (blueprint.Is<RectMeshDefT>()) {
+    RectMeshDefT quad;
+    blueprint.Read(&quad);
+    MeshData mesh = CreateQuadMesh<VertexPT>(
+        quad.size_x, quad.size_y, quad.verts_x, quad.verts_y,
+        quad.corner_radius, quad.corner_verts);
+
+    auto* render_system = registry_->Get<RenderSystem>();
+    render_system->SetMesh(entity, mesh);
   } else {
-    LOG(DFATAL) << "The shape system only supports SphereDefs right now.";
+    LOG(DFATAL) << "Unsupported shape.";
   }
 }
 

@@ -30,7 +30,7 @@ struct EnterPhysicsContactEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&other, Hash("other"));
+    archive(&other, ConstHash("other"));
   }
 };
 
@@ -42,7 +42,7 @@ struct ExitPhysicsContactEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&other, Hash("other"));
+    archive(&other, ConstHash("other"));
   }
 };
 

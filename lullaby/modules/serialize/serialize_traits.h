@@ -46,7 +46,9 @@ struct IsSerializeFundamental {
       std::is_same<U, mathfu::vec4>::value ||
       std::is_same<U, mathfu::vec4i>::value ||
       std::is_same<U, mathfu::quat>::value ||
-      std::is_same<U, mathfu::mat4>::value;
+      std::is_same<U, mathfu::mat4>::value ||
+      std::is_same<U, mathfu::rectf>::value ||
+      std::is_same<U, mathfu::recti>::value;
 };
 
 // Determines if |T| has a member function with the signature:

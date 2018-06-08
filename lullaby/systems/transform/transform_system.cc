@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/systems/transform/transform_system.h"
 
 #include <algorithm>
+#include <sstream>
 
 #include "lullaby/events/entity_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
@@ -53,7 +54,7 @@ namespace lull {
 
 const TransformSystem::TransformFlags TransformSystem::kInvalidFlag = 0;
 const TransformSystem::TransformFlags TransformSystem::kAllFlags = ~0;
-const HashValue kTransformDefHash = Hash("TransformDef");
+const HashValue kTransformDefHash = ConstHash("TransformDef");
 
 TransformSystem::TransformSystem(Registry* registry)
     : System(registry),
@@ -110,22 +111,26 @@ TransformSystem::TransformSystem(Registry* registry)
         [this](Entity e) { return *GetWorldFromEntityMatrix(e); });
     binder->RegisterMethod("lull.Transform.GetParent",
                            &lull::TransformSystem::GetParent);
-    binder->RegisterFunction("lull.Transform.AddChild", [this](Entity parent,
-                                                               Entity child) {
-      AddChild(parent, child, AddChildMode::kPreserveParentToEntityTransform);
-    });
+    binder->RegisterFunction(
+        "lull.Transform.AddChild", [this](Entity parent, Entity child) {
+          AddChild(parent, child,
+                   ModifyParentChildMode::kPreserveParentToEntityTransform);
+        });
     binder->RegisterFunction(
         "lull.Transform.AddChildPreserveWorldToEntityTransform",
         [this](Entity parent, Entity child) {
           AddChild(parent, child,
-                   AddChildMode::kPreserveWorldToEntityTransform);
+                   ModifyParentChildMode::kPreserveWorldToEntityTransform);
         });
     binder->RegisterMethod("lull.Transform.CreateChild",
                            &lull::TransformSystem::CreateChild);
     binder->RegisterMethod("lull.Transform.CreateChildWithEntity",
                            &lull::TransformSystem::CreateChildWithEntity);
-    binder->RegisterMethod("lull.Transform.RemoveParent",
-                           &lull::TransformSystem::RemoveParent);
+    binder->RegisterFunction(
+        "lull.Transform.RemoveParent", [this](Entity child) {
+          RemoveParent(child,
+                       ModifyParentChildMode::kPreserveParentToEntityTransform);
+        });
     binder->RegisterFunction(
         "lull.Transform.GetChildren",
         [this](Entity parent) { return *GetChildren(parent); });
@@ -141,13 +146,55 @@ TransformSystem::TransformSystem(Registry* registry)
         this, [this](const DisableEvent& event) { Disable(event.entity); });
     dispatcher->Connect(this, [this](const AddChildEvent& event) {
       AddChild(event.entity, event.child,
-               AddChildMode::kPreserveParentToEntityTransform);
+               ModifyParentChildMode::kPreserveParentToEntityTransform);
     });
     dispatcher->Connect(
         this, [this](const AddChildPreserveWorldToEntityTransformEvent& event) {
           AddChild(event.entity, event.child,
-                   AddChildMode::kPreserveWorldToEntityTransform);
+                   ModifyParentChildMode::kPreserveWorldToEntityTransform);
         });
+    dispatcher->Connect(this, [this](const CreateChildEvent& e) {
+      CreateChildWithEntity(e.parent, e.child, e.blueprint);
+    });
+    dispatcher->Connect(this, [this](const InsertChildEvent& e) {
+      InsertChild(e.entity, e.child, e.index);
+    });
+    dispatcher->Connect(this, [this](const MoveChildEvent& e) {
+      MoveChild(e.entity, e.index);
+    });
+    dispatcher->Connect(
+        this, [this](const RemoveChildEvent& e) { RemoveParent(e.child); });
+    dispatcher->Connect(this, [this](const SetWorldFromEntityMatrixEvent& e) {
+      SetWorldFromEntityMatrix(e.entity, e.transform);
+    });
+    dispatcher->Connect(this, [this](const SetPositionEvent& e) {
+      const Sqt* sqt = GetSqt(e.entity);
+      if (sqt) {
+        Sqt target = *sqt;
+        target.translation = e.position;
+        SetSqt(e.entity, target);
+      }
+    });
+    dispatcher->Connect(this, [this](const SetRotationEvent& e) {
+      const Sqt* sqt = GetSqt(e.entity);
+      if (sqt) {
+        Sqt target = *sqt;
+        target.rotation = e.rotation;
+        SetSqt(e.entity, target);
+      }
+    });
+    dispatcher->Connect(this, [this](const SetScaleEvent& e) {
+      const Sqt* sqt = GetSqt(e.entity);
+      if (sqt) {
+        Sqt target = *sqt;
+        target.scale = e.scale;
+        SetSqt(e.entity, target);
+      }
+    });
+    dispatcher->Connect(this, [this](const SetAabbEvent& e) {
+      const Aabb aabb(e.min, e.max);
+      SetAabb(e.entity, aabb);
+    });
   }
 }
 
@@ -223,7 +270,7 @@ void TransformSystem::Create(Entity e, HashValue type, const Def* def) {
   auto iter = pending_children_.find(e);
   if (iter != pending_children_.end()) {
     AddChildNoEvent(iter->second, e,
-                    AddChildMode::kPreserveParentToEntityTransform);
+                    ModifyParentChildMode::kPreserveParentToEntityTransform);
   } else {
     RecalculateWorldFromEntityMatrix(e);
     UpdateEnabled(e, IsEnabled(node->parent));
@@ -512,7 +559,7 @@ Entity TransformSystem::GetRoot(Entity entity) const {
 }
 
 bool TransformSystem::AddChildNoEvent(Entity parent, Entity child,
-                                      AddChildMode mode) {
+                                      ModifyParentChildMode mode) {
   if (parent == kNullEntity) {
     LOG(INFO) << "Cannot add a child to a null parent.";
     return false;
@@ -538,7 +585,7 @@ bool TransformSystem::AddChildNoEvent(Entity parent, Entity child,
     RemoveParentNoEvent(child);
   }
   const mathfu::mat4* matrix_ptr = nullptr;
-  if (mode == AddChildMode::kPreserveWorldToEntityTransform) {
+  if (mode == ModifyParentChildMode::kPreserveWorldToEntityTransform) {
     matrix_ptr = GetWorldFromEntityMatrix(child);
     if (!matrix_ptr) {
       LOG(DFATAL) << "No world from entity matrix to keep.";
@@ -553,7 +600,7 @@ bool TransformSystem::AddChildNoEvent(Entity parent, Entity child,
 
   parent_node->children.emplace_back(child);
   child_node->parent = parent;
-  if (mode == AddChildMode::kPreserveWorldToEntityTransform) {
+  if (mode == ModifyParentChildMode::kPreserveWorldToEntityTransform) {
     // This will call RecalculateWorldFromEntityMatrix().
     SetWorldFromEntityMatrix(child, *matrix_ptr);
   } else {
@@ -565,7 +612,8 @@ bool TransformSystem::AddChildNoEvent(Entity parent, Entity child,
   return true;
 }
 
-void TransformSystem::AddChild(Entity parent, Entity child, AddChildMode mode) {
+void TransformSystem::AddChild(Entity parent, Entity child,
+                               ModifyParentChildMode mode) {
   auto child_node = nodes_.Get(child);
   if (!child_node) {
     LOG(DFATAL) << "Invalid - the child entity doesn't exist.";
@@ -670,16 +718,28 @@ void TransformSystem::RemoveParentNoEvent(Entity child) {
   }
 }
 
-void TransformSystem::RemoveParent(Entity child) {
-  auto parent = GetParent(child);
-  if (parent != kNullEntity) {
-    RemoveParentNoEvent(child);
-    SendEvent(registry_, parent, ChildRemovedEvent(parent, child));
-    SendEvent(registry_, child, ParentChangedEvent(child, parent, kNullEntity));
-    SendEventImmediately(
-        registry_, child,
-        ParentChangedImmediateEvent(child, parent, kNullEntity));
+void TransformSystem::RemoveParent(Entity child, ModifyParentChildMode mode) {
+  const auto* node = nodes_.Get(child);
+  const auto* world_from_entity_matrix = GetWorldFromEntityMatrix(child);
+  if (!node || !world_from_entity_matrix) {
+    return;
   }
+  auto parent = GetParent(child);
+  if (parent == kNullEntity) {
+    return;
+  }
+  RemoveParentNoEvent(child);
+
+  if (mode == ModifyParentChildMode::kPreserveParentToEntityTransform) {
+    RecalculateWorldFromEntityMatrix(child);
+  } else {  // kPreserveWorldToEntityTransform
+    SetWorldFromEntityMatrix(child, *world_from_entity_matrix);
+  }
+  UpdateEnabled(child, true);
+  SendEvent(registry_, parent, ChildRemovedEvent(parent, child));
+  SendEvent(registry_, child, ParentChangedEvent(child, parent, kNullEntity));
+  SendEventImmediately(registry_, child,
+                       ParentChangedImmediateEvent(child, parent, kNullEntity));
 }
 
 void TransformSystem::DestroyChildren(Entity parent) {
@@ -768,13 +828,16 @@ Sqt TransformSystem::CalculateLocalSqt(
 }
 
 void TransformSystem::RecalculateWorldFromEntityMatrix(Entity child) {
-  auto node = nodes_.Get(child);
-  auto world_transform = GetWorldTransform(child);
+  const auto* node = nodes_.Get(child);
+  auto* world_transform = GetWorldTransform(child);
+  if (!node || !world_transform) {
+    return;
+  }
 
   world_transform->world_from_entity_mat =
       node->world_from_entity_matrix_function(
           node->local_sqt, GetWorldFromEntityMatrix(node->parent));
-  for (auto& grand_child : node->children) {
+  for (const auto& grand_child : node->children) {
     RecalculateWorldFromEntityMatrix(grand_child);
   }
 }

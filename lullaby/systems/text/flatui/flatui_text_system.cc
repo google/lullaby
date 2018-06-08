@@ -40,21 +40,22 @@ namespace lull {
 namespace {
 
 constexpr int kDefaultPoolSize = 16;
-const HashValue kTextDefHash = Hash("TextDef");
+constexpr HashValue kTextDefHash = ConstHash("TextDef");
 
 // TODO(b/32219426): Use the same default as the text.
 // TODO(b/33705906) Remove non-blueprint default entities.
 const mathfu::vec4 kDefaultLinkColor(39.0f / 255.0f, 121.0f / 255.0f, 1.0f,
                                      1.0f);  // "#2779FF";
 const mathfu::vec4 kDefaultUnderlineSdfParams(1, 0, 0, 1);
-const float kDefaultUnderlineTexCoordAaPadding = 0.75f;
+constexpr float kDefaultUnderlineTexCoordAaPadding = 0.75f;
 
-constexpr const char* kDefaultLinkTextBlueprint = ":DefaultLinkText:";
-constexpr const char* kDefaultLinkUnderlineBlueprint = ":DefaultLinkUnderline:";
+constexpr char kDefaultLinkTextBlueprint[] = ":DefaultLinkText:";
+constexpr char kDefaultLinkUnderlineBlueprint[] = ":DefaultLinkUnderline:";
 
-constexpr const char* kTexCoordAaPaddingUniform = "tex_coord_aa_padding";
-constexpr const char* kSdfParamsUniform = "sdf_params";
-constexpr const char* kTextureSizeUniform = "texture_size";
+constexpr char kTexCoordAaPaddingUniform[] = "tex_coord_aa_padding";
+constexpr char kSdfParamsUniform[] = "sdf_params";
+constexpr char kTextureSizeUniform[] = "texture_size";
+constexpr char kColorUniform[] = "color";
 
 constexpr float kMetersFromMillimeters = .001f;
 
@@ -69,7 +70,13 @@ constexpr int32_t kHugeGlyphSize = 128;
 // Default android hyphenation pattern path.
 // TODO(b/34112774) Build hyphenation data and figure out directory for other
 // platforms.
-constexpr const char* kHyphenationPatternPath = "/system/usr/hyphen-data";
+constexpr char kHyphenationPatternPath[] = "/system/usr/hyphen-data";
+
+HashValue GetRenderPass(const RenderSystem& render_system, Entity entity) {
+  // We only create 1 component so just take the first one.
+  const auto passes = render_system.GetRenderPasses(entity);
+  return passes.empty() ? RenderSystem::kDefaultPass : passes[0];
+}
 
 Entity CreateDefaultEntity(Registry* registry, Entity parent) {
   auto* entity_factory = registry->Get<EntityFactory>();
@@ -79,13 +86,14 @@ Entity CreateDefaultEntity(Registry* registry, Entity parent) {
   transform_system->Create(entity, Sqt());
 
   auto* render_system = registry->Get<RenderSystem>();
-  render_system->Create(entity, render_system->GetRenderPass(parent));
+  render_system->Create(entity, GetRenderPass(*render_system, parent));
+  render_system->SetGroupId(entity, render_system->GetGroupId(parent));
   render_system->SetShader(entity, render_system->GetShader(parent));
 
-  mathfu::vec4 color;
-  if (render_system->GetColor(parent, &color)) {
-    render_system->SetColor(entity, color);
-  }
+  // Initialize the child with all the parent's uniforms and default color.
+  render_system->CopyUniforms(entity, parent);
+  render_system->SetDefaultColor(entity,
+                                 render_system->GetDefaultColor(parent));
 
   // Add as a child after initializing the render component so that any stencil
   // settings from clip system are correctly applied.
@@ -98,6 +106,16 @@ Entity CreateDefaultEntity(Registry* registry, Entity parent) {
   }
 
   return entity;
+}
+
+void CopyAlpha(Registry* registry, Entity entity, Entity parent) {
+  auto* render_system = registry->Get<RenderSystem>();
+  mathfu::vec4 parent_color = kDefaultLinkColor;
+  mathfu::vec4 color = kDefaultLinkColor;
+  render_system->GetColor(parent, &parent_color);
+  render_system->GetColor(entity, &color);
+  color.w = parent_color.w;
+  render_system->SetColor(entity, color);
 }
 
 }  // namespace
@@ -285,6 +303,16 @@ void FlatuiTextSystem::PostCreateInit(Entity entity, DefType type,
   if (data.text()) {
     SetText(entity, data.text()->c_str());
   }
+
+  auto* render_system = registry_->Get<RenderSystem>();
+  const HashValue pass = GetRenderPass(*render_system, entity);
+  render_system->SetUniformChangedCallback(
+      entity, pass,
+      [=](int submesh_index, string_view name, ShaderDataType type,
+          Span<uint8_t> data, int count) {
+        UpdateComponentUniform(entity, pass, submesh_index, name, type, data,
+                               count);
+      });
 }
 
 void FlatuiTextSystem::CreateEmpty(Entity entity) {
@@ -408,10 +436,6 @@ void FlatuiTextSystem::ProcessTasks() {
     }
     completed_tasks_.clear();
   }
-
-  for (auto& component : components_) {
-    UpdateUniforms(&component);
-  }
 }
 
 void FlatuiTextSystem::WaitForAllTasks() {
@@ -502,7 +526,7 @@ void FlatuiTextSystem::GenerateText(Entity entity, Entity desired_size_source) {
 
   auto* preprocessor = registry_->Get<StringPreprocessor>();
   component->rendered_text =
-      preprocessor ? preprocessor->ProcessEntityText(entity, component->text)
+      preprocessor ? preprocessor->ProcessString(component->text)
                    : component->text;
 
   component->loading_buffer = true;
@@ -525,6 +549,12 @@ void FlatuiTextSystem::GenerateText(Entity entity, Entity desired_size_source) {
                                                   component->font,
                                                   component->rendered_text,
                                                   params)));
+}
+
+void FlatuiTextSystem::ReprocessAllText() {
+  components_.ForEach([this](const TextComponent& component) {
+    update_map_[component.GetEntity()] = kNullEntity;
+  });
 }
 
 void FlatuiTextSystem::SetFontSize(Entity entity, float size) {
@@ -710,6 +740,7 @@ void FlatuiTextSystem::CreateTextEntities(TextComponent* component) {
         continue;
       }
       component->link_entities.emplace_back(entity);
+      CopyAlpha(registry_, entity, component->GetEntity());
     } else {
       entity = CreateDefaultEntity(registry_, component->GetEntity());
       component->plain_entities.emplace_back(entity);
@@ -741,6 +772,7 @@ void FlatuiTextSystem::CreateLinkUnderlineEntity(TextComponent* component) {
     render_system->SetAndDeformMesh(entity,
                                     component->buffer->BuildUnderlineMesh());
     component->underline_entity = entity;
+    CopyAlpha(registry_, entity, component->GetEntity());
   }
 }
 
@@ -763,76 +795,49 @@ void FlatuiTextSystem::DestroyRenderEntities(TextComponent* component) {
   }
 }
 
-void FlatuiTextSystem::UpdateEntityUniforms(Entity entity, Entity source,
-                                            const mathfu::vec4& color) {
-  auto* render_system = registry_->Get<RenderSystem>();
-  float sdf_params[4];
-  const bool have_sdf_params =
-      render_system->GetUniform(entity, kSdfParamsUniform, 4, sdf_params);
-  float texture_size[2];
-  const bool have_texture_size =
-      render_system->GetUniform(entity, kTextureSizeUniform, 2, texture_size);
-  float aa_padding;
-  const bool have_aa_padding = render_system->GetUniform(
-      entity, kTexCoordAaPaddingUniform, 1, &aa_padding);
-
-  render_system->CopyUniforms(entity, source);
-
-  // Color must be set separately, since links have a different color than
-  // regular text.
-  render_system->SetColor(entity, color);
-
-  if (have_sdf_params) {
-    render_system->SetUniform(entity, kSdfParamsUniform, &sdf_params[0], 4, 1);
+void FlatuiTextSystem::UpdateComponentUniform(Entity entity, HashValue pass,
+                                              int submesh_index,
+                                              string_view name,
+                                              ShaderDataType type,
+                                              Span<uint8_t> data, int count) {
+  const TextComponent* component = components_.Get(entity);
+  if (!component) {
+    return;
   }
-
-  if (have_texture_size) {
-    render_system->SetUniform(entity, kTextureSizeUniform, &texture_size[0], 2,
-                              1);
-  }
-
-  if (have_aa_padding) {
-    render_system->SetUniform(entity, kTexCoordAaPaddingUniform,
-                              &aa_padding, 1, 1);
-  }
-}
-
-void FlatuiTextSystem::UpdateUniforms(const TextComponent* component) {
-  auto* render_system = registry_->Get<RenderSystem>();
-  const auto* transform_system = registry_->Get<TransformSystem>();
-  const Entity source = component->GetEntity();
-  if (!transform_system->IsEnabled(source)) {
+  if (name == kTexCoordAaPaddingUniform || name == kSdfParamsUniform ||
+      name == kTextureSizeUniform) {
     return;
   }
 
-  mathfu::vec4 source_color;
-  mathfu::vec4 plain_color = mathfu::kOnes4f;
-  if (render_system->GetColor(source, &source_color)) {
-    plain_color = source_color;
-  } else {
-    source_color = mathfu::kOnes4f;
+  auto* render_system = registry_->Get<RenderSystem>();
+  const bool is_color =
+      type == ShaderDataType_Float4 && count == 1 && name == kColorUniform;
+
+  for (Entity plain_entity : component->plain_entities) {
+    render_system->SetUniform(plain_entity, pass, submesh_index, name, type,
+                              data, count);
   }
 
-  for (Entity entity : component->plain_entities) {
-    UpdateEntityUniforms(entity, source, plain_color);
-  }
-
-  for (Entity entity : component->link_entities) {
-    mathfu::vec4 color;
-    if (!render_system->GetColor(entity, &color)) {
-      color = kDefaultLinkColor;
+  for (Entity link_entity : component->link_entities) {
+    mathfu::vec4 color = kDefaultLinkColor;
+    if (is_color) {
+      render_system->GetColor(link_entity, &color);
+      color.w = data[3];
+      data = SpanFromVector(color);
     }
-    color.w = source_color.w;
-    UpdateEntityUniforms(entity, source, color);
+    render_system->SetUniform(link_entity, pass, submesh_index, name, type,
+                              data, count);
   }
 
   if (component->underline_entity != kNullEntity) {
-    mathfu::vec4 color;
-    if (!render_system->GetColor(component->underline_entity, &color)) {
-      color = kDefaultLinkColor;
+    mathfu::vec4 color = kDefaultLinkColor;
+    if (is_color) {
+      render_system->GetColor(component->underline_entity, &color);
+      color.w = data[3];
+      data = SpanFromVector(color);
     }
-    color.w = source_color.w;
-    UpdateEntityUniforms(component->underline_entity, source, color);
+    render_system->SetUniform(component->underline_entity, pass, submesh_index,
+                              name, type, data, count);
   }
 }
 

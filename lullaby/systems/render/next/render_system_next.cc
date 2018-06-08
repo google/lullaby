@@ -18,7 +18,11 @@ limitations under the License.
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <algorithm>
+#include <cctype>
+#include <memory>
 
+#include "fplbase/gpu_debug.h"
 #include "lullaby/events/render_events.h"
 #include "lullaby/modules/config/config.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
@@ -52,12 +56,34 @@ constexpr const char* kColorUniform = "color";
 constexpr const char* kTextureBoundsUniform = "uv_bounds";
 constexpr const char* kClampBoundsUniform = "clamp_bounds";
 constexpr const char* kBoneTransformsUniform = "bone_transforms";
-// We break the naming convention here for compatibility with early VR apps.
-constexpr const char* kIsRightEyeUniform = "uIsRightEye";
+constexpr const char* kDefaultMaterialShaderDirectory = "shaders/";
+
+// Shader attribute hashes.
+constexpr HashValue kAttributeHashPosition = ConstHash("ATTR_POSITION");
+constexpr HashValue kAttributeHashUV = ConstHash("ATTR_UV");
+constexpr HashValue kAttributeHashColor = ConstHash("ATTR_COLOR");
+constexpr HashValue kAttributeHashNormal = ConstHash("ATTR_NORMAL");
+constexpr HashValue kAttributeHashOrientation = ConstHash("ATTR_ORIENTATION");
+constexpr HashValue kAttributeHashTangent = ConstHash("ATTR_TANGENT");
+constexpr HashValue kAttributeHashBoneIndices = ConstHash("ATTR_BONE_INDICES");
+constexpr HashValue kAttributeHashBoneWeights = ConstHash("ATTR_BONE_WEIGHTS");
+
+// Shader feature hashes.
+constexpr HashValue kFeatureHashTransform = ConstHash("Transform");
+constexpr HashValue kFeatureHashVertexColor = ConstHash("VertexColor");
+constexpr HashValue kFeatureHashTexture = ConstHash("Texture");
+constexpr HashValue kFeatureHashLight = ConstHash("Light");
+constexpr HashValue kFeatureHashSkin = ConstHash("Skin");
+constexpr HashValue kFeatureHashUniformColor = ConstHash("UniformColor");
 
 bool IsSupportedUniformDimension(int dimension) {
   return (dimension == 1 || dimension == 2 || dimension == 3 ||
-          dimension == 4 || dimension == 16);
+          dimension == 4 || dimension == 9 || dimension == 16);
+}
+
+// TODO(b/78301332) Add more types when supported.
+bool IsSupportedUniformType(ShaderDataType type) {
+  return type >= ShaderDataType_MIN && type <= ShaderDataType_Float4x4;
 }
 
 void SetDebugUniform(Shader* shader, const char* name, const float values[4]) {
@@ -84,22 +110,6 @@ HashValue RenderPassObjectEnumToHashValue(RenderPass pass) {
   return static_cast<HashValue>(pass);
 }
 
-void UpdateUniformBinding(Uniform::Description* desc, const ShaderPtr& shader) {
-  if (!desc) {
-    return;
-  }
-
-  if (shader) {
-    const UniformHnd uniform = shader->FindUniform(desc->name.c_str());
-    if (uniform) {
-      desc->binding = *uniform;
-      return;
-    }
-  }
-
-  desc->binding = -1;
-}
-
 fplbase::CullState::FrontFace CullStateFrontFaceFromFrontFace(
     RenderFrontFace face) {
   switch (face) {
@@ -119,18 +129,140 @@ bool IsAlphaEnabled(const Material& material) {
   return false;
 }
 
+bool CheckMeshForBoneIndices(const MeshPtr& mesh) {
+  if (!mesh) {
+    return false;
+  }
+
+  return mesh->GetVertexFormat().GetAttributeWithUsage(
+             VertexAttributeUsage_BoneIndices) != nullptr;
+}
+
+// Return environment flags constructed from a vertex format.
+std::set<HashValue> CreateEnvironmentFlagsFromVertexFormat(
+    const VertexFormat& vertex_format) {
+  std::set<HashValue> environment_flags;
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Position) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashPosition);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_TexCoord) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashUV);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Color) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashColor);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Normal) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashNormal);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Orientation) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashOrientation);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Tangent) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashTangent);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_BoneIndices) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashBoneIndices);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_BoneWeights) !=
+      nullptr) {
+    environment_flags.insert(kAttributeHashBoneWeights);
+  }
+
+  return environment_flags;
+}
+
+// Return feature flags constructed from a vertex format.
+std::set<HashValue> CreateFeatureFlagsFromVertexFormat(
+    const VertexFormat& vertex_format) {
+  std::set<HashValue> feature_flags;
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Position) !=
+      nullptr) {
+    feature_flags.insert(kFeatureHashTransform);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_TexCoord) !=
+      nullptr) {
+    feature_flags.insert(kFeatureHashTexture);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Color) !=
+      nullptr) {
+    feature_flags.insert(kFeatureHashVertexColor);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_Normal) !=
+      nullptr) {
+    feature_flags.insert(kFeatureHashLight);
+  }
+  if (vertex_format.GetAttributeWithUsage(VertexAttributeUsage_BoneIndices) !=
+      nullptr) {
+    feature_flags.insert(kFeatureHashSkin);
+  }
+
+  return feature_flags;
+}
+
+ShaderDataType FloatDimensionsToUniformType(int dimensions) {
+  switch (dimensions) {
+    case 1:
+      return ShaderDataType_Float1;
+    case 2:
+      return ShaderDataType_Float2;
+    case 3:
+      return ShaderDataType_Float3;
+    case 4:
+      return ShaderDataType_Float4;
+    case 9:
+      return ShaderDataType_Float3x3;
+    case 16:
+      return ShaderDataType_Float4x4;
+    default:
+      LOG(DFATAL) << "Failed to convert dimensions to uniform type.";
+      return ShaderDataType_Float4;
+  }
+}
 }  // namespace
 
 RenderSystemNext::RenderPassObject::RenderPassObject()
-    : components(kRenderPoolPageSize) {}
+    : components(kRenderPoolPageSize) {
+  // Initialize the default render state based on an older implementation to
+  // maintain backwards compatibility.
+  render_state.cull_state.emplace();
+  render_state.cull_state->enabled = true;
+  render_state.cull_state->face = CullFace_Back;
+  render_state.cull_state->front = FrontFace_CounterClockwise;
+
+  render_state.depth_state.emplace();
+  render_state.depth_state->test_enabled = true;
+  render_state.depth_state->write_enabled = true;
+  render_state.depth_state->function = RenderFunction_Less;
+
+  render_state.stencil_state.emplace();
+  render_state.stencil_state->front_function.mask = ~0u;
+  render_state.stencil_state->back_function.mask = ~0u;
+}
 
 RenderSystemNext::RenderSystemNext(Registry* registry,
                                    const RenderSystem::InitParams& init_params)
     : System(registry),
       sort_order_manager_(registry_),
-      multiview_enabled_(init_params.enable_stereo_multiview),
+      shading_model_path_(kDefaultMaterialShaderDirectory),
       clip_from_model_matrix_func_(CalculateClipFromModelMatrix) {
-  renderer_.Initialize(mathfu::kZeros2i, "lull::RenderSystem");
+  texture_flag_hashes_.resize(
+      static_cast<size_t>(MaterialTextureUsage_MAX + 1));
+  for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
+    const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(i);
+    texture_flag_hashes_[i] =
+        Hash("Texture_" + std::string(EnumNameMaterialTextureUsage(usage)));
+  }
+
+  if (init_params.enable_stereo_multiview) {
+    renderer_.EnableMultiview();
+  }
 
   mesh_factory_ = new MeshFactoryImpl(registry);
   registry->Register(std::unique_ptr<MeshFactory>(mesh_factory_));
@@ -151,14 +283,13 @@ RenderSystemNext::RenderSystemNext(Registry* registry,
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
-    binder->RegisterMethod("lull.Render.Show", &lull::RenderSystem::Show);
-    binder->RegisterMethod("lull.Render.Hide", &lull::RenderSystem::Hide);
+    binder->RegisterMethod("lull.Render.Show", &RenderSystem::Show);
+    binder->RegisterMethod("lull.Render.Hide", &RenderSystem::Hide);
     binder->RegisterFunction("lull.Render.GetTextureId", [this](Entity entity) {
       TexturePtr texture = GetTexture(entity, 0);
       return texture ? static_cast<int>(texture->GetResourceId().Get()) : 0;
     });
-    binder->RegisterMethod("lull.Render.SetColor",
-                           &lull::RenderSystem::SetColor);
+    binder->RegisterMethod("lull.Render.SetColor", &RenderSystem::SetColor);
   }
 }
 
@@ -174,12 +305,16 @@ RenderSystemNext::~RenderSystemNext() {
 }
 
 void RenderSystemNext::Initialize() {
-  InitDefaultRenderPassObjectes();
+  InitDefaultRenderPassObjects();
   initialized_ = true;
 }
 
 void RenderSystemNext::SetStereoMultiviewEnabled(bool enabled) {
-  multiview_enabled_ = enabled;
+  if (enabled) {
+    renderer_.EnableMultiview();
+  } else {
+    renderer_.DisableMultiview();
+  }
 }
 
 const TexturePtr& RenderSystemNext::GetWhiteTexture() const {
@@ -192,7 +327,7 @@ const TexturePtr& RenderSystemNext::GetInvalidTexture() const {
 
 TexturePtr RenderSystemNext::LoadTexture(const std::string& filename,
                                          bool create_mips) {
-  TextureFactory::CreateParams params;
+  TextureParams params;
   params.generate_mipmaps = create_mips;
   return texture_factory_->LoadTexture(filename, params);
 }
@@ -212,13 +347,19 @@ MeshPtr RenderSystemNext::LoadMesh(const std::string& filename) {
 
 TexturePtr RenderSystemNext::CreateTexture(const ImageData& image,
                                            bool create_mips) {
-  TextureFactory::CreateParams params;
+  TextureParams params;
   params.generate_mipmaps = create_mips;
   return texture_factory_->CreateTexture(&image, params);
 }
 
 ShaderPtr RenderSystemNext::LoadShader(const std::string& filename) {
-  return shader_factory_->LoadShader(filename);
+  ShaderCreateParams params;
+  params.shading_model = RemoveExtensionFromFilename(filename);
+  return LoadShader(params);
+}
+
+ShaderPtr RenderSystemNext::LoadShader(const ShaderCreateParams& params) {
+  return shader_factory_->LoadShader(params);
 }
 
 void RenderSystemNext::Create(Entity e, HashValue pass) {
@@ -229,17 +370,9 @@ void RenderSystemNext::Create(Entity e, HashValue pass) {
   }
 
   RenderComponent* component = render_pass->components.Emplace(e);
-  if (!component) {
-    LOG(DFATAL) << "RenderComponent for Entity " << e << " inside pass " << pass
-                << " already exists.";
-    return;
+  if (component) {
+    SetSortOrderOffset(e, pass, 0);
   }
-
-  SetSortOrderOffset(e, 0);
-}
-
-void RenderSystemNext::Create(Entity e, HashValue pass, HashValue pass_enum) {
-  LOG(WARNING) << "DEPRECATED: use Create(entity, pass) instead!";
 }
 
 void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
@@ -274,35 +407,20 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
 
   if (data.textures()) {
     for (unsigned int i = 0; i < data.textures()->size(); ++i) {
-      TextureFactory::CreateParams params;
+      TextureParams params;
       params.generate_mipmaps = data.create_mips();
       TexturePtr texture = texture_factory_->LoadTexture(
           data.textures()->Get(i)->c_str(), params);
       SetTexture(e, pass_hash, i, texture);
     }
   } else if (data.texture() && data.texture()->size() > 0) {
-    TextureFactory::CreateParams params;
+    TextureParams params;
     params.generate_mipmaps = data.create_mips();
     TexturePtr texture =
         texture_factory_->LoadTexture(data.texture()->c_str(), params);
     SetTexture(e, pass_hash, 0, texture);
   } else if (data.external_texture()) {
-#ifdef GL_TEXTURE_EXTERNAL_OES
-    GLuint texture_id;
-    GL_CALL(glGenTextures(1, &texture_id));
-    GL_CALL(glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_id));
-    GL_CALL(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S,
-                            GL_CLAMP_TO_EDGE));
-    GL_CALL(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T,
-                            GL_CLAMP_TO_EDGE));
-    GL_CALL(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER,
-                            GL_LINEAR));
-    GL_CALL(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER,
-                            GL_LINEAR));
-    SetTextureId(e, pass_hash, 0, GL_TEXTURE_EXTERNAL_OES, texture_id);
-#else
-    LOG(DFATAL) << "External textures are not available.";
-#endif  // GL_TEXTURE_EXTERNAL_OES
+    SetTextureExternal(e, pass_hash, 0);
   }
 
   if (data.color()) {
@@ -345,6 +463,11 @@ void RenderSystemNext::Create(Entity e, HashValue type, const Def* def) {
   SetSortOrderOffset(e, pass_hash, data.sort_order_offset());
 }
 
+void RenderSystemNext::SetTextureExternal(Entity e, HashValue pass, int unit) {
+  const TexturePtr texture = texture_factory_->CreateExternalTexture();
+  SetTexture(e, pass, unit, texture);
+}
+
 void RenderSystemNext::PostCreateInit(Entity e, HashValue type,
                                       const Def* def) {
   if (type == kRenderDefHash) {
@@ -370,7 +493,7 @@ void RenderSystemNext::PostCreateInit(Entity e, HashValue type,
         quad.id = Hash(data.shape_id()->c_str());
       }
 
-      SetQuad(e, pass_hash, quad);
+      SetQuadImpl(e, pass_hash, quad);
     }
   }
 }
@@ -442,87 +565,150 @@ void RenderSystemNext::SetColor(Entity entity, const mathfu::vec4& color) {
   SetUniform(entity, kColorUniform, &color[0], 4, 1);
 }
 
+void RenderSystemNext::SetUniform(Entity entity, Optional<HashValue> pass,
+                                  Optional<int> submesh_index, string_view name,
+                                  ShaderDataType type, Span<uint8_t> data,
+                                  int count) {
+  const int material_index = submesh_index ? *submesh_index : -1;
+  if (pass) {
+    RenderComponent* component = GetComponent(entity, *pass);
+    if (component) {
+      SetUniformImpl(component, material_index, name, type, data, count);
+    }
+  } else {
+    ForEachComponentOfEntity(
+        entity, [=](RenderComponent* component, HashValue pass) {
+          SetUniformImpl(component, material_index, name, type, data, count);
+        });
+  }
+}
+
 void RenderSystemNext::SetUniform(Entity e, const char* name, const float* data,
                                   int dimension, int count) {
-  ForEachComponentOfEntity(
-      e, [this, e, name, data, dimension, count](
-             RenderComponent* render_component, HashValue pass) {
-        SetUniform(e, pass, name, data, dimension, count);
-      });
+  SetUniform(e, NullOpt, NullOpt, name, FloatDimensionsToUniformType(dimension),
+             {reinterpret_cast<const uint8_t*>(data),
+              static_cast<size_t>(dimension * count * sizeof(float))},
+             count);
 }
 
 void RenderSystemNext::SetUniform(Entity e, HashValue pass, const char* name,
                                   const float* data, int dimension, int count) {
-  if (!IsSupportedUniformDimension(dimension)) {
-    LOG(DFATAL) << "Unsupported uniform dimension " << dimension;
-    return;
-  }
-
-  auto* render_component = GetComponent(e, pass);
-  if (!render_component) {
-    return;
-  }
-
-  const size_t num_bytes = dimension * count * sizeof(float);
-  for (auto& material_ptr : render_component->materials) {
-    Material& material = *material_ptr;
-    Uniform* uniform = material.GetUniformByName(name);
-    if (!uniform || uniform->GetDescription().num_bytes != num_bytes) {
-      Uniform::Description desc(
-          name,
-          (dimension > 4) ? Uniform::Type::kMatrix : Uniform::Type::kFloats,
-          num_bytes, count);
-      if (!uniform) {
-        material.AddUniform(desc);
-      } else {
-        material.UpdateUniform(desc);
-      }
-    }
-
-    material.SetUniformByName(name, data, dimension * count);
-    uniform = material.GetUniformByName(name);
-    if (uniform && uniform->GetDescription().binding == -1) {
-      UpdateUniformBinding(&uniform->GetDescription(), material.GetShader());
-    }
-  }
+  SetUniform(e, pass, NullOpt, name, FloatDimensionsToUniformType(dimension),
+             {reinterpret_cast<const uint8_t*>(data),
+              static_cast<size_t>(dimension * count * sizeof(float))},
+             count);
 }
 
-bool RenderSystemNext::GetUniform(const RenderComponent* render_component,
-                                  const char* name, size_t length,
-                                  float* data_out) const {
-  if (!render_component || render_component->materials.empty()) {
-    return false;
-  }
-
-  // TODO(b/68673841): Deprecate this function and add an index to refer to a
-  // specific material.
-  const Uniform* uniform =
-      render_component->materials[0]->GetUniformByName(name);
-  if (!uniform) {
-    return false;
-  }
-
-  const Uniform::Description& desc = uniform->GetDescription();
-  // Length is the number of floats expected. Convert it into size in bytes.
-  const size_t expected_bytes = length * sizeof(float);
-  if (expected_bytes < desc.num_bytes) {
-    return false;
-  }
-
-  memcpy(data_out, uniform->GetData<float>(), sizeof(float) * length);
-
-  return true;
+bool RenderSystemNext::GetUniform(Entity entity, Optional<HashValue> pass,
+                                  Optional<int> submesh_index, string_view name,
+                                  size_t length, uint8_t* data_out) const {
+  const int material_index = submesh_index ? *submesh_index : -1;
+  const RenderComponent* component =
+      pass ? GetComponent(entity, *pass) : FindRenderComponentForEntity(entity);
+  return GetUniformImpl(component, material_index, name, length, data_out);
 }
 
 bool RenderSystemNext::GetUniform(Entity e, const char* name, size_t length,
                                   float* data_out) const {
-  return GetUniform(FindRenderComponentForEntity(e), name, length, data_out);
+  return GetUniform(e, NullOpt, NullOpt, name, length * sizeof(float),
+                    reinterpret_cast<uint8_t*>(data_out));
 }
 
 bool RenderSystemNext::GetUniform(Entity e, HashValue pass, const char* name,
                                   size_t length, float* data_out) const {
-  auto* render_component = GetComponent(e, pass);
-  return GetUniform(render_component, name, length, data_out);
+  return GetUniform(e, pass, NullOpt, name, length * sizeof(float),
+                    reinterpret_cast<uint8_t*>(data_out));
+}
+
+void RenderSystemNext::SetUniformImpl(RenderComponent* component,
+                                      int material_index, string_view name,
+                                      ShaderDataType type, Span<uint8_t> data,
+                                      int count) {
+  if (component == nullptr) {
+    return;
+  }
+
+  if (!IsSupportedUniformType(type)) {
+    LOG(DFATAL) << "ShaderDataType not supported: " << type;
+    return;
+  }
+
+  // Do not allow partial data in this function.
+  if (data.size() != UniformData::ShaderDataTypeToBytesSize(type) * count) {
+    LOG(DFATAL) << "Partial uniform data is not allowed through "
+                   "RenderSystem::SetUniform.";
+    return;
+  }
+
+  if (material_index < 0) {
+    for (const std::shared_ptr<Material>& material : component->materials) {
+      SetUniformImpl(material.get(), name, type, data, count);
+    }
+    SetUniformImpl(&component->default_material, name, type, data, count);
+  } else if (material_index < static_cast<int>(component->materials.size())) {
+    const std::shared_ptr<Material>& material =
+        component->materials[material_index];
+    SetUniformImpl(material.get(), name, type, data, count);
+  } else {
+    LOG(DFATAL);
+    return;
+  }
+
+  if (component->uniform_changed_callback) {
+    component->uniform_changed_callback(material_index, name, type, data,
+                                        count);
+  }
+}
+
+void RenderSystemNext::SetUniformImpl(Material* material,
+                                      string_view name, ShaderDataType type,
+                                      Span<uint8_t> data, int count) {
+  if (material == nullptr) {
+    return;
+  }
+  CHECK(count == data.size() / UniformData::ShaderDataTypeToBytesSize(type));
+  material->SetUniform(Hash(name), type, data);
+}
+
+bool RenderSystemNext::GetUniformImpl(const RenderComponent* component,
+                                      int material_index, string_view name,
+                                      size_t length, uint8_t* data_out) const {
+  if (component == nullptr) {
+    return false;
+  }
+
+  if (material_index < 0) {
+    for (const std::shared_ptr<Material>& material : component->materials) {
+      if (GetUniformImpl(material.get(), name, length, data_out)) {
+        return true;
+      }
+    }
+    return GetUniformImpl(&component->default_material, name, length, data_out);
+  } else if (material_index < static_cast<int>(component->materials.size())) {
+    const std::shared_ptr<Material>& material =
+        component->materials[material_index];
+    return GetUniformImpl(material.get(), name, length, data_out);
+  }
+  return false;
+}
+
+bool RenderSystemNext::GetUniformImpl(const Material* material,
+                                      string_view name, size_t length,
+                                      uint8_t* data_out) const {
+  if (material == nullptr) {
+    return false;
+  }
+  const UniformData* uniform = material->GetUniformData(Hash(name));
+  if (uniform == nullptr) {
+    return false;
+  }
+
+  if (length > uniform->Size()) {
+    return false;
+  }
+
+  memcpy(data_out, uniform->GetData<uint8_t>(), length);
+  return true;
 }
 
 void RenderSystemNext::CopyUniforms(Entity entity, Entity source) {
@@ -541,36 +727,26 @@ void RenderSystemNext::CopyUniforms(Entity entity, Entity source) {
       (source_component->materials.size() == component->materials.size());
   for (size_t index = 0; index < component->materials.size(); ++index) {
     Material& destination_material = *component->materials[index];
-    destination_material.ClearUniforms();
-
     const Material& source_material = copy_per_material
                                           ? *source_component->materials[index]
                                           : *source_component->materials[0];
-    const std::vector<Uniform>& source_uniforms = source_material.GetUniforms();
-    for (auto& uniform : source_uniforms) {
-      destination_material.AddUniform(uniform);
-    }
-
-    if (destination_material.GetShader() != source_material.GetShader()) {
-      // Fix the locations using |entity|'s shader.
-      UpdateUniformLocations(&destination_material);
-    }
+    destination_material.CopyUniforms(source_material);
   }
 }
 
-void RenderSystemNext::UpdateUniformLocations(Material* material) {
-  if (!material || !material->GetShader()) {
+void RenderSystemNext::SetUniformChangedCallback(
+    Entity entity, HashValue pass,
+    RenderSystem::UniformChangedCallback callback) {
+  RenderComponent* component = GetComponent(entity, pass);
+  if (!component) {
     return;
   }
-
-  auto& uniforms = material->GetUniforms();
-  for (Uniform& uniform : uniforms) {
-    UpdateUniformBinding(&uniform.GetDescription(), material->GetShader());
-  }
+  component->uniform_changed_callback = std::move(callback);
 }
 
 void RenderSystemNext::OnTextureLoaded(const RenderComponent& component,
-                                       int unit, const TexturePtr& texture) {
+                                       HashValue pass, int unit,
+                                       const TexturePtr& texture) {
   const Entity entity = component.GetEntity();
   const mathfu::vec4 clamp_bounds = texture->CalculateClampBounds();
   SetUniform(entity, kClampBoundsUniform, &clamp_bounds[0], 4, 1);
@@ -578,12 +754,9 @@ void RenderSystemNext::OnTextureLoaded(const RenderComponent& component,
   if (texture && texture->GetResourceId()) {
     // TODO(b/38130323) Add CheckTextureSizeWarning that does not depend on HMD.
 
-    auto* dispatcher_system = registry_->Get<DispatcherSystem>();
-    if (dispatcher_system) {
-      dispatcher_system->Send(entity, TextureReadyEvent(entity, unit));
-      if (IsReadyToRenderImpl(component)) {
-        dispatcher_system->Send(entity, ReadyToRenderEvent(entity));
-      }
+    SendEvent(registry_, entity, TextureReadyEvent(entity, unit));
+    if (IsReadyToRenderImpl(component)) {
+      SendEvent(registry_, entity, ReadyToRenderEvent(entity, pass));
     }
   }
 }
@@ -602,28 +775,30 @@ void RenderSystemNext::SetTexture(Entity e, HashValue pass, int unit,
     return;
   }
 
+  const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(unit);
+
+  render_component->default_material.SetTexture(usage, texture);
   for (auto& material : render_component->materials) {
-    material->SetTexture(unit, texture);
+    const bool new_texture_usage =
+        material->GetTexture(usage) != nullptr && texture != nullptr;
+    material->SetTexture(usage, texture);
+
+    if (new_texture_usage) {
+      // Update the shader to add the new texture usage environment flag.
+      ShaderPtr shader = material->GetShader();
+      if (shader && !shader->GetDescription().shading_model.empty()) {
+        const ShaderCreateParams shader_params = CreateShaderParams(
+            shader->GetDescription().shading_model, render_component, material);
+        shader = shader_factory_->LoadShader(shader_params);
+        material->SetShader(shader);
+      }
+    }
   }
-  max_texture_unit_ = std::max(max_texture_unit_, unit);
 
   // Add subtexture coordinates so the vertex shaders will pick them up.  These
   // are known when the texture is created; no need to wait for load.
-  SetUniform(e, pass, kTextureBoundsUniform, &texture->UvBounds()[0], 4, 1);
-
-  if (texture->IsLoaded()) {
-    OnTextureLoaded(*render_component, unit, texture);
-  } else {
-    texture->AddOnLoadCallback([this, unit, e, pass, texture]() {
-      RenderComponent* render_component = GetComponent(e, pass);
-      if (render_component) {
-        for (auto& material : render_component->materials) {
-          if (material->GetTexture(unit) == texture) {
-            OnTextureLoaded(*render_component, unit, texture);
-          }
-        }
-      }
-    });
+  if (texture) {
+    SetUniform(e, pass, kTextureBoundsUniform, &texture->UvBounds()[0], 4, 1);
   }
 }
 
@@ -676,7 +851,7 @@ TexturePtr RenderSystemNext::CreateProcessedTexture(
     size = mathfu::vec2i(next_power_of_two_x, next_power_of_two_y);
   }
 
-  TextureFactory::CreateParams params;
+  TextureParams params;
   params.format = ImageData::kRgba8888;
   params.generate_mipmaps = create_mips;
   TexturePtr out_ptr = texture_factory_->CreateTexture(size, params);
@@ -708,7 +883,7 @@ TexturePtr RenderSystemNext::CreateProcessedTexture(
   processor(out_ptr);
 
   // Setup viewport, input texture, shader, and draw quad.
-  renderer_.SetViewport(fplbase::Viewport(mathfu::kZeros2i, size));
+  SetViewport(mathfu::recti(mathfu::kZeros2i, size));
 
   // We render a quad starting in the lower left corner and extending up and
   // right for as long as the output subtexture is needed.
@@ -766,7 +941,8 @@ TexturePtr RenderSystemNext::GetTexture(Entity entity, int unit) const {
   if (!render_component || render_component->materials.empty()) {
     return TexturePtr();
   }
-  return render_component->materials[0]->GetTexture(unit);
+  const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(unit);
+  return render_component->materials[0]->GetTexture(usage);
 }
 
 bool RenderSystemNext::GetQuad(Entity e, RenderQuad* quad) const {
@@ -781,12 +957,12 @@ bool RenderSystemNext::GetQuad(Entity e, RenderQuad* quad) const {
 void RenderSystemNext::SetQuad(Entity e, const RenderQuad& quad) {
   ForEachComponentOfEntity(
       e, [this, e, quad](RenderComponent* render_component, HashValue pass) {
-        SetQuad(e, pass, quad);
+        SetQuadImpl(e, pass, quad);
       });
 }
 
-void RenderSystemNext::SetQuad(Entity e, HashValue pass,
-                               const RenderQuad& quad) {
+void RenderSystemNext::SetQuadImpl(Entity e, HashValue pass,
+                                   const RenderQuad& quad) {
   const detail::EntityIdPair entity_id_pair(e, pass);
   auto* render_component = GetComponent(e, pass);
   if (!render_component) {
@@ -909,7 +1085,8 @@ bool RenderSystemNext::IsTextureSet(Entity e, int unit) const {
   if (!render_component || render_component->materials.empty()) {
     return false;
   }
-  return render_component->materials[0]->GetTexture(unit) != nullptr;
+  const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(unit);
+  return render_component->materials[0]->GetTexture(usage) != nullptr;
 }
 
 bool RenderSystemNext::IsTextureLoaded(Entity e, int unit) const {
@@ -918,10 +1095,11 @@ bool RenderSystemNext::IsTextureLoaded(Entity e, int unit) const {
     return false;
   }
 
-  if (!render_component->materials[0]->GetTexture(unit)) {
+  const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(unit);
+  if (!render_component->materials[0]->GetTexture(usage)) {
     return false;
   }
-  return render_component->materials[0]->GetTexture(unit)->IsLoaded();
+  return render_component->materials[0]->GetTexture(usage)->IsLoaded();
 }
 
 bool RenderSystemNext::IsTextureLoaded(const TexturePtr& texture) const {
@@ -937,6 +1115,11 @@ bool RenderSystemNext::IsReadyToRender(Entity entity) const {
   return IsReadyToRenderImpl(*render_component);
 }
 
+bool RenderSystemNext::IsReadyToRender(Entity entity, HashValue pass) const {
+  const auto* render_component = GetComponent(entity, pass);
+  return !render_component || IsReadyToRenderImpl(*render_component);
+}
+
 bool RenderSystemNext::IsReadyToRenderImpl(
     const RenderComponent& component) const {
   if (component.mesh && !component.mesh->IsLoaded()) {
@@ -944,10 +1127,13 @@ bool RenderSystemNext::IsReadyToRenderImpl(
   }
 
   for (const auto& material : component.materials) {
-    const auto& textures = material->GetTextures();
-    for (const auto& pair : textures) {
-      const TexturePtr& texture = pair.second;
-      if (!texture->IsLoaded()) {
+    if (material->GetShader() == nullptr) {
+      return false;
+    }
+    for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
+      const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(i);
+      TexturePtr texture = material->GetTexture(usage);
+      if (texture && !texture->IsLoaded()) {
         return false;
       }
     }
@@ -1000,112 +1186,133 @@ void RenderSystemNext::SetShader(Entity e, HashValue pass,
   // If there are no materials, resize to have at least one. This is needed
   // because the mesh loading is asynchronous and the materials may not have
   // been set. Without this, the shader setting will not be saved.
+  // This is also needed when only a RenderDef is used.
   if (render_component->materials.empty()) {
-    render_component->materials.resize(1);
+    render_component->materials.emplace_back(
+        std::make_shared<Material>(render_component->default_material));
   }
 
   for (auto& material : render_component->materials) {
-    if (material.get() == nullptr) {
-      material = std::make_shared<Material>();
-    }
     material->SetShader(shader);
-
-    // Update the uniforms' locations in the new shader.
-    UpdateUniformLocations(material.get());
   }
+  render_component->default_material.SetShader(shader);
 }
 
-static void SetUniformsFromMaterialInfo(Material* material,
-                                        const MaterialInfo& info) {
-  if (!material) {
-    return;
-  }
-  ShaderPtr shader = material->GetShader();
-  if (!shader) {
-    return;
-  }
-
-  const Shader::Description& shader_description = shader->GetDescription();
-  for (const ShaderUniformDefT& uniform_def : shader_description.uniforms) {
-    const HashValue name_hash = Hash(uniform_def.name);
-    int dimension = 0;
-    const float* data = nullptr;
-    switch (uniform_def.type) {
-      case ShaderUniformType_Float1: {
-        const auto* property = info.GetProperty<float>(name_hash);
-        data = property;
-        dimension = 1;
-        break;
-      }
-      case ShaderUniformType_Float2: {
-        const auto* property = info.GetProperty<mathfu::vec2>(name_hash);
-        data = property ? &property->x : nullptr;
-        dimension = 2;
-        break;
-      }
-      case ShaderUniformType_Float3: {
-        const auto* property = info.GetProperty<mathfu::vec3>(name_hash);
-        data = property ? &property->x : nullptr;
-        dimension = 3;
-        break;
-      }
-      case ShaderUniformType_Float4: {
-        const auto* property = info.GetProperty<mathfu::vec3>(name_hash);
-        data = property ? &property->x : nullptr;
-        dimension = 4;
-        break;
-      }
-      default:
-        break;
-    }
-    if (data) {
-      // Set uniform by name as opposed to hash because it's likely it is not
-      // yet created.
-      material->SetUniformByName(uniform_def.name, data, dimension, 1);
-    }
-  }
+void RenderSystemNext::SetShadingModelPath(const std::string& path) {
+  shading_model_path_ = path;
 }
 
-static void SetMaterialFromMaterialInfo(ShaderFactory* shader_factory,
-                                        TextureFactoryImpl* texture_factory,
-                                        Material* material,
-                                        const MaterialInfo& info) {
-  const std::string shader_file =
-      "shaders/" + info.GetShadingModel() + ".fplshader";
-  ShaderPtr shader = shader_factory->LoadShader(shader_file.c_str());
-  material->SetShader(shader);
-  SetUniformsFromMaterialInfo(material, info);
+std::shared_ptr<Material> RenderSystemNext::CreateMaterialFromMaterialInfo(
+    RenderComponent* render_component, const MaterialInfo& info) {
+  std::shared_ptr<Material> material =
+      std::make_shared<Material>(render_component->default_material);
 
-  for (int i = 0; i < MaterialTextureUsage_MAX; ++i) {
+  for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
     MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(i);
     const std::string& name = info.GetTexture(usage);
     if (!name.empty()) {
-      TextureFactory::CreateParams params;
+      TextureParams params;
       params.generate_mipmaps = true;
-      TexturePtr texture = texture_factory->LoadTexture(name, params);
-      material->SetTexture(i, texture);
-      material->SetUniformByName(kTextureBoundsUniform, &texture->UvBounds()[0],
-                                 4);
+      TexturePtr texture = texture_factory_->LoadTexture(name, params);
+      const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(i);
+      material->SetTexture(usage, texture);
+      material->SetUniform<float>(Hash(kTextureBoundsUniform),
+                                  ShaderDataType_Float4,
+                                  {&texture->UvBounds()[0], 1});
+    }
+  }
+
+  material->ApplyProperties(info.GetProperties());
+
+  const std::string shading_model =
+      shading_model_path_ + info.GetShadingModel();
+  ShaderPtr shader;
+  if (render_component->mesh && render_component->mesh->IsLoaded()) {
+    const ShaderCreateParams shader_params =
+        CreateShaderParams(shading_model, render_component, material);
+    shader = shader_factory_->LoadShader(shader_params);
+  } else {
+    shader = std::make_shared<Shader>(Shader::Description(shading_model));
+  }
+  material->SetShader(shader);
+  return material;
+}
+
+void RenderSystemNext::SetMaterial(Entity e, Optional<HashValue> pass,
+                                   Optional<int> submesh_index,
+                                   const MaterialInfo& material_info) {
+  if (pass) {
+    auto* render_component = GetComponent(e, *pass);
+    if (submesh_index) {
+      SetMaterialImpl(render_component, *pass, *submesh_index, material_info);
+    } else {
+      SetMaterialImpl(render_component, *pass, material_info);
+    }
+  } else {
+    ForEachComponentOfEntity(
+        e, [&](RenderComponent* render_component, HashValue pass_hash) {
+          if (submesh_index) {
+            SetMaterialImpl(render_component, pass_hash, *submesh_index,
+                            material_info);
+          } else {
+            SetMaterialImpl(render_component, pass_hash, material_info);
+          }
+        });
+  }
+}
+
+void RenderSystemNext::SetMaterialImpl(RenderComponent* render_component,
+                                       HashValue pass_hash,
+                                       const MaterialInfo& material_info) {
+  if (!render_component) {
+    return;
+  }
+
+  if (render_component->materials.empty()) {
+    render_component->default_material =
+        *CreateMaterialFromMaterialInfo(render_component, material_info);
+  } else {
+    for (int i = 0; i < render_component->materials.size(); ++i) {
+      SetMaterialImpl(render_component, pass_hash, i, material_info);
     }
   }
 }
 
-void RenderSystemNext::SetMaterial(Entity e, int submesh_index,
-                                   const MaterialInfo& material) {
-  Material mat;
-  SetMaterialFromMaterialInfo(shader_factory_, texture_factory_, &mat,
-                              material);
-  ForEachComponentOfEntity(
-      e, [&](RenderComponent* render_component, HashValue pass_hash) {
-        if (render_component->materials.size() <=
-            static_cast<size_t>(submesh_index)) {
-          render_component->materials.resize(submesh_index + 1);
+void RenderSystemNext::SetMaterialImpl(RenderComponent* render_component,
+                                       HashValue pass_hash, int submesh_index,
+                                       const MaterialInfo& material_info) {
+  if (!render_component) {
+    return;
+  }
+  std::shared_ptr<Material> material =
+      CreateMaterialFromMaterialInfo(render_component, material_info);
+
+  if (render_component->materials.size() <=
+      static_cast<size_t>(submesh_index)) {
+    render_component->materials.resize(submesh_index + 1);
+  }
+  render_component->materials[submesh_index] = material;
+
+  for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
+    const auto usage = static_cast<MaterialTextureUsage>(i);
+    TexturePtr texture = material->GetTexture(usage);
+    if (!texture) {
+      continue;
+    }
+
+    const Entity entity = render_component->GetEntity();
+    auto callback = [this, usage, entity, pass_hash, texture]() {
+      RenderComponent* render_component = GetComponent(entity, pass_hash);
+      if (render_component) {
+        for (auto& material : render_component->materials) {
+          if (material->GetTexture(usage) == texture) {
+            OnTextureLoaded(*render_component, pass_hash, usage, texture);
+          }
         }
-        // Copy the material into a shared pointer for each submesh. This should
-        // allow the materials for submeshes to diverge if necessary.
-        render_component->materials[submesh_index] =
-            std::make_shared<Material>(mat);
-      });
+      }
+    };
+    texture->AddOrInvokeOnLoadCallback(callback);
+  }
 }
 
 void RenderSystemNext::OnMeshLoaded(RenderComponent* render_component,
@@ -1117,10 +1324,10 @@ void RenderSystemNext::OnMeshLoaded(RenderComponent* render_component,
 
   MeshPtr& mesh = render_component->mesh;
   if (render_component->materials.size() != mesh->GetNumSubmeshes()) {
-
     std::shared_ptr<Material> copy_material;
     if (render_component->materials.empty()) {
-      copy_material = std::make_shared<Material>();
+      copy_material =
+          std::make_shared<Material>(render_component->default_material);
     } else {
       copy_material = render_component->materials[0];
     }
@@ -1135,8 +1342,20 @@ void RenderSystemNext::OnMeshLoaded(RenderComponent* render_component,
     }
   }
 
+  for (auto& material : render_component->materials) {
+    if (material->GetShader() &&
+        !material->GetShader()->GetDescription().shading_model.empty()) {
+      const ShaderCreateParams shader_params = CreateShaderParams(
+          material->GetShader()->GetDescription().shading_model,
+          render_component, material);
+      material->SetShader(shader_factory_->LoadShader(shader_params));
+    }
+  }
+
   auto* rig_system = registry_->Get<RigSystem>();
-  const size_t num_shader_bones = mesh->TryUpdateRig(rig_system, entity);
+  const size_t num_shader_bones =
+      std::max(mesh->TryUpdateRig(rig_system, entity),
+               CheckMeshForBoneIndices(mesh) ? size_t(1) : size_t(0));
   if (num_shader_bones > 0) {
     // By default, clear the bone transforms to identity.
     const int count =
@@ -1151,14 +1370,11 @@ void RenderSystemNext::OnMeshLoaded(RenderComponent* render_component,
   }
 
   if (IsReadyToRenderImpl(*render_component)) {
-    auto* dispatcher_system = registry_->Get<DispatcherSystem>();
-    if (dispatcher_system) {
-      dispatcher_system->Send(entity, ReadyToRenderEvent(entity));
-    }
+    SendEvent(registry_, entity, ReadyToRenderEvent(entity, pass));
   }
 }
 
-void RenderSystemNext::SetMesh(Entity e, MeshPtr mesh) {
+void RenderSystemNext::SetMesh(Entity e, const MeshPtr& mesh) {
   ForEachComponentOfEntity(e, [&](RenderComponent* render_component,
                                   HashValue pass) { SetMesh(e, pass, mesh); });
 }
@@ -1302,6 +1518,15 @@ HashValue RenderSystemNext::GetRenderPass(Entity entity) const {
   return 0;
 }
 
+std::vector<HashValue> RenderSystemNext::GetRenderPasses(Entity entity) const {
+  std::vector<HashValue> passes;
+  ForEachComponentOfEntity(
+      entity, [&passes](const RenderComponent& /*component*/, HashValue pass) {
+        passes.emplace_back(pass);
+      });
+  return passes;
+}
+
 void RenderSystemNext::SetRenderPass(Entity e, HashValue pass) {
   LOG(ERROR) << "SetRenderPass is not supported in render system next.";
 }
@@ -1313,13 +1538,21 @@ void RenderSystemNext::SetClearParams(HashValue pass,
     LOG(DFATAL) << "Render pass " << pass << " does not exist!";
     return;
   }
-  render_pass->definition.clear_params = clear_params;
+  render_pass->clear_params = clear_params;
+}
+
+void RenderSystemNext::SetDefaultRenderPass(HashValue pass) {
+  default_pass_ = pass;
+}
+
+HashValue RenderSystemNext::GetDefaultRenderPass() const {
+  return default_pass_;
 }
 
 SortMode RenderSystemNext::GetSortMode(HashValue pass) const {
   const RenderPassObject* render_pass_object = FindRenderPassObject(pass);
   if (render_pass_object) {
-    return render_pass_object->definition.sort_mode;
+    return render_pass_object->sort_mode;
   }
   return SortMode_None;
 }
@@ -1327,14 +1560,19 @@ SortMode RenderSystemNext::GetSortMode(HashValue pass) const {
 void RenderSystemNext::SetSortMode(HashValue pass, SortMode mode) {
   RenderPassObject* render_pass_object = GetRenderPassObject(pass);
   if (render_pass_object) {
-    render_pass_object->definition.sort_mode = mode;
+    render_pass_object->sort_mode = mode;
   }
+}
+
+void RenderSystemNext::SetSortVector(HashValue pass,
+                                     const mathfu::vec3& vector) {
+  LOG(DFATAL) << "Unimplemented";
 }
 
 RenderCullMode RenderSystemNext::GetCullMode(HashValue pass) {
   const RenderPassObject* render_pass_object = FindRenderPassObject(pass);
   if (render_pass_object) {
-    return render_pass_object->definition.cull_mode;
+    return render_pass_object->cull_mode;
   }
   return RenderCullMode::kNone;
 }
@@ -1342,7 +1580,7 @@ RenderCullMode RenderSystemNext::GetCullMode(HashValue pass) {
 void RenderSystemNext::SetCullMode(HashValue pass, RenderCullMode mode) {
   RenderPassObject* render_pass_object = GetRenderPassObject(pass);
   if (render_pass_object) {
-    render_pass_object->definition.cull_mode = mode;
+    render_pass_object->cull_mode = mode;
   }
 }
 
@@ -1355,52 +1593,17 @@ void RenderSystemNext::SetRenderState(HashValue pass,
                                       const fplbase::RenderState& state) {
   RenderPassObject* render_pass_object = GetRenderPassObject(pass);
   if (render_pass_object) {
-    render_pass_object->definition.render_state = state;
+    render_pass_object->render_state = Convert(state);
   }
-}
-
-const fplbase::RenderState* RenderSystemNext::GetRenderState(
-    HashValue pass) const {
-  const RenderPassObject* render_pass_object = FindRenderPassObject(pass);
-  if (render_pass_object) {
-    return &render_pass_object->definition.render_state;
-  }
-  return nullptr;
-}
-
-void RenderSystemNext::SetDepthTest(const bool enabled) {
-  if (enabled) {
-#if !defined(NDEBUG) && !defined(__ANDROID__)
-    // GL_DEPTH_BITS was deprecated in desktop GL 3.3, so make sure this get
-    // succeeds before checking depth_bits.
-    GLint depth_bits = 0;
-    glGetIntegerv(GL_DEPTH_BITS, &depth_bits);
-    if (glGetError() == 0 && depth_bits == 0) {
-      // This has been known to cause problems on iOS 10.
-      LOG_ONCE(WARNING) << "Enabling depth test without a depth buffer; this "
-                           "has known issues on some platforms.";
-    }
-#endif  // !ION_PRODUCTION
-
-    renderer_.SetDepthFunction(fplbase::kDepthFunctionLess);
-    return;
-  }
-
-  renderer_.SetDepthFunction(fplbase::kDepthFunctionDisabled);
-}
-
-void RenderSystemNext::SetDepthWrite(const bool enabled) {
-  renderer_.SetDepthWrite(enabled);
 }
 
 void RenderSystemNext::SetViewport(const RenderView& view) {
   LULLABY_CPU_TRACE_CALL();
-  renderer_.SetViewport(fplbase::Viewport(view.viewport, view.dimensions));
-  inherited_render_state_.viewport = GetCachedRenderState().viewport;
+  SetViewport(mathfu::recti(view.viewport, view.dimensions));
 }
 
 void RenderSystemNext::SetClipFromModelMatrix(const mathfu::mat4& mvp) {
-  renderer_.set_model_view_projection(mvp);
+  model_view_projection_ = mvp;
 }
 
 void RenderSystemNext::SetClipFromModelMatrixFunction(
@@ -1413,96 +1616,14 @@ void RenderSystemNext::SetClipFromModelMatrixFunction(
   clip_from_model_matrix_func_ = func;
 }
 
-void RenderSystemNext::BindVertexArray(uint32_t ref) {
-  // VAOs are part of the GLES3 & GL3 specs.
-  if (renderer_.feature_level() == fplbase::kFeatureLevel30) {
-#if GL_ES_VERSION_3_0 || defined(GL_VERSION_3_0)
-    GL_CALL(glBindVertexArray(ref));
-#endif
-    return;
-  }
-
-// VAOs were available prior to GLES3 using an extension.
-#if GL_OES_vertex_array_object
-#ifndef GL_GLEXT_PROTOTYPES
-  static PFNGLBINDVERTEXARRAYOESPROC glBindVertexArrayOES = []() {
-    return (PFNGLBINDVERTEXARRAYOESPROC)eglGetProcAddress(
-        "glBindVertexArrayOES");
-  };
-  if (glBindVertexArrayOES) {
-    GL_CALL(glBindVertexArrayOES(ref));
-  }
-#else   // GL_GLEXT_PROTOTYPES
-  GL_CALL(glBindVertexArrayOES(ref));
-#endif  // !GL_GLEXT_PROTOTYPES
-#endif  // GL_OES_vertex_array_object
-}
-
-void RenderSystemNext::ClearSamplers() {
-  if (renderer_.feature_level() != fplbase::kFeatureLevel30) {
-    return;
-  }
-
-// Samplers are part of GLES3 & GL3.3 specs.
-#if GL_ES_VERSION_3_0 || defined(GL_VERSION_3_3)
-  for (int i = 0; i <= max_texture_unit_; ++i) {
-    // Confusingly, glBindSampler takes an index, not the raw texture unit
-    // (GL_TEXTURE0 + index).
-    GL_CALL(glBindSampler(i, 0));
-  }
-#endif  // GL_ES_VERSION_3_0 || GL_VERSION_3_3
-}
-
-void RenderSystemNext::ResetState() {
-  const fplbase::RenderState& render_state = renderer_.GetRenderState();
-
-  // Clear render state.
-  SetBlendMode(fplbase::kBlendModeOff);
-  renderer_.SetCulling(fplbase::kCullingModeBack);
-  SetDepthTest(true);
-  GL_CALL(glEnable(GL_DEPTH_TEST));
-  renderer_.ScissorOff();
-  GL_CALL(glDisable(GL_STENCIL_TEST));
-  GL_CALL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
-  GL_CALL(
-      glDepthMask(render_state.depth_state.write_enabled ? GL_TRUE : GL_FALSE));
-  GL_CALL(glStencilMask(~0));
-  GL_CALL(glFrontFace(GL_CCW));
-  GL_CALL(glPolygonOffset(0, 0));
-
-  // Clear sampler objects, since FPL doesn't use them.
-  ClearSamplers();
-
-  // Clear VAO since it overrides VBOs.
-  BindVertexArray(0);
-
-  // Clear attributes, though we can leave position.
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeNormal));
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeTangent));
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeTexCoord));
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeTexCoordAlt));
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeColor));
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeBoneIndices));
-  GL_CALL(glDisableVertexAttribArray(fplbase::Mesh::kAttributeBoneWeights));
-
-  shader_.reset();
-}
-
-void RenderSystemNext::SetBlendMode(fplbase::BlendMode blend_mode) {
-  renderer_.SetBlendMode(blend_mode);
-  blend_mode_ = blend_mode;
-}
-
 mathfu::vec4 RenderSystemNext::GetClearColor() const { return clear_color_; }
 
 void RenderSystemNext::SetClearColor(float r, float g, float b, float a) {
-  clear_color_ = mathfu::vec4(r, g, b, a);
-
   RenderClearParams clear_params;
   clear_params.clear_options = RenderClearParams::kColor |
                                RenderClearParams::kDepth |
                                RenderClearParams::kStencil;
-  clear_params.color_value = clear_color_;
+  clear_params.color_value = mathfu::vec4(r, g, b, a);
   SetClearParams(ConstHash("ClearDisplay"), clear_params);
 }
 
@@ -1519,51 +1640,60 @@ void RenderSystemNext::SubmitRenderData() {
     RenderPassDrawContainer& pass_container = (*data)[iter.first];
 
     // Copy the pass' properties.
-    pass_container.clear_params = iter.second.definition.clear_params;
-    pass_container.cull_mode = iter.second.definition.cull_mode;
-    pass_container.render_target = iter.second.definition.render_target;
+    pass_container.clear_params = iter.second.clear_params;
 
-    RenderPassDrawGroup& opaque_draw_group =
-        pass_container
-            .draw_groups[static_cast<size_t>(RenderObjectsBlendMode::kOpaque)];
-    RenderPassDrawGroup& blend_draw_group =
-        pass_container.draw_groups[static_cast<size_t>(
-            RenderObjectsBlendMode::kBlendEnabled)];
+    auto target = render_targets_.find(iter.second.render_target);
+    if (target != render_targets_.end()) {
+      pass_container.render_target = target->second.get();
+    }
+
+    RenderLayer& opaque_layer =
+        pass_container.layers[RenderPassDrawContainer::kOpaque];
+    RenderLayer& blend_layer =
+        pass_container.layers[RenderPassDrawContainer::kBlendEnabled];
 
     // Assign sort modes.
-    if (iter.second.definition.sort_mode == SortMode_Optimized) {
+    if (iter.second.sort_mode == SortMode_Optimized) {
       // If user set optimized, set the best expected sort modes depending on
       // the blend mode.
-      opaque_draw_group.sort_mode = SortMode_AverageSpaceOriginFrontToBack;
-      blend_draw_group.sort_mode = SortMode_AverageSpaceOriginBackToFront;
+      opaque_layer.sort_mode = SortMode_AverageSpaceOriginFrontToBack;
+      blend_layer.sort_mode = SortMode_AverageSpaceOriginBackToFront;
     } else {
       // Otherwise assign the user's chosen sort modes.
-      for (auto& draw_group : pass_container.draw_groups) {
-        draw_group.sort_mode = iter.second.definition.sort_mode;
+      for (RenderLayer& layer : pass_container.layers) {
+        layer.cull_mode = iter.second.cull_mode;
+        layer.sort_mode = iter.second.sort_mode;
       }
     }
 
     // Set the render states.
     // Opaque remains as is.
-    const fplbase::RenderState& pass_render_state =
-        iter.second.definition.render_state;
-    opaque_draw_group.render_state = pass_render_state;
-    // Blend requires z-write off and blend mode on.
-    if (!pass_render_state.blend_state.enabled) {
-      fplbase::RenderState render_state = pass_render_state;
-      render_state.blend_state.enabled = true;
-      render_state.blend_state.src_alpha = fplbase::BlendState::kOne;
-      render_state.blend_state.src_color = fplbase::BlendState::kOne;
-      render_state.blend_state.dst_alpha =
-          fplbase::BlendState::kOneMinusSrcAlpha;
-      render_state.blend_state.dst_color =
-          fplbase::BlendState::kOneMinusSrcAlpha;
-      render_state.depth_state.write_enabled = false;
+    const RenderStateT& pass_render_state = iter.second.render_state;
+
+    opaque_layer.render_state = pass_render_state;
+
+    if (pass_render_state.blend_state &&
+        pass_render_state.blend_state->enabled) {
+      blend_layer.render_state = pass_render_state;
+    } else {
+      // Blend requires z-write off and blend mode on.
+      RenderStateT render_state = pass_render_state;
+      if (!render_state.blend_state) {
+        render_state.blend_state.emplace();
+      }
+      if (!render_state.depth_state) {
+        render_state.depth_state.emplace();
+      }
+
+      render_state.blend_state->enabled = true;
+      render_state.blend_state->src_alpha = BlendFactor_One;
+      render_state.blend_state->src_color = BlendFactor_One;
+      render_state.blend_state->dst_alpha = BlendFactor_OneMinusSrcAlpha;
+      render_state.blend_state->dst_color = BlendFactor_OneMinusSrcAlpha;
+      render_state.depth_state->write_enabled = false;
 
       // Assign the render state.
-      blend_draw_group.render_state = std::move(render_state);
-    } else {
-      blend_draw_group.render_state = pass_render_state;
+      blend_layer.render_state = render_state;
     }
 
     iter.second.components.ForEach(
@@ -1571,7 +1701,6 @@ void RenderSystemNext::SubmitRenderData() {
           if (render_component.hidden) {
             return;
           }
-
           if (!render_component.mesh ||
               render_component.mesh->GetNumSubmeshes() == 0) {
             return;
@@ -1587,32 +1716,34 @@ void RenderSystemNext::SubmitRenderData() {
             return;
           }
 
-          RenderObject render_obj;
-          render_obj.mesh = render_component.mesh;
-          render_obj.sort_order = render_component.sort_order;
-          render_obj.world_from_entity_matrix = *world_from_entity_matrix;
+          RenderObject obj;
+          obj.mesh = render_component.mesh;
+          obj.world_from_entity_matrix = *world_from_entity_matrix;
 
           // Add each material as a single render object where each material
           // references a submesh.
           for (size_t i = 0; i < render_component.materials.size(); ++i) {
-            render_obj.material = render_component.materials[i];
-            render_obj.submesh_index = static_cast<int>(i);
+            obj.material = render_component.materials[i];
+            if (!obj.material || !obj.material->GetShader()) {
+              continue;
+            }
+            obj.submesh_index = static_cast<int>(i);
 
-            const RenderObjectsBlendMode object_blend_mode =
-                (pass_render_state.blend_state.enabled ||
-                 IsAlphaEnabled(*render_obj.material))
-                    ? RenderObjectsBlendMode::kBlendEnabled
-                    : RenderObjectsBlendMode::kOpaque;
-            pass_container.draw_groups[static_cast<size_t>(object_blend_mode)]
-                .render_objects.emplace_back(render_obj);
+            const RenderPassDrawContainer::LayerType type =
+                ((pass_render_state.blend_state &&
+                  pass_render_state.blend_state->enabled) ||
+                 IsAlphaEnabled(*obj.material))
+                    ? RenderPassDrawContainer::kBlendEnabled
+                    : RenderPassDrawContainer::kOpaque;
+            pass_container.layers[type].render_objects.push_back(obj);
           }
         });
 
     // Sort only objects with "static" sort order, such as explicit sort order
     // or absolute z-position.
-    for (auto& draw_group : pass_container.draw_groups) {
-      if (IsSortModeViewIndependent(draw_group.sort_mode)) {
-        SortObjects(&draw_group.render_objects, draw_group.sort_mode);
+    for (RenderLayer& layer : pass_container.layers) {
+      if (IsSortModeViewIndependent(layer.sort_mode)) {
+        SortObjects(&layer.render_objects, layer.sort_mode);
       }
     }
   }
@@ -1621,151 +1752,101 @@ void RenderSystemNext::SubmitRenderData() {
 }
 
 void RenderSystemNext::BeginRendering() {
-  LULLABY_CPU_TRACE_CALL();
-
-  // Retrieve the (current) default frame buffer.
-  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &default_frame_buffer_);
-
   active_render_data_ = render_data_buffer_.LockReadBuffer();
 }
 
 void RenderSystemNext::EndRendering() {
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
   render_data_buffer_.UnlockReadBuffer();
   active_render_data_ = nullptr;
-  default_frame_buffer_ = 0;
-}
-
-void RenderSystemNext::SetViewUniforms(const RenderView& view) {
-  renderer_.set_camera_pos(view.world_from_eye_matrix.TranslationVector3D());
-
-  rendering_right_eye_ = view.eye == 1;
 }
 
 void RenderSystemNext::RenderAt(const RenderObject* render_object,
-                                const mathfu::mat4& world_from_entity_matrix,
-                                const RenderView& view) {
+                                const RenderView* views, size_t num_views) {
   LULLABY_CPU_TRACE_CALL();
-  const Material& material = *render_object->material;
-  const ShaderPtr& shader = material.GetShader();
-  if (!shader || !render_object->mesh) {
+  static const size_t kMaxNumViews = 2;
+  if (views == nullptr || num_views == 0 || num_views > kMaxNumViews) {
     return;
   }
 
-  const mathfu::mat4 clip_from_entity_matrix = clip_from_model_matrix_func_(
-      world_from_entity_matrix, view.clip_from_world_matrix);
-  renderer_.set_model_view_projection(clip_from_entity_matrix);
-  renderer_.set_model(world_from_entity_matrix);
-
-  ApplyMaterial(material, inherited_render_state_);
-
-  const UniformHnd mat_normal_uniform = shader->FindUniform("mat_normal");
-  if (mat_normal_uniform) {
-    // Compute the normal matrix. This is the transposed matrix of the inversed
-    // world position. This is done to avoid non-uniform scaling of the normal.
-    // A good explanation of this can be found here:
-    // http://www.lighthouse3d.com/tutorials/glsl-12-tutorial/the-normal-matrix/
-    const mathfu::mat3 normal_matrix =
-        ComputeNormalMatrix(world_from_entity_matrix);
-    mathfu::vec3_packed packed[3];
-    normal_matrix.Pack(packed);
-    GL_CALL(glUniformMatrix3fv(*mat_normal_uniform, 1, false, packed[0].data));
+  const std::shared_ptr<Mesh>& mesh = render_object->mesh;
+  if (mesh == nullptr) {
+    return;
   }
-  const UniformHnd camera_dir_uniform = shader->FindUniform("camera_dir");
-  if (camera_dir_uniform) {
-    mathfu::vec3_packed camera_dir;
-    CalculateCameraDirection(view.world_from_eye_matrix).Pack(&camera_dir);
-    GL_CALL(glUniform3fv(*camera_dir_uniform, 1, camera_dir.data));
+  const std::shared_ptr<Material>& material = render_object->material;
+  if (material == nullptr) {
+    return;
   }
-  const UniformHnd view_uniform = shader->FindUniform("view");
-  if (view_uniform) {
-    GL_CALL(glUniformMatrix4fv(*view_uniform, 1, false,
-                               &view.eye_from_world_matrix[0]));
-  }
-
-  // Bit of magic to determine if the scalar is negative and if so flip the cull
-  // face. This possibly be revised (b/38235916).
-  CorrectFrontFaceFromMatrix(world_from_entity_matrix);
-
-  DrawMeshFromComponent(render_object);
-}
-
-void RenderSystemNext::RenderAtMultiview(
-    const RenderObject* render_object,
-    const mathfu::mat4& world_from_entity_matrix, const RenderView* views) {
-  LULLABY_CPU_TRACE_CALL();
-  const Material& material = *render_object->material;
-  const ShaderPtr& shader = material.GetShader();
-  if (!shader || !render_object->mesh) {
+  const std::shared_ptr<Shader>& shader = material->GetShader();
+  if (shader == nullptr) {
     return;
   }
 
-  const mathfu::mat4 clip_from_entity_matrix[] = {
-      views[0].clip_from_world_matrix * world_from_entity_matrix,
-      views[1].clip_from_world_matrix * world_from_entity_matrix,
-  };
-  renderer_.set_model(world_from_entity_matrix);
+  BindShader(shader);
 
-  ApplyMaterial(material, inherited_render_state_);
+  constexpr HashValue kModel = ConstHash("model");
+  shader->SetUniform(kModel, &render_object->world_from_entity_matrix[0], 16);
 
-  const UniformHnd mvp_uniform = shader->FindUniform("model_view_projection");
-  if (mvp_uniform) {
-    GL_CALL(glUniformMatrix4fv(*mvp_uniform, 2, false,
-                               &(clip_from_entity_matrix[0][0])));
+  // Compute the normal matrix. This is the transposed matrix of the inversed
+  // world position. This is done to avoid non-uniform scaling of the normal.
+  // A good explanation of this can be found here:
+  // http://www.lighthouse3d.com/tutorials/glsl-12-tutorial/the-normal-matrix/
+  constexpr HashValue kMatNormal = ConstHash("mat_normal");
+  mathfu::vec3_packed normal_matrix[3];
+  ComputeNormalMatrix(render_object->world_from_entity_matrix)
+      .Pack(normal_matrix);
+  shader->SetUniform(kMatNormal, normal_matrix[0].data, 9);
+
+  // The following uniforms support multiview arrays.  Ensure data is tightly
+  // packed so that it correctly gets set in the uniform.
+  int is_right_eye[kMaxNumViews] = {0};
+  mathfu::vec3_packed camera_dir[kMaxNumViews];
+  mathfu::vec3_packed camera_pos[kMaxNumViews];
+  mathfu::mat4 clip_from_entity_matrix[kMaxNumViews];
+  mathfu::mat4 view_matrix[kMaxNumViews];
+
+  const int count = static_cast<int>(num_views);
+  for (int i = 0; i < count; ++i) {
+    is_right_eye[i] = views[i].eye == 1 ? 1 : 0;
+    view_matrix[i] = views[i].eye_from_world_matrix;
+    views[i].world_from_eye_matrix.TranslationVector3D().Pack(&camera_pos[i]);
+    CalculateCameraDirection(views[i].world_from_eye_matrix)
+        .Pack(&camera_dir[i]);
+    clip_from_entity_matrix[i] =
+        clip_from_model_matrix_func_(render_object->world_from_entity_matrix,
+                                     views[i].clip_from_world_matrix);
   }
-  const UniformHnd mat_normal_uniform = shader->FindUniform("mat_normal");
-  if (mat_normal_uniform) {
-    const mathfu::mat3 normal_matrix =
-        ComputeNormalMatrix(world_from_entity_matrix);
-    mathfu::VectorPacked<float, 3> packed[3];
-    normal_matrix.Pack(packed);
-    GL_CALL(glUniformMatrix3fv(*mat_normal_uniform, 1, false, packed[0].data));
-  }
-  const UniformHnd camera_dir_uniform = shader->FindUniform("camera_dir");
-  if (camera_dir_uniform) {
-    mathfu::vec3_packed camera_dir[2];
-    for (size_t i = 0; i < 2; ++i) {
-      CalculateCameraDirection(views[i].world_from_eye_matrix)
-          .Pack(&camera_dir[i]);
-    }
-    GL_CALL(glUniform3fv(*camera_dir_uniform, 2, camera_dir[0].data));
-  }
 
-  // Bit of magic to determine if the scalar is negative and if so flip the cull
-  // face. This possibly be revised (b/38235916).
-  CorrectFrontFaceFromMatrix(world_from_entity_matrix);
+  constexpr HashValue kView = ConstHash("view");
+  shader->SetUniform(kView, &(view_matrix[0][0]), 16, count);
 
-  DrawMeshFromComponent(render_object);
-}
+  constexpr HashValue kModelViewProjection = ConstHash("model_view_projection");
+  shader->SetUniform(kModelViewProjection, &(clip_from_entity_matrix[0][0]), 16,
+                     count);
 
-void RenderSystemNext::SetShaderUniforms(const std::vector<Uniform>& uniforms) {
-  for (const auto& uniform : uniforms) {
-    BindUniform(uniform);
-  }
-}
+  constexpr HashValue kCameraDir = ConstHash("camera_dir");
+  shader->SetUniform(kCameraDir, camera_dir[0].data, 3, count);
 
-void RenderSystemNext::DrawMeshFromComponent(
-    const RenderObject* render_object) {
-  if (render_object->mesh) {
-    renderer_.SetBlendMode(renderer_.GetBlendMode());
-    render_object->mesh->RenderSubmesh(render_object->submesh_index);
-    detail::Profiler* profiler = registry_->Get<detail::Profiler>();
-    if (profiler) {
-      profiler->RecordDraw(render_object->material->GetShader(),
-                           render_object->mesh->GetNumVertices(),
-                           render_object->mesh->GetNumTriangles());
-    }
+  constexpr HashValue kCameraPos = ConstHash("camera_pos");
+  // camera_pos is not currently multiview enabled, so only set 1 value.
+  shader->SetUniform(kCameraPos, camera_pos[0].data, 3, 1);
+
+  // We break the naming convention here for compatibility with early VR apps.
+  constexpr HashValue kIsRightEye = ConstHash("uIsRightEye");
+  shader->SetUniform(kIsRightEye, is_right_eye, 1, count);
+
+  renderer_.ApplyMaterial(render_object->material);
+  renderer_.Draw(mesh, render_object->world_from_entity_matrix,
+                 render_object->submesh_index);
+
+  detail::Profiler* profiler = registry_->Get<detail::Profiler>();
+  if (profiler) {
+    profiler->RecordDraw(material->GetShader(), mesh->GetNumVertices(),
+                         mesh->GetNumTriangles());
   }
 }
 
 void RenderSystemNext::Render(const RenderView* views, size_t num_views) {
-  renderer_.BeginRendering();
-
-  ResetState();
-  known_state_ = true;
-
-  // assume a max of 2 views, one for each eye.
+  // Assume a max of 2 views, one for each eye.
   RenderView pano_views[2];
   CHECK_LE(num_views, 2);
   GenerateEyeCenteredViews({views, num_views}, pano_views);
@@ -1774,10 +1855,6 @@ void RenderSystemNext::Render(const RenderView* views, size_t num_views) {
   Render(views, num_views, ConstHash("Main"));
   Render(views, num_views, ConstHash("OverDraw"));
   Render(views, num_views, ConstHash("OverDrawGlow"));
-
-  known_state_ = false;
-
-  renderer_.EndRendering();
 }
 
 void RenderSystemNext::Render(const RenderView* views, size_t num_views,
@@ -1796,123 +1873,63 @@ void RenderSystemNext::Render(const RenderView* views, size_t num_views,
 
   RenderPassDrawContainer& draw_container = iter->second;
 
-  // Set the render target, if needed.
-  if (draw_container.render_target) {
-    draw_container.render_target->Bind();
-  }
-  ApplyClearParams(draw_container.clear_params);
-
-  if (!known_state_) {
-    renderer_.BeginRendering();
-    if (pass != 0) {
-      ResetState();
-    }
-  }
-
-  bool reset_state = true;
-  auto* config = registry_->Get<Config>();
-  if (config) {
-    static const HashValue kRenderResetStateHash =
-        Hash("lull.Render.ResetState");
-    reset_state = config->Get(kRenderResetStateHash, reset_state);
-  }
+  renderer_.Begin(draw_container.render_target);
+  renderer_.Clear(draw_container.clear_params);
 
   // Draw the elements.
   if (pass == ConstHash("Debug")) {
     RenderDebugStats(views, num_views);
   } else {
-    for (auto& draw_group : draw_container.draw_groups) {
-      renderer_.SetRenderState(draw_group.render_state);
-      inherited_render_state_ = draw_group.render_state;
-
-      if (!IsSortModeViewIndependent(draw_group.sort_mode)) {
-        SortObjectsUsingView(&draw_group.render_objects, draw_group.sort_mode,
-                             views, num_views);
+    for (RenderLayer& layer : draw_container.layers) {
+      if (!IsSortModeViewIndependent(layer.sort_mode)) {
+        SortObjectsUsingView(&layer.render_objects, layer.sort_mode, views,
+                             num_views);
       }
-      RenderObjects(draw_group.render_objects, views, num_views);
+      RenderObjects(layer.render_objects, layer.render_state, views, num_views);
     }
   }
 
-  // Set the render target back to default, if needed.
-  if (draw_container.render_target) {
-    GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, default_frame_buffer_));
-  }
-
-  if (reset_state) {
-    static const fplbase::RenderState kDefaultRenderState;
-    renderer_.SetRenderState(kDefaultRenderState);
-  }
-
-  if (!known_state_) {
-    renderer_.EndRendering();
-  }
+  renderer_.End();
 }
 
 void RenderSystemNext::RenderObjects(const std::vector<RenderObject>& objects,
+                                     const RenderStateT& render_state,
                                      const RenderView* views,
                                      size_t num_views) {
   if (objects.empty()) {
     return;
   }
 
-  if (multiview_enabled_) {
-    SetViewport(views[0]);
-    SetViewUniforms(views[0]);
+  renderer_.GetRenderStateManager().SetRenderState(render_state);
 
+  if (renderer_.IsMultiviewEnabled()) {
+    SetViewport(views[0]);
     for (const RenderObject& obj : objects) {
-      RenderAtMultiview(&obj, obj.world_from_entity_matrix, views);
+      RenderAt(&obj, views, num_views);
     }
   } else {
     for (size_t i = 0; i < num_views; ++i) {
-      const RenderView& view = views[i];
-
-      SetViewport(view);
-      SetViewUniforms(view);
-
+      SetViewport(views[i]);
       for (const RenderObject& obj : objects) {
-        RenderAt(&obj, obj.world_from_entity_matrix, views[i]);
+        RenderAt(&obj, &views[i], 1);
       }
     }
   }
-
-  // Reset states that are set at the entity level in RenderAt.
-  GL_CALL(glFrontFace(GL_CCW));
 }
 
 void RenderSystemNext::BindShader(const ShaderPtr& shader) {
-  // Don't early exit if shader == shader_, since fplbase::Shader::Set also sets
-  // the common fpl uniforms.
   shader_ = shader;
   shader->Bind();
 
-  shader->SetUniform(shader->FindUniform(ConstHash("model_view_projection")),
-                     &renderer_.model_view_projection()[0], 16, 1);
-  shader->SetUniform(shader->FindUniform(ConstHash("model")),
-                     &renderer_.model()[0], 16, 1);
-  shader->SetUniform(shader->FindUniform(ConstHash("color")),
-                     &renderer_.color()[0], 4, 1);
-  shader->SetUniform(shader->FindUniform(ConstHash("light_pos")),
-                     &renderer_.light_pos()[0], 3, 1);
-  shader->SetUniform(shader->FindUniform(ConstHash("camera_pos")),
-                     &renderer_.camera_pos()[0], 3, 1);
-  const auto time = static_cast<float>(renderer_.time());
-  shader->SetUniform(shader->FindUniform(ConstHash("time")), &time, 1, 1);
-  if (renderer_.num_bones() > 0) {
-    const int kNumVec4InBoneTransform = 3;
-    shader->SetUniform(shader->FindUniform(ConstHash("bone_transforms")),
-                       &renderer_.bone_transforms()[0][0], 4,
-                       renderer_.num_bones() * kNumVec4InBoneTransform);
-  }
+  // Initialize color to white and allow individual materials to set it
+  // differently.
+  constexpr HashValue kColor = ConstHash("color");
+  shader->SetUniform(kColor, &mathfu::kOnes4f[0], 4);
 
-  // Bind uniform describing whether or not we're rendering in the right eye.
-  // This uniform is an int due to legacy reasons, but there's no pipeline in
-  // FPL for setting int uniforms, so we have to make a direct gl call instead.
-  const UniformHnd uniform_is_right_eye =
-      shader->FindUniform(kIsRightEyeUniform);
-  if (uniform_is_right_eye) {
-    GL_CALL(glUniform1i(*uniform_is_right_eye,
-                        static_cast<int>(rendering_right_eye_)));
-  }
+  // Set the MVP matrix to the one explicitly set by the user and override
+  // during draw calls if needed.
+  constexpr HashValue kModelViewProjection = ConstHash("model_view_projection");
+  shader->SetUniform(kModelViewProjection, &model_view_projection_[0], 16);
 }
 
 void RenderSystemNext::BindTexture(int unit, const TexturePtr& texture) {
@@ -1953,16 +1970,18 @@ void RenderSystemNext::DrawMesh(const MeshData& mesh) { DrawMeshData(mesh); }
 void RenderSystemNext::UpdateDynamicMesh(
     Entity entity, MeshData::PrimitiveType primitive_type,
     const VertexFormat& vertex_format, const size_t max_vertices,
-    const size_t max_indices,
+    const size_t max_indices, MeshData::IndexType index_type,
+    const size_t max_ranges,
     const std::function<void(MeshData*)>& update_mesh) {
   if (max_vertices > 0) {
-    const MeshData::IndexType index_type = MeshData::kIndexU16;
     DataContainer vertex_data = DataContainer::CreateHeapDataContainer(
         max_vertices * vertex_format.GetVertexSize());
     DataContainer index_data = DataContainer::CreateHeapDataContainer(
         max_indices * MeshData::GetIndexSize(index_type));
+    DataContainer range_data = DataContainer::CreateHeapDataContainer(
+        max_ranges * sizeof(MeshData::IndexRange));
     MeshData data(primitive_type, vertex_format, std::move(vertex_data),
-                  index_type, std::move(index_data));
+                  index_type, std::move(index_data), std::move(range_data));
     update_mesh(&data);
     MeshPtr mesh = mesh_factory_->CreateMesh(std::move(data));
     ForEachComponentOfEntity(
@@ -2046,11 +2065,10 @@ void RenderSystemNext::RenderDebugStats(const RenderView* views,
   // Draw in each view.
   for (size_t i = 0; i < num_views; ++i) {
     SetViewport(views[i]);
-    SetViewUniforms(views[i]);
 
-    renderer_.set_model_view_projection(views[i].clip_from_eye_matrix);
-    BindShader(
-        font->GetShader());  // Shader needs to be bound after setting MVP.
+    model_view_projection_ = views[i].clip_from_eye_matrix;
+    // Shader needs to be bound after setting MVP.
+    BindShader(font->GetShader());
 
     mathfu::vec3 pos = start_pos;
     if (is_stereo && i > 0) {
@@ -2104,12 +2122,310 @@ void RenderSystemNext::UpdateSortOrder(Entity entity) {
 }
 
 const fplbase::RenderState& RenderSystemNext::GetCachedRenderState() const {
-  return renderer_.GetRenderState();
+  return render_state_;
 }
 
 void RenderSystemNext::UpdateCachedRenderState(
     const fplbase::RenderState& render_state) {
-  renderer_.UpdateCachedRenderState(render_state);
+  renderer_.GetRenderStateManager().Reset();
+  renderer_.ResetGpuState();
+  UnsetDefaultAttributes();
+  shader_.reset();
+
+  render_state_ = render_state;
+  SetAlphaTestState(render_state.alpha_test_state);
+  SetBlendState(render_state.blend_state);
+  SetCullState(render_state.cull_state);
+  SetDepthState(render_state.depth_state);
+  SetPointState(render_state.point_state);
+  SetScissorState(render_state.scissor_state);
+  SetStencilState(render_state.stencil_state);
+  SetViewport(render_state.viewport);
+  ValidateRenderState();
+}
+
+void RenderSystemNext::ValidateRenderState() {
+#ifdef LULLABY_VERIFY_GPU_STATE
+  DCHECK(renderer_.GetRenderStateManager().Validate());
+  fplbase::ValidateRenderState(render_state_);
+#endif
+}
+
+void RenderSystemNext::SetDepthTest(const bool enabled) {
+  if (enabled) {
+    SetDepthFunction(fplbase::kDepthFunctionLess);
+  } else {
+    SetDepthFunction(fplbase::kDepthFunctionDisabled);
+  }
+}
+
+void RenderSystemNext::SetViewport(const mathfu::recti& viewport) {
+  renderer_.GetRenderStateManager().SetViewport(viewport);
+  render_state_.viewport = viewport;
+}
+
+void RenderSystemNext::SetDepthWrite(bool depth_write) {
+  fplbase::DepthState depth_state = render_state_.depth_state;
+  depth_state.write_enabled = depth_write;
+  SetDepthState(depth_state);
+}
+
+void RenderSystemNext::SetDepthFunction(fplbase::DepthFunction depth_function) {
+  fplbase::DepthState depth_state = render_state_.depth_state;
+
+  switch (depth_function) {
+    case fplbase::kDepthFunctionDisabled:
+      depth_state.test_enabled = false;
+      break;
+
+    case fplbase::kDepthFunctionNever:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderNever;
+      break;
+
+    case fplbase::kDepthFunctionAlways:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderAlways;
+      break;
+
+    case fplbase::kDepthFunctionLess:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderLess;
+      break;
+
+    case fplbase::kDepthFunctionLessEqual:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderLessEqual;
+      break;
+
+    case fplbase::kDepthFunctionGreater:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderGreater;
+      break;
+
+    case fplbase::kDepthFunctionGreaterEqual:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderGreaterEqual;
+      break;
+
+    case fplbase::kDepthFunctionEqual:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderEqual;
+      break;
+
+    case fplbase::kDepthFunctionNotEqual:
+      depth_state.test_enabled = true;
+      depth_state.function = fplbase::kRenderNotEqual;
+      break;
+
+    case fplbase::kDepthFunctionUnknown:
+      // Do nothing.
+      break;
+
+    default:
+      assert(false);  // Invalid depth function.
+      break;
+  }
+
+  SetDepthState(depth_state);
+}
+
+void RenderSystemNext::SetBlendMode(fplbase::BlendMode blend_mode) {
+  fplbase::AlphaTestState alpha_test_state = render_state_.alpha_test_state;
+  fplbase::BlendState blend_state = render_state_.blend_state;
+
+  switch (blend_mode) {
+    case fplbase::kBlendModeOff:
+      alpha_test_state.enabled = false;
+      blend_state.enabled = false;
+      break;
+
+    case fplbase::kBlendModeTest:
+      alpha_test_state.enabled = true;
+      alpha_test_state.function = fplbase::kRenderGreater;
+      alpha_test_state.ref = 0.5f;
+      blend_state.enabled = false;
+      break;
+
+    case fplbase::kBlendModeAlpha:
+      alpha_test_state.enabled = false;
+      blend_state.enabled = true;
+      blend_state.src_alpha = fplbase::BlendState::kSrcAlpha;
+      blend_state.src_color = fplbase::BlendState::kSrcAlpha;
+      blend_state.dst_alpha = fplbase::BlendState::kOneMinusSrcAlpha;
+      blend_state.dst_color = fplbase::BlendState::kOneMinusSrcAlpha;
+      break;
+
+    case fplbase::kBlendModeAdd:
+      alpha_test_state.enabled = false;
+      blend_state.enabled = true;
+      blend_state.src_alpha = fplbase::BlendState::kOne;
+      blend_state.src_color = fplbase::BlendState::kOne;
+      blend_state.dst_alpha = fplbase::BlendState::kOne;
+      blend_state.dst_color = fplbase::BlendState::kOne;
+      break;
+
+    case fplbase::kBlendModeAddAlpha:
+      alpha_test_state.enabled = false;
+      blend_state.enabled = true;
+      blend_state.src_alpha = fplbase::BlendState::kSrcAlpha;
+      blend_state.src_color = fplbase::BlendState::kSrcAlpha;
+      blend_state.dst_alpha = fplbase::BlendState::kOne;
+      blend_state.dst_color = fplbase::BlendState::kOne;
+      break;
+
+    case fplbase::kBlendModeMultiply:
+      alpha_test_state.enabled = false;
+      blend_state.enabled = true;
+      blend_state.src_alpha = fplbase::BlendState::kDstColor;
+      blend_state.src_color = fplbase::BlendState::kDstColor;
+      blend_state.dst_alpha = fplbase::BlendState::kZero;
+      blend_state.dst_color = fplbase::BlendState::kZero;
+      break;
+
+    case fplbase::kBlendModePreMultipliedAlpha:
+      alpha_test_state.enabled = false;
+      blend_state.enabled = true;
+      blend_state.src_alpha = fplbase::BlendState::kOne;
+      blend_state.src_color = fplbase::BlendState::kOne;
+      blend_state.dst_alpha = fplbase::BlendState::kOneMinusSrcAlpha;
+      blend_state.dst_color = fplbase::BlendState::kOneMinusSrcAlpha;
+      break;
+
+    case fplbase::kBlendModeUnknown:
+      // Do nothing.
+      break;
+
+    default:
+      assert(false);  // Not yet implemented.
+      break;
+  }
+
+  SetBlendState(blend_state);
+  SetAlphaTestState(alpha_test_state);
+}
+
+void RenderSystemNext::SetStencilMode(fplbase::StencilMode mode, int ref,
+                                      uint32_t mask) {
+  fplbase::StencilState stencil_state = render_state_.stencil_state;
+
+  switch (mode) {
+    case fplbase::kStencilDisabled:
+      stencil_state.enabled = false;
+      break;
+
+    case fplbase::kStencilCompareEqual:
+      stencil_state.enabled = true;
+
+      stencil_state.front_function.function = fplbase::kRenderEqual;
+      stencil_state.front_function.ref = ref;
+      stencil_state.front_function.mask = mask;
+      stencil_state.back_function = stencil_state.front_function;
+
+      stencil_state.front_op.stencil_fail = fplbase::StencilOperation::kKeep;
+      stencil_state.front_op.depth_fail = fplbase::StencilOperation::kKeep;
+      stencil_state.front_op.pass = fplbase::StencilOperation::kKeep;
+      stencil_state.back_op = stencil_state.front_op;
+      break;
+
+    case fplbase::kStencilWrite:
+      stencil_state.enabled = true;
+
+      stencil_state.front_function.function = fplbase::kRenderAlways;
+      stencil_state.front_function.ref = ref;
+      stencil_state.front_function.mask = mask;
+      stencil_state.back_function = stencil_state.front_function;
+
+      stencil_state.front_op.stencil_fail = fplbase::StencilOperation::kKeep;
+      stencil_state.front_op.depth_fail = fplbase::StencilOperation::kKeep;
+      stencil_state.front_op.pass = fplbase::StencilOperation::kReplace;
+      stencil_state.back_op = stencil_state.front_op;
+      break;
+
+    case fplbase::kStencilUnknown:
+      // Do nothing.
+      break;
+
+    default:
+      assert(false);
+  }
+
+  SetStencilState(stencil_state);
+}
+
+void RenderSystemNext::SetCulling(fplbase::CullingMode mode) {
+  fplbase::CullState cull_state = render_state_.cull_state;
+
+  switch (mode) {
+    case fplbase::kCullingModeNone:
+      cull_state.enabled = false;
+      break;
+    case fplbase::kCullingModeBack:
+      cull_state.enabled = true;
+      cull_state.face = fplbase::CullState::kBack;
+      break;
+    case fplbase::kCullingModeFront:
+      cull_state.enabled = true;
+      cull_state.face = fplbase::CullState::kFront;
+      break;
+    case fplbase::kCullingModeFrontAndBack:
+      cull_state.enabled = true;
+      cull_state.face = fplbase::CullState::kFrontAndBack;
+      break;
+    case fplbase::kCullingModeUnknown:
+      // Do nothing.
+      break;
+    default:
+      // Unknown culling mode.
+      assert(false);
+  }
+
+  SetCullState(cull_state);
+}
+
+void RenderSystemNext::SetAlphaTestState(
+    const fplbase::AlphaTestState& alpha_test_state) {
+  AlphaTestStateT state = Convert(alpha_test_state);
+  renderer_.GetRenderStateManager().SetAlphaTestState(state);
+  render_state_.alpha_test_state = alpha_test_state;
+}
+
+void RenderSystemNext::SetBlendState(const fplbase::BlendState& blend_state) {
+  BlendStateT state = Convert(blend_state);
+  renderer_.GetRenderStateManager().SetBlendState(state);
+  render_state_.blend_state = blend_state;
+}
+
+void RenderSystemNext::SetCullState(const fplbase::CullState& cull_state) {
+  CullStateT state = Convert(cull_state);
+  renderer_.GetRenderStateManager().SetCullState(state);
+  render_state_.cull_state = cull_state;
+}
+
+void RenderSystemNext::SetDepthState(const fplbase::DepthState& depth_state) {
+  DepthStateT state = Convert(depth_state);
+  renderer_.GetRenderStateManager().SetDepthState(state);
+  render_state_.depth_state = depth_state;
+}
+
+void RenderSystemNext::SetPointState(const fplbase::PointState& point_state) {
+  PointStateT state = Convert(point_state);
+  renderer_.GetRenderStateManager().SetPointState(state);
+  render_state_.point_state = point_state;
+}
+
+void RenderSystemNext::SetScissorState(
+    const fplbase::ScissorState& scissor_state) {
+  ScissorStateT state = Convert(scissor_state);
+  renderer_.GetRenderStateManager().SetScissorState(state);
+  render_state_.scissor_state = scissor_state;
+}
+
+void RenderSystemNext::SetStencilState(
+    const fplbase::StencilState& stencil_state) {
+  StencilStateT state = Convert(stencil_state);
+  renderer_.GetRenderStateManager().SetStencilState(state);
+  render_state_.stencil_state = stencil_state;
 }
 
 bool RenderSystemNext::IsSortModeViewIndependent(SortMode mode) {
@@ -2122,7 +2438,14 @@ bool RenderSystemNext::IsSortModeViewIndependent(SortMode mode) {
   }
 }
 
-void RenderSystemNext::SortObjects(RenderObjectVector* objects, SortMode mode) {
+namespace {
+inline float GetZBackToFrontXOutToMiddleDistance(const mathfu::vec3& pos) {
+  return pos.z - std::abs(pos.x);
+}
+}  // namespace
+
+void RenderSystemNext::SortObjects(std::vector<RenderObject>* objects,
+                                   SortMode mode) {
   switch (mode) {
     case SortMode_Optimized:
     case SortMode_None:
@@ -2159,13 +2482,23 @@ void RenderSystemNext::SortObjects(RenderObjectVector* objects, SortMode mode) {
                 });
       break;
 
+    case SortMode_WorldSpaceZBackToFrontXOutToMiddle:
+      std::sort(objects->begin(), objects->end(),
+                [](const RenderObject& a, const RenderObject& b) {
+                  return GetZBackToFrontXOutToMiddleDistance(
+                             a.world_from_entity_matrix.TranslationVector3D()) <
+                         GetZBackToFrontXOutToMiddleDistance(
+                             b.world_from_entity_matrix.TranslationVector3D());
+                });
+      break;
+
     default:
       LOG(DFATAL) << "SortObjects called with unsupported sort mode!";
       break;
   }
 }
 
-void RenderSystemNext::SortObjectsUsingView(RenderObjectVector* objects,
+void RenderSystemNext::SortObjectsUsingView(std::vector<RenderObject>* objects,
                                             SortMode mode,
                                             const RenderView* views,
                                             size_t num_views) {
@@ -2211,7 +2544,7 @@ void RenderSystemNext::SortObjectsUsingView(RenderObjectVector* objects,
   }
 }
 
-void RenderSystemNext::InitDefaultRenderPassObjectes() {
+void RenderSystemNext::InitDefaultRenderPassObjects() {
   fplbase::RenderState render_state;
   RenderClearParams clear_params;
 
@@ -2296,67 +2629,6 @@ void RenderSystemNext::InitDefaultRenderPassObjectes() {
   SetSortMode(ConstHash("Main"), SortMode_SortOrderIncreasing);
 }
 
-void RenderSystemNext::SetRenderPass(const RenderPassDefT& data) {
-  const HashValue pass = Hash(data.name.c_str());
-  RenderPassObject* pass_object = GetRenderPassObject(pass);
-  if (!pass_object) {
-    return;
-  }
-
-  RenderPassObjectDefinition& def = pass_object->definition;
-  switch (data.sort_mode) {
-    case SortMode_None:
-      break;
-    case SortMode_SortOrderDecreasing:
-      def.sort_mode = SortMode_SortOrderDecreasing;
-      break;
-    case SortMode_SortOrderIncreasing:
-      def.sort_mode = SortMode_SortOrderIncreasing;
-      break;
-    case SortMode_WorldSpaceZBackToFront:
-      def.sort_mode = SortMode_WorldSpaceZBackToFront;
-      break;
-    case SortMode_WorldSpaceZFrontToBack:
-      def.sort_mode = SortMode_WorldSpaceZFrontToBack;
-      break;
-    case SortMode_AverageSpaceOriginBackToFront:
-      def.sort_mode = SortMode_AverageSpaceOriginBackToFront;
-      break;
-    case SortMode_AverageSpaceOriginFrontToBack:
-      def.sort_mode = SortMode_AverageSpaceOriginFrontToBack;
-      break;
-    case SortMode_Optimized:
-      break;
-  }
-  Apply(&def.render_state, data.render_state);
-}
-
-void RenderSystemNext::ApplyClearParams(const RenderClearParams& clear_params) {
-  GLbitfield gl_clear_mask = 0;
-  if (CheckBit(clear_params.clear_options, RenderClearParams::kColor)) {
-    gl_clear_mask |= GL_COLOR_BUFFER_BIT;
-    GL_CALL(glClearColor(clear_params.color_value.x, clear_params.color_value.y,
-                         clear_params.color_value.z,
-                         clear_params.color_value.w));
-  }
-
-  if (CheckBit(clear_params.clear_options, RenderClearParams::kDepth)) {
-    gl_clear_mask |= GL_DEPTH_BUFFER_BIT;
-#ifdef FPLBASE_GLES
-    GL_CALL(glClearDepthf(clear_params.depth_value));
-#else
-    GL_CALL(glClearDepth(static_cast<double>(clear_params.depth_value)));
-#endif
-  }
-
-  if (CheckBit(clear_params.clear_options, RenderClearParams::kStencil)) {
-    gl_clear_mask |= GL_STENCIL_BUFFER_BIT;
-    GL_CALL(glClearStencil(clear_params.stencil_value));
-  }
-
-  GL_CALL(glClear(gl_clear_mask));
-}
-
 void RenderSystemNext::CreateRenderTarget(
     HashValue render_target_name,
     const RenderTargetCreateParams& create_params) {
@@ -2376,118 +2648,22 @@ void RenderSystemNext::CreateRenderTarget(
 
 void RenderSystemNext::SetRenderTarget(HashValue pass,
                                        HashValue render_target_name) {
-  auto iter = render_targets_.find(render_target_name);
-  if (iter == render_targets_.end()) {
-    LOG(DFATAL) << "SetRenderTarget called with non-existent render target: "
-                << render_target_name;
-    return;
-  }
-
   RenderPassObject* pass_object = GetRenderPassObject(pass);
   if (!pass_object) {
     return;
   }
 
-  pass_object->definition.render_target = iter->second.get();
+  pass_object->render_target = render_target_name;
 }
 
-void RenderSystemNext::CorrectFrontFaceFromMatrix(const mathfu::mat4& matrix) {
-  if (CalculateDeterminant3x3(matrix) >= 0.0f) {
-    // If the scalar is positive, match the default settings.
-    renderer_.SetFrontFace(GetCachedRenderState().cull_state.front);
-  } else {
-    // Otherwise, reverse the order.
-    renderer_.SetFrontFace(static_cast<fplbase::CullState::FrontFace>(
-        fplbase::CullState::kFrontFaceCount -
-        GetCachedRenderState().cull_state.front - 1));
+ImageData RenderSystemNext::GetRenderTargetData(HashValue render_target_name) {
+  auto iter = render_targets_.find(render_target_name);
+  if (iter == render_targets_.end()) {
+    LOG(DFATAL) << "SetRenderTarget called with non-existent render target: "
+                << render_target_name;
+    return ImageData();
   }
-}
-
-void RenderSystemNext::BindUniform(const Uniform& uniform) {
-  const Uniform::Description& desc = uniform.GetDescription();
-  int binding = 0;
-  if (desc.binding >= 0) {
-    binding = desc.binding;
-  } else {
-    const UniformHnd uniform = shader_->FindUniform(desc.name.c_str());
-    if (uniform) {
-      binding = *uniform;
-    } else {
-      return;
-    }
-  }
-
-  const size_t bytes_per_component = desc.num_bytes / desc.count;
-  switch (desc.type) {
-    case Uniform::Type::kFloats: {
-      switch (bytes_per_component) {
-        case 4:
-          GL_CALL(glUniform1fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        case 8:
-          GL_CALL(glUniform2fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        case 12:
-          GL_CALL(glUniform3fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        case 16:
-          GL_CALL(glUniform4fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        default:
-          LOG(DFATAL) << "Uniform named \"" << desc.name
-                      << "\" is set to unsupported type floats with size "
-                      << desc.num_bytes;
-      }
-    } break;
-
-    case Uniform::Type::kMatrix: {
-      switch (bytes_per_component) {
-        case 64:
-          GL_CALL(glUniformMatrix4fv(binding, desc.count, false,
-                                     uniform.GetData<float>()));
-          break;
-        case 36:
-          GL_CALL(glUniformMatrix3fv(binding, desc.count, false,
-                                     uniform.GetData<float>()));
-          break;
-        case 16:
-          GL_CALL(glUniformMatrix2fv(binding, desc.count, false,
-                                     uniform.GetData<float>()));
-          break;
-        default:
-          LOG(DFATAL) << "Uniform named \"" << desc.name
-                      << "\" is set to unsupported type matrix with size "
-                      << desc.num_bytes;
-      }
-    } break;
-
-    default:
-      // Error or missing implementation.
-      LOG(DFATAL) << "Trying to bind uniform of unknown type.";
-  }
-}
-
-void RenderSystemNext::ApplyMaterial(const Material& material,
-                                     fplbase::RenderState render_state) {
-  const ShaderPtr& shader = material.GetShader();
-  if (!shader) {
-    return;
-  }
-
-  BindShader(shader);
-  SetShaderUniforms(material.GetUniforms());
-
-  const auto& textures = material.GetTextures();
-  for (const auto& texture : textures) {
-    texture.second->Bind(texture.first);
-  }
-
-  Apply(&render_state, material.GetBlendState());
-  Apply(&render_state, material.GetCullState());
-  Apply(&render_state, material.GetDepthState());
-  Apply(&render_state, material.GetPointState());
-  Apply(&render_state, material.GetStencilState());
-  renderer_.SetRenderState(render_state);
+  return iter->second->GetFrameBufferData();
 }
 
 void RenderSystemNext::ForEachComponentOfEntity(
@@ -2496,6 +2672,17 @@ void RenderSystemNext::ForEachComponentOfEntity(
     RenderComponent* component = pass.second.components.Get(entity);
     if (component) {
       fn(component, pass.first);
+    }
+  }
+}
+
+void RenderSystemNext::ForEachComponentOfEntity(
+    Entity entity,
+    const std::function<void(const RenderComponent&, HashValue)>& fn) const {
+  for (const auto& pass : render_passes_) {
+    const RenderComponent* component = pass.second.components.Get(entity);
+    if (component) {
+      fn(*component, pass.first);
     }
   }
 }
@@ -2656,25 +2843,60 @@ void RenderSystemNext::SetText(Entity e, const std::string& text) {
   LOG(DFATAL) << "Deprecated.";
 }
 
-void RenderSystemNext::SetFont(Entity entity, const FontPtr& font) {
-  LOG(DFATAL) << "Deprecated.";
-}
-
-void RenderSystemNext::SetTextSize(Entity entity, int size) {
-  LOG(DFATAL) << "Deprecated.";
-}
-
-void RenderSystemNext::RenderPanos(const RenderView* views, size_t num_views) {
-  LOG(DFATAL) << "Deprecated.";
-}
-
 void RenderSystemNext::PreloadFont(const char* name) {
   LOG(DFATAL) << "Deprecated.";
 }
 
-FontPtr RenderSystemNext::LoadFonts(const std::vector<std::string>& names) {
-  LOG(DFATAL) << "Deprecated.";
+Optional<HashValue> RenderSystemNext::GetGroupId(Entity entity) const {
+  // Does nothing.
+  return Optional<HashValue>();
+}
+
+void RenderSystemNext::SetGroupId(Entity entity,
+                                  const Optional<HashValue>& group_id) {
+  // Does nothing.
+}
+
+const RenderSystem::GroupParams* RenderSystemNext::GetGroupParams(
+    HashValue group_id) const {
+  // Does nothing.
   return nullptr;
+}
+
+void RenderSystemNext::SetGroupParams(
+    HashValue group_id, const RenderSystem::GroupParams& group_params) {
+  // Does nothing.
+}
+
+ShaderCreateParams RenderSystemNext::CreateShaderParams(
+    const std::string& shading_model, const RenderComponent* component,
+    const std::shared_ptr<Material>& material) {
+  ShaderCreateParams params;
+  params.shading_model.resize(shading_model.size());
+  std::transform(shading_model.begin(), shading_model.end(),
+                 params.shading_model.begin(), ::tolower);
+  if (component) {
+    if (component->mesh) {
+      params.environment = CreateEnvironmentFlagsFromVertexFormat(
+          component->mesh->GetVertexFormat());
+      params.features = CreateFeatureFlagsFromVertexFormat(
+          component->mesh->GetVertexFormat());
+    }
+  }
+  if (material) {
+    for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
+      const MaterialTextureUsage usage = static_cast<MaterialTextureUsage>(i);
+      if (material->GetTexture(usage)) {
+        params.environment.insert(texture_flag_hashes_[i]);
+        params.features.insert(texture_flag_hashes_[i]);
+      }
+    }
+  }
+  params.features.insert(kFeatureHashUniformColor);
+  params.environment.insert(renderer_.GetEnvironmentFlags().cbegin(),
+                            renderer_.GetEnvironmentFlags().cend());
+
+  return params;
 }
 
 }  // namespace lull

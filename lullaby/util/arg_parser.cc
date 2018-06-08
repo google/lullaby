@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/util/arg_parser.h"
 
 #include <sstream>
+#include <iomanip>
 #include "lullaby/util/logging.h"
 
 namespace lull {
@@ -34,7 +35,10 @@ Arg& ArgParser::AddArg(string_view name) {
 
 bool ArgParser::Parse(int argc, const char** argv) {
   errors_.clear();
-  for (int i = 0; i < argc; ++i) {
+  if (argc > 0) {
+    program_ = argv[0];
+  }
+  for (int i = 1; i < argc; ++i) {
     string_view argstr = argv[i];
 
     // Arg doesn't start with a hyphen, so just add it to the unnamed args.
@@ -84,10 +88,6 @@ bool ArgParser::Parse(int argc, const char** argv) {
                i == argc - 1) {
       std::stringstream ss;
       ss << "Expected value following argument: " << argstr.to_string();
-      errors_.emplace_back(ss.str());
-    } else if (arg->GetNumArgs() > 1) {
-      std::stringstream ss;
-      ss << "Too many values following argument: " << argstr.to_string();
       errors_.emplace_back(ss.str());
     } else if (arg->GetNumArgs() == 0) {
       AddValue(arg->GetName(), "");
@@ -203,14 +203,22 @@ const std::vector<std::string>& ArgParser::GetErrors() const {
   return errors_;
 }
 
+std::string ArgParser::GetProgram() const {
+  return program_;
+}
+
 std::string ArgParser::GetUsage() const {
   std::stringstream ss;
-  for (auto& arg : args_) {
-    ss << "--" << arg.GetName().data();
+  auto GetArgNames = [](const Arg& arg) -> std::string {
+    std::stringstream ss;
+    ss << " --" << arg.GetName().data();
     if (arg.GetShortName()) {
       ss << ", -" << arg.GetShortName();
     }
-    ss << "\t\t";
+    return ss.str();
+  };
+  for (auto& arg : args_) {
+    ss << std::setw(20) << std::left << GetArgNames(arg);
     ss << arg.GetDescription().data();
     ss << std::endl;
   }

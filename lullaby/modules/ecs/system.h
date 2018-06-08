@@ -82,7 +82,7 @@ class System {
   }
 
   // Helper function to associate the System with DefType in the EntityFactory.
-  // Example usage: RegisterDef(this, Hash("MyComponentDef"));
+  // Example usage: RegisterDef(this, ConstHash("MyComponentDef"));
   template <typename S>
   void RegisterDef(S* system, DefType type) {
     RegisterDef(GetTypeId<S>(), type);

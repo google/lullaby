@@ -18,8 +18,8 @@ limitations under the License.
 
 #include <cmath>
 
-#include "mathfu/io.h"
 #include "lullaby/util/logging.h"
+#include "mathfu/io.h"
 
 namespace lull {
 
@@ -39,6 +39,11 @@ std::ostream& operator<<(std::ostream& os, const lull::Plane& plane) {
 
 std::ostream& operator<<(std::ostream& os, const lull::Aabb& aabb) {
   return os << "Aabb: min" << aabb.min << " max" << aabb.max;
+}
+
+std::ostream& operator<<(std::ostream& os, const lull::Sphere& sphere) {
+  return os << "Sphere: position" << sphere.position << " radius"
+            << sphere.radius;
 }
 
 mathfu::vec3 EvaluateCubicSpline(float t, const mathfu::vec3& control_point1,
@@ -71,18 +76,7 @@ mathfu::vec3 EvaluateCubicSpline(float t, const mathfu::vec3& control_point1,
 mathfu::mat4 CalculateTransformMatrix(const mathfu::vec3& position,
                                       const mathfu::quat& rotation,
                                       const mathfu::vec3& scale) {
-  const mathfu::mat3 rot = rotation.ToMatrix();
-  mathfu::vec4 c0(rot(0, 0), rot(1, 0), rot(2, 0), 0);
-  mathfu::vec4 c1(rot(0, 1), rot(1, 1), rot(2, 1), 0);
-  mathfu::vec4 c2(rot(0, 2), rot(1, 2), rot(2, 2), 0);
-  mathfu::vec4 c3(0, 0, 0, 1);
-  c0 *= scale.x;
-  c1 *= scale.y;
-  c2 *= scale.z;
-  c3[0] = position.x;
-  c3[1] = position.y;
-  c3[2] = position.z;
-  return mathfu::mat4(c0, c1, c2, c3);
+  return mathfu::mat4::Transform(position, rotation.ToMatrix(), scale);
 }
 
 mathfu::mat4 CalculateTransformMatrix(const Sqt& sqt) {
@@ -92,20 +86,6 @@ mathfu::mat4 CalculateTransformMatrix(const Sqt& sqt) {
 mathfu::mat4 CalculateRelativeMatrix(const mathfu::mat4& world_to_a_matrix,
                                      const mathfu::mat4& world_to_b_matrix) {
   return world_to_a_matrix.Inverse() * world_to_b_matrix;
-}
-
-mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
-    const Sqt& sqt, const float parent_radius, const float deform_radius) {
-  // TODO(b/29100730) Remove this function
-  const float self_radius = std::abs(parent_radius - sqt.translation.z);
-  const float self_angle = -sqt.translation.x / deform_radius;
-
-  mathfu::quat rot =
-      sqt.rotation * mathfu::quat::FromAngleAxis(self_angle, mathfu::kAxisY3f);
-  mathfu::vec3 pos(-sinf(self_angle) * self_radius, sqt.translation.y,
-                   -cosf(self_angle) * self_radius + parent_radius);
-
-  return CalculateTransformMatrix(pos, rot, sqt.scale);
 }
 
 mathfu::mat4 CalculateCylinderDeformedTransformMatrix(
@@ -448,43 +428,33 @@ mathfu::vec3 UndeformPoint(const mathfu::vec3& point, float radius) {
   return mathfu::vec3(angle * radius, point.y, z);
 }
 
-bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
-                                 const Aabb& aabb, bool collision_on_exit,
-                                 mathfu::vec3* out) {
-  // First transform the ray into the OBB's space.
-  mathfu::mat4 inverse_world_mat;
-  bool invertible_world_mat =
-      world_mat.InverseWithDeterminantCheck(&inverse_world_mat);
-  if (!invertible_world_mat) {
-    return false;
-  }
-  const Ray local = TransformRay(inverse_world_mat, ray);
-
+bool ComputeLocalRayAABBCollision(const Ray& ray, const Aabb& aabb,
+                                  bool collision_on_exit, mathfu::vec3* out) {
   float tmin = -1 * std::numeric_limits<float>::infinity();
   float tmax = std::numeric_limits<float>::infinity();
 
   // Second, run a fast AABB collision algorithm (Slab method).
   // Checking where the ray intersects the x planes:
 
-  if (local.direction.x != 0.f) {
-    const float tx1 = (aabb.min.x - local.origin.x) / local.direction.x;
-    const float tx2 = (aabb.max.x - local.origin.x) / local.direction.x;
+  if (ray.direction.x != 0.f) {
+    const float tx1 = (aabb.min.x - ray.origin.x) / ray.direction.x;
+    const float tx2 = (aabb.max.x - ray.origin.x) / ray.direction.x;
 
     tmin = std::min<float>(tx1, tx2);
     tmax = std::max<float>(tx1, tx2);
-  } else if (local.origin.x > aabb.max.x || local.origin.x < aabb.min.x) {
+  } else if (ray.origin.x > aabb.max.x || ray.origin.x < aabb.min.x) {
     return false;
   }
 
   // Check if the ray intersects the y planes inside the range it intersects the
   // x planes:
-  if (local.direction.y != 0.f) {
-    const float ty1 = (aabb.min.y - local.origin.y) / local.direction.y;
-    const float ty2 = (aabb.max.y - local.origin.y) / local.direction.y;
+  if (ray.direction.y != 0.f) {
+    const float ty1 = (aabb.min.y - ray.origin.y) / ray.direction.y;
+    const float ty2 = (aabb.max.y - ray.origin.y) / ray.direction.y;
 
     tmin = std::max<float>(tmin, std::min<float>(ty1, ty2));
     tmax = std::min<float>(tmax, std::max<float>(ty1, ty2));
-  } else if (local.origin.y > aabb.max.y || local.origin.y < aabb.min.y) {
+  } else if (ray.origin.y > aabb.max.y || ray.origin.y < aabb.min.y) {
     return false;
   }
 
@@ -496,13 +466,13 @@ bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
 
   // Check if the ray intersects the z planes inside the range it intersects the
   // x and y planes:
-  if (local.direction.z != 0.f) {
-    const float tz1 = (aabb.min.z - local.origin.z) / local.direction.z;
-    const float tz2 = (aabb.max.z - local.origin.z) / local.direction.z;
+  if (ray.direction.z != 0.f) {
+    const float tz1 = (aabb.min.z - ray.origin.z) / ray.direction.z;
+    const float tz2 = (aabb.max.z - ray.origin.z) / ray.direction.z;
 
     tmin = std::max<float>(tmin, std::min<float>(tz1, tz2));
     tmax = std::min<float>(tmax, std::max<float>(tz1, tz2));
-  } else if (local.origin.z > aabb.max.z || local.origin.z < aabb.min.z) {
+  } else if (ray.origin.z > aabb.max.z || ray.origin.z < aabb.min.z) {
     return false;
   }
 
@@ -521,9 +491,33 @@ bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
   }
 
   if (out) {
-    *out = local.origin + local.direction * (collision_on_exit ? tmax : tmin);
+    *out = ray.origin + ray.direction * (collision_on_exit ? tmax : tmin);
   }
   return true;
+}
+
+bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
+                                 const Aabb& aabb, bool collision_on_exit,
+                                 mathfu::vec3* out) {
+  // First transform the ray into the OBB's space.
+  mathfu::mat4 inverse_world_mat;
+  bool invertible_world_mat =
+      world_mat.InverseWithDeterminantCheck(&inverse_world_mat);
+  if (!invertible_world_mat) {
+    return false;
+  }
+  const Ray local = TransformRay(inverse_world_mat, ray);
+  return ComputeLocalRayAABBCollision(local, aabb, collision_on_exit, out);
+}
+
+float CheckRayAABBCollision(const Ray& ray, const Aabb& aabb,
+                            bool collision_on_exit) {
+  mathfu::vec3 local_collision;
+  if (!ComputeLocalRayAABBCollision(ray, aabb, collision_on_exit,
+                                    &local_collision)) {
+    return kNoHitDistance;
+  }
+  return (local_collision - ray.origin).Length();
 }
 
 float CheckRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
@@ -542,10 +536,10 @@ bool CheckPointOBBCollision(const mathfu::vec3& point,
                             const Aabb& aabb) {
   // First transform the point into the OBB's space.
   const mathfu::vec3 local = world_from_object_matrix.Inverse() * point;
-  return CheckPointOBBCollision(local, aabb);
+  return CheckPointAABBCollision(local, aabb);
 }
 
-bool CheckPointOBBCollision(const mathfu::vec3& point, const Aabb& aabb) {
+bool CheckPointAABBCollision(const mathfu::vec3& point, const Aabb& aabb) {
   return (point.x >= aabb.min.x && point.x <= aabb.max.x &&
           point.y >= aabb.min.y && point.y <= aabb.max.y &&
           point.z >= aabb.min.z && point.z <= aabb.max.z);
@@ -794,6 +788,11 @@ bool AreNearlyEqual(const mathfu::vec3& one, const mathfu::vec3& two,
     }
   }
   return true;
+}
+
+bool AreNearlyEqual(const Aabb& one, const Aabb& two, float epsilon) {
+  return AreNearlyEqual(one.min, two.min, epsilon) &&
+         AreNearlyEqual(one.max, two.max, epsilon);
 }
 
 mathfu::vec3 GetMatrixColumn3D(const mathfu::mat4& mat, int index) {

@@ -5,8 +5,10 @@ namespace lull;
 
 enum DeformMode : int {
   None,
-  /// Objects will be wrapped around a cylinder centered at world space 0,0,0
-  GlobalCylinder,
+  // Here for backwards compatibility.  If introducing a new DeformMode, it's
+  // safe to replace this with a new option - CylinderBend just needs to stay as
+  // '2' since it's the default for DeformerDef's deform_mode.
+  Deprecated,
   /// Objects will be bent based on their x and z distance from 0,0,0 in the
   /// Deformer's space.  The bend will be calculated as a cylinder wrap, with
   /// the cylinder centered at (0,0,horizontal_radius) in the Deformer's space.
@@ -25,20 +27,22 @@ table DeformedDef {
   waypoint_path_id: string;
 }
 
-/// Uses the DeformSystem to apply a cylindrical deformation to the entity. This
-/// has the effect of bending it around the user.
-/// Equivalent to a DeformDef with is_inherited set to true
+/// Uses the DeformSystem to apply a deformation to the entity. See
+/// deform_system.h for details.
 table DeformerDef {
+  /// Which type of deformation to apply.
   deform_mode: DeformMode = CylinderBend;
+
+  /// The following 2 properties only apply to CylinderBend deform mode.
   /// The radius of the cylinder to deform around (centered on the user).
   horizontal_radius: float;
   /// The angle at which a deformation around the Deformer will be clamped. This
   /// is equivalent to clamping a deformed entity's x position in the range
-  /// [-clamp_angle * radius, clamp_angle * radius]. This only applies the
-  /// CylinderBend deform mode, and negative values or 0.0 will indicate no
-  /// clamping.
+  /// [-clamp_angle * radius, clamp_angle * radius]. Negative values or 0.0 will
+  /// indicate no clamping.
   clamp_angle: float = 0.0;
-  /// The paths along which the Watpoint deformation mode will deform entities.
+
+  /// The paths along which the Waypoint deformation mode will deform entities.
   waypoint_paths: [WaypointPath];
 }
 

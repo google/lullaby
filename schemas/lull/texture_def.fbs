@@ -44,6 +44,11 @@ enum TextureFiltering : ushort {
   LinearMipmapLinear,
 }
 
+enum TextureTargetType : ushort {
+  Standard2d,
+  CubeMap,
+}
+
 // Definition of a texture resource.
 table TextureDef {
   // Name of the texture resource (used when referring to this instance).
@@ -84,4 +89,7 @@ table TextureDef {
   wrap_t : TextureWrap = Repeat;
   // Sets the wrap parameter for texture coordinate r.
   wrap_r : TextureWrap = Repeat;
+
+  // The type of texture (eg. 2D, CubeMap).
+  target_type: TextureTargetType = Standard2d;
 }

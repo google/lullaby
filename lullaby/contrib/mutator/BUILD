@@ -36,3 +36,21 @@ cc_library(
         "@mathfu//:mathfu",
     ],
 )
+
+cc_library(
+    name = "face_point_mutator",
+    srcs = [
+        "face_point_mutator_system.cc",
+    ],
+    hdrs = [
+        "face_point_mutator_system.h",
+    ],
+    deps = [
+        ":mutator",
+        "//:fbs",
+        "//lullaby/modules/flatbuffers",
+        "//lullaby/modules/input",
+        "//lullaby/systems/transform",
+        "@mathfu//:mathfu",
+    ],
+)

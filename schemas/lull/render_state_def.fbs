@@ -42,6 +42,12 @@ enum CullFace : ushort {
   FrontAndBack
 }
 
+// Corresponds to the GL arguments used by glFrontFace.
+enum FrontFace : ushort {
+  Clockwise,
+  CounterClockwise,
+}
+
 // Corresponds to the GL stencil actions used by glStencilOp.
 enum StencilAction : ushort {
   Keep,
@@ -70,10 +76,19 @@ table BlendState {
   dst_color: BlendFactor = Zero;
 }
 
-// Corresponds to the state set by glCullState.
+// Corresponds to the state set by glCullState and glFrontFace.
 table CullState {
   face: CullFace = Back;
   enabled: bool = false;
+  front: FrontFace = CounterClockwise;
+}
+
+// Corresponds to the state set by glColorMask.
+table ColorState {
+  write_red: bool = true;
+  write_green: bool = true;
+  write_blue: bool = true;
+  write_alpha: bool = true;
 }
 
 // Corresponds to the state set by glDepthFunc and glDepthMask.
@@ -135,5 +150,6 @@ table RenderState {
   point_state: PointState (defaults_to_null);
   scissor_state: ScissorState (defaults_to_null);
   stencil_state: StencilState (defaults_to_null);
-  viewport: Rect (defaults_to_null);
+  viewport: Recti (defaults_to_null);
+  color_state: ColorState (defaults_to_null);
 }

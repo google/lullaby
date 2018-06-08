@@ -1,6 +1,6 @@
 include "lull/lull_common.fbs";
 include "lull/material_def.fbs";
-include "lull/shader_uniform_def.fbs";
+include "lull/shader_def.fbs";
 include "lull/variant_def.fbs";
 
 namespace lull;

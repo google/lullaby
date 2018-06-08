@@ -49,6 +49,9 @@ class MeshFactoryImpl : public MeshFactory {
   // Creates a named mesh using the specified data.
   MeshPtr CreateMesh(HashValue name, MeshData mesh_data) override;
 
+  // Returns an empty mesh.
+  MeshPtr EmptyMesh() override;
+
   // DEPRECATED. Loads the fplmesh with the given |filename|.
   MeshPtr LoadMesh(const std::string& filename);
 
@@ -60,6 +63,7 @@ class MeshFactoryImpl : public MeshFactory {
  private:
   Registry* registry_;
   ResourceManager<Mesh> meshes_;
+  MeshPtr empty_;
 };
 
 }  // namespace lull

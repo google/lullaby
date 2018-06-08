@@ -125,6 +125,8 @@ void ShaderClipSystem::AddTargetRecursive(Entity region, Entity target) {
   render_system->SetUniform(target, kMaxInClipRegionSpace,
                             &clip_region->max_in_clip_region_space[0],
                             3 /* dimension */);
+  // Reset the cache so that it will be changed in Update().
+  clip_target->world_from_model_matrix = mathfu::mat4::Identity();
 
   for (Entity child : *transform_system->GetChildren(target)) {
     AddTargetRecursive(region, child);
@@ -144,19 +146,27 @@ void ShaderClipSystem::TryAddTargetRecursive(Entity region, Entity target) {
 }
 
 void ShaderClipSystem::Update() {
-  // Store the inverse of the start from entity matrix.
+  // Store the inverse of the world from clip region matrix.
   const auto* transform_system = registry_->Get<TransformSystem>();
   clip_regions_.ForEach([transform_system](ClipRegion& region) {
-    const mathfu::mat4* start_from_entity_matrix =
+    const mathfu::mat4* world_from_clip_region_matrix =
         transform_system->GetWorldFromEntityMatrix(region.GetEntity());
-    region.clip_region_from_start_space_matrix =
-        start_from_entity_matrix->Inverse();
+    if (!world_from_clip_region_matrix) {
+      return;
+    }
+    region.world_from_clip_region_matrix_changed =
+        region.world_from_clip_region_matrix != *world_from_clip_region_matrix;
+    if (region.world_from_clip_region_matrix_changed) {
+      region.world_from_clip_region_matrix = *world_from_clip_region_matrix;
+      region.clip_region_from_world_matrix =
+          world_from_clip_region_matrix->Inverse();
+    }
   });
 
   // Set the uniform for all targets.
   auto* render_system = registry_->Get<RenderSystem>();
   clip_targets_.ForEach(
-      [this, transform_system, render_system](const ClipTarget& target) {
+      [this, transform_system, render_system](ClipTarget& target) {
         if (target.region == kNullEntity) return;
 
         const ClipRegion* region = clip_regions_.Get(target.region);
@@ -165,15 +175,22 @@ void ShaderClipSystem::Update() {
           return;
         }
 
-        const mathfu::mat4* start_from_model_matrix_matrix =
+        const mathfu::mat4* world_from_model_matrix =
             transform_system->GetWorldFromEntityMatrix(target.GetEntity());
-        const mathfu::mat4 clip_region_from_model_space_matrix =
-            region->clip_region_from_start_space_matrix *
-            (*start_from_model_matrix_matrix);
-        render_system->SetUniform(target.GetEntity(),
-                                  kClipRegionFromModelSpaceMatrix,
-                                  &clip_region_from_model_space_matrix(0, 0),
-                                  16 /* dimension */);
+        if (!world_from_model_matrix) {
+          return;
+        }
+        if (region->world_from_clip_region_matrix_changed ||
+            target.world_from_model_matrix != *world_from_model_matrix) {
+          target.world_from_model_matrix = *world_from_model_matrix;
+          const mathfu::mat4 clip_region_from_model_space_matrix =
+              region->clip_region_from_world_matrix *
+              (*world_from_model_matrix);
+          render_system->SetUniform(target.GetEntity(),
+                                    kClipRegionFromModelSpaceMatrix,
+                                    &clip_region_from_model_space_matrix(0, 0),
+                                    16 /* dimension */);
+        }
   });
 }
 

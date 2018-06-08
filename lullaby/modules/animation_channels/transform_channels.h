@@ -175,6 +175,49 @@ class AabbMaxChannel : public AnimationChannel {
   TransformSystem* transform_system_;
 };
 
+struct AnimatePositionEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&position, ConstHash("position"));
+    archive(&time_ms, ConstHash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec3 position = mathfu::kZeros3f;
+  float time_ms = 0.f;
+};
+
+struct AnimateRotationEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&rotation, ConstHash("rotation"));
+    archive(&time_ms, ConstHash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::quat rotation = mathfu::quat::identity;
+  float time_ms = 0.f;
+};
+
+struct AnimateScaleEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&scale, ConstHash("scale"));
+    archive(&time_ms, ConstHash("time_ms"));
+  }
+
+  Entity entity = kNullEntity;
+  mathfu::vec3 scale = mathfu::kZeros3f;
+  float time_ms = 0.f;
+};
+
 }  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::AnimatePositionEvent);
+LULLABY_SETUP_TYPEID(lull::AnimateRotationEvent);
+LULLABY_SETUP_TYPEID(lull::AnimateScaleEvent);
 
 #endif  // LULLABY_MODULES_ANIMATION_CHANNELS_TRANSFORM_CHANNELS_H_

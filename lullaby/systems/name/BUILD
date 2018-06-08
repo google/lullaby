@@ -11,6 +11,7 @@ cc_library(
     hdrs = ["name_system.h"],
     deps = [
         "//:fbs",
+        "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
         "//lullaby/modules/script",
         "//lullaby/systems/transform",

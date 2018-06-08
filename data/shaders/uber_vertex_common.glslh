@@ -1,0 +1,100 @@
+// Implements shared shader features that can be toggled by define flags.
+
+#include "third_party/lullaby/data/shaders/vertex_common.glslh"
+
+STAGE_INPUT vec4 aPosition;
+
+#ifdef BATCHED_INDICES
+#define MAX_INSTANCES 32
+
+STAGE_INPUT vec4 aBoneIndices;
+STAGE_OUTPUT highp vec4 vClampBounds;
+STAGE_OUTPUT lowp vec4 vColor;
+uniform mat4 world_from_entity_matrices[MAX_INSTANCES];
+uniform vec4 clamp_bounds[MAX_INSTANCES];
+uniform vec4 colors[MAX_INSTANCES];
+
+#define GET_INDEX int(aBoneIndices.x)
+vec4 GetPosition() {
+  return world_from_entity_matrices[GET_INDEX] * aPosition;
+}
+void SetBatchedUniforms() {
+  vClampBounds = clamp_bounds[GET_INDEX];
+  vColor = colors[GET_INDEX];
+}
+#else  // BATCHED_INDICES
+#define MAX_INSTANCES 1
+
+#define GET_INDEX 0
+vec4 GetPosition() { return aPosition; }
+void SetBatchedUniforms() {}
+#endif  // BATCHED_INDICES
+
+#if defined(TEX_COORD) || defined(NINE_PATCH_TEX_COORD_ALT)
+#ifdef UV_BOUNDS
+uniform vec4 uv_bounds[MAX_INSTANCES];
+
+vec2 GetBoundedTexCoord(vec2 tex_coord) {
+  return uv_bounds[GET_INDEX].xy + tex_coord * uv_bounds[GET_INDEX].zw;
+}
+#else  // UV_BOUNDS
+vec2 GetBoundedTexCoord(vec2 tex_coord) { return tex_coord; }
+#endif  // UV_BOUNDS
+
+STAGE_INPUT highp vec2 aTexCoord;
+STAGE_OUTPUT highp vec2 vTexCoord;
+
+// By default, normalized vTexCoord is used for texture lookup. With nine patch,
+// vTexCoordAlt is used for texture lookup instead and vTexCoord is used for
+// edge detection for antialiasing.
+#ifdef NINE_PATCH_TEX_COORD_ALT
+STAGE_INPUT vec2 aTexCoordAlt;
+STAGE_OUTPUT highp vec2 vTexCoordAlt;
+
+void SetVTexCoord() {
+  vTexCoord = aTexCoord;
+  vTexCoordAlt = GetBoundedTexCoord(aTexCoordAlt);
+}
+#else  // NINE_PATCH_TEX_COORD_ALT
+void SetVTexCoord() {
+  vTexCoord = GetBoundedTexCoord(aTexCoord);
+}
+#endif  // NINE_PATCH_TEX_COORD_ALT
+#else  // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+void SetVTexCoord() {}
+#endif  // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+
+#ifdef CLIP_REGION
+uniform mat4 clip_region_from_model_space_matrix[MAX_INSTANCES];
+STAGE_OUTPUT highp vec3 vClipRegionPosition;
+#ifdef BATCHED_INDICES
+uniform vec3 min_in_clip_region_space[MAX_INSTANCES];
+uniform vec3 max_in_clip_region_space[MAX_INSTANCES];
+STAGE_OUTPUT highp vec3 vMinInClipRegionSpace;
+STAGE_OUTPUT highp vec3 vMaxInClipRegionSpace;
+
+void SetBatchedClipUniforms() {
+  vMinInClipRegionSpace = min_in_clip_region_space[GET_INDEX];
+  vMaxInClipRegionSpace = max_in_clip_region_space[GET_INDEX];
+}
+#else  // BATCHED_INDICES
+void SetBatchedClipUniforms() {}
+#endif  // BATCHED_INDICES
+
+// Find the position of the model relative to the clip region so it can be
+// compared to the clipping planes defined in region space.
+void SetClipPosition() {
+  vClipRegionPosition =
+    (clip_region_from_model_space_matrix[GET_INDEX] * aPosition).xyz;
+  SetBatchedClipUniforms();
+}
+#else  // CLIP_REGION
+void SetClipPosition() {}
+#endif  // CLIP_REGION
+
+void InitVertexShading() {
+  gl_Position = GetClipFromModelMatrix() * GetPosition();
+  SetVTexCoord();
+  SetClipPosition();
+  SetBatchedUniforms();
+}

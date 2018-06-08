@@ -25,7 +25,7 @@ limitations under the License.
 namespace lull {
 namespace {
 
-const HashValue kScrollSnapToGridDefHash = Hash("ScrollSnapToGridDef");
+const HashValue kScrollSnapToGridDefHash = ConstHash("ScrollSnapToGridDef");
 
 mathfu::vec2 SnapPositionToGrid(const mathfu::vec2& position,
                                 InputManager::GestureDirection gesture,

@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "lullaby/systems/text/text_system.h"
 
+#include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/string_preprocessor.h"
 
@@ -42,7 +43,7 @@ std::vector<std::string> StdFromFbStrings(
 
 TextSystem::TextSystem(Registry* registry, std::unique_ptr<TextSystemImpl> impl)
     : System(registry), impl_(std::move(impl)) {
-  RegisterDef(this, Hash("TextDef"));
+  RegisterDef(this, ConstHash("TextDef"));
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
@@ -57,6 +58,18 @@ TextSystem::TextSystem(Registry* registry, std::unique_ptr<TextSystemImpl> impl)
           SetText(e, text, kPreprocessingModeNone);
         });
   }
+
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Connect(this, [this](const SetTextEvent& e) {
+      if (e.literal) {
+        SetText(e.entity, e.text,
+                TextSystemPreprocessingModes::kPreprocessingModeNone);
+      } else {
+        SetText(e.entity, e.text);
+      }
+    });
+  }
 }
 
 TextSystem::~TextSystem() {
@@ -64,6 +77,10 @@ TextSystem::~TextSystem() {
   if (binder) {
     binder->UnregisterFunction("lull.Text.SetText");
     binder->UnregisterFunction("lull.Text.SetTextNoPreprocessing");
+  }
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
   }
 }
 
@@ -181,6 +198,10 @@ bool TextSystem::IsTextReady(Entity entity) const {
 void TextSystem::ProcessTasks() { impl_->ProcessTasks(); }
 
 void TextSystem::WaitForAllTasks() { impl_->WaitForAllTasks(); }
+
+void TextSystem::ReprocessAllText() {
+  impl_->ReprocessAllText();
+}
 
 TextSystemImpl* TextSystem::GetImpl() { return impl_.get(); }
 

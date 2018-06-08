@@ -28,7 +28,7 @@ struct TextReadyEvent {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&target, Hash("target"));
+    archive(&target, ConstHash("target"));
   }
 
   Entity target = kNullEntity;

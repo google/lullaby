@@ -17,16 +17,14 @@ limitations under the License.
 #ifndef LULLABY_UTIL_ANDROID_CONTEXT_H_
 #define LULLABY_UTIL_ANDROID_CONTEXT_H_
 
-#include "lullaby/util/scoped_java_local_ref.h"
-#include "lullaby/util/typeid.h"
-
 #ifdef __ANDROID__
 
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
 #include <jni.h>
 
-#include "lullaby/util/jni_util.h"
+#include "lullaby/modules/jni/scoped_java_local_ref.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 
@@ -37,6 +35,7 @@ class AndroidContext {
  public:
   // Initializes the AndroidContext using the provided Java VM and JNI version.
   AndroidContext(JavaVM* jvm, jint version);
+  explicit AndroidContext(AAssetManager* asset_manager);
   ~AndroidContext();
 
   AndroidContext(const AndroidContext&) = delete;
@@ -55,6 +54,16 @@ class AndroidContext {
   // appropriately-scoped reference to the object for use.
   ScopedJavaLocalRef GetApplicationContext() const;
 
+  // Sets the java.android.Activity associated with the current running app.
+  // It is expected that this reference's lifetime will outlive the lifetime of
+  // the AndroidContext.
+  void SetActivity(jobject activity);
+
+  // Returns a weak JNI reference to the java.android.Activity associated
+  // with this AndroidContext.  It is expected that callers will acquire their
+  // own appropriately-scoped reference to the object for use.
+  ScopedJavaLocalRef GetActivity() const;
+
   // Sets the java.lang.ClassLoader associated with the current running app.  It
   // is expected that this reference's lifetime will outlive the lifetime of the
   // AndroidContext.
@@ -69,30 +78,22 @@ class AndroidContext {
   void SetAndroidAssetManager(jobject manager);
 
   // Sets the AAssetManager to use for loading assets from the specified
+  // AAssetManager*.
+  void SetAndroidAssetManagerFromPtr(AAssetManager* manager);
+
+  // Sets the AAssetManager to use for loading assets from the specified
   // java.android.Context.
   void SetAndroidAssetManagerFromContext(jobject context);
 
   // Returns the AAssetManager to use for loading assets.
   AAssetManager* GetAndroidAssetManager();
 
-  // Gets the value of the member variable with |name| from the |object| with
-  // the given |Type|.
-  template <typename Type>
-  Type GetMember(jobject object, string_view name) {
-    return GetJniField<Type>(GetJniEnv(), object, name);
-  }
-
-  // Calls the method with |name| on the |object| with the given |ReturnType|.
-  template <typename ReturnType, typename... Args>
-  ReturnType CallMethod(jobject object, string_view name, Args&&... args) {
-    return CallJniMethod<ReturnType>(GetJniEnv(), object, name,
-                                     std::forward<Args>(args)...);
-  }
-
  private:
   jweak context_ = nullptr;
+  jweak activity_ = nullptr;
   jweak class_loader_ = nullptr;
   jweak asset_manager_ = nullptr;
+  AAssetManager* asset_manager_ptr_ = nullptr;
 };
 
 }  // namespace lull

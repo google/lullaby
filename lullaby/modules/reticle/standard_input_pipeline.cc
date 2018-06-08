@@ -22,11 +22,10 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/modules/input_processor/input_processor.h"
 #include "lullaby/modules/reticle/input_focus_locker.h"
-#include "lullaby/systems/collision/collision_system.h"
 #include "lullaby/systems/cursor/cursor_system.h"
 #include "lullaby/systems/input_behavior/input_behavior_system.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/controller_util.h"
+#include "lullaby/util/device_util.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/trace.h"
 #include "mathfu/constants.h"
@@ -48,8 +47,8 @@ StandardInputPipeline::StandardInputPipeline(Registry* registry) {
     input_processor->SetPrefix(InputManager::kController,
                                InputManager::kPrimaryButton, "");
 
-    // Make clicks on the controller's app button send as "SecondaryClick".
-    // i.e. "ClickEvent".
+    // Make clicks on the controller's app button send as "Secondary<event>".
+    // i.e. "SecondaryClickEvent".
     input_processor->SetPrefix(InputManager::kController,
                                InputManager::kSecondaryButton, "Secondary");
   }
@@ -70,21 +69,24 @@ void StandardInputPipeline::AdvanceFrame(const Clock::duration& delta_time) {
   }
   input_processor->SetPrimaryDevice(device);
 
-  UpdateInputFocus(delta_time, device);
+  InputFocus focus = ComputeInputFocus(delta_time, device);
+
+  // Update InputProcessor with the focus and send events.
+  input_processor->UpdateDevice(delta_time, focus);
 }
 
-void StandardInputPipeline::UpdateInputFocus(const Clock::duration& delta_time,
-                                             InputManager::DeviceType device) {
+InputFocus StandardInputPipeline::ComputeInputFocus(
+    const Clock::duration& delta_time, InputManager::DeviceType device) const {
+  InputFocus focus;
+  focus.device = device;
+
   auto* input_processor = registry_->Get<InputProcessor>();
   auto* cursor_system = registry_->Get<CursorSystem>();
   if (cursor_system == nullptr || input_processor == nullptr) {
     LOG(DFATAL)
         << "StandardInputPipeline depends on CursorSystem and InputProcessor.";
-    return;
+    return focus;
   }
-
-  InputFocus focus;
-  focus.device = device;
 
   const auto* transform_system = registry_->Get<TransformSystem>();
   Entity cursor_entity = cursor_system->GetCursor(device);
@@ -106,11 +108,15 @@ void StandardInputPipeline::UpdateInputFocus(const Clock::duration& delta_time,
   // Apply focus locking, input behaviors, collision detection, etc
   ApplySystemsToInputFocus(&focus);
 
-  // Send Events.
-  input_processor->UpdateDevice(delta_time, focus);
+  return focus;
 }
 
-void StandardInputPipeline::MakeRayComeFromHmd(InputFocus* focus) {
+void StandardInputPipeline::MakeRayComeFromHmd(InputFocus* focus) const {
+  if (focus == nullptr) {
+    DCHECK(false) << "Focus must not be null.";
+    return;
+  }
+
   const auto* input = registry_->Get<InputManager>();
   // Make the collision come from the hmd instead of the controller
   if (input->HasPositionDof(InputManager::kHmd)) {
@@ -120,7 +126,12 @@ void StandardInputPipeline::MakeRayComeFromHmd(InputFocus* focus) {
   }
 }
 
-void StandardInputPipeline::ApplySystemsToInputFocus(InputFocus* focus) {
+void StandardInputPipeline::ApplySystemsToInputFocus(InputFocus* focus) const {
+  if (focus == nullptr) {
+    DCHECK(false) << "Focus must not be null.";
+    return;
+  }
+
   const auto* collision_system = registry_->Get<CollisionSystem>();
   const auto* input_behavior_system = registry_->Get<InputBehaviorSystem>();
   auto* input_focus_locker = registry_->Get<InputFocusLocker>();
@@ -148,19 +159,32 @@ void StandardInputPipeline::ApplySystemsToInputFocus(InputFocus* focus) {
 
 void StandardInputPipeline::ApplyCollisionSystemToInputFocus(
     InputFocus* focus) const {
+  if (focus == nullptr) {
+    DCHECK(false) << "Focus must not be null.";
+    return;
+  }
+
+  CollisionSystem::CollisionResult collision = {kNullEntity, kNoHitDistance};
   const auto* collision_system = registry_->Get<CollisionSystem>();
-  if (collision_system) {
-    const auto collision =
-        collision_system->CheckForCollision(focus->collision_ray);
-    if (collision.entity != kNullEntity) {
-      // collision found
-      focus->target = collision.entity;
-      focus->cursor_position =
-          focus->collision_ray.origin +
-          focus->collision_ray.direction * collision.distance;
-    }
+  if (manual_collision_) {
+    collision = *manual_collision_;
+  } else if (collision_system) {
+    collision = collision_system->CheckForCollision(focus->collision_ray);
+  }
+
+  if (manual_collision_ || collision.entity != kNullEntity) {
+    focus->target = collision.entity;
+    focus->cursor_position =
+        focus->collision_ray.origin +
+        focus->collision_ray.direction * collision.distance;
   }
 }
+
+void StandardInputPipeline::StartManualCollision(Entity entity, float depth) {
+  manual_collision_ = {entity, depth};
+}
+
+void StandardInputPipeline::StopManualCollision() { manual_collision_.reset(); }
 
 InputManager::DeviceType StandardInputPipeline::GetPrimaryDevice() const {
   auto input = registry_->Get<InputManager>();

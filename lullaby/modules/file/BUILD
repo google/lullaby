@@ -36,7 +36,7 @@ cc_library(
         "tagged_file_loader.h",
     ],
     deps = [
-        "@fplbase//:fplbase",
+        "@fplbase//:utilities",
         "//lullaby/util:filename",
         "//lullaby/util:logging",
     ],
@@ -52,7 +52,7 @@ cc_library(
     ],
     deps = [
         ":file_loader",
-        "@fplbase//:fplbase",
+        "@fplbase//:utilities",
         "//lullaby/util:filename",
         "//lullaby/util:logging",
         "//lullaby/util:typeid",

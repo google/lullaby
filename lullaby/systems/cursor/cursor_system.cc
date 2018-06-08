@@ -38,8 +38,8 @@ limitations under the License.
 
 namespace lull {
 
-const HashValue kRingDiamaterChannelName = Hash("ring-diameter");
-const HashValue kCursorDef = Hash("CursorDef");
+const HashValue kRingDiamaterChannelName = ConstHash("ring-diameter");
+const HashValue kCursorDef = ConstHash("CursorDef");
 
 CursorSystem::Cursor::Cursor(Entity entity)
     : Component(entity),

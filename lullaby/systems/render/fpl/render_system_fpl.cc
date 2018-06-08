@@ -44,7 +44,7 @@ limitations under the License.
 
 namespace lull {
 namespace {
-const HashValue kRenderDefHash = Hash("RenderDef");
+const HashValue kRenderDefHash = ConstHash("RenderDef");
 constexpr int kNumVec4sInAffineTransform = 3;
 constexpr const char* kColorUniform = "color";
 constexpr const char* kTextureBoundsUniform = "uv_bounds";
@@ -54,9 +54,33 @@ constexpr const char* kBoneTransformsUniform = "bone_transforms";
 constexpr const char* kIsRightEyeUniform = "uIsRightEye";
 constexpr HashValue kRenderResetStateHash = ConstHash("lull.Render.ResetState");
 
+ShaderDataType FloatDimensionsToUniformType(int dimensions) {
+  switch (dimensions) {
+    case 1:
+      return ShaderDataType_Float1;
+    case 2:
+      return ShaderDataType_Float2;
+    case 3:
+      return ShaderDataType_Float3;
+    case 4:
+      return ShaderDataType_Float4;
+    case 9:
+      return ShaderDataType_Float3x3;
+    case 16:
+      return ShaderDataType_Float4x4;
+    default:
+      LOG(DFATAL) << "Failed to convert dimensions to uniform type.";
+      return ShaderDataType_Float4;
+  }
+}
+
 bool IsSupportedUniformDimension(int dimension) {
   return (dimension == 1 || dimension == 2 || dimension == 3 ||
-          dimension == 4 || dimension == 16);
+          dimension == 4 || dimension == 9 || dimension == 16);
+}
+
+bool IsSupportedUniformType(ShaderDataType type) {
+  return type >= ShaderDataType_MIN && type <= ShaderDataType_Float4x4;
 }
 
 void SetDebugUniform(Shader* shader, const char* name, const float values[4]) {
@@ -111,14 +135,13 @@ RenderSystemFpl::RenderSystemFpl(Registry* registry,
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
-    binder->RegisterMethod("lull.Render.Show", &lull::RenderSystem::Show);
-    binder->RegisterMethod("lull.Render.Hide", &lull::RenderSystem::Hide);
+    binder->RegisterMethod("lull.Render.Show", &RenderSystem::Show);
+    binder->RegisterMethod("lull.Render.Hide", &RenderSystem::Hide);
     binder->RegisterFunction("lull.Render.GetTextureId", [this](Entity entity) {
       TexturePtr texture = GetTexture(entity, 0);
       return texture ? static_cast<int>(texture->GetResourceId().handle) : 0;
     });
-    binder->RegisterMethod("lull.Render.SetColor",
-                           &lull::RenderSystem::SetColor);
+    binder->RegisterMethod("lull.Render.SetColor", &RenderSystem::SetColor);
   }
 }
 
@@ -147,13 +170,6 @@ void RenderSystemFpl::PreloadFont(const char* name) {
   TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   text_system->LoadFonts({filename});
-}
-
-FontPtr RenderSystemFpl::LoadFonts(const std::vector<std::string>& names) {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
-  TextSystem* text_system = registry_->Get<TextSystem>();
-  CHECK(text_system) << "Missing text system.";
-  return text_system->LoadFonts(names);
 }
 
 const TexturePtr& RenderSystemFpl::GetWhiteTexture() const {
@@ -201,6 +217,10 @@ void RenderSystemFpl::Create(Entity e, HashValue type, const Def* def) {
 }
 
 void RenderSystemFpl::Create(Entity e, HashValue pass) {
+  if (render_component_pools_.GetComponent(e)) {
+    SetRenderPass(e, pass);
+    return;
+  }
   pass = FixRenderPass(pass);
   RenderComponent& component = render_component_pools_.EmplaceComponent(
       e, static_cast<RenderPass>(pass));
@@ -351,6 +371,16 @@ HashValue RenderSystemFpl::GetRenderPass(Entity entity) const {
   return component ? component->pass : RenderPass_Invalid;
 }
 
+std::vector<HashValue> RenderSystemFpl::GetRenderPasses(Entity entity) const {
+  const RenderComponent* component =
+      render_component_pools_.GetComponent(entity);
+  if (component) {
+    return {static_cast<HashValue>(component->pass)};
+  } else {
+    return {};
+  }
+}
+
 void RenderSystemFpl::CreateDeferredMeshes() {
   while (!deferred_meshes_.empty()) {
     DeferredMesh& defer = deferred_meshes_.front();
@@ -397,41 +427,53 @@ void RenderSystemFpl::SetColor(Entity entity, const mathfu::vec4& color) {
   SetUniform(entity, kColorUniform, &color[0], 4, 1);
 }
 
-void RenderSystemFpl::SetUniform(Entity e, const char* name, const float* data,
-                                 int dimension, int count) {
-  if (!IsSupportedUniformDimension(dimension)) {
-    LOG(DFATAL) << "Unsupported uniform dimension " << dimension;
-    return;
-  }
-  auto* render_component = render_component_pools_.GetComponent(e);
+void RenderSystemFpl::SetUniform(Entity entity, Optional<HashValue> pass,
+                                 Optional<int> submesh_index, string_view name,
+                                 ShaderDataType type, Span<uint8_t> data,
+                                 int count) {
+  auto* render_component = render_component_pools_.GetComponent(entity);
   if (!render_component || !render_component->material.GetShader()) {
     return;
   }
 
-  const size_t num_bytes = dimension * count * sizeof(float);
-  Uniform* uniform = render_component->material.GetUniformByName(name);
-  if (!uniform || uniform->GetDescription().num_bytes != num_bytes) {
-    Uniform::Description desc(
-        name, (dimension > 4) ? Uniform::Type::kMatrix : Uniform::Type::kFloats,
-        num_bytes, count);
-    if (!uniform) {
-      render_component->material.AddUniform(desc);
-    } else {
-      render_component->material.UpdateUniform(desc);
-    }
+  if (!IsSupportedUniformType(type)) {
+    LOG(DFATAL) << "ShaderDataType not supported: " << type;
+    return;
   }
 
-  render_component->material.SetUniformByName(name, data, dimension * count);
-  uniform = render_component->material.GetUniformByName(name);
-  if (uniform && uniform->GetDescription().binding == -1) {
-    UpdateUniformBinding(&uniform->GetDescription(),
-                         render_component->material.GetShader());
+  // Do not allow partial data in this function.
+  if (data.size() != Uniform::UniformTypeToBytesSize(type) * count) {
+    LOG(DFATAL) << "Partial uniform data is not allowed through "
+                   "RenderSystem::SetUniform.";
+    return;
+  }
+
+  Material* material = &render_component->material;
+
+  const Uniform::Description description(name.to_string(), type, count);
+
+  Uniform* uniform = material->GetUniformByName(description.name);
+  if (!uniform || uniform->GetDescription().type != description.type ||
+      uniform->GetDescription().count != count) {
+    const Material::UniformIndex index = material->AddUniform(description);
+    uniform = material->GetUniformByIndex(index);
+  }
+
+  uniform->SetData(data.data(), data.size());
+
+  if (uniform->GetDescription().binding == -1) {
+    UpdateUniformBinding(&uniform->GetDescription(), material->GetShader());
+  }
+
+  if (render_component->uniform_changed_callback) {
+    render_component->uniform_changed_callback(0, name, type, data, count);
   }
 }
 
-bool RenderSystemFpl::GetUniform(Entity e, const char* name, size_t length,
-                                 float* data_out) const {
-  auto* render_component = render_component_pools_.GetComponent(e);
+bool RenderSystemFpl::GetUniform(Entity entity, Optional<HashValue> pass,
+                                 Optional<int> submesh_index, string_view name,
+                                 size_t length, uint8_t* data_out) const {
+  auto* render_component = render_component_pools_.GetComponent(entity);
   if (!render_component) {
     return false;
   }
@@ -441,16 +483,27 @@ bool RenderSystemFpl::GetUniform(Entity e, const char* name, size_t length,
     return false;
   }
 
-  const Uniform::Description& desc = uniform->GetDescription();
-  // Length is the number of floats expected. Convert it into size in bytes.
-  const size_t expected_bytes = length * sizeof(float);
-  if (expected_bytes < desc.num_bytes) {
+  if (length > uniform->Size()) {
     return false;
   }
 
-  memcpy(data_out, uniform->GetData<float>(), sizeof(float) * length);
+  memcpy(data_out, uniform->GetData<uint8_t>(), length);
 
   return true;
+}
+
+void RenderSystemFpl::SetUniform(Entity e, const char* name, const float* data,
+                                 int dimension, int count) {
+  SetUniform(e, NullOpt, NullOpt, name, FloatDimensionsToUniformType(dimension),
+             {reinterpret_cast<const uint8_t*>(data),
+              dimension * count * sizeof(float)},
+             count);
+}
+
+bool RenderSystemFpl::GetUniform(Entity e, const char* name, size_t length,
+                                 float* data_out) const {
+  return GetUniform(e, NullOpt, NullOpt, name, length * sizeof(float),
+                    reinterpret_cast<uint8_t*>(data_out));
 }
 
 void RenderSystemFpl::CopyUniforms(Entity entity, Entity source) {
@@ -475,6 +528,16 @@ void RenderSystemFpl::CopyUniforms(Entity entity, Entity source) {
       UpdateUniformLocations(component);
     }
   }
+}
+
+void RenderSystemFpl::SetUniformChangedCallback(
+    Entity entity, HashValue pass,
+    RenderSystem::UniformChangedCallback callback) {
+  RenderComponent* component = render_component_pools_.GetComponent(entity);
+  if (!component) {
+    return;
+  }
+  component->uniform_changed_callback = std::move(callback);
 }
 
 void RenderSystemFpl::UpdateUniformLocations(RenderComponent* component) {
@@ -545,8 +608,8 @@ void RenderSystemFpl::SetBoneTransforms(
 
   if (num_transforms != component->mesh->GetNumBones()) {
     LOG(ERROR) << "Incorrect bone count. Mesh contains "
-        << component->mesh->GetNumBones() << " bones, but was expecting "
-        << num_transforms << " bones.";
+               << component->mesh->GetNumBones() << " bones, but was expecting "
+               << num_transforms << " bones.";
     return;
   }
   component->mesh->GatherShaderTransforms(transforms,
@@ -610,6 +673,10 @@ void RenderSystemFpl::SetTexture(Entity e, int unit,
       }
     });
   }
+}
+
+void RenderSystemFpl::SetTextureExternal(Entity e, HashValue pass, int unit) {
+  LOG(FATAL) << "Unimplemented.";
 }
 
 TexturePtr RenderSystemFpl::CreateProcessedTexture(
@@ -825,8 +892,9 @@ void RenderSystemFpl::SetShader(Entity e, const ShaderPtr& shader) {
   UpdateUniformLocations(render_component);
 }
 
-void RenderSystemFpl::SetMaterial(Entity e, int submesh_index,
-                                  const MaterialInfo& material) {
+void RenderSystemFpl::SetMaterial(Entity e, Optional<HashValue> pass,
+                                  Optional<int> submesh_index,
+                                  const MaterialInfo& info) {
   LOG(FATAL) << "Unimplemented.";
 }
 
@@ -857,22 +925,6 @@ void RenderSystemFpl::SetMesh(Entity e, MeshPtr mesh) {
     }
   }
   SendEvent(registry_, e, MeshChangedEvent(e, 0));
-}
-
-void RenderSystemFpl::SetFont(Entity entity, const FontPtr& font) {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
-  TextSystem* text_system = registry_->Get<TextSystem>();
-  CHECK(text_system) << "Missing text system.";
-  text_system->SetFont(entity, font);
-}
-
-void RenderSystemFpl::SetTextSize(Entity entity, int size) {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
-  const float kMetersFromMillimeters = .001f;
-  TextSystem* text_system = registry_->Get<TextSystem>();
-  CHECK(text_system) << "Missing text system.";
-  text_system->SetLineHeight(entity,
-                             static_cast<float>(size) * kMetersFromMillimeters);
 }
 
 void RenderSystemFpl::DeformMesh(Entity entity, MeshData* mesh) {
@@ -956,6 +1008,14 @@ void RenderSystemFpl::SetSortMode(HashValue pass, SortMode mode) {
   RenderPool& pool =
       render_component_pools_.GetPool(static_cast<RenderPass>(pass));
   pool.SetSortMode(mode);
+}
+
+void RenderSystemFpl::SetSortVector(HashValue pass,
+                                    const mathfu::vec3& vector) {
+  pass = FixRenderPass(pass);
+  RenderPool& pool =
+      render_component_pools_.GetPool(static_cast<RenderPass>(pass));
+  pool.SetSortVector(vector);
 }
 
 void RenderSystemFpl::SetCullMode(HashValue pass, CullMode mode) {
@@ -1167,7 +1227,7 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
   renderer_.set_model(world_from_entity_matrix);
 
   BindShader(shader);
-  SetShaderUniforms(component->material.GetUniforms());
+  SetShaderUniforms(shader, component->material.GetUniforms());
 
   const Shader::UniformHnd mat_normal_uniform_handle =
       shader->FindUniform("mat_normal");
@@ -1226,7 +1286,7 @@ void RenderSystemFpl::RenderAtMultiview(
   };
 
   BindShader(shader);
-  SetShaderUniforms(component->material.GetUniforms());
+  SetShaderUniforms(shader, component->material.GetUniforms());
 
   const Shader::UniformHnd mvp_uniform_handle =
       shader->FindUniform("model_view_projection");
@@ -1274,9 +1334,10 @@ void RenderSystemFpl::RenderAtMultiview(
   DrawMeshFromComponent(component);
 }
 
-void RenderSystemFpl::SetShaderUniforms(const UniformVector& uniforms) {
+void RenderSystemFpl::SetShaderUniforms(const ShaderPtr& shader,
+                                        const UniformVector& uniforms) {
   for (const auto& uniform : uniforms) {
-    BindUniform(uniform);
+    shader->BindUniform(uniform);
   }
 }
 
@@ -1482,8 +1543,14 @@ void RenderSystemFpl::BindShader(const ShaderPtr& shader) {
   fplbase::UniformHandle uniform_is_right_eye =
       shader->FindUniform(kIsRightEyeUniform);
   if (fplbase::ValidUniformHandle(uniform_is_right_eye)) {
-    GL_CALL(glUniform1i(fplbase::GlUniformHandle(uniform_is_right_eye),
-                        static_cast<int>(rendering_right_eye_)));
+    if (!multiview_enabled_) {
+      GL_CALL(glUniform1i(fplbase::GlUniformHandle(uniform_is_right_eye),
+                          static_cast<int>(rendering_right_eye_)));
+    } else {
+      int right_eye_uniform[] = {0, 1};
+      GL_CALL(glUniform1iv(fplbase::GlUniformHandle(uniform_is_right_eye), 2,
+                           right_eye_uniform));
+    }
   }
 }
 
@@ -1546,7 +1613,8 @@ void RenderSystemFpl::DrawMesh(const MeshData& mesh) {
 void RenderSystemFpl::UpdateDynamicMesh(
     Entity entity, PrimitiveType primitive_type,
     const VertexFormat& vertex_format, const size_t max_vertices,
-    const size_t max_indices,
+    const size_t max_indices, MeshData::IndexType index_type,
+    const size_t max_ranges,
     const std::function<void(MeshData*)>& update_mesh) {
   RenderComponent* component = render_component_pools_.GetComponent(entity);
   if (!component) {
@@ -1559,8 +1627,10 @@ void RenderSystemFpl::UpdateDynamicMesh(
         max_vertices * vertex_format.GetVertexSize());
     DataContainer index_data = DataContainer::CreateHeapDataContainer(
         max_indices * MeshData::GetIndexSize(index_type));
+    DataContainer range_data = DataContainer::CreateHeapDataContainer(
+        max_ranges * sizeof(MeshData::IndexRange));
     MeshData data(primitive_type, vertex_format, std::move(vertex_data),
-                  index_type, std::move(index_data));
+                  index_type, std::move(index_data), std::move(range_data));
     update_mesh(&data);
     component->mesh = factory_->CreateMesh(data);
   } else {
@@ -1707,81 +1777,15 @@ void RenderSystemFpl::SetRenderTarget(HashValue pass,
   LOG(DFATAL) << "SetRenderTarget is not supported with Render System Fpl.";
 }
 
-void RenderSystemFpl::BindUniform(const Uniform& uniform) {
-  const Uniform::Description& desc = uniform.GetDescription();
-  int binding = 0;
-  if (desc.binding >= 0) {
-    binding = desc.binding;
-  } else {
-    const Shader::UniformHnd handle = shader_->FindUniform(desc.name.c_str());
-    if (fplbase::ValidUniformHandle(handle)) {
-      binding = fplbase::GlUniformHandle(handle);
-    } else {
-      // Material has a uniform which is not present in the shader. Ideally we
-      // should spit a warning and avoid the situation from happening, but
-      // currently there are some defaults uniforms being set and a warning will
-      // spam the logs.
-      return;
-    }
-  }
-
-  const size_t bytes_per_component = desc.num_bytes / desc.count;
-  switch (desc.type) {
-    case Uniform::Type::kFloats: {
-      switch (bytes_per_component) {
-        case 4:
-          GL_CALL(glUniform1fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        case 8:
-          GL_CALL(glUniform2fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        case 12:
-          GL_CALL(glUniform3fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        case 16:
-          GL_CALL(glUniform4fv(binding, desc.count, uniform.GetData<float>()));
-          break;
-        default:
-          LOG(DFATAL) << "Uniform named \"" << desc.name
-                      << "\" is set to unsupported type floats with size "
-                      << desc.num_bytes;
-      }
-    } break;
-
-    case Uniform::Type::kMatrix: {
-      switch (bytes_per_component) {
-        case 64:
-          GL_CALL(glUniformMatrix4fv(binding, desc.count, false,
-                                     uniform.GetData<float>()));
-          break;
-        case 36:
-          GL_CALL(glUniformMatrix3fv(binding, desc.count, false,
-                                     uniform.GetData<float>()));
-          break;
-        case 16:
-          GL_CALL(glUniformMatrix2fv(binding, desc.count, false,
-                                     uniform.GetData<float>()));
-          break;
-        default:
-          LOG(DFATAL) << "Uniform named \"" << desc.name
-                      << "\" is set to unsupported type matrix with size "
-                      << desc.num_bytes;
-      }
-    } break;
-
-    default:
-      // Error or missing implementation.
-      LOG(DFATAL) << "Trying to bind uniform of unknown type.";
-  }
+ImageData RenderSystemFpl::GetRenderTargetData(HashValue render_target_name) {
+  LOG(DFATAL) << "GetRenderTargetData is not supported with Render System Fpl.";
+  return ImageData();
 }
 
-void RenderSystemFpl::Create(Entity /*e*/, HashValue pass,
-                             HashValue /*pass_enum*/) {
-  LOG(WARNING) << "DEPRECATED: use Create(entity, pass) instead!";
-}
 void RenderSystemFpl::Destroy(Entity /*e*/, HashValue pass) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
+
 void RenderSystemFpl::SetUniform(Entity /*e*/, HashValue pass, const char* name,
                                  const float* data, int dimension,
                                  int /*count*/) {
@@ -1817,9 +1821,6 @@ void RenderSystemFpl::SetTextureId(Entity /*e*/, HashValue pass, int unit,
                                    uint32_t texture_id) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
-void RenderSystemFpl::SetQuad(Entity /*e*/, HashValue pass, const Quad& quad) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-}
 void RenderSystemFpl::SetSortOrderOffset(Entity /*e*/, HashValue pass,
                                          SortOrderOffset offset) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
@@ -1833,6 +1834,36 @@ void RenderSystemFpl::SetClearParams(HashValue pass,
 void RenderSystemFpl::SetRenderState(HashValue pass,
                                      const fplbase::RenderState& render_state) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+
+void RenderSystemFpl::SetDefaultRenderPass(HashValue pass) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+}
+
+HashValue RenderSystemFpl::GetDefaultRenderPass() const {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  return 0;
+}
+
+Optional<HashValue> RenderSystemFpl::GetGroupId(Entity entity) const {
+  // Does nothing.
+  return Optional<HashValue>();
+}
+
+void RenderSystemFpl::SetGroupId(Entity entity,
+                                 const Optional<HashValue>& group_id) {
+  // Does nothing.
+}
+
+const RenderSystem::GroupParams* RenderSystemFpl::GetGroupParams(
+    HashValue group_id) const {
+  // Does nothing.
+  return nullptr;
+}
+
+void RenderSystemFpl::SetGroupParams(
+    HashValue group_id, const RenderSystem::GroupParams& group_params) {
+  // Does nothing.
 }
 
 }  // namespace lull

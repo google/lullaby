@@ -21,9 +21,9 @@ limitations under the License.
 namespace lull {
 namespace {
 
-const HashValue kEntityHash = Hash("entity");
-const HashValue kTargetHash = Hash("target");
-const HashValue kSelfHash = Hash("$self");
+const HashValue kEntityHash = ConstHash("entity");
+const HashValue kTargetHash = ConstHash("target");
+const HashValue kSelfHash = ConstHash("$self");
 
 void SendEventDefsImpl(Registry* registry, Entity entity,
                        const EventDefArray* events, bool immediate) {

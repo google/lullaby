@@ -57,7 +57,7 @@ namespace {
 
 #define CONVERT(U, name)                                      \
   Variant Convert_##U(ScriptFrame* frame, const Variant* v) { \
-    Variant w = v->NumericCast<U>();                          \
+    Variant w = v->ImplicitCast<U>();                          \
     if (w.Empty()) {                                          \
       frame->Error("Can't cast arg to " name);                \
     }                                                         \

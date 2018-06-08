@@ -77,8 +77,20 @@ class NameSystem : public System {
       TransformSystem* transform_system, Entity root, HashValue hash) const;
 };
 
+struct SetNameEvent {
+  template <typename Archive>
+  void Serialize(Archive archive) {
+    archive(&entity, ConstHash("entity"));
+    archive(&name, ConstHash("name"));
+  }
+
+  Entity entity = kNullEntity;
+  std::string name;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::NameSystem);
+LULLABY_SETUP_TYPEID(lull::SetNameEvent);
 
 #endif  // LULLABY_SYSTEMS_NAME_NAME_SYSTEM_H_

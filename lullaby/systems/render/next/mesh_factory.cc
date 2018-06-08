@@ -80,6 +80,11 @@ VertexAttribute ConvertAttribute(uint8_t in) {
   return out;
 }
 
+bool IsSkinned(const meshdef::Mesh* meshdef) {
+  return meshdef->bone_transforms() && meshdef->bone_transforms()->size() &&
+         meshdef->skin_indices() && meshdef->skin_indices()->size();
+}
+
 VertexFormat BuildVertexFormat(const meshdef::Mesh* meshdef) {
   int attr_count = 0;
   VertexAttribute attributes[VertexFormat::kMaxAttributes];
@@ -125,7 +130,7 @@ VertexFormat BuildVertexFormat(const meshdef::Mesh* meshdef) {
           ConvertAttribute(meshdef::Attribute_TexCoordAlt2f);
       ++attr_count;
     }
-    if (meshdef->bone_transforms() && meshdef->bone_transforms()->size()) {
+    if (IsSkinned(meshdef)) {
       attributes[attr_count] =
           ConvertAttribute(meshdef::Attribute_BoneIndices4ub);
       ++attr_count;
@@ -146,6 +151,7 @@ void CopyAttribute(const T* src, uint8_t** ptr) {
 
 void BuildVertexDataFromArrays(const meshdef::Mesh* meshdef,
                                MeshData* mesh_data, uint32_t num_vertices) {
+  const bool is_skinned = IsSkinned(meshdef);
   uint8_t vertex[64];
   for (uint32_t i = 0; i < num_vertices; i++) {
     uint8_t* ptr = vertex;
@@ -170,8 +176,7 @@ void BuildVertexDataFromArrays(const meshdef::Mesh* meshdef,
     if (meshdef->texcoords_alt() && meshdef->texcoords_alt()->size()) {
       CopyAttribute(meshdef->texcoords_alt()->Get(index), &ptr);
     }
-    if (meshdef->bone_transforms() && meshdef->bone_transforms()->size() &&
-        meshdef->skin_indices() && meshdef->skin_indices()->size()) {
+    if (is_skinned) {
       CopyAttribute(meshdef->skin_indices()->Get(index), &ptr);
       CopyAttribute(meshdef->skin_weights()->Get(index), &ptr);
     }
@@ -391,6 +396,13 @@ MeshPtr MeshFactoryImpl::CreateMesh(const MeshData* mesh_data) {
 
 MeshPtr MeshFactoryImpl::CreateMesh(HashValue name, const MeshData* mesh_data) {
   return meshes_.Create(name, [&]() { return CreateMesh(mesh_data); });
+}
+
+MeshPtr MeshFactoryImpl::EmptyMesh() {
+  if (!empty_) {
+    empty_ = std::make_shared<Mesh>();
+  }
+  return empty_;
 }
 
 }  // namespace lull

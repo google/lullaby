@@ -18,14 +18,12 @@ limitations under the License.
 #define LULLABY_SYSTEMS_RENDER_RENDER_TYPES_H_
 
 #include "lullaby/modules/render/mesh_util.h"
+#include "lullaby/systems/render/detail/sort_order_types.h"
 #include "lullaby/util/bits.h"
 #include "lullaby/generated/render_def_generated.h"
 #include "mathfu/glsl_mappings.h"
 
 namespace lull {
-
-using RenderSortOrder = uint64_t;
-using RenderSortOrderOffset = int;
 
 enum class RenderStencilMode {
   kDisabled,

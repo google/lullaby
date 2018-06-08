@@ -55,7 +55,7 @@ namespace lull {
 ///
 /// * Runtime Events are dynamically generated data containers.  For example,
 ///   the |click| example above can also be represented like so:
-///     const TypeId event_type = Hash("ClickEvent");
+///     const TypeId event_type = ConstHash("ClickEvent");
 ///     VariantMap event_data;
 ///     event_data["value"] = 123;
 ///     auto click = std::make_pair(event_type, event_data);
@@ -116,6 +116,9 @@ class EventWrapper {
 
   /// Sets the Runtime Event values directly from a VariantMap.
   void SetValues(const VariantMap& values);
+
+  /// Same as above but with move assignment.
+  void SetValues(VariantMap&& values);
 
   /// Gets the TypeId of the wrapped Event.
   TypeId GetTypeId() const { return type_; }

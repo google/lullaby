@@ -44,16 +44,15 @@ class RenderSystemImplInternal {
   MOCK_METHOD1(SetStereoMultiviewEnabled, void(bool enabled));
   MOCK_METHOD3(Create, void(Entity e, HashValue type, const System::Def* def));
   MOCK_METHOD2(Create, void(Entity e, HashValue));
-  MOCK_METHOD3(Create, void(Entity e, HashValue, HashValue));
   MOCK_METHOD3(PostCreateInit,
                void(Entity e, HashValue type, const System::Def* def));
   MOCK_METHOD1(Destroy, void(Entity e));
-  MOCK_METHOD2(Destroy, void(Entity e, HashValue component_id));
+  MOCK_METHOD2(Destroy, void(Entity e, HashValue pass));
 
   MOCK_METHOD1(GetRenderPass, HashValue(Entity e));
+  MOCK_METHOD1(GetRenderPasses, std::vector<HashValue>(Entity entity));
 
   MOCK_METHOD1(PreloadFont, void(const char* name));
-  MOCK_METHOD1(LoadFonts, FontPtr(const std::vector<std::string>& names));
   MOCK_CONST_METHOD0(GetWhiteTexture, const TexturePtr&());
   MOCK_CONST_METHOD0(GetInvalidTexture, const TexturePtr&());
   MOCK_METHOD1(GetTexture, TexturePtr(HashValue texture_hash));
@@ -69,12 +68,13 @@ class RenderSystemImplInternal {
   MOCK_METHOD0(WaitForAssetsToLoad, void());
 
   MOCK_METHOD3(SetTexture, void(Entity e, int unit, const TexturePtr& texture));
-  MOCK_METHOD4(SetTexture, void(Entity e, HashValue component_id, int unit,
+  MOCK_METHOD4(SetTexture, void(Entity e, HashValue pass, int unit,
                                 const TexturePtr& texture));
+  MOCK_METHOD3(SetTextureExternal, void(Entity e, HashValue pass, int unit));
 
   MOCK_METHOD3(CreateProcessedTexture,
                TexturePtr(const TexturePtr& source_texture, bool create_mips,
-                   RenderSystem::TextureProcessor processor));
+                          RenderSystem::TextureProcessor processor));
 
   MOCK_METHOD4(CreateProcessedTexture,
                TexturePtr(const TexturePtr& source_texture, bool create_mips,
@@ -82,13 +82,13 @@ class RenderSystemImplInternal {
                           const mathfu::vec2i& output_dimensions));
 
   MOCK_METHOD4(SetTextureId, void(Entity e, int unit, uint32_t texture_target,
-      uint32_t texture_id));
+                                  uint32_t texture_id));
   MOCK_METHOD5(SetTextureId,
-               void(Entity e, HashValue component_id, int unit,
-                    uint32_t texture_target, uint32_t texture_id));
+               void(Entity e, HashValue pass, int unit, uint32_t texture_target,
+                    uint32_t texture_id));
   MOCK_METHOD2(GetTexture, TexturePtr(Entity e, int unit));
   MOCK_METHOD3(SetPano, void(Entity entity, const std::string& filename,
-      float heading_offset_deg));
+                             float heading_offset_deg));
 
   MOCK_CONST_METHOD1(GetDefaultColor, const mathfu::vec4&(Entity entity));
   MOCK_METHOD2(SetDefaultColor, void(Entity e, const mathfu::vec4& color));
@@ -97,42 +97,47 @@ class RenderSystemImplInternal {
   MOCK_METHOD2(SetColor, void(Entity e, const mathfu::vec4& color));
 
   MOCK_METHOD4(SetUniform, void(Entity e, const char* name, const float* data,
-      int dimension));
+                                int dimension));
   MOCK_METHOD5(SetUniform, void(Entity e, const char* name, const float* data,
-      int dimension, int count));
-  MOCK_METHOD6(SetUniform,
-               void(Entity e, HashValue component_id, const char* name,
-                    const float* data, int dimension, int count));
+                                int dimension, int count));
+  MOCK_METHOD6(SetUniform, void(Entity e, HashValue pass, const char* name,
+                                const float* data, int dimension, int count));
+  MOCK_METHOD7(SetUniform,
+               void(Entity entity, Optional<HashValue> pass,
+                    Optional<int> submesh_index, string_view name,
+                    ShaderDataType type, Span<uint8_t> data, int count));
   MOCK_METHOD4(GetUniform, bool(Entity e, const char* name, size_t length,
-      float* data_out));
-  MOCK_METHOD5(GetUniform,
-               bool(Entity e, HashValue component_id, const char* name,
-                    size_t length, float* data_out));
+                                float* data_out));
+  MOCK_METHOD5(GetUniform, bool(Entity e, HashValue pass, const char* name,
+                                size_t length, float* data_out));
+  MOCK_METHOD6(GetUniform, bool(Entity entity, Optional<HashValue> pass,
+                                Optional<int> submesh_index, string_view name,
+                                size_t length, uint8_t* data_out));
   MOCK_METHOD2(CopyUniforms, void(Entity entity, Entity source));
+  MOCK_METHOD3(SetUniformChangedCallback,
+               void(Entity entity, HashValue pass,
+                    RenderSystem::UniformChangedCallback callback));
   MOCK_METHOD2(SetText, void(Entity e, const std::string& text));
 
   MOCK_METHOD2(GetQuad, bool(Entity e, RenderQuad* quad));
   MOCK_METHOD2(SetQuad, void(Entity e, const RenderQuad& quad));
-  MOCK_METHOD3(SetQuad,
-               void(Entity e, HashValue component_id, const RenderQuad& quad));
   MOCK_METHOD2(SetAndDeformMesh, void(Entity e, const MeshData& mesh));
-  MOCK_METHOD3(SetMesh, void(Entity e, HashValue component_id, MeshPtr mesh));
+  MOCK_METHOD3(SetMesh, void(Entity e, HashValue pass, MeshPtr mesh));
   MOCK_METHOD2(SetMesh, void(Entity e, const MeshData& mesh));
   MOCK_METHOD2(SetMesh, void(Entity e, const std::string& file));
-  MOCK_METHOD2(GetMesh, MeshPtr(Entity e, HashValue component_id));
+  MOCK_METHOD2(GetMesh, MeshPtr(Entity e, HashValue pass));
   MOCK_METHOD1(GetShader, ShaderPtr(Entity e));
-  MOCK_METHOD2(GetShader, ShaderPtr(Entity e, HashValue component_id));
+  MOCK_METHOD2(GetShader, ShaderPtr(Entity e, HashValue pass));
   MOCK_METHOD2(SetShader, void(Entity e, const ShaderPtr& shader));
   MOCK_METHOD3(SetShader,
-               void(Entity e, HashValue component_id, const ShaderPtr& shader));
-  MOCK_METHOD3(SetMaterial,
-               void(Entity e, int submesh_index, const MaterialInfo& material));
-  MOCK_METHOD2(SetFont, void(Entity entity, const FontPtr& font));
-  MOCK_METHOD2(SetTextSize, void(Entity entity, int size));
+               void(Entity e, HashValue pass, const ShaderPtr& shader));
+  MOCK_METHOD4(SetMaterial,
+               void(Entity e, Optional<HashValue> pass,
+                    Optional<int> submesh_index, const MaterialInfo& material));
   MOCK_METHOD2(SetSortOrderOffset,
                void(Entity e, RenderSortOrderOffset sort_order_offset));
   MOCK_METHOD3(SetSortOrderOffset,
-               void(Entity e, HashValue component_id,
+               void(Entity e, HashValue pass,
                     RenderSortOrderOffset sort_order_offset));
   MOCK_METHOD3(SetStencilMode,
                void(Entity e, RenderStencilMode mode, int value));
@@ -143,6 +148,7 @@ class RenderSystemImplInternal {
   MOCK_METHOD2(SetRenderPass, void(Entity e, HashValue pass));
   MOCK_CONST_METHOD1(GetSortMode, SortMode(HashValue pass));
   MOCK_METHOD2(SetSortMode, void(HashValue pass, SortMode mode));
+  MOCK_METHOD2(SetSortVector, void(HashValue pass, const mathfu::vec3& vector));
   MOCK_METHOD2(SetRenderState,
                void(HashValue pass, const fplbase::RenderState& render_state));
   MOCK_METHOD2(SetClearParams,
@@ -167,13 +173,14 @@ class RenderSystemImplInternal {
                      const mathfu::AffineTransform*(Entity e, int* num));
   MOCK_METHOD3(SetBoneTransforms,
                void(Entity entity, const mathfu::AffineTransform* transforms,
-                   int num_transforms));
+                    int num_transforms));
   MOCK_CONST_METHOD1(GetSortOrder, RenderSortOrder(Entity e));
   MOCK_CONST_METHOD1(GetSortOrderOffset, RenderSortOrderOffset(Entity e));
   MOCK_CONST_METHOD2(IsTextureSet, bool(Entity e, int unit));
   MOCK_CONST_METHOD2(IsTextureLoaded, bool(Entity e, int unit));
   MOCK_CONST_METHOD1(IsTextureLoaded, bool(const TexturePtr&));
   MOCK_CONST_METHOD1(IsReadyToRender, bool(Entity e));
+  MOCK_CONST_METHOD2(IsReadyToRender, bool(Entity e, HashValue p));
   MOCK_CONST_METHOD1(IsHidden, bool(Entity e));
 
   MOCK_CONST_METHOD0(GetCachedRenderState, const fplbase::RenderState&());
@@ -187,6 +194,12 @@ class RenderSystemImplInternal {
                void(Entity entity, MeshData::PrimitiveType primitive_type,
                     const VertexFormat& vertex_format, size_t max_vertices,
                     size_t max_indices,
+                    const std::function<void(MeshData*)>& update_mesh));
+  MOCK_METHOD8(UpdateDynamicMesh,
+               void(Entity entity, MeshData::PrimitiveType primitive_type,
+                    const VertexFormat& vertex_format, size_t max_vertices,
+                    size_t max_indices, MeshData::IndexType index_type,
+                    const size_t max_ranges,
                     const std::function<void(MeshData*)>& update_mesh));
 
   MOCK_METHOD1(BindShader, void(const ShaderPtr& shader));
@@ -203,10 +216,21 @@ class RenderSystemImplInternal {
   MOCK_METHOD3(Render,
                void(const RenderView* views, size_t num_views, HashValue pass));
 
+  MOCK_METHOD1(SetDefaultRenderPass, void(HashValue pass));
+  MOCK_METHOD0(GetDefaultRenderPass, HashValue());
+
   MOCK_METHOD2(SetRenderTarget,
                void(HashValue pass, HashValue render_target_name));
+  MOCK_METHOD1(GetRenderTargetData, ImageData(HashValue render_target_name));
 
-  MOCK_METHOD1(BindUniform, void(const Uniform& uniform));
+  MOCK_METHOD1(GetGroupId, Optional<HashValue>(Entity entity));
+  MOCK_METHOD2(SetGroupId,
+               void(Entity entity, const Optional<HashValue>& group_id));
+  MOCK_METHOD1(GetGroupParams,
+               const RenderSystem::GroupParams*(HashValue group_id));
+  MOCK_METHOD2(SetGroupParams,
+               void(HashValue group_id,
+                    const RenderSystem::GroupParams& group_params));
 };
 
 using NiceMockRenderSystem = ::testing::NiceMock<RenderSystemImplInternal>;

@@ -17,7 +17,9 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_NEXT_SHADER_FACTORY_H_
 #define LULLABY_SYSTEMS_RENDER_NEXT_SHADER_FACTORY_H_
 
+#include "lullaby/modules/render/vertex_format.h"
 #include "lullaby/systems/render/next/shader.h"
+#include "lullaby/systems/render/next/shader_data.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/resource_manager.h"
 #include "lullaby/util/span.h"
@@ -35,27 +37,29 @@ class ShaderFactory {
   ShaderFactory(const ShaderFactory&) = delete;
   ShaderFactory& operator=(const ShaderFactory&) = delete;
 
-  // Loads the shader with the given |filename|.
-  ShaderPtr LoadShader(const std::string& filename);
+  /// Loads the shader with the given |filename|.
+  ShaderPtr LoadShader(const ShaderCreateParams& params);
 
-  // Loads the shader from a ShaderDef.
-  ShaderPtr LoadShaderFromDef(const ShaderDefT& shader_def);
-
-  // Returns the shader in the cache associated with |key|, else nullptr.
+  /// Returns the shader in the cache associated with |key|, else nullptr.
   ShaderPtr GetCachedShader(HashValue key) const;
 
-  // Attempts to add |shader| to the cache using |key|.
+  /// Attempts to add |shader| to the cache using |key|.
   void CacheShader(HashValue key, const ShaderPtr& shader);
 
-  // Releases the cached shader associated with |key|.
+  /// Releases the cached shader associated with |key|.
   void ReleaseShaderFromCache(HashValue key);
 
  private:
-  ShaderPtr LoadImpl(const std::string& filename);
+  ShaderPtr LoadImpl(const ShaderCreateParams& params);
+  ShaderPtr LoadShaderFromDef(const ShaderDefT& shader_def,
+                              const ShaderCreateParams& params);
+  ShaderPtr LoadFplShaderImpl(const std::string& filename);
+  ShaderPtr LoadLullShaderImpl(const std::string& filename,
+                               const ShaderCreateParams& params);
   ShaderPtr CompileAndLink(const char* vs_source, const char* fs_source);
   ShaderHnd CompileShader(const char* source, ShaderStageType stage);
   ProgramHnd LinkProgram(ShaderHnd vs, ShaderHnd fs,
-                         Span<ShaderVertexAttributeDefT> attributes = {});
+                         Span<ShaderAttributeDefT> attributes = {});
 
   Registry* registry_;
   ResourceManager<Shader> shaders_;

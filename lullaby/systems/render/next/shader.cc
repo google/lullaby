@@ -21,8 +21,6 @@ limitations under the License.
 
 namespace lull {
 
-static constexpr int kMaxTexturesPerShader = 8;
-
 void Shader::Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs) {
   if (!program || !vs || !fs) {
     LOG(DFATAL) << "Initializing shader with invalid objects.";
@@ -33,18 +31,48 @@ void Shader::Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs) {
   vs_ = vs;
   fs_ = fs;
 
-  // Look up variables that are builtin, but still optionally present in a
-  // shader.
   GL_CALL(glUseProgram(*program));
 
-  // Set up the uniforms the shader uses for texture access.
-  char texture_unit_name[] = "texture_unit_#####";
-  for (int i = 0; i < kMaxTexturesPerShader; i++) {
-    snprintf(texture_unit_name, sizeof(texture_unit_name), "texture_unit_%d",
-             i);
-    auto loc = glGetUniformLocation(*program, texture_unit_name);
-    if (loc >= 0) {
-      GL_CALL(glUniform1i(loc, i));
+  // Get locations for all the uniforms in the program.
+  GLint num_uniforms = 0;
+  GL_CALL(glGetProgramiv(*program, GL_ACTIVE_UNIFORMS, &num_uniforms));
+  for (GLint i = 0; i < num_uniforms; ++i) {
+    GLchar name[512];
+    GLsizei length = 0;
+    GLint size = 0;
+    GLenum type = 0;
+    GL_CALL(glGetActiveUniform(*program, i, sizeof(name), &length, &size, &type,
+                               name));
+    auto iter = strchr(name, '[');
+    if (iter) {
+      *iter = 0;
+    }
+    const UniformHnd location = glGetUniformLocation(*program, name);
+    uniforms_[Hash(name)] = location;
+  }
+
+  // Create a mapping from texture usage to texture unit index and uniform.
+  for (size_t unit = 0; unit < description_.samplers.size(); ++unit) {
+    const ShaderSamplerDefT& sampler = description_.samplers[unit];
+    samplers_[sampler.usage].texture_unit = static_cast<int>(unit);
+    samplers_[sampler.usage].uniform = uniforms_[Hash(sampler.name)];
+  }
+
+  if (description_.samplers.empty()) {
+    // Preserve legacy sampler behavior.  In legacy mode, assume that the shader
+    // supports all usages, mapping their integer value to the corresponding
+    // texture unit index.
+    for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
+      samplers_[i].texture_unit = i;
+
+      // For samplers with texture_unit_##### naming, automatically set uniform.
+      char uniform_name[] = "texture_unit_#####";
+      snprintf(uniform_name, sizeof(uniform_name), "texture_unit_%d", i);
+
+      auto iter = uniforms_.find(Hash(uniform_name));
+      if (iter != uniforms_.end()) {
+        samplers_[i].uniform = iter->second;
+      }
     }
   }
 }
@@ -87,56 +115,141 @@ UniformHnd Shader::FindUniform(HashValue hash) const {
   }
 }
 
-void Shader::SetUniformsDefs(Span<ShaderUniformDefT> uniform_defs) {
-  if (!program_) {
-    LOG(ERROR) << "Defining uniforms on an invalid shader.";
-    return;
-  }
-
-  GL_CALL(glUseProgram(*program_));
-  for (const auto& uniform_def : uniform_defs) {
-    // Find the uniform handle and save it.
-    UniformHnd handle =
-        glGetUniformLocation(*program_, uniform_def.name.c_str());
-    uniforms_[Hash(uniform_def.name)] = handle;
-  }
-}
-
 void Shader::Bind() {
   if (program_) {
     GL_CALL(glUseProgram(*program_));
   }
 }
 
-void Shader::SetUniform(UniformHnd id, const float* value, size_t len,
+bool Shader::SetUniform(HashValue name, const int* data, size_t len,
+                        int count) {
+  return SetUniform(FindUniform(name), data, len, count);
+}
+
+bool Shader::SetUniform(HashValue name, const float* data, size_t len,
+                        int count) {
+  return SetUniform(FindUniform(name), data, len, count);
+}
+
+bool Shader::SetUniform(UniformHnd id, const int* data, size_t len,
                         int count) {
   if (program_ && id) {
     switch (len) {
       case 1:
-        DCHECK_EQ(count, 1);
-        GL_CALL(glUniform1f(*id, *value));
-        break;
+        GL_CALL(glUniform1iv(*id, count, data));
+        return true;
       case 2:
-        GL_CALL(glUniform2fv(*id, count, value));
-        break;
+        GL_CALL(glUniform2iv(*id, count, data));
+        return true;
       case 3:
-        GL_CALL(glUniform3fv(*id, count, value));
-        break;
+        GL_CALL(glUniform3iv(*id, count, data));
+        return true;
       case 4:
-        GL_CALL(glUniform4fv(*id, count, value));
-        break;
-      case 16:
-        GL_CALL(glUniformMatrix4fv(*id, count, false, value));
-        break;
+        GL_CALL(glUniform4iv(*id, count, data));
+        return true;
       default:
         LOG(DFATAL) << "Unknown uniform dimension: " << len;
-        break;
     }
   }
+  return false;
+}
+
+bool Shader::SetUniform(UniformHnd id, const float* data, size_t len,
+                        int count) {
+  if (program_ && id) {
+    switch (len) {
+      case 1:
+        GL_CALL(glUniform1fv(*id, count, data));
+        return true;
+      case 2:
+        GL_CALL(glUniform2fv(*id, count, data));
+        return true;
+      case 3:
+        GL_CALL(glUniform3fv(*id, count, data));
+        return true;
+      case 4:
+        GL_CALL(glUniform4fv(*id, count, data));
+        return true;
+      case 9:
+        GL_CALL(glUniformMatrix3fv(*id, count, false, data));
+        return true;
+      case 16:
+        GL_CALL(glUniformMatrix4fv(*id, count, false, data));
+        return true;
+      default:
+        LOG(DFATAL) << "Unknown uniform dimension: " << len;
+    }
+  }
+  return false;
 }
 
 const Shader::Description& Shader::GetDescription() const {
   return description_;
+}
+
+Shader::Sampler Shader::GetSampler(MaterialTextureUsage usage) const {
+  return samplers_[usage];
+}
+
+void Shader::BindUniform(UniformHnd hnd, const UniformData& uniform) {
+  const uint8_t* data = uniform.GetData<uint8_t>();
+  const size_t size = uniform.Size();
+  BindUniform(hnd, uniform.Type(), {data, size});
+}
+
+template <typename T>
+static const T* GetDataPtr(Span<uint8_t> data) {
+  return reinterpret_cast<const T*>(data.data());
+}
+
+void Shader::BindUniform(UniformHnd hnd, ShaderDataType type,
+                         Span<uint8_t> data) {
+  if (!hnd) {
+    return;
+  }
+
+  const int count = static_cast<int>(
+      data.size() / UniformData::ShaderDataTypeToBytesSize(type));
+
+  switch (type) {
+    case ShaderDataType_Float1:
+      GL_CALL(glUniform1fv(*hnd, count, GetDataPtr<float>(data)));
+      break;
+    case ShaderDataType_Float2:
+      GL_CALL(glUniform2fv(*hnd, count, GetDataPtr<float>(data)));
+      break;
+    case ShaderDataType_Float3:
+      GL_CALL(glUniform3fv(*hnd, count, GetDataPtr<float>(data)));
+      break;
+    case ShaderDataType_Float4:
+      GL_CALL(glUniform4fv(*hnd, count, GetDataPtr<float>(data)));
+      break;
+
+    case ShaderDataType_Int1:
+      GL_CALL(glUniform1iv(*hnd, count, GetDataPtr<int>(data)));
+      break;
+    case ShaderDataType_Int2:
+      GL_CALL(glUniform2iv(*hnd, count, GetDataPtr<int>(data)));
+      break;
+    case ShaderDataType_Int3:
+      GL_CALL(glUniform3iv(*hnd, count, GetDataPtr<int>(data)));
+      break;
+    case ShaderDataType_Int4:
+      GL_CALL(glUniform4iv(*hnd, count, GetDataPtr<int>(data)));
+      break;
+
+    case ShaderDataType_Float4x4:
+      GL_CALL(glUniformMatrix4fv(*hnd, count, false, GetDataPtr<float>(data)));
+      break;
+    case ShaderDataType_Float3x3:
+      GL_CALL(glUniformMatrix3fv(*hnd, count, false, GetDataPtr<float>(data)));
+      break;
+    case ShaderDataType_Float2x2:
+      GL_CALL(glUniformMatrix2fv(*hnd, count, false, GetDataPtr<float>(data)));
+      break;
+    default:
+      LOG(DFATAL) << "Unsupported type: " << type;
+  }
 }
 
 }  // namespace lull

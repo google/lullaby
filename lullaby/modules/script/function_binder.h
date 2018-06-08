@@ -27,6 +27,10 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 #include "lullaby/util/registry.h"
 
+#ifndef LULLABY_DISABLE_FUNCTION_BINDER
+#define LULLABY_DISABLE_FUNCTION_BINDER 0
+#endif
+
 namespace lull {
 
 // The FunctionBinder provides a centralized location to register functions,
@@ -89,6 +93,7 @@ class FunctionBinder {
 
 template <typename Fn>
 void FunctionBinder::RegisterFunction(string_view name, Fn function) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
   const HashValue id = Hash(name);
   if (IsFunctionRegistered(id)) {
     LOG(ERROR) << "Cannot register function twice: " << name;
@@ -103,23 +108,31 @@ void FunctionBinder::RegisterFunction(string_view name, Fn function) {
   if (script_engine) {
     script_engine->RegisterFunction(name.to_string(), ptr->fn);
   }
+#endif
 }
 
 template <typename Method>
 void FunctionBinder::RegisterMethod(string_view name, Method method) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
   RegisterFunction(name, CreateMethodHelper<Method>::Call(registry_, method));
+#endif
 }
 
 template <typename... Args>
 Variant FunctionBinder::Call(string_view name, Args&&... args) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
   FunctionCall call = FunctionCall::Create(name, std::forward<Args>(args)...);
   return Call(&call);
+#else
+  return Variant();
+#endif
 }
 
 template <typename Class, typename Return, typename... Args>
 struct FunctionBinder::CreateMethodHelper<Return (Class::*)(Args...)> {
   static std::function<Return(Args...)> Call(Registry* registry,
                                              Return (Class::*method)(Args...)) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
     return [registry, method](Args... args) {
       Class* cls = registry->Get<Class>();
       if (cls != nullptr) {
@@ -129,6 +142,9 @@ struct FunctionBinder::CreateMethodHelper<Return (Class::*)(Args...)> {
         return Return();
       }
     };
+#else
+    return nullptr;
+#endif
   }
 };
 
@@ -136,6 +152,7 @@ template <typename Class, typename... Args>
 struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...)> {
   static std::function<void(Args...)> Call(Registry* registry,
                                            void (Class::*method)(Args...)) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
     return [registry, method](Args... args) {
       Class* cls = registry->Get<Class>();
       if (cls != nullptr) {
@@ -144,6 +161,9 @@ struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...)> {
         LOG(ERROR) << "Class not in registry, cannot call method.";
       }
     };
+#else
+    return nullptr;
+#endif
   }
 };
 
@@ -152,6 +172,7 @@ struct FunctionBinder::CreateMethodHelper<Return (Class::*)(Args...) const> {
   static std::function<Return(Args...)> Call(Registry* registry,
                                              Return (Class::*method)(Args...)
                                                  const) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
     return [registry, method](Args... args) {
       Class* cls = registry->Get<Class>();
       if (cls != nullptr) {
@@ -161,6 +182,9 @@ struct FunctionBinder::CreateMethodHelper<Return (Class::*)(Args...) const> {
         return Return();
       }
     };
+#else
+    return nullptr;
+#endif
   }
 };
 
@@ -169,6 +193,7 @@ struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...) const> {
   static std::function<void(Args...)> Call(Registry* registry,
                                            void (Class::*method)(Args...)
                                                const) {
+#if !LULLABY_DISABLE_FUNCTION_BINDER
     return [registry, method](Args... args) {
       Class* cls = registry->Get<Class>();
       if (cls != nullptr) {
@@ -177,6 +202,9 @@ struct FunctionBinder::CreateMethodHelper<void (Class::*)(Args...) const> {
         LOG(ERROR) << "Class not in registry, cannot call method.";
       }
     };
+#else
+    return nullptr;
+#endif
   }
 };
 

@@ -64,4 +64,34 @@ std::string GetDirectoryFromFilename(const std::string& filename) {
   return filename.substr(0, index);
 }
 
+std::string JoinPath(const std::string& directory,
+                     const std::string& basename) {
+#if defined(_WINDOWS) || defined(_WIN32)
+  const char kPathDelimiter = '\\';
+#else
+  const char kPathDelimiter = '/';
+#endif  // defined(_WINDOWS) || defined(_WIN32)
+
+  // Ensure directory does not have a trailing slash.
+  std::string cleaned_directory =
+      (!directory.empty() &&
+       directory.find_first_of("/\\", directory.length() - 1) !=
+           std::string::npos)
+          ? directory.substr(0, directory.length() - 1)
+          : directory;
+
+  // Ensure basename does not have a leading slash (unless dirname is empty,
+  // in which case we treat basename as a full path).
+  std::string cleaned_basename =
+      (!basename.empty() && !directory.empty() &&
+       basename.find_last_of("/\\", 0) != std::string::npos)
+      ? basename.substr(1, std::string::npos) : basename;
+
+  // Combine the cleaned directory and base names.  For consistency, we emit
+  // local paths (e.g. './foo.txt') without the leading './'.
+  return (cleaned_directory == "." || cleaned_directory.empty())
+             ? cleaned_basename
+             : cleaned_directory + kPathDelimiter + cleaned_basename;
+}
+
 }  // namespace lull

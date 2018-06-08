@@ -5,9 +5,14 @@ package(
 
 cc_library(
     name = "libfbx",
-    srcs = [
-        "FBX_SDK_ROOT/lib/gcc4/x64/release/libfbxsdk.a"
-    ],
+    srcs = select({
+        "@bazel_tools//src/conditions:darwin": [
+            "FBX_SDK_ROOT/lib/clang/release/libfbxsdk.a"
+        ],
+        "//conditions:default": [
+            "FBX_SDK_ROOT/lib/gcc4/release/libfbxsdk.a"
+        ]
+    }),
     hdrs = [
         "FBX_SDK_ROOT/include/fbxsdk.h"
     ] + glob([

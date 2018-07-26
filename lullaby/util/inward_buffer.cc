@@ -68,7 +68,7 @@ void InwardBuffer::DoReallocate(size_t requested) {
   const size_t num_bytes_front = FrontSize();
 
   // Calculate the required size for the new buffer which should at least be
-  // large enough to accomodate the requested allocation size.
+  // large enough to accommodate the requested allocation size.
   capacity_ = EnsureAligned(capacity_ + std::max(requested, capacity_));
 
   // Allocate the new buffer, copy the commited front and back blocks of

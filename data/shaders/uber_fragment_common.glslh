@@ -52,7 +52,7 @@ vec2 ApplyClamp(vec2 uv) { return uv; }
 #ifdef TEX_COORD_AA_PADDING
 // If enabled, this adds a minimum pixel width to the 1.0 alpha region within
 // the aa border. The visible region is still delineated with texture
-// coordinates (0, 0) to (1, 1), but to accomodate this padding the provided
+// coordinates (0, 0) to (1, 1), but to accommodate this padding the provided
 // mesh must be larger and hold texture coordinates similar to (-1, -1) to
 // (2, 2).
 uniform highp float tex_coord_aa_padding;

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/systems/render/next/texture.h"
 
 #include "lullaby/systems/render/next/detail/glplatform.h"
+#include "lullaby/util/logging.h"
 #include "mathfu/constants.h"
 
 namespace lull {
@@ -48,15 +49,6 @@ void Texture::Init(std::shared_ptr<Texture> containing_texture,
     containing_texture_->AddOnLoadCallback(cb);
   }
   on_load_callbacks_.clear();
-}
-
-void Texture::Bind(int unit) {
-  if (containing_texture_) {
-    containing_texture_->Bind(unit);
-  } else if (hnd_) {
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(unit)));
-    GL_CALL(glBindTexture(target_, *hnd_));
-  }
 }
 
 bool Texture::IsLoaded() const {
@@ -115,6 +107,31 @@ bool Texture::HasMips() const {
 
 TextureHnd Texture::GetResourceId() const {
   return containing_texture_ ? containing_texture_->GetResourceId() : hnd_;
+}
+
+bool IsTextureLoaded(const TexturePtr& texture) {
+  return texture && texture->IsLoaded();
+}
+
+mathfu::vec2i GetTextureDimensions(const TexturePtr& texture) {
+  return texture ? texture->GetDimensions() : mathfu::kZeros2i;
+}
+
+bool IsTextureExternalOes(const TexturePtr& texture) {
+  DCHECK(texture);
+#ifdef GL_TEXTURE_EXTERNAL_OES
+  return texture->GetTarget() == GL_TEXTURE_EXTERNAL_OES;
+#else  // GL_TEXTURE_EXTERNAL_OES
+  return false;
+#endif  // GL_TEXTURE_EXTERNAL_OES
+}
+
+Optional<int> GetTextureGlHandle(const TexturePtr& texture) {
+  if (texture) {
+    return static_cast<int>(*texture->GetResourceId());
+  } else {
+    return NullOpt;
+  }
 }
 
 }  // namespace lull

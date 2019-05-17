@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace lull {
 class Arg {
  public:
   // Defines an argument with a given name.
-  explicit Arg(string_view name) : name_(name.to_string()) {}
+  explicit Arg(string_view name) : name_(name) {}
 
   // Specifies a single character that can be used as an alternative name for
   // this argument.
@@ -44,9 +44,17 @@ class Arg {
     return *this;
   }
 
+  // Specifies that there are a variable number of arguments following this
+  // argument to consume and associate with this argument. Overrides
+  // SetNumArgs().
+  Arg& SetVariableNumArgs() {
+    variable_num_args_ = true;
+    return *this;
+  }
+
   // Sets the description for this argument to be displayed in a help string.
   Arg& SetDescription(string_view description) {
-    description_ = description.to_string();
+    description_ = std::string(description);
     return *this;
   }
 
@@ -56,18 +64,39 @@ class Arg {
     return *this;
   }
 
+  // Specifies that this argument is deprecated, meaning it will be parsed to
+  // avoid errors but is unused and won't be displayed in the usage message.
+  Arg& SetDeprecated() {
+    deprecated_ = true;
+    return *this;
+  }
+
   // Sets a default value for the argument if no argument is specified.s
   Arg& SetDefault(string_view defvalue) {
-    default_value_ = defvalue.to_string();
+    default_value_ = std::string(defvalue);
     return *this;
+  }
+
+  // Returns true if there should be arguments to be consumed and associated
+  // with this argument.
+  bool HasAssociatedArgs() const {
+    return num_args_ != 0 || variable_num_args_;
   }
 
   // Returns the number of arguments to be consumed and associated with this
   // argument.
   int GetNumArgs() const { return num_args_; }
 
+  // Returns true if the number of arguments to be consumed and associated with
+  // this argument is variable.
+  bool IsVariableNumArgs() const { return variable_num_args_; }
+
   // Returns true if this argument is required.
   bool IsRequired() const { return required_; }
+
+  // Returns true if this argument is deprecated, meaning it will be parsed to
+  // avoid errors but is unused and won't be displayed in the usage message.
+  bool IsDeprecated() const { return deprecated_; }
 
   // Returns the short name for this argument.
   char GetShortName() const { return short_name_; }
@@ -84,7 +113,9 @@ class Arg {
  private:
   int num_args_ = 0;
   char short_name_ = 0;
+  bool variable_num_args_ = false;
   bool required_ = false;
+  bool deprecated_ = false;
   std::string name_;
   std::string description_;
   std::string default_value_;

@@ -1,4 +1,4 @@
-#include "third_party/lullaby/data/shaders/vertex_common.glslh"
+#include "lullaby/data/shaders/vertex_common.glslh"
 
 STAGE_INPUT vec4 aPosition;
 

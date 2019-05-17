@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,18 @@ limitations under the License.
 namespace lull {
 
 ScriptScopedSymbolTable::ScriptScopedSymbolTable() { PushScope(); }
+
+ScriptScopedSymbolTable::ScriptScopedSymbolTable(
+    const ScriptScopedSymbolTable& other)
+    : lookup_(other.lookup_), scopes_(other.scopes_) {
+  for (const auto& v : other.values_) {
+    auto check = other.lookup_.find(v.lookup_entry->first);
+    CHECK(check != other.lookup_.end());
+    auto iter = lookup_.find(v.lookup_entry->first);
+    CHECK(iter != lookup_.end());
+    values_.emplace_back(v.value, &(*iter));
+  }
+}
 
 void ScriptScopedSymbolTable::SetValue(const Symbol& symbol,
                                        ScriptValue value) {

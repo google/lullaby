@@ -4,8 +4,8 @@ include "lull/dispatcher_def.fbs";
 namespace lull;
 
 /// Configures the controller and laser. Apps should consider reusing
-/// third_party/lullaby/data/blueprints/controller.json and
-/// third_party/lullaby/data/blueprints/laser.json
+/// lullaby/data/blueprints/controller.json and
+/// lullaby/data/blueprints/laser.json
 
 /// ControllerType designates which DeviceType this controller is. Controller1
 /// corresponds to InputManager's kController type and Controller2 corresponds
@@ -23,14 +23,11 @@ table ControllerDef {
   disable_events: [EventDef];
 
   deprecated1: int = 0;
-
-  // If true, controller_system will use the device profile to set up uniforms
-  // for the controller shader.
-  use_device_profile: bool = false;
+  deprecated2: bool = false;
 }
 
 table LaserDef {
-  controller_type: ControllerType = Controller1 (deprecated);
+  controller_type: ControllerType = Controller1;
 
   deprecated1: int = 0;
 }

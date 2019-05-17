@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,11 @@ ImageData::ImageData(Format format, const mathfu::vec2i& size,
       data_(std::move(data)),
       stride_(stride == 0 ? CalculateMinStride(format, size) : stride) {
   DCHECK_GE(stride_, CalculateMinStride(format, size));
+  const size_t data_size = data_.GetSize();
+  const size_t total_size = CalculateDataSize(format, size);
+  if (data_size < total_size) {
+    data_.Advance(total_size - data_size);
+  }
 }
 
 ImageData ImageData::CreateHeapCopy() const {
@@ -44,6 +49,7 @@ size_t ImageData::GetBitsPerPixel(Format format) {
 
     // 16 bpp:
     case kLuminanceAlpha:
+    case kRg88:
     case kRgb565:
     case kRgba4444:
     case kRgba5551:
@@ -110,6 +116,28 @@ size_t ImageData::CalculateDataSize(Format format, const mathfu::vec2i& size) {
 size_t ImageData::CalculateMinStride(Format format, const mathfu::vec2i& size) {
   const size_t bits_per_row = size.x * GetBitsPerPixel(format);
   return (bits_per_row + kBitsPerByte - 1) / kBitsPerByte;
+}
+
+int ImageData::GetRowAlignment() const {
+  if ((stride_ % 8) == 0) {
+    return 8;
+  }
+  if ((stride_ % 4) == 0) {
+    return 4;
+  }
+  if ((stride_ % 2) == 0) {
+    return 2;
+  }
+  return 1;
+}
+
+int ImageData::GetStrideInPixels() const {
+  const size_t bits_per_pixel = GetBitsPerPixel(format_);
+  if (bits_per_pixel == 0) {
+    return 0;
+  }
+  const size_t stride_in_bits = stride_ * kBitsPerByte;
+  return static_cast<int>(stride_in_bits / bits_per_pixel);
 }
 
 }  // namespace lull

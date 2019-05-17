@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <string>
 #include "lullaby/util/string_view.h"
+#include "lullaby/util/typeid.h"
 
 namespace lull {
 
@@ -55,7 +56,7 @@ class Error {
   Error() = default;
   Error(ErrorCode error_code, string_view msg) : error_code_(error_code) {
 #ifndef NDEBUG
-    error_message_ = msg.to_string();
+    error_message_ = std::string(msg);
 #endif
   }
 
@@ -88,5 +89,7 @@ class Error {
 #endif
 
 }  // namespace lull
+
+LULLABY_SETUP_TYPEID(lull::ErrorCode);
 
 #endif  // LULLABY_UTIL_ERROR_H_

@@ -10,6 +10,9 @@ cc_library(
     hdrs = [
         "animation_events.h",
         "audio_events.h",
+        "battery_state_changed.h",
+        "camera_events.h",
+        "controller_events.h",
         "entity_events.h",
         "fade_events.h",
         "grab_events.h",
@@ -25,6 +28,7 @@ cc_library(
     deps = [
         "//lullaby/modules/input",
         "//lullaby/util:entity",
+        "//lullaby/util:hash",
         "//lullaby/util:math",
         "//lullaby/util:optional",
         "//lullaby/util:typeid",

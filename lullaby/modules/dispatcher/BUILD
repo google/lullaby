@@ -27,3 +27,43 @@ cc_library(
         "//lullaby/util:variant",
     ],
 )
+
+cc_library(
+    name = "dispatcher_binder",
+    srcs = [
+        "dispatcher_binder.cc",
+    ],
+    hdrs = [
+        "dispatcher_binder.h",
+    ],
+    deps = [
+        ":dispatcher",
+        "//lullaby/modules/script",
+        "//lullaby/util:logging",
+        "//lullaby/util:registry",
+        "//lullaby/util:typeid",
+    ],
+)
+
+cc_library(
+    name = "dispatcher_jni",
+    srcs = select({
+        "//:target_os_android": [
+            "dispatcher_jni.cc",
+        ],
+        "//conditions:default": [],
+    }),
+    hdrs = [
+        "dispatcher_jni.h",
+    ],
+    deps = [
+        ":dispatcher",
+        ":dispatcher_binder",
+        "//lullaby/modules/jni:jni_context",
+        "//lullaby/modules/jni:jni_convert",
+        "//lullaby/modules/jni:jni_util",
+        "//lullaby/modules/jni:registry_jni",
+        "//lullaby/modules/jni:scoped_java_global_ref",
+        "//lullaby/util:registry",
+    ],
+)

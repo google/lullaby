@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -50,6 +50,9 @@ TEST(FlatbufferWriter, Tables) {
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
 
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
+
   EXPECT_THAT(c->basic()->b(), Eq(true));
   EXPECT_THAT(c->basic()->u8(), Eq(1));
   EXPECT_THAT(c->basic()->i8(), Eq(2));
@@ -96,6 +99,9 @@ TEST(FlatbufferWriter, ArrayOfTables) {
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
 
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
+
   EXPECT_THAT(c->basics()->size(), Eq(2u));
   EXPECT_THAT(c->basics()->Get(0)->b(), Eq(true));
   EXPECT_THAT(c->basics()->Get(0)->u8(), Eq(1));
@@ -131,6 +137,9 @@ TEST(FlatbufferWriter, Strings) {
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
 
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
+
   EXPECT_THAT(c->name()->str(), Eq("hello"));
 }
 
@@ -141,6 +150,9 @@ TEST(FlatbufferWriter, ArrayOfStrings) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->names()->size(), Eq(3u));
   EXPECT_THAT(c->names()->Get(0)->str(), Eq("a"));
@@ -163,6 +175,9 @@ TEST(FlatbufferWriter, Structs) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->out()->mid().in().a(), Eq(1));
   EXPECT_THAT(c->out()->mid().in().b(), Eq(2));
@@ -201,6 +216,9 @@ TEST(FlatbufferWriter, ArrayOfStructs) {
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
 
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
+
   EXPECT_THAT(c->outs()->size(), Eq(2u));
   EXPECT_THAT(c->outs()->Get(0)->mid().in().a(), Eq(1));
   EXPECT_THAT(c->outs()->Get(0)->mid().in().b(), Eq(2));
@@ -232,6 +250,9 @@ TEST(FlatbufferWriter, NativeTypes) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->vec2()->x(), Eq(1.f));
   EXPECT_THAT(c->vec2()->y(), Eq(2.f));
@@ -266,6 +287,9 @@ TEST(FlatbufferWriter, ArrayOfNativeTypes) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->vec2s()->size(), Eq(2u));
   EXPECT_THAT(c->vec3s()->size(), Eq(2u));
@@ -307,6 +331,9 @@ TEST(FlatbufferWriter, Unions) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   // Ensure serialization didn't destroy the original.
   EXPECT_THAT(obj.variant.get<DataStringT>()->value, Eq("baz"));
@@ -360,7 +387,8 @@ TEST(FlatbufferWriter, NullableEmpty) {
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
 
-  LOG(ERROR) << c;
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->nullable_struct(), IsNull());
   EXPECT_THAT(c->nullable_table(), IsNull());
@@ -378,6 +406,9 @@ TEST(FlatbufferWriter, NullableStruct) {
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
 
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
+
   EXPECT_THAT(c->nullable_struct(), NotNull());
   EXPECT_THAT(c->nullable_struct()->a(), Eq(1));
   EXPECT_THAT(c->nullable_struct()->b(), Eq(2));
@@ -393,6 +424,9 @@ TEST(FlatbufferWriter, NullableNativeStruct) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->nullable_native(), NotNull());
   EXPECT_THAT(c->nullable_native()->x(), Eq(1.f));
@@ -418,6 +452,9 @@ TEST(FlatbufferWriter, NullableTable) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->nullable_table(), NotNull());
   EXPECT_THAT(c->nullable_table()->b(), Eq(true));
@@ -453,6 +490,9 @@ TEST(FlatbufferWriter, DynamicTable) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->dynamic_table(), NotNull());
   EXPECT_THAT(c->dynamic_table()->basic()->b(), Eq(true));
@@ -561,6 +601,9 @@ TEST(FlatbufferWriter, All) {
   InwardBuffer buffer(32);
   const void* flatbuffer = WriteFlatbuffer(&obj, &buffer);
   const Complex* c = flatbuffers::GetRoot<Complex>(flatbuffer);
+
+  flatbuffers::Verifier verifier((const uint8_t*)flatbuffer, buffer.BackSize());
+  EXPECT_TRUE(verifier.VerifyBuffer<Complex>());
 
   EXPECT_THAT(c->name()->str(), Eq("hello"));
   EXPECT_THAT(c->basic()->b(), Eq(true));

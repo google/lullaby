@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,6 +46,9 @@ struct RenderTargetCreateParams {
   TextureWrap wrap_s = TextureWrap_ClampToEdge;
   /// Wrap parameter for texture coordinate t.
   TextureWrap wrap_t = TextureWrap_ClampToEdge;
+  /// If true, allow existing render-target to be replaced.  Otherwise, name
+  /// reuse is treated as an error.
+  bool replace_existing = false;
 };
 
 }  // namespace lull

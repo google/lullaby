@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ limitations under the License.
 #include "lullaby/tools/texture_pipeline/encode_ktx.h"
 #include "lullaby/tools/texture_pipeline/encode_png.h"
 #include "lullaby/tools/texture_pipeline/encode_webp.h"
+#include "lullaby/tools/texture_pipeline/mipmap_generator.h"
 
 namespace lull {
 namespace tool {
@@ -36,6 +37,7 @@ int Run(int argc, const char** argv) {
   parser.AddArg("out").SetNumArgs(1).SetRequired();
   parser.AddArg("mipmap");
   parser.AddArg("cubemap");
+  parser.AddArg("generate_mipmap_levels");
 
   if (!parser.Parse(argc, argv)) {
     LOG(ERROR) << "Failed to parse args:";
@@ -49,7 +51,7 @@ int Run(int argc, const char** argv) {
   std::vector<std::string> data;
   std::vector<ImageData> images;
   for (uint32_t i = 0; i < parser.GetNumValues("in"); ++i) {
-    const std::string input = parser.GetString("in", i).to_string();
+    const std::string input(parser.GetString("in", i));
     std::string src;
     if (!LoadFile(input.c_str(), true, &src)) {
       LOG(ERROR) << "Unable to load file: " << input;
@@ -67,9 +69,18 @@ int Run(int argc, const char** argv) {
     data.push_back(std::move(src));
     images.push_back(std::move(image));
   }
-  const std::string output = parser.GetString("out").to_string();
+  const std::string output(parser.GetString("out"));
   const std::string ext = GetExtensionFromFilename(output);
   ByteArray new_image;
+
+  if (parser.GetBool("generate_mipmap_levels")) {
+    if (images.size() > 1) {
+      LOG(ERROR) << "--generate_mipmap_levels can only accept one image.";
+      return -1;
+    }
+
+    images = GenerateMipmapLevels(std::move(images[0]));
+  }
 
   if (images.size() == 1) {
     if (ext == ".webp") {
@@ -88,7 +99,7 @@ int Run(int argc, const char** argv) {
     encode_info.mip_map = parser.GetBool("mipmap");
     encode_info.cube_map = parser.GetBool("cubemap");
     encode_info.srgb = false;
-    // TODO(gavindodd): encode format when converting texture format supported.
+    // TODO: encode format when converting texture format supported.
     // encode_info.format =
     // also split texture format and container format?
     LOG(INFO) << "Encoding KTX";

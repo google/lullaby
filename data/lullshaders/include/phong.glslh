@@ -1,5 +1,5 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_LULLSHADERS_INCLUDE_PHONG_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_LULLSHADERS_INCLUDE_PHONG_GLSLH_
+#ifndef LULLABY_DATA_LULLSHADERS_INCLUDE_PHONG_GLSLH_
+#define LULLABY_DATA_LULLSHADERS_INCLUDE_PHONG_GLSLH_
 
 /// This file contains helper structures and functions to add lighting
 /// operations to shaders.
@@ -63,7 +63,6 @@
 ///    Point Lights:
 ///        name: 'light_point_pos', type: 'Float3', array_size: '1+'.
 ///        name: 'light_point_color', type: 'Float3', array_size: '1+'.
-///        name: 'light_point_intensity', type: 'Float1', array_size: '1+'.
 ///        name: 'light_point_exponent', type: 'Float1', array_size: '1+'.
 ///
 /// 3. Add "camera_dir" uniform in the metadata. Lullaby will set up for you:
@@ -87,7 +86,7 @@
 /// You now have the final light value in your light variable! Add it to your
 /// fragment output as you wish.
 
-#include "third_party/lullaby/data/shaders/math.glslh"
+#include "lullaby/data/shaders/math.glslh"
 
 /// Structure describing a directional light.
 struct DirectionalLight {
@@ -100,7 +99,6 @@ struct DirectionalLight {
 struct PointLight {
   vec3 position;
   vec3 color;
-  float intensity;
   float exponent;
 };
 
@@ -131,7 +129,7 @@ vec3 GetDirectionalLight(vec3 pos, vec3 normal, vec3 view_dir,
 /// Calculate and return the color (diffuse and specular together) reflected by
 /// a point light.
 vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light) {
-  if (light.intensity > 0.0) {
+  if (light.color.r > 0.0 || light.color.g > 0.0 || light.color.b > 0.0) {
     vec3 light_to_pos = pos - light.position;
     float distance = length(light_to_pos);
     // Normalize the light to position to get light direction vector.
@@ -143,8 +141,9 @@ vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light) {
     float diffuse_intensity = clamp(normal_dot_light_dir, 0.0, 1.0);
 
     // Light attenuation (how much it fades over distance).
-    float attenuation = light.intensity / distance2;
-    vec3 diffuse = diffuse_intensity * light.color * attenuation;
+    float attenuation = 1.0 / distance2;
+    vec3 radiance = light.color * attenuation;
+    vec3 diffuse = diffuse_intensity * radiance;
 
     // Calculate specular light contribution using the following algorithm:
     // http://www.rorydriscoll.com/2009/01/25/energy-conservation-in-games/
@@ -155,8 +154,7 @@ vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light) {
     float view_dot_reflect = dot(-view_dir, reflect_dir);
     float specular_intensity = energy_conservation *
                         pow(clamp(view_dot_reflect, 0.0, 1.0), light.exponent);
-    vec3 specular =
-        specular_intensity * light.color * light.intensity / distance2;
+    vec3 specular = specular_intensity * radiance;
 
     return diffuse + specular;
   }
@@ -167,7 +165,7 @@ vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light) {
 ///
 /// @param OUT_COLOR The output variable to add the reflected light color to.
 /// @param N The number of light sources to process.
-#define LIGHT_CALCULATE_AMBIENTS(OUT_COLOR, N) for (int i = 0; i < N; ++i) { OUT_COLOR += light_ambient_color[i]; }
+#define LIGHT_CALCULATE_AMBIENTS(OUT_COLOR, N) for (int i = 0; i < N; ++i) { OUT_COLOR += UNIFORM(light_ambient_color)[i]; }
 
 
 /// Calculates and sum all directional lights into a variable.
@@ -177,7 +175,7 @@ vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light) {
 /// @param NORMAL A normalized surface normal of the mesh.
 /// @param VIEW_DIR The camera view direction.
 /// @param N The number of light sources to process.
-#define LIGHT_CALCULATE_DIRECTIONALS(OUT_COLOR, POS, NORMAL, VIEW_DIR, N) for (int i = 0; i < N; ++i) { DirectionalLight dl; dl.direction = light_directional_dir[i]; dl.color = light_directional_color[i]; dl.exponent = light_directional_exponent[i]; OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl); }
+#define LIGHT_CALCULATE_DIRECTIONALS(OUT_COLOR, POS, NORMAL, VIEW_DIR, N) for (int i = 0; i < N; ++i) { DirectionalLight dl; dl.direction = UNIFORM(light_directional_dir)[i]; dl.color = UNIFORM(light_directional_color)[i]; dl.exponent = UNIFORM(light_directional_exponent)[i]; OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl); }
 
 /// Returns the shadow map texture coordinates, calculated from the fragment
 /// position in light space.
@@ -215,8 +213,8 @@ float ShadowCalculation(vec3 projection_coords, float fragment_depth) {
 /// @param S The sampler index for the shadow texture.
 /// @param N The number of light sources to process.
 ///
-/// TODO(b/65169179).
-#define LIGHT_CALCULATE_DIRECTIONALS_SHADOW_5(OUT_COLOR, POS, NORMAL, VIEW_DIR, N) vec3 shadow_coords = CalculateShadowCoords(vVertPosLightSpace); float fragment_depth = texture2D(texture_unit_5, shadow_coords.xy).r; for (int i = 0; i < N; ++i) { DirectionalLight dl; dl.direction = light_directional_shadow_dir[i]; dl.color = light_directional_shadow_color[i]; dl.exponent = light_directional_shadow_exponent[i]; float shadow_bias = max(0.05 * (dot(NORMAL, dl.direction)), 0.005); OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl) * ShadowCalculation(shadow_coords, fragment_depth + shadow_bias); }
+/// TODO.
+#define LIGHT_CALCULATE_DIRECTIONALS_SHADOW_5(OUT_COLOR, POS, NORMAL, VIEW_DIR, N) vec3 shadow_coords = CalculateShadowCoords(vVertPosLightSpace); float fragment_depth = texture2D(SAMPLER(texture_unit_5), shadow_coords.xy).r; for (int i = 0; i < N; ++i) { DirectionalLight dl; dl.direction = UNIFORM(light_directional_shadow_dir)[i]; dl.color = UNIFORM(light_directional_shadow_color)[i]; dl.exponent = UNIFORM(light_directional_shadow_exponent)[i]; float shadow_bias = max(0.05 * (dot(NORMAL, dl.direction)), 0.005); OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl) * ShadowCalculation(shadow_coords, fragment_depth + shadow_bias); }
 
 /// Calculates and sums all point lights into a variable.
 ///
@@ -225,6 +223,6 @@ float ShadowCalculation(vec3 projection_coords, float fragment_depth) {
 /// @param NORMAL A normalized surface normal of the mesh.
 /// @param VIEW_DIR The camera view direction.
 /// @param N The number of light sources to process.
-#define LIGHT_CALCULATE_POINTS(OUT_COLOR, POS, NORMAL, VIEW_DIR, N) for (int i = 0; i < N; ++i) { PointLight pl; pl.position = light_point_pos[i]; pl.color = light_point_color[i]; pl.intensity = light_point_intensity[i]; pl.exponent = light_point_exponent[i]; OUT_COLOR += GetPointLight(POS, NORMAL, VIEW_DIR, pl); }
+#define LIGHT_CALCULATE_POINTS(OUT_COLOR, POS, NORMAL, VIEW_DIR, N) for (int i = 0; i < N; ++i) { PointLight pl; pl.position = UNIFORM(light_point_pos)[i]; pl.color = UNIFORM(light_point_color)[i]; pl.exponent = UNIFORM(light_point_exponent)[i]; OUT_COLOR += GetPointLight(POS, NORMAL, VIEW_DIR, pl); }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_LULLSHADERS_INCLUDE_PHONG_GLSLH_
+#endif  // LULLABY_DATA_LULLSHADERS_INCLUDE_PHONG_GLSLH_

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ void ScriptCompiler::Process(TokenType type, const void* ptr,
     case kString:
       writer_(reinterpret_cast<const string_view*>(ptr), 0);
       break;
+    case kNull:
     case kEof:
     case kPush:
     case kPop:
@@ -177,6 +178,10 @@ void ScriptCompiler::Build(ParserCallbacks* builder) {
         DoProcess<HashValue>(type, builder, &reader, 0);
         break;
       }
+      case kNull: {
+        builder->Process(type, nullptr, "null");
+        break;
+      }
       case kSymbol: {
         DoProcess(type, builder, &reader, Symbol());
         break;
@@ -219,8 +224,7 @@ void ScriptCompiler::Build(ParserCallbacks* builder) {
 }
 
 void ScriptCompiler::Error(string_view token, string_view message) {
-  LOG(WARNING) << "Error parsing " << token.to_string() << ": " <<
-      message.to_string();
+  LOG(WARNING) << "Error parsing " << token << ": " << message;
   code_->clear();
   error_ = true;
 }

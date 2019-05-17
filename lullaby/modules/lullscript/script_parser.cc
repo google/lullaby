@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -286,6 +286,8 @@ string_view ScriptParser::Parse(string_view source) {
   } else if (token[0] == ':') {
     HashValue id = Hash(token.substr(1));
     callbacks->Process(ParserCallbacks::kHashValue, &id, token);
+  } else if (token == "null") {
+    callbacks->Process(ParserCallbacks::kNull, nullptr, token);
   } else if (auto b = ParseBoolean(token)) {
     callbacks->Process(ParserCallbacks::kBool, b.get(), token);
   } else if (auto i = ParseUint64(token)) {

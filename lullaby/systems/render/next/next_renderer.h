@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 #define LULLABY_SYSTEMS_RENDER_NEXT_NEXT_RENDERER_H_
 
 #include <memory>
+#include "lullaby/systems/render/next/gl_helpers.h"
 #include "lullaby/systems/render/next/material.h"
 #include "lullaby/systems/render/next/mesh.h"
 #include "lullaby/systems/render/next/render_state.h"
@@ -33,7 +34,7 @@ namespace lull {
 // capabilities.
 class NextRenderer {
  public:
-  NextRenderer();
+  explicit NextRenderer(Optional<int> gl_major_version_override);
   ~NextRenderer();
 
   NextRenderer(const NextRenderer&) = delete;
@@ -53,6 +54,10 @@ class NextRenderer {
   /// Renders the submesh with the given transform.
   void Draw(const std::shared_ptr<Mesh>& mesh,
             const mathfu::mat4& world_from_object, int submesh_index = -1);
+
+  void DrawMeshData(const MeshData& mesh_data) {
+    mesh_helper_->DrawMeshData(mesh_data);
+  }
 
   /// Cleans up any internal state that was used for rendering.
   void End();
@@ -98,15 +103,25 @@ class NextRenderer {
   /// Returns true if the current context supports ETC2 compressed textures.
   static bool SupportsEtc2();
 
+  /// Returns true if the current context supports uniform buffer objects.
+  static bool SupportsUniformBufferObjects();
+
+  /// Returns the maximum supported number of texture units.
+  static int MaxTextureUnits();
+
+  /// Returns the maximum supported shader version.
+  static int MaxShaderVersion();
+
  private:
   std::set<HashValue> environment_flags_;
 
+  std::unique_ptr<MeshHelper> mesh_helper_;
   RenderStateManager render_state_manager_;
   bool multiview_enabled_ = false;
   RenderTarget* render_target_ = nullptr;
   int max_texture_units_ = 0;
 };
 
-}  /// namespace lull
+}  // namespace lull
 
 #endif  /// LULLABY_SYSTEMS_RENDER_NEXT_NEXT_RENDERER_H_

@@ -1,0 +1,182 @@
+#ifndef LULLABY_DATA_SHADERS_PBR_PBR_SUBSURFACE_ENV_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_PBR_SUBSURFACE_ENV_GLSLH_
+
+#include "lullaby/data/shaders/fragment_common.glslh"
+
+#include "lullaby/data/shaders/pbr/env_map.glslh"
+#include "lullaby/data/shaders/pbr/fur.glslh"
+#include "lullaby/data/shaders/pbr/gamma.glslh"
+#include "lullaby/data/shaders/pbr/pbr_surface_common.glslh"
+#include "lullaby/data/shaders/pbr/specular_conversions.glslh"
+
+// Returns camera feed color along given direction at given mip LOD.
+vec3 GetCameraFeedColor(vec3 dir, float lod) {
+  vec2 screen_uv = CamDirToClampedScreenUv(dir);
+  return texture2DLod(kCameraFeedMapUnit, screen_uv, lod).rgb;
+}
+
+/// A modified form of EnvironmentSurfaceShader, which computes subsurface
+/// scattering and specular lighting using an environment map as the only light
+/// source. This shader assumes there is no metallic component and accepts just
+/// an albedo color, directly computing the corresponding diffuse and specular
+/// colors.
+///
+/// The shader_ramp parameter ramps between regular and subsurface shading
+/// unless this is a fur shader variant. For fur, it assumes full subsurface for
+/// diffuse and instead ramps between default and fur specular.
+///
+/// Ambient occlusion is handled directly in this routine because the subsurface
+/// component is tinted independently of the rest. The parameters related to
+/// this are:
+///   ao_term: Ambient occlusion term representing surface visilibity at
+///       current shading point; 0.0 means full occlusion.
+///   ao_tint: Defines the multiplicative color at full occlusion.
+///       Defaults to dark red: (0.1, 0.02, 0.01).
+///
+/// This shader substitutes the regular diffuse lighting from
+/// EnvironmentSurfaceShader with two components of subsurface scattering:
+/// multiple scattering and single scattering. This is a sensible substitution
+/// because lambertian reflection can be thought of as an instance of subsurface
+/// scattering where the mean free path is zero, i.e. all scattering is at the
+/// surface. And indeed, with suitable parameters, this shader matches the
+/// EnvironmentSurfaceShader with its lambertial diffuse model.
+///
+/// The multiple scattering component is defined by the parameter
+/// multi_scatter_blur, a vec4 describing the relative amount of scattering for
+/// red, green, and blue (in rgb), and an effect-boosting parameter in
+/// alpha. More physically accurate subsurface shaders often accept the rgb
+/// values as spectral mean free paths (expressed in distance units for r, g,
+/// b), but our shader inexpensively approximates light diffusion with mipmap
+/// blur of the diffuse convolution map, so our parameter units are in mipmap
+/// LODs. However, the general effect is the same: To model a longer mean free
+/// path for a particular color, use a larger blur value. For realistic results,
+/// the red component should be largest, followed by green, followed by blue
+/// (because in reality, longer wavelengths undergo fewer scattering events per
+/// unit distance and penetrate further, thereby creating a softer falloff).
+/// The effect-boosting alpha term effectively interpolates or extrapolates
+/// between a non-spectral version of the blur (same blur for all color
+/// channels) and the actual spectral blur given. Values below 1.0 reduce color
+/// separation, 1.0 does not alter it, and values above 1.0 increase the color
+/// separation due to the different blur values. For low-contrast IBL, values
+/// above 1.0 can be useful to accentuate the subsurface look.
+///
+/// The single-scattering component is driven by the following parameters
+/// and by backlighting of the camera feed (not the preconvolved IBL texture
+/// as with multiple scattering):
+///
+///   single_scatter_color: Overall color multiplier of single-scattering
+///       component. Normally this will be modulated by a texture to darken
+///       it on all but thin surfaces such as earlobes or fingertips.
+///
+///   single_scatter_lod: Mipmap lod used to blur the camera feed texture to
+///       simulate forward scattering. The default value of 5 works well.
+///
+///   single_scatter_exp: Exponent defining how sharply the single-scattering
+///       component falls off from silhouette edges. The default is 5.
+vec3 EnvironmentSubsurfaceShader(
+    vec3 normal,                // Unit surface normal.
+    vec3 cam_dir,               // Unit vector from shading point to camera.
+    float smoothness,           // Unity's perceptual smoothness, in [0.0, 1.0].
+    vec3 albedo,                // Surface albedo defining diffuse color.
+    float ao_term,              // Ambient occlusion (visibility) term.
+    float shader_ramp,          // Ramps between base and subsurface/fur.
+    vec3 ao_tint,               // Ambient occlusion tint at full occlusion.
+    vec4 multi_scatter_blur,    // Multiple scattering rgb blur, alpha=boost.
+    vec3 single_scatter_color,  // Color multiplier for single scattering.
+    float single_scatter_lod,   // Mipmap LOD for blurring camera feed.
+    float single_scatter_exp) {  // Falloff exponent for single scattering.
+#ifndef LULLABY_FUR
+  // For a regular subsurface shader, the ramp blends between (effectively)
+  // regular surface shading and subsurface. With fur, subsurface is not ramped,
+  // only the fur specular is.
+  ao_tint *= shader_ramp;
+  multi_scatter_blur *= shader_ramp;
+  single_scatter_color *= shader_ramp;
+#endif  // LULLABY_FUR
+  // The following are derived under the assumption that metalness = 0.
+  vec3 diffuse_color = albedo * (1.0 - kDielectricSpecular);
+  vec3 specular_color = vec3(kDielectricSpecular);
+
+  vec3 refl_light_dir = reflect(-cam_dir, normal);
+
+  // We have a perfect reflection since we computed refl_light_dir as an
+  // explicit reflection of cam_dir about the normal. This simplifies the
+  // n_dot_v and l_dot_h to n_dot_l, so we use n_dot_lv for all three.
+  float n_dot_lv = clamp(dot(normal, refl_light_dir), 0.0, 1.0);
+
+  float perceptual_roughness = SmoothnessToPerceptualRoughness(smoothness);
+
+  // We omit the n_dot_l term here because it's relative to the specular
+  // reflection. The diffuse reflection is free to choose L = N, so the only
+  // darkening component is the DisneyDiffuseIblTerm.
+  float diffuse_term = DisneyDiffuseIblTerm(n_dot_lv, perceptual_roughness);
+
+  float roughness = PerceptualRoughnessToRoughness(perceptual_roughness);
+
+  // Note: this term makes this shader non-energy-preserving, causing
+  // darkening at high roughness values. This matches behavior in Unity.
+  // For details, see: b/111414580.
+  float surface_reduction = 1.0 / (roughness * roughness + 1.0);
+
+  float grazing_term = clamp(smoothness + kDielectricSpecular, 0.0, 1.0);
+
+  // Captures the multiple-scattering component of the subsurface scattering via
+  // sampling of the convolved diffuse environment texture. See env_map.glslh
+  // regarding Env*Color().
+  vec3 multi_scatter_result = EnvSubsurfaceColor(normal, multi_scatter_blur);
+
+  // Captures the single-scattering component of the subsurface scattering.  We
+  // approximate single scattering by evaluating incoming radiance from the
+  // camera feed along the view vector, scaled by a term favoring silhouette
+  // edges (since the surface is always thin there). This term excludes thin
+  // surfaces that squarely face the camera, which is unfortunate, but we don't
+  // have a good way to determine such surfaces without further render passes
+  // (e.g. additional shadow maps).
+  vec3 single_scatter_result = vec3(0.0);
+  float silhouette_term = max(0.0, 1.0 - n_dot_lv * n_dot_lv);
+  float single_scatter_strength = pow(silhouette_term, single_scatter_exp);
+  single_scatter_result = single_scatter_strength * single_scatter_color;
+  vec3 cam_feed_color;
+#ifdef DESKTOP
+  // On desktop, choose between using simulated camera feed from ARA or a fake
+  // camera feed from the IBL cubemap.
+  if (IsFiblEnabled()) {
+    cam_feed_color = GetCameraFeedColor(-cam_dir, single_scatter_lod);
+  } else {
+    // This simulates the camera feed when the viewer is run in non-ARA mode
+    // using a clamped IBL lookup matching the background rendered in viewer.
+    const float kFakeLodScale = 0.125;  // Looks reasonable, could use tuning.
+    cam_feed_color = RgbmToRgbSpecular(textureCubeLod(
+        kSpecEnvMapUnit, -cam_dir, kFakeLodScale * single_scatter_lod));
+    cam_feed_color = min(cam_feed_color, vec3(1.0));
+  }
+#else  // DESKTOP
+  // Always use true camera feed on device.
+  cam_feed_color = GetCameraFeedColor(-cam_dir, single_scatter_lod);
+#endif  // DESKTOP
+  single_scatter_result *= cam_feed_color;
+
+  vec3 total_subsurf = multi_scatter_result + single_scatter_result;
+
+  vec3 diffuse_ao = mix(ao_tint, vec3(1.0), ao_term);
+  vec3 diffuse_part = diffuse_ao * diffuse_term * diffuse_color * total_subsurf;
+
+  vec3 fresnel_term = FresnelLerp(specular_color, vec3(grazing_term), n_dot_lv);
+
+#if defined(LULLABY_FUR)
+  vec3 base_specular = EnvSpecularColor(refl_light_dir, -cam_dir, roughness);
+  vec3 fur_specular = FurEnvSpecular(normal, roughness, cam_dir);
+  vec3 env_specular = mix(base_specular, fur_specular, shader_ramp);
+#elif LULLABY_PBR_SCREEN_SPACE_REFL  // TODO: Always on; remove branch.
+  vec3 env_specular = EnvSpecularColor(refl_light_dir, -cam_dir, roughness);
+#else
+  vec3 env_specular = EnvSpecularColor(refl_light_dir, roughness);
+#endif
+
+  vec3 specular_part = ao_term * specular_scale * surface_reduction *
+                       fresnel_term * env_specular;
+
+  return diffuse_part + specular_part;
+}
+
+#endif  // LULLABY_DATA_SHADERS_PBR_PBR_SUBSURFACE_ENV_GLSLH_

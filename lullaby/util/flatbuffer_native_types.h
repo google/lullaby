@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -141,8 +141,8 @@ struct FlatbufferNativeType<mathfu::quat> {
     mathfu::quat result;
     if (src && len >= kFlatbufferStructSize) {
       const float* values = reinterpret_cast<const float*>(src);
-      result.vector() = mathfu::vec3(values);
-      result.scalar() = values[3];
+      result.set_vector(mathfu::vec3(values));
+      result.set_scalar(values[3]);
     } else {
       result = mathfu::quat::identity;
     }
@@ -277,6 +277,32 @@ struct FlatbufferNativeType<lull::Color4ub> {
       values[1] = static_cast<float>(src.g) / 255.f;
       values[2] = static_cast<float>(src.b) / 255.f;
       values[3] = static_cast<float>(src.a) / 255.f;
+    }
+  }
+};
+
+// Specialization for lull::Color4f which has a Flatbuffer type of lull::Color.
+template <>
+struct FlatbufferNativeType<Color4f> {
+  static constexpr size_t kFlatbufferStructSize = 4 * sizeof(float);
+  static constexpr size_t kFlatbufferStructAlignment = 4;
+
+  static Color4f Read(const void* src, size_t len) {
+    if (src && len >= kFlatbufferStructSize) {
+      const float* values = reinterpret_cast<const float*>(src);
+      return Color4f(values[0], values[1], values[2], values[3]);
+    } else {
+      return Color4f(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+  }
+
+  static void Write(const Color4f& src, void* dst, size_t len) {
+    if (dst && len >= kFlatbufferStructSize) {
+      float* values = reinterpret_cast<float*>(dst);
+      values[0] = src.r;
+      values[1] = src.g;
+      values[2] = src.b;
+      values[3] = src.a;
     }
   }
 };

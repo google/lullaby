@@ -44,11 +44,14 @@ cc_library(
         "script_value.h",
     ],
     deps = [
+        "@absl//absl/memory",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/function",
+        "//lullaby/modules/script",
         "//lullaby/modules/serialize",
         "//lullaby/util:clock",
         "//lullaby/util:common_types",
+        "//lullaby/util:entity",
         "//lullaby/util:hash",
         "//lullaby/util:optional",
         "//lullaby/util:span",
@@ -61,4 +64,3 @@ cc_library(
     ],
     alwayslink = 1,
 )
-

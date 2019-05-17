@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/systems/layout/layout_box_system.h"
+#include "lullaby/contrib/layout/layout_box_system.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/modules/dispatcher/queued_dispatcher.h"
@@ -109,10 +109,10 @@ TEST_F(LayoutBoxSystemTest, SetOriginalBox) {
                Aabb({-1.f, -1.f, 0.f}, {1.f, 1.f, 0.f}));
   AssertAabbEq(layout_box_system_->GetActualBox(e),
                Aabb({-1.f, -1.f, 0.f}, {1.f, 1.f, 0.f}));
-  EXPECT_EQ(false, changed);
+  EXPECT_EQ(changed, false);
 
   dispatcher_->Dispatch();
-  EXPECT_EQ(true, changed);
+  EXPECT_EQ(changed, true);
 }
 
 TEST_F(LayoutBoxSystemTest, SetActualBox) {
@@ -126,11 +126,11 @@ TEST_F(LayoutBoxSystemTest, SetActualBox) {
 
   AssertAabbEq(layout_box_system_->GetActualBox(e),
                Aabb({-1.f, -1.f, 0.f}, {1.f, 1.f, 0.f}));
-  EXPECT_EQ(false, changed);
+  EXPECT_EQ(changed, false);
 
   dispatcher_->Dispatch();
-  EXPECT_EQ(true, changed);
-  EXPECT_EQ(123u, source);
+  EXPECT_EQ(changed, true);
+  EXPECT_EQ(source, 123u);
 }
 
 TEST_F(LayoutBoxSystemTest, SetDesiredSize) {
@@ -166,8 +166,8 @@ TEST_F(LayoutBoxSystemTest, SetDesiredSize) {
   EXPECT_EQ(get_z, unset);
 
   // DesiredSizeChangedEvent is sent immediately
-  EXPECT_EQ(true, changed);
-  EXPECT_EQ(123u, source);
+  EXPECT_EQ(changed, true);
+  EXPECT_EQ(source, 123u);
 }
 
 // Even if OriginalBox or ActualBox is set, desired_size will be null until it
@@ -204,9 +204,9 @@ TEST_F(LayoutBoxSystemTest, NoSetOnlyTransformAabb) {
     changed = false;
     transform_system_->SetAabb(e, Aabb({-f, -f, 0.f}, {f, f, 0.f}));
 
-    EXPECT_EQ(false, changed);
+    EXPECT_EQ(changed, false);
     dispatcher_->Dispatch();
-    EXPECT_EQ(false, changed);
+    EXPECT_EQ(changed, false);
 
     AssertAabbEq(layout_box_system_->GetOriginalBox(e),
                  Aabb({-f, -f, 0.f}, {f, f, 0.f}));
@@ -231,9 +231,9 @@ TEST_F(LayoutBoxSystemTest, SetDesiredAndTransformAabb) {
     layout_box_system_->SetDesiredSize(e, 123, 4.f, 5.f, 6.f);
     transform_system_->SetAabb(e, Aabb({-f, -f, 0.f}, {f, f, 0.f}));
 
-    EXPECT_EQ(false, changed);
+    EXPECT_EQ(changed, false);
     dispatcher_->Dispatch();
-    EXPECT_EQ(false, changed);
+    EXPECT_EQ(changed, false);
 
     AssertAabbEq(layout_box_system_->GetOriginalBox(e),
                  Aabb({-f, -f, 0.f}, {f, f, 0.f}));

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,9 @@ ModelAsset::ModelAsset(std::function<void()> finalize_callback)
 
 void ModelAsset::OnLoad(const std::string& filename, std::string* data) {
   flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(data->data()),
-                                 data->size());
+                                 data->size(), 64 /* max_depth */,
+                                 1000000 /* max_tables */,
+                                 false /* check_alignment */);
   if (!verifier.VerifyBuffer<ModelDef>()) {
     LOG(DFATAL) << filename << " is an invalid model_asset.";
     return;
@@ -38,6 +40,7 @@ void ModelAsset::OnLoad(const std::string& filename, std::string* data) {
   if (!model_def_) {
     return;
   }
+  id_ = Hash(filename);
   PrepareMesh();
   PrepareMaterials();
   PrepareTextures();
@@ -115,6 +118,73 @@ void ModelAsset::PrepareMesh() {
   mesh_data_ =
       MeshData(MeshData::kTriangles, vertex_format, std::move(vertices),
                index_type, std::move(indices), std::move(submeshes));
+  base_blend_mesh_ = mesh_data_.CreateHeapCopy();
+
+  if (model->blend_shapes()) {
+    for (auto attrib : *model->blend_attributes()) {
+      blend_format_.AppendAttribute(*attrib);
+    }
+
+    // Do not bother with the rest of the logic if the blend format is not
+    // defined.
+    if (blend_format_.GetVertexSize() > 0) {
+      // Create a mapping of attributes between the main mesh and the blend
+      // mesh.  We will use this mapping to create a "base" blend shape.
+      std::vector<std::pair<const VertexAttribute*, const VertexAttribute*>>
+          attrib_map;
+      for (size_t i = 0; i < vertex_format.GetNumAttributes(); ++i) {
+        const VertexAttribute* mesh_attrib = vertex_format.GetAttributeAt(i);
+        for (size_t j = 0; j < blend_format_.GetNumAttributes(); ++j) {
+          const VertexAttribute* blend_attrib = blend_format_.GetAttributeAt(j);
+          if (mesh_attrib->usage() == blend_attrib->usage() &&
+              mesh_attrib->type() == blend_attrib->type()) {
+            attrib_map.emplace_back(mesh_attrib, blend_attrib);
+          }
+        }
+      }
+
+      // Create a copy of the mesh that just contains the data needed for
+      // blending.
+      // TODO: Do this in the model pipeline instead.
+      const size_t num_vertices = mesh_data_.GetNumVertices();
+      base_blend_shape_ = DataContainer::CreateHeapDataContainer(
+          blend_format_.GetVertexSize() * num_vertices);
+      for (size_t i = 0; i < num_vertices; ++i) {
+        const uint8_t* vertex =
+            mesh_data_.GetVertexBytes() + (i * vertex_format.GetVertexSize());
+
+        for (auto& pair : attrib_map) {
+          const size_t offset = vertex_format.GetAttributeOffset(pair.first);
+          const size_t size = vertex_format.GetAttributeSize(*pair.first);
+          base_blend_shape_.Append(vertex + offset, size);
+        }
+      }
+
+      for (uint32_t ii = 0; ii < model->blend_shapes()->size(); ++ii) {
+        const auto* blend_shape = model->blend_shapes()->Get(ii);
+        const uint8_t* bytes = blend_shape->vertex_data()->Data();
+        const size_t num_bytes = blend_shape->vertex_data()->size();
+        DataContainer data =
+            DataContainer::WrapDataAsReadOnly(bytes, num_bytes);
+        blend_shape_names_.emplace_back(blend_shape->name());
+        blend_shapes_.emplace_back(std::move(data));
+      }
+    }
+  }
+
+  if (model->aabbs()) {
+    std::vector<Aabb> submesh_aabbs;
+    submesh_aabbs.reserve(model->aabbs()->size());
+    for (uint32_t ii = 0; ii < model->aabbs()->size(); ++ii) {
+      auto min = (*model->aabbs())[ii]->min_position();
+      auto max = (*model->aabbs())[ii]->max_position();
+
+      submesh_aabbs.push_back(Aabb(mathfu::vec3(min->x(), min->y(), min->z()),
+                                   mathfu::vec3(max->x(), max->y(), max->z())));
+    }
+
+    mesh_data_.SetSubmeshAabbs(std::move(submesh_aabbs));
+  }
 }
 
 static MaterialInfo BuildMaterialInfo(const MaterialDef* material_def) {
@@ -135,7 +205,18 @@ static MaterialInfo BuildMaterialInfo(const MaterialDef* material_def) {
     for (uint32_t i = 0; i < material_def->textures()->size(); ++i) {
       const MaterialTextureDef* texture_def = material_def->textures()->Get(i);
       if (texture_def->name()) {
-        material.SetTexture(texture_def->usage(), texture_def->name()->c_str());
+        // TODO: Propagate TextureDef sampler params (i.e. mipmap,
+        // wrap modes).
+        if (texture_def->usage_per_channel()) {
+          const TextureUsageInfo usage_info(
+              {reinterpret_cast<const MaterialTextureUsage*>(
+                   texture_def->usage_per_channel()->data()),
+               texture_def->usage_per_channel()->size()});
+          material.SetTexture(usage_info, texture_def->name()->c_str());
+        } else {
+          material.SetTexture(texture_def->usage(),
+                              texture_def->name()->c_str());
+        }
       }
     }
   }
@@ -185,7 +266,12 @@ static ModelAsset::TextureInfo BuildTextureInfo(const TextureDef* texture_def) {
   if (texture_def->data() && texture_def->data()->data()) {
     const uint8_t* bytes = texture_def->data()->data();
     const size_t num_bytes = texture_def->data()->size();
-    info.data = DecodeImage(bytes, num_bytes, kDecodeImage_None);
+    DecodeImageFlags decode_flag = kDecodeImage_None;
+    // Use the software decoder if no hardware decoding is available.
+    if (CpuAstcDecodingAvailable() && !GpuAstcDecodingAvailable()) {
+      decode_flag = kDecodeImage_DecodeAstc;
+    }
+    info.data = DecodeImage(bytes, num_bytes, decode_flag);
   }
   return info;
 }
@@ -239,6 +325,10 @@ Span<mathfu::AffineTransform> ModelAsset::GetInverseBindPose() const {
           skeleton->bone_transforms()->size()};
 }
 
-const ModelDef* ModelAsset::GetModelDef() { return model_def_.get(); }
+void ModelAsset::CopyMeshToCollisionData() {
+  if (collision_data_.GetNumVertices() == 0) {
+    collision_data_ = mesh_data_.CreateHeapCopy();
+  }
+}
 
 }  // namespace lull

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
-#include "lullaby/systems/input_behavior/input_behavior_system.h"
-#include "lullaby/systems/reticle/reticle_system.h"
+#include "lullaby/contrib/input_behavior/input_behavior_system.h"
+#include "lullaby/contrib/reticle/reticle_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "mathfu/io.h"
 
@@ -36,7 +36,7 @@ const HashValue kLinearGrabbableDefHash = ConstHash("LinearGrabbableDef");
 
 LinearGrabSystem::LinearGrabSystem(Registry* registry)
     : System(registry), grabbables_(4) {
-  RegisterDef(this, kLinearGrabbableDefHash);
+  RegisterDef<LinearGrabbableDefT>(this);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<ReticleSystem>(this);
 }

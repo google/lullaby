@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ Texture::Texture(uint32_t texture_target, uint32_t texture_id)
                     [](const fplbase::Texture* texture) { delete texture; }),
       uv_bounds_(0.f, 0.f, 1.f, 1.f),
       is_subtexture_(false) {
-  // TODO(b/62000325): change this constructor (and all calls above it) to
+  // TODO to
   // use rendering-system agnostic types fplbase::TextureTarget and
   // fplbase::TextureHandle.
   texture_impl_->SetTextureId(fplbase::TextureTargetFromGl(texture_target),
@@ -103,6 +103,26 @@ fplbase::TextureHandle Texture::GetResourceId() const {
   const fplbase::Texture* resource =
       atlas_impl_ ? atlas_impl_->atlas_texture() : texture_impl_.get();
   return resource ? resource->id() : fplbase::InvalidTextureHandle();
+}
+
+bool IsTextureLoaded(const TexturePtr& texture) {
+  return texture && texture->IsLoaded();
+}
+
+mathfu::vec2i GetTextureDimensions(const TexturePtr& texture) {
+  return texture ? texture->GetDimensions() : mathfu::kZeros2i;
+}
+
+bool IsTextureExternalOes(const TexturePtr& texture) {
+  return false;
+}
+
+Optional<int> GetTextureGlHandle(const TexturePtr& texture) {
+  if (texture) {
+    return static_cast<int>(texture->GetResourceId().handle);
+  } else {
+    return NullOpt;
+  }
 }
 
 }  // namespace lull

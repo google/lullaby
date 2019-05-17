@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ limitations under the License.
 #include "lullaby/util/registry.h"
 #include "lullaby/util/resource_manager.h"
 #include "lullaby/util/span.h"
+#include "lullaby/util/string_view.h"
 #include "lullaby/generated/shader_def_generated.h"
 
 namespace lull {
@@ -40,6 +41,14 @@ class ShaderFactory {
   /// Loads the shader with the given |filename|.
   ShaderPtr LoadShader(const ShaderCreateParams& params);
 
+  /// Returns a shader string without compiling.
+  std::string GetShaderString(const ShaderCreateParams& params,
+                              ShaderStageType stage) const;
+
+  /// Compile a shader from shader strings.
+  ShaderPtr CompileShader(const std::string& vertex_string,
+                          const std::string& fragment_string);
+
   /// Returns the shader in the cache associated with |key|, else nullptr.
   ShaderPtr GetCachedShader(HashValue key) const;
 
@@ -56,8 +65,15 @@ class ShaderFactory {
   ShaderPtr LoadFplShaderImpl(const std::string& filename);
   ShaderPtr LoadLullShaderImpl(const std::string& filename,
                                const ShaderCreateParams& params);
-  ShaderPtr CompileAndLink(const char* vs_source, const char* fs_source);
-  ShaderHnd CompileShader(const char* source, ShaderStageType stage);
+  std::string GetShaderStringLullShader(const std::string& filename,
+                                        const ShaderCreateParams& params,
+                                        ShaderStageType stage) const;
+  std::string GetShaderStringFpl(const std::string& filename,
+                                 ShaderStageType stage) const;
+  ShaderPtr CompileAndLink(string_view vs_source, string_view fs_source,
+                           const std::string& log_name);
+  ShaderHnd CompileShader(string_view source, ShaderStageType stage,
+                          const std::string& log_name);
   ProgramHnd LinkProgram(ShaderHnd vs, ShaderHnd fs,
                          Span<ShaderAttributeDefT> attributes = {});
 

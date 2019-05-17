@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -127,6 +127,14 @@ ValueType QuinticEaseInOut(const ValueType& start, const ValueType& target,
                            const PercentType& percent) {
   return InOut(start, target, percent, QuinticEaseIn<ValueType, PercentType>,
                QuinticEaseOut<ValueType, PercentType>);
+}
+
+// Easing equation for a sinusoidal (sin(t)) easing out, decelerating from zero
+// velocity. The interpolation starts at (0, start), and ends at (1.0, end).
+template <class ValueType, class PercentType>
+ValueType SineEaseOut(const ValueType& start, const ValueType& end,
+                      const PercentType& percent) {
+  return (end - start) * std::sin(M_PI_2 * percent) + start;
 }
 
 // This implements the Material Design spec for the "FastOutSlowInInterpolator".

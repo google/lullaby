@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ limitations under the License.
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/optional.h"
 
 namespace lull {
 
@@ -88,6 +89,11 @@ class LightSystem : public System {
   /// @param data The point light definition for this light.
   void CreateLight(Entity entity, const PointLightDefT& data);
 
+  /// Creates a spot light.
+  /// @param entity The entity to which to attach the spot light.
+  /// @param data The point light definition for this light.
+  void CreateLight(Entity entity, const SpotLightDefT& data);
+
   LightSystem(const LightSystem&) = delete;
   LightSystem& operator=(const LightSystem&) = delete;
 
@@ -104,6 +110,10 @@ class LightSystem : public System {
     void Add(const DirectionalLightDefT& light);
     /// Adds uniform data for a point light.
     void Add(const PointLightDefT& light);
+    /// Adds uniform data for a spot light.
+    void Add(const SpotLightDefT& light);
+    /// Adds uniform data for an environment light.
+    void Add(const EnvironmentLightDefT& light);
     /// Applies the uniforms to an entity's render component.
     void Apply(RenderSystem* render_system, Entity entity) const;
 
@@ -129,6 +139,9 @@ class LightSystem : public System {
     /// Add a point light to the group.
     void AddLight(TransformSystem* transform_system, Entity entity,
                   const PointLightDefT& light);
+    /// Add a spot light to the group.
+    void AddLight(TransformSystem* transform_system, Entity entity,
+                  const SpotLightDefT& light);
 
     /// Add a lightable to the group.
     void AddLightable(Registry* registry, Entity entity,
@@ -172,11 +185,13 @@ class LightSystem : public System {
     std::unordered_map<Entity, AmbientLightDefT> ambients_;
     std::unordered_map<Entity, DirectionalLightDefT> directionals_;
     std::unordered_map<Entity, PointLightDefT> points_;
+    std::unordered_map<Entity, SpotLightDefT> spot_lights_;
     std::unordered_map<Entity, LightableDefT> lightables_;
     Entity environment_entity_ = kNullEntity;
     TexturePtr environment_diffuse_texture_;
     TexturePtr environment_specular_texture_;
     TexturePtr environment_brdf_lookup_table_;
+    Optional<EnvironmentLightDefT> environment_light_;
     std::set<Entity> dirty_lightables_;
     std::vector<ShadowPassData> shadow_passes_;
   };
@@ -197,6 +212,7 @@ class LightSystem : public System {
   std::unordered_set<Entity> ambients_;
   std::unordered_set<Entity> directionals_;
   std::unordered_set<Entity> points_;
+  std::unordered_set<Entity> spot_lights_;
 };
 
 }  // namespace lull

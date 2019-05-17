@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ struct Vertex {
   using Attrib = Bits;
   static const Attrib kAttribBit_Position = 1 << 0;
   static const Attrib kAttribBit_Normal = 1 << 1;
-  static const Attrib kAttribBit_Binormal = 1 << 2;
-  static const Attrib kAttribBit_Tangent = 1 << 3;
+  static const Attrib kAttribBit_Tangent = 1 << 2;
+  static const Attrib kAttribBit_Bitangent = 1 << 3;
   static const Attrib kAttribBit_Orientation = 1 << 4;
   static const Attrib kAttribBit_Influences = 1 << 5;
   static const Attrib kAttribBit_Color0 = 1 << 6;
@@ -67,24 +67,39 @@ struct Vertex {
     bool operator<(const Influence& rhs) const { return weight < rhs.weight; }
   };
 
+  // Information about a blend shape for each vertex.
+  struct Blend {
+    std::string name;
+    mathfu::vec3 position = {0, 0, 0};
+    mathfu::vec3 normal = {0, 0, 0};
+    mathfu::vec4 tangent = {0, 0, 0, 0};  // 4th element is handedness: +1 or -1
+    mathfu::vec4 orientation = {0, 0, 0, 0};  // Sign of scalar is handedness.
+
+    bool operator==(const Blend& rhs) const {
+      return name == rhs.name && position == rhs.position &&
+             normal == rhs.normal && tangent == rhs.tangent &&
+             orientation == rhs.orientation;
+    }
+  };
+
   Vertex() {}
 
   // Compares all vertex elements so that vertices can be deduped.
   bool operator==(const Vertex& rhs) const {
     return position == rhs.position && normal == rhs.normal &&
-           binormal == rhs.binormal && tangent == rhs.tangent &&
+           tangent == rhs.tangent && bitangent == rhs.bitangent &&
            orientation == rhs.orientation && color0 == rhs.color0 &&
            color1 == rhs.color1 && color2 == rhs.color2 &&
            color3 == rhs.color3 && uv0 == rhs.uv0 && uv1 == rhs.uv1 &&
            uv2 == rhs.uv2 && uv3 == rhs.uv3 && uv4 == rhs.uv4 &&
            uv5 == rhs.uv5 && uv6 == rhs.uv6 && uv7 == rhs.uv7 &&
-           influences == rhs.influences;
+           influences == rhs.influences && blends == rhs.blends;
   }
 
   mathfu::vec3 position = {0, 0, 0};
   mathfu::vec3 normal = {0, 0, 0};
-  mathfu::vec4 binormal = {0, 0, 0, 0};
   mathfu::vec4 tangent = {0, 0, 0, 0};  // 4th element is handedness: +1 or -1
+  mathfu::vec3 bitangent = {0, 0, 0};
   mathfu::vec4 orientation = {0, 0, 0, 0};  // Sign of scalar is handedness.
   mathfu::vec4 color0 = {0, 0, 0, 0};
   mathfu::vec4 color1 = {0, 0, 0, 0};
@@ -99,6 +114,7 @@ struct Vertex {
   mathfu::vec2 uv6 = {0, 0};
   mathfu::vec2 uv7 = {0, 0};
   std::vector<Influence> influences;
+  std::vector<Blend> blends;
 };
 
 }  // namespace tool

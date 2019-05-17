@@ -1,0 +1,62 @@
+#ifndef LULLABY_DATA_SHADERS_PBR_RGBM_TO_RGB_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_RGBM_TO_RGB_GLSLH_
+
+// These functions decode from an 8-bit RGBA encoding to RGB in a predefined
+// range.  The alpha channel serves as a multiplier, hence the "rgbm"
+// designation. Note that the normalized input has been raised to the power 0.25
+// on encoding, which is a custom gamma value preserving extra detail at lower
+// intensity values.
+//
+// We use different normalization constants for diffuse vs. specular IBL
+// convolutions, giving them different dynamic ranges. However, decoded color
+// values are at the same scale, eliminating the need for any compensation
+// constants between diffuse and specular. Our encoding process normalizes the
+// diffuse convolution to a maximum intensity of 1.0, and then applies the same
+// normalization constant to specular. Any specular values beyond 16.0 after
+// this adjustment are clamped.
+
+
+
+// Rescales color intensities to [0.0, 16.0] with gamma 4.0.
+vec3 RgbmToRgbSpecular(vec4 rgbm) {
+  vec3 rgb = rgbm.rgb * rgbm.a;
+  rgb *= rgb;
+  rgb *= rgb;
+  return 16.0 * rgb;
+}
+
+// Rescales color intensities to [0.0, 1.0] with gamma 4.0.
+//
+// Note: Given that this color range fits into sRGB, we could use that
+// instead. OTOH, this is probably less expensive because it avoids the pow()
+// and it can provide a bit more precision for certain colors. TODO:
+// Evaluate whether a different gamma might be more appropriate here.
+vec3 RgbmToRgbDiffuse(vec4 rgbm) {
+  vec3 rgb = rgbm.rgb * rgbm.a;
+  rgb *= rgb;
+  rgb *= rgb;
+  return rgb;
+}
+
+// Scalar versions of the above, as an optimization. The channel parameter
+// should be a constant.
+
+// Rescales given channel intensity to [0.0, 16.0] with gamma 4.0.
+float RgbmToChannelSpecular(vec4 rgbm, int channel) {
+  float ret = rgbm[channel] * rgbm.a;
+  ret *= ret;
+  ret *= ret;
+  return 16.0 * ret;
+}
+
+// Rescales given color intensities to [0.0, 1.0] with gamma 4.0.
+float RgbmToChannelDiffuse(vec4 rgbm, int channel) {
+  float ret = rgbm[channel] * rgbm.a;
+  ret *= ret;
+  ret *= ret;
+  return ret;
+}
+
+
+
+#endif  // LULLABY_DATA_SHADERS_PBR_RGBM_TO_RGB_GLSLH_

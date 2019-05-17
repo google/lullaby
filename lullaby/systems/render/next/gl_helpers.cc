@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -356,8 +356,8 @@ GLuint GetGlStencilOp(fplbase::StencilOperation::StencilOperations op) {
   }
 }
 
-ShaderProfile GetShaderProfile() {
-  return NextRenderer::IsGles() ? ShaderProfile::Gles : ShaderProfile::Core;
+ShaderLanguage GetShaderLanguage() {
+  return NextRenderer::IsGles() ? ShaderLanguage_GLSL_ES : ShaderLanguage_GLSL;
 }
 
 bool GlSupportsVertexArrays() { return NextRenderer::SupportsVertexArrays(); }
@@ -465,6 +465,20 @@ void UnsetVertexAttributes(const VertexFormat& vertex_format) {
 }
 
 void UnsetDefaultAttributes() {
+  // Calling glDisableVertexAttribArray() with an unbound vbo results in a
+  // GL_INVALID_OPERATION per the spec. Most drivers ignore this but it
+  // typically causes problems on PLATFORM_OSX.
+  //
+  // We may want to remove the #ifdef or (better yet, to avoid the speed hit)
+  // restructure the code to eliminate the situation where this is called with
+  // unbound vbo's.
+#ifdef PLATFORM_OSX
+  GLint current_vbo;
+  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_vbo);
+  if (current_vbo == 0) {
+    return;
+  }
+#endif  // PLATFORM_OSX
   // Can leave position set.
   GL_CALL(glDisableVertexAttribArray(kAttribNormal));
   GL_CALL(glDisableVertexAttribArray(kAttribTangent));
@@ -475,7 +489,32 @@ void UnsetDefaultAttributes() {
   GL_CALL(glDisableVertexAttribArray(kAttribBoneWeights));
 }
 
-void DrawMeshData(const MeshData& mesh_data) {
+MeshHelper::MeshHelper() {
+#ifdef PLATFORM_OSX
+  if (GlSupportsVertexArrays()) {
+    glGenVertexArrays(1, &vao_);
+    glGenBuffers(1, &vbo_);
+    glGenBuffers(1, &ibo_);
+  }
+#endif
+}
+
+MeshHelper::~MeshHelper() {
+  if (ibo_ != 0) {
+    glDeleteBuffers(1, &ibo_);
+    ibo_ = 0;
+  }
+  if (vbo_ != 0) {
+    glDeleteBuffers(1, &vbo_);
+    vbo_ = 0;
+  }
+  if (vao_ != 0) {
+    glDeleteVertexArrays(1, &vao_);
+    vao_ = 0;
+  }
+}
+
+void MeshHelper::DrawMeshData(const MeshData& mesh_data) {
   const VertexFormat& vertex_format = mesh_data.GetVertexFormat();
   const int num_vertices = static_cast<int>(mesh_data.GetNumVertices());
   const int num_indices = static_cast<int>(mesh_data.GetNumIndices());
@@ -490,8 +529,11 @@ void DrawMeshData(const MeshData& mesh_data) {
     return;
   }
 
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+  if (vao_ > 0) {
+    GL_CALL(glBindVertexArray(vao_));
+  }
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_));
   const GLenum gl_mode = GetGlPrimitiveType(mesh_data.GetPrimitiveType());
 
   SetVertexAttributes(vertex_format, vertices);
@@ -505,9 +547,10 @@ void DrawMeshData(const MeshData& mesh_data) {
   UnsetVertexAttributes(vertex_format);
 }
 
-void DrawQuad(const mathfu::vec3& bottom_left, const mathfu::vec3& top_right,
-              const mathfu::vec2& tex_bottom_left,
-              const mathfu::vec2& tex_top_right) {
+void MeshHelper::DrawQuad(const mathfu::vec3& bottom_left,
+                          const mathfu::vec3& top_right,
+                          const mathfu::vec2& tex_bottom_left,
+                          const mathfu::vec2& tex_top_right) {
   const VertexPT vertices[] = {
       {bottom_left.x, bottom_left.y, bottom_left.z, tex_bottom_left.x,
        tex_bottom_left.y},
@@ -520,8 +563,11 @@ void DrawQuad(const mathfu::vec3& bottom_left, const mathfu::vec3& top_right,
   static const uint16_t indices[] = {0, 1, 2, 1, 3, 2};
   static const int kNumIndices = sizeof(indices) / sizeof(indices[0]);
 
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+  if (vao_ > 0) {
+    GL_CALL(glBindVertexArray(vao_));
+  }
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo_));
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_));
   SetVertexAttributes(VertexPT::kFormat,
                       reinterpret_cast<const uint8_t*>(vertices));
   GL_CALL(
@@ -537,6 +583,12 @@ Span<std::pair<const char*, int>> GetDefaultVertexAttributes() {
       {"aOrientation", kAttribOrientation},
       {"aTexCoord", kAttribTexCoord},
       {"aTexCoordAlt", kAttribTexCoord1},
+      {"aTexCoord2", kAttribTexCoord2},
+      {"aTexCoord3", kAttribTexCoord3},
+      {"aTexCoord4", kAttribTexCoord4},
+      {"aTexCoord5", kAttribTexCoord5},
+      {"aTexCoord6", kAttribTexCoord6},
+      {"aTexCoord7", kAttribTexCoord7},
       {"aColor", kAttribColor},
       {"aBoneIndices", kAttribBoneIndices},
       {"aBoneWeights", kAttribBoneWeights}};

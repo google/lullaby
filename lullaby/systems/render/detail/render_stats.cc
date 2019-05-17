@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,12 +31,7 @@ bool DoesLayerNeedProfiler(RenderStats::Layer layer) {
 constexpr const char* kFontShader = "shaders/texture.fplshader";
 constexpr const char* kFontTexture = "textures/debug_font.webp";
 
-RenderStats::RenderStats(Registry* registry) : registry_(registry) {
-  auto* render_system = registry_->Get<RenderSystem>();
-  font_shader_ = render_system->LoadShader(kFontShader);
-  font_texture_ = render_system->LoadTexture(kFontTexture);
-  font_.reset(new SimpleFont(font_shader_, font_texture_));
-}
+RenderStats::RenderStats(Registry* registry) : registry_(registry) {}
 
 RenderStats::~RenderStats() {}
 
@@ -49,6 +44,13 @@ void RenderStats::SetLayerEnabled(Layer layer, bool enabled) {
     detail::Profiler* profiler = registry_->Get<detail::Profiler>();
     if (!profiler && DoesLayerNeedProfiler(layer)) {
       registry_->Create<detail::Profiler>();
+    }
+
+    if(!font_) {
+      auto* render_system = registry_->Get<RenderSystem>();
+      font_shader_ = render_system->LoadShader(kFontShader);
+      font_texture_ = render_system->LoadTexture(kFontTexture);
+      font_.reset(new SimpleFont(font_shader_, font_texture_));
     }
 
     layers_.emplace(layer);

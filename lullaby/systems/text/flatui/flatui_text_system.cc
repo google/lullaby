@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@ limitations under the License.
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
-#include "lullaby/systems/deform/deform_system.h"
+#include "lullaby/contrib/deform/deform_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
-#include "lullaby/systems/layout/layout_box_system.h"
+#include "lullaby/contrib/layout/layout_box_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/text/detail/util.h"
 #include "lullaby/systems/transform/transform_system.h"
@@ -42,8 +42,8 @@ namespace {
 constexpr int kDefaultPoolSize = 16;
 constexpr HashValue kTextDefHash = ConstHash("TextDef");
 
-// TODO(b/32219426): Use the same default as the text.
-// TODO(b/33705906) Remove non-blueprint default entities.
+// TODO: Use the same default as the text.
+// TODO Remove non-blueprint default entities.
 const mathfu::vec4 kDefaultLinkColor(39.0f / 255.0f, 121.0f / 255.0f, 1.0f,
                                      1.0f);  // "#2779FF";
 const mathfu::vec4 kDefaultUnderlineSdfParams(1, 0, 0, 1);
@@ -68,7 +68,7 @@ constexpr int32_t kNominalGlyphSize = 64;
 constexpr int32_t kHugeGlyphSize = 128;
 
 // Default android hyphenation pattern path.
-// TODO(b/34112774) Build hyphenation data and figure out directory for other
+// TODO Build hyphenation data and figure out directory for other
 // platforms.
 constexpr char kHyphenationPatternPath[] = "/system/usr/hyphen-data";
 
@@ -408,7 +408,7 @@ void FlatuiTextSystem::Destroy(Entity entity) {
 }
 
 void FlatuiTextSystem::ProcessTasks() {
-  LULLABY_CPU_TRACE_CALL();
+  LULLABY_CPU_TRACE("FlatuiTasks");
 
   for (const auto& entry : update_map_) {
     GenerateText(entry.first, entry.second);
@@ -565,6 +565,15 @@ void FlatuiTextSystem::SetFontSize(Entity entity, float size) {
   }
 }
 
+void FlatuiTextSystem::SetLineHeightScale(Entity entity,
+                                          float line_height_scale) {
+  TextComponent* component = components_.Get(entity);
+  if (component) {
+    component->text_buffer_params.line_height_scale = line_height_scale;
+    update_map_[entity] = kNullEntity;
+  }
+}
+
 void FlatuiTextSystem::SetBounds(Entity entity, const mathfu::vec2& bounds) {
   TextComponent* component = components_.Get(entity);
   if (component) {
@@ -691,7 +700,7 @@ Entity FlatuiTextSystem::CreateEntity(TextComponent* component,
                                       const std::string& blueprint) {
   const Entity parent = component->GetEntity();
 
-  // TODO(b/33705906) Remove non-blueprint default entities.
+  // TODO Remove non-blueprint default entities.
   Entity entity;
   if (blueprint == kDefaultLinkTextBlueprint) {
     entity = CreateDefaultEntity(registry_, parent);
@@ -814,7 +823,7 @@ void FlatuiTextSystem::UpdateComponentUniform(Entity entity, HashValue pass,
       type == ShaderDataType_Float4 && count == 1 && name == kColorUniform;
 
   for (Entity plain_entity : component->plain_entities) {
-    render_system->SetUniform(plain_entity, pass, submesh_index, name, type,
+    render_system->SetUniform({plain_entity, pass, submesh_index}, name, type,
                               data, count);
   }
 
@@ -825,7 +834,7 @@ void FlatuiTextSystem::UpdateComponentUniform(Entity entity, HashValue pass,
       color.w = data[3];
       data = SpanFromVector(color);
     }
-    render_system->SetUniform(link_entity, pass, submesh_index, name, type,
+    render_system->SetUniform({link_entity, pass, submesh_index}, name, type,
                               data, count);
   }
 
@@ -836,7 +845,7 @@ void FlatuiTextSystem::UpdateComponentUniform(Entity entity, HashValue pass,
       color.w = data[3];
       data = SpanFromVector(color);
     }
-    render_system->SetUniform(component->underline_entity, pass, submesh_index,
+    render_system->SetUniform({component->underline_entity, pass, submesh_index},
                               name, type, data, count);
   }
 }

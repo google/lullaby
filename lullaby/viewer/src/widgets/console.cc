@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,10 +27,6 @@ namespace tool {
 Console::Console(Registry* registry) : registry_(registry) {
   auto* binder = registry->Get<FunctionBinder>();
   binder->RegisterFunction("Entity", [](int x) { return Entity(x); });
-
-  env_.SetFunctionCallHandler([binder](FunctionCall* call) {
-    binder->Call(call);
-  });
 }
 
 void Console::Open() {
@@ -41,7 +37,7 @@ void Console::Open() {
 void Console::Close() { open_ = false; }
 
 void Console::AddLog(string_view command) {
-  log_.emplace_back(command.to_string());
+  log_.emplace_back(command);
   scroll_to_bottom_ = true;
 }
 
@@ -158,7 +154,7 @@ int Console::OnEditInput(ImGuiTextEditCallbackData* data) {
 void Console::Execute(string_view command) {
   AddLog(command);
   if (history_.empty() || history_.back() != command) {
-    history_.emplace_back(command.to_string());
+    history_.emplace_back(command);
   }
   history_index_ = -1;
 

@@ -1,5 +1,5 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
 
 /// Utility functions for converting among "smoothness" (per Unity nomenclature,
 /// this is always a perceptually linear quantity) and "perceptual roughness" //
@@ -51,4 +51,4 @@ float SpecPowerToSmoothness(float power) {
   return PerceptualRoughnessToSmoothness(perceptual_roughness);
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_SPECULAR_CONVERSIONS_GLSLH_

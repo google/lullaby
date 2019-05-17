@@ -1,4 +1,4 @@
-local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
+local utils = import 'lullaby/data/jsonnet/utils.jsonnet';
 {
   snippets: [{
     name: 'Depth',

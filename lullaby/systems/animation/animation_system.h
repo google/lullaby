@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ limitations under the License.
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/resource_manager.h"
+#include "lullaby/util/span.h"
 #include "motive/common.h"
 #include "motive/engine.h"
 
@@ -127,10 +128,54 @@ class AnimationSystem : public System {
   // |rate| multiplies the animation's natural timestep.
   void SetPlaybackRate(Entity entity, HashValue channel, float speed);
 
+  // Sets the looping state on an active animation on |entity|'s |channel|.
+  // If true, the animation will loop on completion.
+  void SetLooping(Entity e, HashValue channel, bool loop);
+
   // Loads and returns the animation asset associated with the filename. The
   // asset is loaded synchronously and will remain in the AnimationSystem's
   // internal cache indefinitely.
   AnimationAssetPtr LoadAnimation(const std::string& filename);
+
+  // Loads and returns the animation asset associated with the filename. The
+  // asset is loaded asynchronously and will remain in the AnimationSystem's
+  // internal cache indefinitely.
+  AnimationAssetPtr LoadAnimationAsync(const std::string& filename);
+
+  // Creates an animation asset from a buffer of CompactSplines and an opaque
+  // context pointer and associates it with a key (such as the asset's
+  // filename).
+  AnimationAssetPtr CreateAnimation(HashValue key, DataContainer splines,
+                                    size_t num_splines,
+                                    std::shared_ptr<void> context);
+
+  // Creates an animation asset from an already-loaded RigAnim and an opaque
+  // context pointer and associates it with a key (such as the asset's
+  // filename).
+  AnimationAssetPtr CreateAnimation(HashValue key,
+                                    std::unique_ptr<motive::RigAnim> anim,
+                                    std::shared_ptr<void> context);
+
+  // Gets the animation asset associated with the given key or nullptr if no
+  // such animation exists.
+  AnimationAssetPtr GetAnimation(HashValue key);
+
+  // Remove an animation asset from the cache.
+  void UnloadAnimation(const std::string& filename);
+
+  // Remove all animation assets from the cache.
+  void UnloadAllAnimations();
+
+  // A skeleton is defined as a list of Entities that represent the bones of
+  // the Entity owning the skeleton. This allows a RigAnim on a single Entity
+  // to drive the transforms of many Entities.
+  using Skeleton = Span<Entity>;
+
+  // Sets |entity|'s skeleton to |skeleton|.
+  void SetSkeleton(Entity entity, Skeleton skeleton);
+
+  // Gets |entity|'s skeleton, if it exists, as a list of bone Entities.
+  Skeleton GetSkeleton(Entity entity);
 
   // Converts MotiveTime |time| units to Clock::duration units.
   static Clock::duration GetDurationFromMotiveTime(motive::MotiveTime time);
@@ -165,6 +210,13 @@ class AnimationSystem : public System {
     const AnimationDef* data = nullptr;
   };
 
+  // Defines a set of Entities as the Skeleton representing a single Entity,
+  // allowing an animation on the Entity to drive the transforms of many
+  // Entities.
+  struct SkeletonComponent {
+    std::vector<Entity> entities;
+  };
+
   static PlaybackParameters GetPlaybackParameters(const AnimInstanceDef* anim);
   static SplineModifiers GetSplineModifiers(const AnimInstanceDef* anim);
 
@@ -177,17 +229,15 @@ class AnimationSystem : public System {
   void UntrackAnimation(AnimationId internal_id,
                         AnimationCompletionReason status);
 
-  // Initializes the |channel| with the defining animation for the Entity |e|
-  // if one has been specified. This function should be called before playing
-  // any rig animations for an Entity on the specified channel.
-  void PrepareDefiningAnimation(Entity e, AnimationChannel* channel);
-
   AnimationId PlayAnimation(Entity e, const AnimTargetDef* target);
   AnimationId PlayAnimation(Entity e, const AnimInstanceDef* anim);
-  AnimationId PlayRigAnimation(Entity e, AnimationChannel* channel,
-                               const AnimInstanceDef* anim);
   AnimationId PlaySplineAnimation(Entity e, AnimationChannel* channel,
                                   const AnimInstanceDef* anim);
+  AnimationId PlaySplineAnimationInternal(Entity e, AnimationChannel* channel,
+                                          const AnimationAssetPtr& anim,
+                                          const PlaybackParameters& params);
+  AnimationId PlayRigAnimation(Entity e, AnimationChannel* channel,
+                               const AnimInstanceDef* anim);
   AnimationId PlayRigAnimationInternal(Entity e, AnimationChannel* channel,
                                        const AnimationAssetPtr& anim,
                                        const PlaybackParameters& params,
@@ -196,18 +246,14 @@ class AnimationSystem : public System {
                                 const float* data, size_t len,
                                 Clock::duration time, Clock::duration delay);
 
-  struct DefiningAnimation {
-    AnimationAssetPtr asset;
-    AnimationChannel* channel = nullptr;
-  };
-
   AnimationId current_id_;
   motive::MotiveEngine engine_;
   ResourceManager<AnimationAsset> assets_;
-  std::unordered_map<Entity, DefiningAnimation> defining_animations_;
   std::unordered_map<HashValue, AnimationChannelPtr> channels_;
   std::unordered_map<AnimationId, AnimationSetEntry> external_id_to_entry_;
   std::unordered_map<AnimationId, AnimationId> internal_to_external_ids_;
+  std::unordered_map<Entity, SkeletonComponent> skeletons_;
+  Clock::duration accumulated_time_error_ = Clock::duration::zero();
 
   AnimationSystem(const AnimationSystem&) = delete;
   AnimationSystem& operator=(const AnimationSystem&) = delete;

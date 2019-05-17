@@ -1,0 +1,13 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Specifies the FPLMesh to use for the model of an entity.
+table FplMeshDef {
+  /// The render pass to use for rendering the model.  A value of 0 uses the
+  /// default render pass.
+  pass: uint = 0 (hashvalue);
+
+  /// The filename/path to the fplmesh file.
+  filename: string;
+}

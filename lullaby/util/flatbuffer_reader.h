@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ class FlatbufferReader {
     SerializeTable(obj, table);
   }
 
-  // Reads a scalar value (eg. uint8, int32, float, double, etc.) from the
+  // Reads a scalar value (eg. uint8_t, int32_t, float, double, etc.) from the
   // internal flatbuffer into |value|.
   template <typename T, typename U>
   void Scalar(T* value, uint16_t offset, U default_value) {
@@ -372,6 +372,24 @@ template <typename T, typename U>
 inline void ReadFlatbuffer(T* obj, const U* table) {
   auto ptr = (const flatbuffers::Table*)table;
   FlatbufferReader::SerializeObject(obj, ptr);
+}
+
+template <typename T>
+inline bool ReadRootFlatbuffer(T* obj, const uint8_t* data, size_t len) {
+  using FlatBufferType = typename T::FlatBufferType;
+
+  flatbuffers::Verifier verifier(data, len);
+  if (!verifier.VerifyBuffer<FlatBufferType>()) {
+    LOG(DFATAL) << "Invalid flatbuffer object.";
+    return false;
+  }
+  auto ptr = flatbuffers::GetRoot<FlatBufferType>(data);
+  if (!ptr) {
+    LOG(DFATAL) << "Failed to parse config flatbuffer from file";
+    return false;
+  }
+  ReadFlatbuffer(obj, ptr);
+  return true;
 }
 
 }  // namespace lull

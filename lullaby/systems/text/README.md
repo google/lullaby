@@ -26,7 +26,3 @@ A few things are necessary to load system fonts on Android:
 *   App must have a JavaVM.
     *   Use the fplbase::AndroidSetJavaVM function.
 
-### Ion
-
-The Ion backend supports i18n, but does not support many of the other features
-that the FlatUI backend does.

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,19 +21,18 @@ namespace lull {
 FunctionBinder::FunctionBinder(Registry* registry) : registry_(registry) {
 #if !LULLABY_DISABLE_FUNCTION_BINDER
   RegisterBuiltInFunctions(this);
-  auto* script_engine = registry_->Get<ScriptEngine>();
-  if (script_engine) {
-    script_engine->SetFunctionCallHandler(
-        [this](FunctionCall* call) { Call(call); });
-  }
 #endif
+}
+
+FunctionBinder* FunctionBinder::Create(Registry* registry) {
+  return registry->Create<FunctionBinder>(registry);
 }
 
 void FunctionBinder::UnregisterFunction(string_view name) {
 #if !LULLABY_DISABLE_FUNCTION_BINDER
   auto* script_engine = registry_->Get<ScriptEngine>();
   if (script_engine) {
-    script_engine->UnregisterFunction(name.to_string());
+    script_engine->UnregisterFunction(std::string(name));
   }
 
   auto iter = functions_.find(Hash(name));

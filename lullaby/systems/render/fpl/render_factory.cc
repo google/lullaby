@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ limitations under the License.
 #include "fplbase/internal/type_conversions_gl.h"
 #include "fplbase/render_utils.h"
 #include "fplbase/utilities.h"
+#include "fplbase/shader_generated.h"
 #include "lullaby/modules/file/asset_loader.h"
 #include "lullaby/systems/render/fpl/shader.h"
 #include "lullaby/systems/render/fpl/texture.h"
@@ -211,7 +212,7 @@ TexturePtr RenderFactory::CreateProcessedTexture(
   // Make and bind a framebuffer for rendering to texture.
   GLuint framebuffer_id, current_framebuffer_id;
   GL_CALL(glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,
-                        reinterpret_cast<GLint *>(&current_framebuffer_id)));
+                        reinterpret_cast<GLint*>(&current_framebuffer_id)));
   GL_CALL(glGenFramebuffers(1, &framebuffer_id));
   GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id));
 
@@ -265,7 +266,7 @@ TexturePtr RenderFactory::CreateProcessedTexture(
   // Check for completeness of the framebuffer.
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
     LOG(DFATAL) << "Failed to create offscreen framebuffer: " << std::hex
-                 << glCheckFramebufferStatus(GL_FRAMEBUFFER);
+                << glCheckFramebufferStatus(GL_FRAMEBUFFER);
   }
 #endif
 
@@ -367,9 +368,10 @@ Shader::ShaderImplPtr RenderFactory::LoadFplShader(const std::string& name) {
 Texture::TextureImplPtr RenderFactory::LoadFplTexture(const std::string& name,
                                                       bool create_mips) {
   const bool async = true;
-  // TODO(b/29898942) proper cubemap detection
+  // TODO proper cubemap detection
   const bool is_cubemap = (name.find("cubemap") != std::string::npos);
-  const bool is_nopremult = (name.find("nopremult") != std::string::npos);
+  const bool is_nopremult = (name.find("nopremult") != std::string::npos) ||
+                            (name.find(".ktx") != std::string::npos);
   fplbase::Texture* texture = fpl_asset_manager_->LoadTexture(
       name.c_str(), fplbase::kFormatNative,
       GetTextureFlags(create_mips, async, is_cubemap, !is_nopremult));
@@ -498,5 +500,34 @@ RenderFactory::ResourceGroup RenderFactory::PopResourceGroup() {
   result->mesh_group = meshes_.PopResourceGroup();
   result->shader_group = shaders_.PopResourceGroup();
   return reinterpret_cast<ResourceGroupStub*>(result);
+}
+
+std::string RenderFactory::GetShaderString(const std::string& filename,
+                                           ShaderStageType stage) {
+  auto* asset_loader = registry_->Get<AssetLoader>();
+  auto asset = asset_loader->LoadNow<SimpleAsset>(filename);
+  const shaderdef::Shader* def = shaderdef::GetShader(asset->GetData());
+  if (!def) {
+    return "";
+  }
+
+  if (stage == ShaderStageType_Vertex && def->vertex_shader()) {
+    return def->vertex_shader()->str();
+  }
+  if (stage == ShaderStageType_Fragment && def->fragment_shader()) {
+    return def->fragment_shader()->str();
+  }
+  return "";
+}
+
+ShaderPtr RenderFactory::CompileShaderFromStrings(const std::string& vertex,
+                                                  const std::string& fragment) {
+  fplbase::Shader* shader =
+      fpl_renderer_->CompileAndLinkShader(vertex.c_str(), fragment.c_str());
+
+  return ShaderPtr(new Shader(
+      fpl_renderer_,
+      Shader::ShaderImplPtr(
+          shader, [shader](const fplbase::Shader*) { delete shader; })));
 }
 }  // namespace lull

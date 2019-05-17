@@ -23,8 +23,10 @@ cc_library(
     ],
     deps = [
         "//:fbs",
+        "//lullaby/modules/render:tangent_generation",
         "//lullaby/util:bits",
         "//lullaby/util:filename",
+        "//lullaby/util:math",
         "//lullaby/util:typeid",
         "//lullaby/util:variant",
         "@mathfu//:mathfu",
@@ -42,6 +44,7 @@ cc_library(
         "//:fbs",
         "//lullaby/util:filename",
         "//lullaby/util:make_unique",
+        "//lullaby/tools/common:assimp_base_importer",
     ],
 )
 
@@ -56,7 +59,7 @@ cc_library(
         "@libfbx//:libfbx",
         "//:fbs",
         "//lullaby/util:common_types",
-        "//lullaby/tools/common:fbx_utils",
+        "//lullaby/tools/common:fbx_base_importer",
     ],
 )
 
@@ -85,6 +88,7 @@ cc_library(
         "//lullaby/util:inward_buffer",
         "//lullaby/tools/common:log",
         "@mathfu//:mathfu",
+        "//third_party/openssl:crypto",
     ],
 )
 
@@ -103,7 +107,7 @@ cc_library(
         ":export",
         ":export_options",
         ":model_lib",
-        "@flatbuffers//:flatc_library",
+        "@flatbuffers//:flatbuffers",
         "//:fbs",
         "//lullaby/modules/flatbuffers",
         "//lullaby/util:filename",

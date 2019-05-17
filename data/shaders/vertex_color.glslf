@@ -1,6 +1,6 @@
 // Outputs the vertex color.
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 // It's assumed that vColor has already been multiplied by the "color" uniform
 // in the vertex shader.

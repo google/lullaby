@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,13 +49,16 @@ class SphericalGrabInputSystem : public System, GrabSystem::GrabInputInterface {
   struct Handler {
     Sphere grab_sphere;
     bool keep_grab_offset = true;
-    bool hide_cursor = true;
+    bool move_with_hmd = false;
+    bool hide_cursor = false;
+    bool hide_laser = false;
 
-    // The local position of the grabbing point in entity space when starting
-    // the grab.
-    mathfu::vec3 anchor_local_position;
+    // The last collision position of the controller collision ray and the grab
+    // sphere in world space.
+    mathfu::vec3 last_collision_position;
     // The cursor state before starting the grab.
-    bool cursor_enabled_before_grab = false;
+    bool cursor_enabled_before_grab = true;
+    bool laser_enabled_before_grab = true;
   };
 
   std::unordered_map<Entity, Handler> handlers_;

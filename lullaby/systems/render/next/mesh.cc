@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/systems/render/next/mesh.h"
 
 #include <vector>
+
 #include "lullaby/systems/render/next/detail/glplatform.h"
 #include "lullaby/systems/render/next/gl_helpers.h"
 #include "lullaby/util/make_unique.h"
@@ -25,78 +26,26 @@ namespace lull {
 
 Mesh::Mesh() {}
 
-Mesh::~Mesh() {
-  if (vao_) {
-    GLuint handle = *vao_;
-    GL_CALL(glDeleteVertexArrays(1, &handle));
-  }
-  if (ibo_) {
-    GLuint handle = *ibo_;
-    GL_CALL(glDeleteBuffers(1, &handle));
-  }
-  if (vbo_) {
-    GLuint handle = *vbo_;
-    GL_CALL(glDeleteBuffers(1, &handle));
-  }
-}
+Mesh::~Mesh() { ReleaseGpuResources(); }
 
-void Mesh::Init(const MeshData& mesh, const SkeletonData& skeleton) {
+void Mesh::Init(const MeshData* mesh_datas, size_t len) {
   if (IsLoaded()) {
     DLOG(FATAL) << "Can only be initialized once.";
     return;
   }
 
-  vertex_format_ = mesh.GetVertexFormat();
-  primitive_type_ = mesh.GetPrimitiveType();
-  index_type_ = mesh.GetIndexType();
-  num_vertices_ = mesh.GetNumVertices();
-  num_indices_ = mesh.GetNumIndices();
-  aabb_ = mesh.GetAabb();
-
-  const size_t vbo_size = vertex_format_.GetVertexSize() * num_vertices_;
-  GLuint gl_vbo = 0;
-  GL_CALL(glGenBuffers(1, &gl_vbo));
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, gl_vbo));
-  GL_CALL(glBufferData(GL_ARRAY_BUFFER, vbo_size, mesh.GetVertexBytes(),
-                       GL_STATIC_DRAW));
-  vbo_ = gl_vbo;
-
-  if (GlSupportsVertexArrays()) {
-    GLuint gl_vao = 0;
-    GL_CALL(glGenVertexArrays(1, &gl_vao));
-    GL_CALL(glBindVertexArray(gl_vao));
-    SetVertexAttributes(vertex_format_);
-    GL_CALL(glBindVertexArray(0));
-    vao_ = gl_vao;
+  // Pre-allocate memory for all submeshes.
+  size_t submesh_count = 0;
+  for (size_t i = 0; i < len; ++i) {
+    submesh_count += std::max(1u, mesh_datas[i].GetNumSubMeshes());
   }
+  submeshes_.reserve(submesh_count);
+  vbos_.reserve(len);
+  vaos_.reserve(len);
+  ibos_.reserve(len);
 
-  if (mesh.GetIndexBytes()) {
-    const size_t ibo_size = mesh.GetIndexSize() * num_indices_;
-    GLuint gl_ibo = 0;
-    GL_CALL(glGenBuffers(1, &gl_ibo));
-    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl_ibo));
-    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, ibo_size,
-                         mesh.GetIndexBytes(), GL_STATIC_DRAW));
-    ibo_ = gl_ibo;
-
-    submeshes_.reserve(mesh.GetNumSubMeshes());
-    for (size_t i = 0; i < mesh.GetNumSubMeshes(); ++i) {
-      submeshes_.push_back(mesh.GetSubMesh(i));
-    }
-  }
-
-  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
-  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
-
-  bone_parents_.assign(skeleton.parent_indices.begin(),
-                       skeleton.parent_indices.end());
-  shader_bone_indices_.assign(skeleton.shader_indices.begin(),
-                              skeleton.shader_indices.end());
-  bone_transform_inverses_.assign(skeleton.inverse_bind_pose.begin(),
-                                  skeleton.inverse_bind_pose.end());
-  bone_names_.resize(skeleton.bone_names.size());
-  for (size_t i = 0; i < bone_names_.size(); ++i) {
-    bone_names_[i] = skeleton.bone_names[i].data();
+  for (size_t i = 0; i < len; ++i) {
+    CreateSubmeshes(mesh_datas[i]);
   }
 
   for (auto& cb : on_load_callbacks_) {
@@ -105,7 +54,120 @@ void Mesh::Init(const MeshData& mesh, const SkeletonData& skeleton) {
   on_load_callbacks_.clear();
 }
 
-bool Mesh::IsLoaded() const { return num_vertices_ > 0; }
+void Mesh::CreateSubmeshes(const MeshData& mesh) {
+  // Configure global mesh properties, primarily used for profiling.
+  num_vertices_ += mesh.GetNumVertices();
+  num_primitives_ +=
+      MeshData::GetNumPrimitives(mesh.GetPrimitiveType(), mesh.GetNumIndices());
+
+  // Merge Aabbs so the overall Aabb represents the whole mesh.
+  aabb_ = MergeAabbs(aabb_, mesh.GetAabb());
+
+  // Configure common data since all new Submeshes will reference the same
+  // MeshData.
+  Submesh submesh;
+  submesh.vertex_format = mesh.GetVertexFormat();
+  submesh.primitive_type = mesh.GetPrimitiveType();
+  submesh.index_type = mesh.GetIndexType();
+  submesh.num_vertices = mesh.GetNumVertices();
+  submesh.vbo_index = CreateVbo(mesh);
+  submesh.vao_index = CreateVao(mesh, submesh.vbo_index);
+  submesh.ibo_index = CreateIbo(mesh);
+
+  // If the mesh has no submeshes, create a single Submesh out of the base and
+  // store it.
+  const size_t num_submeshes = mesh.GetNumSubMeshes();
+  if (num_submeshes == 0) {
+    submesh.aabb = mesh.GetAabb();
+    submeshes_.push_back(submesh);
+  } else {
+    // Otherwise create a Submesh for each one specified by the MeshData.
+    const auto& submesh_aabbs = mesh.GetSubmeshAabbs();
+    for (size_t i = 0; i < num_submeshes; ++i) {
+      submesh.index_range = mesh.GetSubMesh(i);
+      if (i < submesh_aabbs.size()) {
+        submesh.aabb = submesh_aabbs[i];
+      } else {
+        submesh.aabb = mesh.GetAabb();
+      }
+      submeshes_.push_back(submesh);
+    }
+
+    // Flag that some submeshes share GPU buffers, which disables
+    // ReplaceSubmesh() functionality. This could be implemented with some
+    // additional tracking of which Submesh constructs belong to which MeshData,
+    // but for now is unnecessary.
+    if (num_submeshes > 1) {
+      index_range_submeshes_ = true;
+    }
+  }
+}
+
+void Mesh::ReplaceSubmesh(size_t index, const MeshData& mesh) {
+  if (remote_gpu_buffers_) {
+    LOG(DFATAL) << "Cannot replace submeshes for remote GPU buffers.";
+    return;
+  }
+  if (index_range_submeshes_) {
+    LOG(DFATAL) << "ReplaceSubmesh() is disabled because multiple submeshes "
+                   "refer to the same GPU buffers.";
+    return;
+  }
+  if (index >= submeshes_.size()) {
+    LOG(DFATAL) << "Invalid submesh index.";
+    return;
+  }
+  const size_t num_submeshes = mesh.GetNumSubMeshes();
+  if (num_submeshes > 1) {
+    LOG(DFATAL) << "Cannot replace a single submesh with multiple submeshes.";
+    return;
+  }
+
+  Submesh& submesh = submeshes_[index];
+
+  // Reconfigure global properties.
+  num_vertices_ -= submesh.num_vertices;
+  num_vertices_ += mesh.GetNumVertices();
+
+  num_primitives_ -= MeshData::GetNumPrimitives(
+      submesh.primitive_type,
+      submesh.index_range.end - submesh.index_range.start);
+  num_primitives_ +=
+      MeshData::GetNumPrimitives(mesh.GetPrimitiveType(), mesh.GetNumIndices());
+
+  // Reconfigure the specific Submesh.
+  submesh.vertex_format = mesh.GetVertexFormat();
+  submesh.primitive_type = mesh.GetPrimitiveType();
+  submesh.index_type = mesh.GetIndexType();
+  submesh.num_vertices = mesh.GetNumVertices();
+  if (num_submeshes == 0) {
+    submesh.index_range = MeshData::IndexRange();
+    submesh.aabb = mesh.GetAabb();
+  } else {
+    // There must be exactly one submesh since we checked for multiple before.
+    submesh.index_range = mesh.GetSubMesh(0);
+    const auto& submesh_aabbs = mesh.GetSubmeshAabbs();
+    if (!submesh_aabbs.empty()) {
+      submesh.aabb = submesh_aabbs[0];
+    } else {
+      submesh.aabb = mesh.GetAabb();
+    }
+  }
+
+  // Instead of allocating new buffers, just re-fill the existing ones.
+  FillVbo(submesh.vbo_index, mesh);
+  FillVao(submesh.vao_index, mesh, submesh.vbo_index);
+  FillIbo(submesh.ibo_index, mesh);
+
+  // Recompute the Aabb.
+  aabb_ = Aabb(mathfu::vec3(std::numeric_limits<float>::max()),
+               mathfu::vec3(std::numeric_limits<float>::min()));
+  for (const auto& sub : submeshes_) {
+    aabb_ = MergeAabbs(aabb_, sub.aabb);
+  }
+}
+
+bool Mesh::IsLoaded() const { return !submeshes_.empty(); }
 
 void Mesh::AddOrInvokeOnLoadCallback(const std::function<void()>& callback) {
   if (IsLoaded()) {
@@ -117,108 +179,238 @@ void Mesh::AddOrInvokeOnLoadCallback(const std::function<void()>& callback) {
 
 int Mesh::GetNumVertices() const { return static_cast<int>(num_vertices_); }
 
-int Mesh::GetNumTriangles() const {
-  if (primitive_type_ == MeshData::kTriangles) {
-    return static_cast<int>(num_indices_ / 3);
-  } else if (primitive_type_ == MeshData::kTriangleFan) {
-    return static_cast<int>(num_indices_ - 2);
-  } else if (primitive_type_ == MeshData::kTriangleStrip) {
-    return static_cast<int>(num_indices_ - 2);
-  } else {
-    // TODO(b/62088621): Fix this calculation for different primitive types.
-    return static_cast<int>(num_indices_ / 3);
-  }
-}
+int Mesh::GetNumPrimitives() const { return static_cast<int>(num_primitives_); }
 
 size_t Mesh::GetNumSubmeshes() const { return submeshes_.size(); }
 
 Aabb Mesh::GetAabb() const { return aabb_; }
+
+Aabb Mesh::GetSubmeshAabb(size_t index) const {
+  if (submeshes_.size() > index) {
+    return submeshes_[index].aabb;
+  } else {
+    return GetAabb();
+  }
+}
 
 void Mesh::Render() {
   if (!IsLoaded()) {
     return;
   }
 
-  BindAttributes();
-  if (submeshes_.empty()) {
-    DrawArrays();
-  } else {
-    for (size_t i = 0; i < submeshes_.size(); ++i) {
-      DrawElements(i);
-    }
+  for (size_t i = 0; i < submeshes_.size(); ++i) {
+    RenderSubmesh(i);
   }
-  UnbindAttributes();
 }
 
-void Mesh::RenderSubmesh(size_t submesh) {
+void Mesh::RenderSubmesh(size_t index) {
   if (!IsLoaded()) {
     return;
   }
 
-  BindAttributes();
-  if (submeshes_.empty()) {
-    CHECK_EQ(submesh, 0u);
-    DrawArrays();
-  } else {
-    DrawElements(submesh);
-  }
-  UnbindAttributes();
-}
-
-void Mesh::DrawArrays() {
-  const GLenum gl_mode = GetGlPrimitiveType(primitive_type_);
-  GL_CALL(glDrawArrays(gl_mode, 0, static_cast<int32_t>(num_vertices_)));
-}
-
-void Mesh::DrawElements(size_t index) {
   if (index >= submeshes_.size()) {
     LOG(DFATAL) << "Invalid submesh index.";
     return;
   }
 
-  const auto& range = submeshes_[index];
-  const GLenum gl_mode = GetGlPrimitiveType(primitive_type_);
-  const GLenum gl_type = GetGlIndexType(index_type_);
-  const void* offset = reinterpret_cast<void*>(
-      MeshData::GetIndexSize(index_type_) * range.start);
+  const auto& submesh = submeshes_[index];
+  BindAttributes(submesh);
+  if (submesh.ibo_index == -1) {
+    DrawArrays(submesh);
+  } else {
+    DrawElements(submesh);
+  }
+  UnbindAttributes(submesh);
+}
 
-  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ibo_));
-  GL_CALL(glDrawElements(gl_mode, range.end - range.start, gl_type, offset));
+void Mesh::DrawArrays(const Submesh& submesh) {
+  const GLenum gl_mode = GetGlPrimitiveType(submesh.primitive_type);
+  GL_CALL(glDrawArrays(gl_mode, 0, static_cast<int32_t>(submesh.num_vertices)));
+}
+
+void Mesh::DrawElements(const Submesh& submesh) {
+  const GLenum gl_mode = GetGlPrimitiveType(submesh.primitive_type);
+  const GLenum gl_type = GetGlIndexType(submesh.index_type);
+  const void* offset = reinterpret_cast<void*>(
+      MeshData::GetIndexSize(submesh.index_type) * submesh.index_range.start);
+
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ibos_[submesh.ibo_index]));
+  GL_CALL(glDrawElements(gl_mode,
+                         submesh.index_range.end - submesh.index_range.start,
+                         gl_type, offset));
   GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 }
 
-void Mesh::BindAttributes() {
-  if (vao_) {
-    GL_CALL(glBindVertexArray(*vao_));
+void Mesh::BindAttributes(const Submesh& submesh) {
+  if (submesh.vao_index >= 0) {
+    GL_CALL(glBindVertexArray(*vaos_[submesh.vao_index]));
   } else {
-    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, *vbo_));
-    SetVertexAttributes(vertex_format_);
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, *vbos_[submesh.vbo_index]));
+    SetVertexAttributes(submesh.vertex_format);
   }
 }
 
-void Mesh::UnbindAttributes() {
-  if (vao_) {
+void Mesh::UnbindAttributes(const Submesh& submesh) {
+  if (submesh.vao_index >= 0) {
     GL_CALL(glBindVertexArray(0));
   } else {
-    UnsetVertexAttributes(vertex_format_);
+    UnsetVertexAttributes(submesh.vertex_format);
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
   }
 }
 
-const VertexFormat& Mesh::GetVertexFormat() const { return vertex_format_; }
+VertexFormat Mesh::GetVertexFormat(size_t submesh_index) const {
+  if (submesh_index >= submeshes_.size()) {
+    return VertexFormat();
+  }
+  return submeshes_[submesh_index].vertex_format;
+}
 
-size_t Mesh::TryUpdateRig(RigSystem* rig_system, Entity entity) {
-  const size_t num_shader_bones = shader_bone_indices_.size();
-  if (rig_system == nullptr) {
-    return num_shader_bones;
+int Mesh::CreateVbo(const MeshData& mesh) {
+  GLuint gl_vbo = 0;
+  GL_CALL(glGenBuffers(1, &gl_vbo));
+  const int index = static_cast<int>(vbos_.size());
+  vbos_.emplace_back(gl_vbo);
+  FillVbo(index, mesh);
+  return index;
+}
+
+void Mesh::FillVbo(int vbo_index, const MeshData& mesh) {
+  if (vbo_index < 0 || vbo_index >= vbos_.size()) {
+    LOG(DFATAL) << "Invalid VBO index.";
+    return;
   }
-  if (bone_parents_.empty() || shader_bone_indices_.empty() ||
-      bone_names_.empty() || bone_transform_inverses_.empty()) {
-    return num_shader_bones;
+  const size_t vbo_size =
+      mesh.GetVertexFormat().GetVertexSize() * mesh.GetNumVertices();
+  const GLuint gl_vbo = vbos_[vbo_index].Get();
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, gl_vbo));
+  GL_CALL(glBufferData(GL_ARRAY_BUFFER, vbo_size, mesh.GetVertexBytes(),
+                       GL_STATIC_DRAW));
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+}
+
+int Mesh::CreateVao(const MeshData& mesh, int vbo_index) {
+  if (!GlSupportsVertexArrays()) {
+    return -1;
   }
-  rig_system->SetRig(entity, bone_parents_, bone_transform_inverses_,
-                     shader_bone_indices_, bone_names_);
-  return num_shader_bones;
+  if (vbo_index < 0 || vbo_index >= vbos_.size()) {
+    LOG(DFATAL) << "Invalid VBO index.";
+    return -1;
+  }
+
+  GLuint gl_vao = 0;
+  GL_CALL(glGenVertexArrays(1, &gl_vao));
+  const int index = static_cast<int>(vaos_.size());
+  vaos_.emplace_back(gl_vao);
+  FillVao(index, mesh, vbo_index);
+  return index;
+}
+
+void Mesh::FillVao(int vao_index, const MeshData& mesh, int vbo_index) {
+  if (vbo_index < 0 || vbo_index >= vbos_.size() || vao_index < 0 ||
+      vao_index >= vaos_.size()) {
+    LOG(DFATAL) << "Invalid VAO or VBO index.";
+    return;
+  }
+  // Bind the associated VBO before filling the VAO.
+  const GLuint gl_vbo = vbos_[vbo_index].Get();
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, gl_vbo));
+
+  const GLuint gl_vao = vaos_[vao_index].Get();
+  GL_CALL(glBindVertexArray(gl_vao));
+  SetVertexAttributes(mesh.GetVertexFormat());
+  GL_CALL(glBindVertexArray(0));
+
+  GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+}
+
+int Mesh::CreateIbo(const MeshData& mesh) {
+  if (!mesh.GetIndexBytes()) {
+    return -1;
+  }
+  GLuint gl_ibo = 0;
+  GL_CALL(glGenBuffers(1, &gl_ibo));
+  const int index = static_cast<int>(ibos_.size());
+  ibos_.emplace_back(gl_ibo);
+  FillIbo(index, mesh);
+  return index;
+}
+
+void Mesh::FillIbo(int ibo_index, const MeshData& mesh) {
+  if (ibo_index < 0 || ibo_index >= ibos_.size()) {
+    LOG(DFATAL) << "Invalid IBO index.";
+    return;
+  }
+  const GLuint gl_ibo = ibos_[ibo_index].Get();
+  const size_t ibo_size = mesh.GetIndexSize() * mesh.GetNumIndices();
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl_ibo));
+  GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, ibo_size, mesh.GetIndexBytes(),
+                       GL_STATIC_DRAW));
+  GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+}
+
+void Mesh::ReleaseGpuResources() {
+  if (remote_gpu_buffers_) {
+    return;
+  }
+  for (auto vao : vaos_) {
+    GLuint handle = *vao;
+    GL_CALL(glDeleteVertexArrays(1, &handle));
+  }
+  for (auto ibo : ibos_) {
+    GLuint handle = *ibo;
+    GL_CALL(glDeleteBuffers(1, &handle));
+  }
+  for (auto vbo : vbos_) {
+    GLuint handle = *vbo;
+    GL_CALL(glDeleteBuffers(1, &handle));
+  }
+}
+
+void Mesh::SetGpuBuffers(BufferHnd vbo, BufferHnd vao, BufferHnd ibo) {
+  if (vaos_.size() > 1 || vbos_.size() > 1 || ibos_.size() > 1) {
+    LOG(DFATAL) << "SetGpuBuffers called on a mesh with multiple existing "
+                   "buffers, which may cause crashes with bad index ranges.";
+  }
+  ReleaseGpuResources();
+
+  vbos_.clear();
+  vbos_.resize(1, vbo);
+
+  vaos_.clear();
+  vaos_.resize(1, vao);
+
+  ibos_.clear();
+  ibos_.resize(1, ibo);
+
+  remote_gpu_buffers_ = true;
+}
+
+VertexFormat GetVertexFormat(const MeshPtr& mesh, size_t submesh_index) {
+  return mesh && mesh->IsLoaded() ? mesh->GetVertexFormat(submesh_index)
+                                  : VertexFormat();
+}
+
+bool IsMeshLoaded(const MeshPtr& mesh) {
+  return mesh ? mesh->IsLoaded() : false;
+}
+
+size_t GetNumSubmeshes(const MeshPtr& mesh) {
+  return mesh ? mesh->GetNumSubmeshes() : 0;
+}
+
+void SetGpuBuffers(const MeshPtr& mesh, uint32_t vbo, uint32_t vao,
+                   uint32_t ibo) {
+  if (mesh) {
+    mesh->SetGpuBuffers(vbo, vao, ibo);
+  }
+}
+
+void ReplaceSubmesh(MeshPtr mesh, size_t submesh_index,
+                    const MeshData& mesh_data) {
+  if (mesh) {
+    mesh->ReplaceSubmesh(submesh_index, mesh_data);
+  }
 }
 
 }  // namespace lull

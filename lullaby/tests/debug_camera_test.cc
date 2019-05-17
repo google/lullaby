@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -63,7 +63,8 @@ TEST_F(DebugCameraTest, StartStopAndCameraMovement) {
   // Subtest #1:  Enter camera debug mode, simulate controller movement,
   // check for camera movement.
   input_manager_->UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input_manager_->UpdateGesture(device, InputManager::GestureType::kFling,
+  input_manager_->UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                                InputManager::GestureType::kFling,
                                 InputManager::GestureDirection::kUp,
                                 mathfu::vec2(0, 1), mathfu::vec2(0, 1));
   input_manager_->AdvanceFrame(kDeltaTime);

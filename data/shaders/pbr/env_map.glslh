@@ -1,23 +1,21 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
 
 // This module implements sampling preconvolved environment maps for diffuse and
 // specular reflection.
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/gamma.glslh"
-#include "third_party/lullaby/data/shaders/pbr/math_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/rgb2hsv.glslh"
-#include "third_party/lullaby/data/shaders/pbr/screen_projection.glslh"
-#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
-#include "third_party/lullaby/data/shaders/pbr/texture_units.glslh"
-
-// Implies there's an external camera feed for reflection blending.
-uniform bool fibl_enabled;
+#include "lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/pbr/fibl_common.glslh"
+#include "lullaby/data/shaders/pbr/math_common.glslh"
+#include "lullaby/data/shaders/pbr/rgb2hsv.glslh"
+#include "lullaby/data/shaders/pbr/rgbm_to_rgb.glslh"
+#include "lullaby/data/shaders/pbr/screen_projection.glslh"
+#include "lullaby/data/shaders/pbr/specular_conversions.glslh"
+#include "lullaby/data/shaders/pbr/texture_units.glslh"
 
 // This is used for fIBL, or "fake Image-Based Lighting", which is a technique
 // for matching the PBR lighting to the camera feed in an AR device.
-// TODO(b/74979497): The support for fIBL in Lullaby is incomplete.
+// TODO: The support for fIBL in Lullaby is incomplete.
 #if LULLABY_PBR_FIBL_AVAILABLE
 // Colors driving fake IBL, computed at vertices.
 STAGE_INPUT vec3 fibl_sky_color;
@@ -32,12 +30,8 @@ uniform samplerCube kSpecEnvMapUnit;
 // Diffuse environment map.
 uniform samplerCube kDiffEnvMapUnit;
 
-// How much to scale specular env lookups to equalize energy with diffuse.
-// Compensates for scaling differences due to normalization.
-uniform float specular_env_map_gain;
-
 // World-space to clip-space matrix, used for screen-space reflections (SSR).
-uniform mat4 view_projection;
+uniform mat4 unstabilized_view_projection;
 #if LULLABY_PBR_SCREEN_SPACE_REFL
 // Gain factor applied to SSR (derived empirically from tests on Pixel
 // phones). SSR brightness is clamped to below value regardless of gain.
@@ -52,6 +46,22 @@ const float kEnvMapGain = 1.25;
 
 uniform vec3 camera_pos;
 uniform sampler2D kCameraFeedMapUnit;
+uniform float ibl_saturation_mult;
+
+// The following three functions encapsulate different cubemap lookups for
+// diffuse, specular, and subsurface shading, along with saturation adjustment.
+vec3 DiffuseCubeMap(vec3 dir) {
+  vec3 tex = RgbmToRgbDiffuse(textureCubeLod(kDiffEnvMapUnit, dir, 0.0));
+  return ScaleSaturation(tex, ibl_saturation_mult);
+}
+vec3 SpecularCubeMap(vec3 dir, float lod) {
+  vec3 tex = RgbmToRgbSpecular(textureCubeLod(kSpecEnvMapUnit, dir, lod));
+  return ScaleSaturation(tex, ibl_saturation_mult);
+}
+vec3 SubsurfaceCubeMap(vec3 dir, float lod) {
+  vec3 tex = RgbmToRgbDiffuse(textureCubeLod(kDiffEnvMapUnit, dir, lod));
+  return ScaleSaturation(tex, ibl_saturation_mult);
+}
 
 // Per below reference, this equals log2(sqrt(3.0) * kSpecEnvMapWidth), where
 // kSpecEnvMapWidth = 128. Precomputed for efficiency as I'm not sure the
@@ -83,7 +93,7 @@ float SpecularMipLevelForCubeMap(float phong_power) {
 }
 
 // Similar to SpecularMipLevelForCubeMap() but intended for camera feed, which,
-// unlike the specular cube map, is not unpreconvolved.
+// unlike the specular cube map, is not preconvolved.
 float SpecularMipLevelForCamFeed(float phong_power) {
   float mip_level = kMaxMipLevel - 0.5 * log2(phong_power + 1.0);
   return max(0.0, mip_level);
@@ -91,8 +101,38 @@ float SpecularMipLevelForCamFeed(float phong_power) {
 
 // Diffuse environment lookup based on the given dir vector.
 vec3 BaseEnvDiffuseColor(vec3 dir) {
-  vec3 tex_color = textureCube(kDiffEnvMapUnit, dir).rgb;
-  return kEnvMapGain * RemoveGamma(tex_color);
+  // Note that mip levels beyond zero are strictly for subsurface scattering.
+  return kEnvMapGain * DiffuseCubeMap(dir);
+}
+
+// Subsurface environment lookup based on the given dir vector. The rgb
+// component scatter_blur contains individual texture LOD values for r, g,
+// b. The alpha component is a color-boosting factor. Together, these control
+// the spectral blur effect for multiple scattering.
+vec3 BaseEnvSubsurfaceColor(vec3 dir, vec4 scatter_blur) {
+  // Compute spectral scattering by simulating different BSSRDF convolutions
+  // via mipmap level.
+  vec3 tex_color = vec3(SubsurfaceCubeMap(dir, scatter_blur.r).r,
+                        SubsurfaceCubeMap(dir, scatter_blur.g).g,
+                        SubsurfaceCubeMap(dir, scatter_blur.b).b);
+
+  // When a surface is fully lit, the more scattered a spectral component is,
+  // the less bright it becomes. This shifts the color balance away from the
+  // scattered components in bright light (typically toward cyan when red
+  // scatters the most as is physically correct). We fix this by maintaining a
+  // max between the scattered and unscattered version of each spectral
+  // component.
+  // Example w/ vs. w/o adjustment: https://photos.app.goo.gl/zPAnjQoUcsXVpUPj8
+  float min_blur = min(min(scatter_blur.r, scatter_blur.g), scatter_blur.b);
+  vec3 min_scatter = SubsurfaceCubeMap(dir, min_blur);
+  tex_color = max(tex_color, min_scatter);
+
+  // By lerping between the min_scatter color and tex_color, we control the
+  // extent of the color separation due to the spectral blur. Interpolation
+  // values above 1.0 are useful.
+  tex_color = mix(min_scatter, tex_color, scatter_blur.a);
+
+  return kEnvMapGain * tex_color;
 }
 
 // Specular environment lookup based on the given dir vector. No screen-space
@@ -100,8 +140,7 @@ vec3 BaseEnvDiffuseColor(vec3 dir) {
 vec3 BaseEnvSpecularColor(vec3 dir, float roughness) {
   float phong_power = RoughnessToSpecPower(roughness);
   float lod = SpecularMipLevelForCubeMap(phong_power);
-  vec3 tex_color = textureCubeLod(kSpecEnvMapUnit, dir, lod).rgb;
-  return kEnvMapGain * specular_env_map_gain * RemoveGamma(tex_color);
+  return kEnvMapGain * SpecularCubeMap(dir, lod);
 }
 
 // Projects a point along world_dir (starting at the camera position) into
@@ -110,7 +149,7 @@ vec3 BaseEnvSpecularColor(vec3 dir, float roughness) {
 // unit vector but should be well above zero length for good precision.
 vec2 CamDirToClampedScreenUv(vec3 world_dir) {
   vec4 world_pos = vec4(camera_pos + world_dir, 1.0);
-  return WorldToClampedScreenUv(world_pos, view_projection);
+  return PosToClampedScreenUv(world_pos, unstabilized_view_projection);
 }
 
 #if LULLABY_PBR_SCREEN_SPACE_REFL
@@ -118,13 +157,12 @@ vec2 CamDirToClampedScreenUv(vec3 world_dir) {
 // screen-space reflection from camera feed, based on from_cam unit vector.
 vec3 BaseEnvSpecularColor(vec3 dir, vec3 from_cam, float roughness) {
   float phong_power = RoughnessToSpecPower(roughness);
-  float cube_map_lod = SpecularMipLevelForCubeMap(phong_power);
-  vec3 tex_color =
-      RemoveGamma(textureCubeLod(kSpecEnvMapUnit, dir, cube_map_lod).rgb);
+  float lod = SpecularMipLevelForCubeMap(phong_power);
+  vec3 tex_color = SpecularCubeMap(dir, lod);
 
   // Blending term from cube map to camera feed.
   float grazing_cos = max(0.0, dot(dir, from_cam));
-  float schlick_cos = sqrt(1.0 - grazing_cos * grazing_cos);
+  float schlick_cos = sqrt(max(0.0, 1.0 - grazing_cos * grazing_cos));
   float cam_feed_blend = Pow5(1.0 - schlick_cos);
   vec2 screen_uv = CamDirToClampedScreenUv(dir);
 
@@ -136,9 +174,8 @@ vec3 BaseEnvSpecularColor(vec3 dir, vec3 from_cam, float roughness) {
       kScreenSpaceReflGain *
       texture2DLod(kCameraFeedMapUnit, screen_uv, cam_feed_lod).rgb;
 
-  float base_gain = kEnvMapGain * specular_env_map_gain;
-  tex_color *= base_gain;
-  cam_feed_color *= base_gain;
+  tex_color *= kEnvMapGain;
+  cam_feed_color *= kEnvMapGain;
 
   // To avoid screen-space reflections being brighter than the camera feed
   // they're based on, we clamp their brightness. This is a heuristic trying to
@@ -153,17 +190,25 @@ vec3 BaseEnvSpecularColor(vec3 dir, vec3 from_cam, float roughness) {
 }
 #endif  // LULLABY_PBR_SCREEN_SPACE_REFL
 
-#if LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+#if defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+// Like refract(), but clamps incident angle to prevent errors for normals
+// facing away from the camera.
+vec3 RefractClamped(vec3 dir, vec3 norm, float eta) {
+  float d = dot(norm, dir);
+  float k = max(1.0 - eta * eta * (1.0 - d * d), 0.0);
+  return normalize(eta * dir - (eta * d + sqrt(k)) * norm);
+}
+
 // Returns screen-space refraction color based on world normal, incident vector
 // from_cam, ratio of refractive indices eta, and surface roughness. Blends to
 // reflection as the refraction approaches total internal reflection, per
 // (Schlick's approximation of) the Fresnel equations.
 vec3 ScreenSpaceRefraction(vec3 normal, vec3 from_cam, float eta,
                            float roughness) {
-  vec3 refr_dir = refract(from_cam, normal, eta);
+  vec3 refr_dir = RefractClamped(from_cam, normal, eta);
 
 #ifdef USE_REFRACTION_ROUGHNESS
-  // TODO(b/79370194): Enable this in once we figure out why it's overblurring.
+  // TODO: Enable this in once we figure out why it's overblurring.
   // Also, this is being run elsewhere so should be factored out.
   float phong_power = RoughnessToSpecPower(roughness);
   float cam_feed_lod = SpecularMipLevelForCamFeed(phong_power);
@@ -186,7 +231,7 @@ vec3 ScreenSpaceRefraction(vec3 normal, vec3 from_cam, float eta,
       texture2DLod(kCameraFeedMapUnit, refl_screen_uv, cam_feed_lod).rgb;
   return mix(refr_color, refl_color, schlick_term);
 }
-#endif  // LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+#endif  // defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
 
 // The fIBL diffuse convolution simulates a dome light above and below, which
 // should look like a smooth vertical color gradient.  This is implemented as a
@@ -224,6 +269,22 @@ vec3 FiblEnvSpecularColor(vec3 dir, float roughness) {
 #endif  // LULLABY_PBR_FIBL_AVAILABLE
 }
 
+// A version of FiblEnvDiffuseColor() that simulates the broader falloff curve
+// of subsurface scattering.
+vec3 FiblEnvSubsurfaceColor(vec3 dir, vec4 scatter_blur) {
+  return FiblEnvDiffuseColor(dir);
+#if LULLABY_PBR_FIBL_AVAILABLE
+  vec3 y_scaled = vec3(dir.y) / (1.0 + vec3(scatter_blur));
+  vec3 y_ramp = y_scaled * y_scaled * y_scaled;
+  // Blending factor from ground to sky.
+  vec3 t = 0.5 * (vec3(1.0) + y_ramp);
+  return mix(fibl_ground_color, fibl_sky_color, t);
+#else  // LULLABY_PBR_FIBL_AVAILABLE
+  // Since fIBL is applied multiplicatively, white is a no-op.
+  return vec3(1.0);
+#endif  // LULLABY_PBR_FIBL_AVAILABLE
+}
+
 // The overall diffuse reflection along dir.
 vec3 EnvDiffuseColor(vec3 dir) {
   return BaseEnvDiffuseColor(dir) * FiblEnvDiffuseColor(dir);
@@ -236,17 +297,30 @@ vec3 EnvSpecularColor(vec3 dir, float roughness) {
          FiblEnvSpecularColor(dir, roughness);
 }
 
+// The overall subsurface reflection along dir. See BaseEnvSubsurfaceColor()
+// re. scatter_blur.
+vec3 EnvSubsurfaceColor(vec3 dir, vec4 scatter_blur) {
+  return BaseEnvSubsurfaceColor(dir, scatter_blur) *
+         FiblEnvSubsurfaceColor(dir, scatter_blur);
+}
+
 // The overall specular reflection along dir. If LULLABY_PBR_SCREEN_SPACE_REFL
 // is on and a camera feed is available via fIBL, this blends in screen-space
 // reflections from the camera feed, based on from_cam vector
 vec3 EnvSpecularColor(vec3 dir, vec3 from_cam, float roughness) {
 #if LULLABY_PBR_SCREEN_SPACE_REFL
-  if (fibl_enabled) {
+#ifdef PLATFORM_ANDROID
+  // fIBL is always enabled on device so omit conditional.
+  return BaseEnvSpecularColor(dir, from_cam, roughness) *
+      FiblEnvSpecularColor(dir, roughness);
+#else  // PLATFORM_ANDROID
+  if (IsFiblEnabled()) {
     return BaseEnvSpecularColor(dir, from_cam, roughness) *
         FiblEnvSpecularColor(dir, roughness);
   }
+#endif  // PLATFORM_ANDROID
 #endif  // LULLABY_PBR_SCREEN_SPACE_REFL
   return EnvSpecularColor(dir, roughness);
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_ENV_MAP_GLSLH_

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 #include "lullaby/generated/grab_def_generated.h"
 #include "lullaby/contrib/mutator/mutator_system.h"
 #include "lullaby/systems/dispatcher/event.h"
-#include "lullaby/systems/input_behavior/input_behavior_system.h"
+#include "lullaby/contrib/input_behavior/input_behavior_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/modules/flatbuffers/common_fb_conversions.h"
 
@@ -32,7 +32,7 @@ const HashValue kGrabDef = ConstHash("GrabDef");
 GrabSystem::GrabSystem(Registry* registry) : System(registry) {
   RegisterDependency<MutatorSystem>(this);
   RegisterDependency<TransformSystem>(this);
-  RegisterDef(this, kGrabDef);
+  RegisterDef<GrabDefT>(this);
 }
 
 void GrabSystem::Create(Entity entity, HashValue type, const Def* def) {

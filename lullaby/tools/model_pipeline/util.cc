@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,23 +17,24 @@ limitations under the License.
 #include "lullaby/tools/model_pipeline/util.h"
 
 #include <fstream>
+#include <limits.h>
 #include "lullaby/util/filename.h"
+#include "lullaby/util/math.h"
 
 namespace lull {
 namespace tool {
 
 std::string GenerateUniqueName(const std::string& src) {
-  // TODO(b/69116339): Actually generate a unique name.
+  // TODO: Actually generate a unique name.
   return RemoveDirectoryAndExtensionFromFilename(src);
 }
 
 uint8_t CompactBoneIndex(int index) {
-  const uint8_t invalid_index = 0xff;
   if (index != Bone::kInvalidBoneIndex) {
-    CHECK_LT(index, invalid_index) << "Bone index out of range.";
+    CHECK_LT(index, kInvalidBoneIdx) << "Bone index out of range.";
     return static_cast<uint8_t>(index);
   } else {
-    return invalid_index;
+    return kInvalidBoneIdx;
   }
 }
 
@@ -139,6 +140,56 @@ void CompactInfluences(const std::vector<Vertex::Influence>& influences,
       weights[i] = 0;
     }
   }
+}
+
+mathfu::vec4 CalculateOrientation(const mathfu::vec3& normal,
+                                  const mathfu::vec4& tangent) {
+  const mathfu::vec3 n = normal.Normalized();
+  const mathfu::vec3 t = tangent.xyz().Normalized();
+  const mathfu::vec3 b = mathfu::vec3::CrossProduct(n, t).Normalized();
+  const mathfu::mat3 m(t.x, t.y, t.z, b.x, b.y, b.z, n.x, n.y, n.z);
+  mathfu::quat q = mathfu::quat::FromMatrix(m).Normalized();
+  // Align the sign bit of the orientation scalar to our handedness.
+  if (signbit(tangent.w) != signbit(q.scalar())) {
+    q = mathfu::quat(-q.scalar(), -q.vector());
+  }
+  return mathfu::vec4(q.vector(), q.scalar());
+}
+
+mathfu::vec4 CalculateOrientationNonZeroW(const mathfu::vec3& normal,
+                                          const mathfu::vec4& tangent) {
+  mathfu::vec3 bitangent = mathfu::vec3::CrossProduct(normal, tangent.xyz());
+  mathfu::mat3 orientation_matrix(tangent.x, tangent.y, tangent.z, bitangent.x,
+                                  bitangent.y, bitangent.z, normal.x, normal.y,
+                                  normal.z);
+  mathfu::quat orientation_quaternion =
+      mathfu::quat::FromMatrix(orientation_matrix).Normalized();
+
+  if (orientation_quaternion.scalar() < 0) {
+    orientation_quaternion = mathfu::quat(-orientation_quaternion.scalar(),
+                                          -orientation_quaternion.vector());
+  }
+
+  // Ensures w is never 0. sizeof(int16_t) ensures that the bias can be
+  // represented with a normalized short.
+  static constexpr float kBias =
+      1.0f / static_cast<float>((1u << (sizeof(int16_t) * CHAR_BIT - 1u)) - 1u);
+  if (orientation_quaternion.scalar() < kBias) {
+    orientation_quaternion.set_scalar(kBias);
+
+    // Renormalizes the orientation_quaternion.
+    auto factor = (float)std::sqrt(1.0 - (double)kBias * (double)kBias);
+    orientation_quaternion.set_vector(orientation_quaternion.vector() * factor);
+  }
+
+  // Makes w negative if there's a reflection.
+  if (std::signbit(tangent.w)) {
+    orientation_quaternion = mathfu::quat(-orientation_quaternion.scalar(),
+                                          -orientation_quaternion.vector());
+  }
+
+  return mathfu::vec4(orientation_quaternion.vector(),
+                      orientation_quaternion.scalar());
 }
 
 }  // namespace tool

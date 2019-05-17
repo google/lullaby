@@ -16,7 +16,7 @@ cc_library(
     ],
     deps = [
         "//:fbs",
-        "//lullaby/systems/layout:layout_box",
+        "//lullaby/contrib/layout:layout_box",
         "//lullaby/systems/transform",
         "//lullaby/util:clock",
         "//lullaby/util:entity",

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ class FacePointMutatorSystem : public System,
     int order = 0;
     mathfu::vec3 target_point;
     bool face_hmd = false;
+    float arctic_radian = 1.6f;  // slightly larger than pi / 2.
   };
 
   std::unordered_multimap<Entity, Mutator> mutators_;

@@ -16,8 +16,15 @@ table FacePointMutatorDef {
   /// true, the target_point value will be ignored.
   face_hmd: bool = false;
 
-  /// The target point in world space that the entity should face if face_hmd is
-  /// set false.
+  /// The target point in the entity's parent space that the entity should face
+  /// if face_hmd is set false.
   target_point: Vec3 (native_default:"{0.f, 0.f, 0.f}");
+
+  /// The degree that defines the "arctic" areas near top and bottom poles. In
+  /// the arctic areas, the up direction of the mutated entity is a linear
+  /// combination of the HMD up direction and +Y axis. It entirely follows the
+  /// HMD direction at poles with degree = +90 or -90. The default value is 91
+  /// so that there is no "arctic area".
+  arctic_degree: float = 91.0;
 
 }

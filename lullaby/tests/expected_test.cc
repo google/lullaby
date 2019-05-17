@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "lullaby/tests/portable_test_macros.h"
 
 #include <string>
 
@@ -79,7 +80,7 @@ TEST(ExpectedTest, GoodValueArrow) {
 
 TEST(ExpectedDeathTest, BadValue) {
   Expected<int> bad_value(LULL_ERROR(kErrorCode_Unknown, "fail"));
-  EXPECT_DEATH(bad_value.get(), "");
+  PORT_EXPECT_DEATH(bad_value.get(), "");
 }
 
 }  // namespace

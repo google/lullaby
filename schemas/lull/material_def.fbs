@@ -23,12 +23,18 @@ enum MaterialTextureUsage : int {
   BrdfLookupTable,
   DiffuseEnvironment,
   SpecularEnvironment,
+  DiffuseColor,
+
+  Unused = 255,
 }
 
 // Information about a texture associated with a material.
 table MaterialTextureDef {
   name: string;
   usage: MaterialTextureUsage = BaseColor;
+  /// For textures with multiple usages, this array describes the usage of each
+  /// channel.
+  usage_per_channel: [MaterialTextureUsage];
 }
 
 /// A description of the Material to be used by the RenderSystem when drawing

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ namespace lull {
 class RandomNumberGenerator {
  public:
   RandomNumberGenerator() : rng_engine_(std::random_device()()) {}
+  explicit RandomNumberGenerator(uint32_t seed) : rng_engine_(seed) {}
   virtual ~RandomNumberGenerator() {}
 
   // Generate a uniformly random int between |min| and |max|, inclusive.

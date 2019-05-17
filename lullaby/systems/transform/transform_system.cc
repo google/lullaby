@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ TransformSystem::TransformSystem(Registry* registry)
       world_transforms_(16),
       disabled_transforms_(16),
       reserved_flags_(0) {
-  RegisterDef(this, kTransformDefHash);
+  RegisterDef<TransformDefT>(this);
 
   EntityFactory* entity_factory = registry_->Get<EntityFactory>();
   if (entity_factory) {
@@ -226,6 +226,8 @@ TransformSystem::~TransformSystem() {
     dispatcher->DisconnectAll(this);
   }
 }
+
+bool TransformSystem::HasTransform(Entity e) const { return nodes_.Get(e); }
 
 void TransformSystem::Create(Entity e, HashValue type, const Def* def) {
   if (type != kTransformDefHash) {
@@ -702,6 +704,9 @@ void TransformSystem::MoveChild(Entity child, int index) {
   SendEvent(
       registry_, child_node->parent,
       ChildIndexChangedEvent(child_node->parent, child, old_index, new_index));
+  SendEventImmediately(registry_, child_node->parent,
+                       ChildIndexChangedImmediateEvent(
+                           child_node->parent, child, old_index, new_index));
 }
 
 void TransformSystem::RemoveParentNoEvent(Entity child) {

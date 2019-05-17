@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -62,6 +62,9 @@ class TransformSystem : public System {
   explicit TransformSystem(Registry* registry);
 
   ~TransformSystem() override;
+
+  /// Checks whether an entity has a transform.
+  bool HasTransform(Entity e) const;
 
   /// Adds a transform to the Entity using the specified ComponentDef.
   void Create(Entity e, HashValue type, const Def* def) override;

@@ -20,6 +20,10 @@ table VisibilityWindowDef {
   bounds: AabbDef;
   on_enter_events: [EventDef];
   on_exit_events: [EventDef];
+  on_exit_top_events: [EventDef];
+  on_exit_bottom_events: [EventDef];
+  on_exit_left_events: [EventDef];
+  on_exit_right_events: [EventDef];
   collision_axes: CollisionAxes = XY;
 }
 

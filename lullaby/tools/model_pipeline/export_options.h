@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,6 +34,10 @@ struct ExportOptions {
   // If true modify the 'name' field on textures to be a unique identifier.
   // This allows them to be remapped and addressed at runtime
   bool unique_texture_names = false;
+
+  // If true, attempt a saving-throw on untextured materials by performing
+  // a texture lookup based on the surface name.
+  bool look_for_unlinked_textures = false;
 };
 
 }  // namespace tool

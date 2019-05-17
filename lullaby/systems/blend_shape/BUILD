@@ -17,7 +17,6 @@ cc_library(
         "//:fbs",
         "//lullaby/modules/ecs",
         "//lullaby/modules/file",
-        "//lullaby/systems/model_asset",
         "//lullaby/systems/render",
         "//lullaby/util:filename",
         "//lullaby/util:resource_manager",

@@ -1,5 +1,5 @@
-local utils = import "third_party/lullaby/data/jsonnet/utils.jsonnet";
-local responses = import "third_party/lullaby/data/jsonnet/responses.jsonnet";
+local utils = import "lullaby/data/jsonnet/utils.jsonnet";
+local responses = import "lullaby/data/jsonnet/responses.jsonnet";
 
 {
     // Turns the "external" events (ie. lull::ClickEvent) into an "internal"

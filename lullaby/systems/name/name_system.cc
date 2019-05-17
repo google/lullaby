@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@ limitations under the License.
 
 #include "lullaby/systems/name/name_system.h"
 
+#include <set>
+
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/string_view.h"
 #include "lullaby/generated/name_def_generated.h"
 
 namespace lull {
@@ -31,7 +34,7 @@ const HashValue kNameDefHash = ConstHash("NameDef");
 
 NameSystem::NameSystem(Registry* registry, bool allow_duplicate_names)
     : System(registry), allow_duplicate_names_(allow_duplicate_names) {
-  RegisterDef(this, kNameDefHash);
+  RegisterDef<NameDefT>(this);
   FunctionBinder* binder = registry->Get<lull::FunctionBinder>();
   if (binder) {
     binder->RegisterMethod("lull.Name.GetName", &NameSystem::GetName);
@@ -41,7 +44,7 @@ NameSystem::NameSystem(Registry* registry, bool allow_duplicate_names)
     binder->RegisterMethod("lull.Name.SetName", &NameSystem::GetName);
   }
   Dispatcher* dispatcher = registry_->Get<Dispatcher>();
-  if(dispatcher) {
+  if (dispatcher) {
     dispatcher->Connect(this, [this](const SetNameEvent& e) {
       SetName(e.entity, e.name);
     });
@@ -181,6 +184,18 @@ Entity NameSystem::FindDescendantWithDuplicateNames(
   }
 
   return kNullEntity;
+}
+
+std::set<Entity> NameSystem::SearchEntitiesByName(
+    const string_view& name) const {
+  std::set<Entity> results;
+  for (const auto& entry : entity_to_name_) {
+    if (entry.second.find(name.data()) != std::string::npos) {
+      results.insert(entry.first);
+    }
+  }
+
+  return results;
 }
 
 }  // namespace lull

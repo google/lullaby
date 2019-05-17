@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lullaby/systems/layout/layout_system.h"
+#include "lullaby/contrib/layout/layout_system.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/generated/layout_def_generated.h"
@@ -25,7 +25,7 @@ limitations under the License.
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/file/asset_loader.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
-#include "lullaby/systems/layout/layout_box_system.h"
+#include "lullaby/contrib/layout/layout_box_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/generated/transform_def_generated.h"
 
@@ -77,17 +77,24 @@ class LayoutSystemTest : public testing::Test {
     return entity_factory_->Create(&blueprint);
   }
 
+  Entity CreateChildWithEnabled(Entity parent, bool enabled) {
+    return CreateChild(parent, 0.f, false, enabled);
+  }
+
+  Entity CreateIgnoredChild(Entity parent) {
+    return CreateChild(parent, 0.f, false, true, true);
+  }
+
   Entity CreateChild(Entity parent, float weight = 0.f, bool add_layout = false,
-                     bool enabled = true) {
+                     bool enabled = true, bool ignored = false) {
     Blueprint blueprint;
     TransformDefT transform;
     transform.enabled = enabled;
     blueprint.Write(&transform);
-    if (weight != 0) {
-      LayoutElementDefT layout_element;
-      layout_element.horizontal_weight = weight;
-      blueprint.Write(&layout_element);
-    }
+    LayoutElementDefT layout_element;
+    layout_element.ignored = ignored;
+    layout_element.horizontal_weight = weight;
+    blueprint.Write(&layout_element);
     if (add_layout) {
       LayoutDefT layout;
       blueprint.Write(&layout);
@@ -106,16 +113,20 @@ class LayoutSystemTest : public testing::Test {
     });
   }
 
-  void AssertTranslationsAndSizes(int num_children, const Entity* children,
-      const mathfu::vec2* expectations, const mathfu::vec2* size_expectations) {
+  void AssertTranslationsAndSizes(
+      int num_children, const Entity* children,
+      const mathfu::vec2* expectations,
+      const mathfu::vec2* size_expectations = nullptr) {
     for (int i = 0; i < num_children; ++i) {
       const Sqt* sqt = transform_system_->GetSqt(children[i]);
       EXPECT_NEAR(expectations[i].x, sqt->translation.x, kEpsilon);
       EXPECT_NEAR(expectations[i].y, sqt->translation.y, kEpsilon);
-      const Aabb* aabb = layout_box_system_->GetActualBox(children[i]);
-      mathfu::vec2 size = aabb->max.xy() - aabb->min.xy();
-      EXPECT_NEAR(size_expectations[i].x, size.x, kEpsilon);
-      EXPECT_NEAR(size_expectations[i].y, size.y, kEpsilon);
+      if (size_expectations != nullptr) {
+        const Aabb* aabb = layout_box_system_->GetActualBox(children[i]);
+        mathfu::vec2 size = aabb->max.xy() - aabb->min.xy();
+        EXPECT_NEAR(size_expectations[i].x, size.x, kEpsilon);
+        EXPECT_NEAR(size_expectations[i].y, size.y, kEpsilon);
+      }
     }
   }
 
@@ -264,7 +275,7 @@ TEST_F(LayoutSystemTest, CreateLayout_IgnoreNone) {
   Entity children[num_children];
   for (int i = 0; i < num_children; ++i) {
     // Enable all except [2].
-    children[i] = CreateChild(parent, 0.f, false, i != 2);
+    children[i] = CreateChildWithEnabled(parent, i != 2);
   }
 
   for (int i = 0; i < num_children; ++i) {
@@ -284,7 +295,7 @@ TEST_F(LayoutSystemTest, CreateLayout_IgnoreDisabled) {
   Entity children[num_children];
   for (int i = 0; i < num_children; ++i) {
     // Enable all except [2].
-    children[i] = CreateChild(parent, 0.f, false, i != 2);
+    children[i] = CreateChildWithEnabled(parent, i != 2);
   }
 
   for (int i = 0; i < num_children; ++i) {
@@ -602,6 +613,71 @@ TEST_F(LayoutSystemTest, CreateLayout_WeightedElements_Shrunk) {
     EXPECT_EQ(Optional<float>(),
               layout_box_system_->GetDesiredSizeZ(children[i]));
   }
+}
+
+// Test that LayoutSystem does not consider or modify ignored elements.
+TEST_F(LayoutSystemTest, CreateLayout_IgnoredElement) {
+  const int num_children = 3;
+  const Entity parent = CreateParent();
+  Entity children[num_children];
+  children[0] = CreateIgnoredChild(parent);
+  for (int i = 1; i < num_children; ++i) {
+    children[i] = CreateChild(parent);
+  }
+
+  const mathfu::vec2 ignored_expectations[] = {
+      mathfu::vec2(0.f, 0.f), mathfu::vec2(-1.f, 1.f), mathfu::vec2(-1.f, 1.f)
+  };
+
+  AssertTranslationsAndSizes(num_children, children, ignored_expectations);
+}
+
+// Test that LayoutSystem updates unignored elements.
+TEST_F(LayoutSystemTest, CreateLayout_SetElementUnignored) {
+  const int num_children = 3;
+  const Entity parent = CreateParent();
+  Entity children[num_children];
+  children[0] = CreateIgnoredChild(parent);
+  for (int i = 1; i < num_children; ++i) {
+    children[i] = CreateChild(parent);
+  }
+
+  const mathfu::vec2 ignored_expectations[] = {
+      mathfu::vec2(0.f, 0.f), mathfu::vec2(-1.f, 1.f), mathfu::vec2(-1.f, 1.f)
+  };
+  const mathfu::vec2 expectations[] = {
+      mathfu::vec2(-1.f, 1.f), mathfu::vec2(-1.f, 1.f), mathfu::vec2(-1.f, 1.f)
+  };
+
+  AssertTranslationsAndSizes(num_children, children, ignored_expectations);
+  layout_system_->SetElementIgnored(children[0], false);
+  AssertTranslationsAndSizes(num_children, children, expectations);
+}
+
+// Test that LayoutSystem does not update ignored elements.
+TEST_F(LayoutSystemTest, CreateLayout_SetElementIgnored) {
+  const int num_children = 3;
+  const Entity parent = CreateParent();
+  Entity children[num_children];
+  for (int i = 0; i < num_children; ++i) {
+    children[i] = CreateChild(parent);
+  }
+
+  const mathfu::vec2 moved_expectations[] = {
+      mathfu::vec2(2.3f, 4.5f), mathfu::vec2(2.3f, 4.5f),
+      mathfu::vec2(2.3f, 4.5f)
+  };
+  const mathfu::vec2 ignored_expectations[] = {
+      mathfu::vec2(2.3f, 4.5f), mathfu::vec2(-1.f, 1.f), mathfu::vec2(-1.f, 1.f)
+  };
+
+  for (int i = 0; i < num_children; ++i) {
+    transform_system_->SetLocalTranslation(children[i],
+                                           mathfu::vec3(2.3f, 4.5f, 0.f));
+  }
+  AssertTranslationsAndSizes(num_children, children, moved_expectations);
+  layout_system_->SetElementIgnored(children[0], true);
+  AssertTranslationsAndSizes(num_children, children, ignored_expectations);
 }
 
 // Test that LayoutSystem will aggregate events from multiple children and only

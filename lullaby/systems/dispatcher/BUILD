@@ -18,6 +18,7 @@ cc_library(
     deps = [
         "//:fbs",
         "//lullaby/modules/dispatcher",
+        "//lullaby/modules/dispatcher:dispatcher_binder",
         "//lullaby/modules/ecs",
         "//lullaby/modules/flatbuffers",
         "//lullaby/modules/script",
@@ -25,5 +26,22 @@ cc_library(
         "//lullaby/util:logging",
         "//lullaby/util:registry",
         "//lullaby/util:thread_safe_queue",
+    ],
+)
+
+cc_library(
+    name = "dispatcher_jni",
+    srcs = select({
+        "//:target_os_android": [
+            "dispatcher_system_jni.cc",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":dispatcher",
+        "//lullaby/modules/dispatcher:dispatcher_jni",
+        "//lullaby/modules/ecs",
+        "//lullaby/modules/jni:jni_util",
+        "//lullaby/modules/jni:registry_jni",
     ],
 )

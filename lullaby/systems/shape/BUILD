@@ -12,7 +12,17 @@ cc_library(
     deps = [
         "//:fbs",
         "//lullaby/modules/ecs",
-        "//lullaby/modules/render",
+        "//lullaby/modules/render:mesh",
+        "//lullaby/modules/render:mesh_util",
         "//lullaby/systems/render",
+    ],
+)
+
+cc_library(
+    name = "shape_jni",
+    srcs = ["shape_system_jni.cc"],
+    deps = [
+        ":shape",
+        "//lullaby/modules/ecs:ecs_jni",
     ],
 )

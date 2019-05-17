@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@ limitations under the License.
 
 #include "lullaby/examples/example_app/example_app.h"
 
-#include "lullaby/modules/file/asset_loader.h"
-#include "lullaby/modules/ecs/entity_factory.h"
-#include "lullaby/modules/input/input_manager.h"
+#include "lullaby/events/render_events.h"
+#include "lullaby/modules/camera/camera_manager.h"
 #include "lullaby/modules/config/config.h"
-#include "lullaby/modules/script/function_binder.h"
+#include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/modules/input_processor/input_processor.h"
+#include "lullaby/modules/script/function_binder.h"
 
 #if LULLABY_ENABLE_EDITOR
 #include "lullaby/editor/src/editor.h"
@@ -38,10 +40,13 @@ void ExampleApp::Initialize(void* native_window) {
   registry_->Register(std::unique_ptr<Dispatcher>(dispatcher_));
   registry_->Create<AssetLoader>(registry_.get());
   registry_->Create<InputManager>();
+  registry_->Create<CameraManager>();
   registry_->Create<EntityFactory>(registry_.get());
 
   native_window_ = native_window;
   OnInitialize();
+
+  dispatcher_->Send(lull::SetNativeWindowEvent(native_window_));
 
 #if LULLABY_ENABLE_EDITOR
   // Initialize the editor.  By default this will go to port 1235
@@ -81,17 +86,16 @@ void ExampleApp::Update() {
     }
     static const size_t kMaxViews = 2;
     RenderView views[kMaxViews];
-    const size_t num_views =
-        registry_->Get<lull::InputManager>()->GetNumEyes(InputManager::kHmd);
-    PopulateRenderViews(registry_.get(), views, num_views,
-                        config_.near_clip_plane, config_.far_clip_plane);
 
+    auto* camera_manager = registry_->Get<CameraManager>();
+    const size_t num_views = camera_manager->GetNumCamerasForScreen();
+    camera_manager->PopulateRenderViewsForScreen(views, num_views);
     OnRender({views, num_views});
 
 #if LULLABY_ENABLE_EDITOR
     auto* editor = registry_->Get<Editor>();
     if (editor) {
-      editor->AdvanceFrame(delta_time);
+      editor->AdvanceFrame(delta_time, {views, num_views});
     }
 #endif
   } else {

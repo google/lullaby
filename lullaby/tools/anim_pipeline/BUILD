@@ -5,15 +5,43 @@ licenses(["notice"])  # Apache 2.0
 cc_library(
     name = "animation_lib",
     srcs = [
+        "anim_curve.cc",
         "animation.cc",
     ],
     hdrs = [
         "anim_bone.h",
+        "anim_curve.h",
         "animation.h",
+        "import_options.h",
         "tolerances.h",
     ],
+    visibility = ["//visibility:public"],
     deps = [
+        "//:fbs",
+        "//lullaby/util:fixed_string",
+        "//lullaby/util:logging",
+        "//lullaby/util:math",
+        "//lullaby/util:optional",
+        "//lullaby/tools/common:file_utils",
+        "@mathfu//:mathfu",
         "@motive//:motive",
+    ],
+)
+
+cc_library(
+    name = "import_asset",
+    srcs = [
+        "import_asset.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":animation_lib",
+        "@assimp//:assimp",
+        "//:fbs",
+        "//lullaby/util:filename",
+        "//lullaby/util:logging",
+        "//lullaby/util:math",
+        "//lullaby/tools/common:assimp_base_importer",
     ],
 )
 
@@ -22,11 +50,17 @@ cc_library(
     srcs = [
         "import_fbx.cc",
     ],
+    copts = ["-Wno-null-dereference"],
+    visibility = ["//visibility:public"],
     deps = [
         ":animation_lib",
         "@libfbx//:libfbx",
+        "//lullaby/util:filename",
         "//lullaby/util:logging",
-        "//lullaby/tools/common:fbx_utils",
+        "//lullaby/util:math",
+        "//lullaby/util:optional",
+        "//lullaby/tools/common:fbx_base_importer",
+        "@motive//:motive",
     ],
 )
 
@@ -43,7 +77,7 @@ cc_library(
         ":animation_lib",
         "@flatbuffers//:flatbuffers",
         "//lullaby/util:common_types",
-        "//third_party/motive:motive_fbs",
+        "@motive//:motive_fbs",
     ],
 )
 
@@ -57,9 +91,11 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":animation_lib",
         ":export",
-        ":import_fbx",
         "//lullaby/util:common_types",
+        "//lullaby/util:filename",
+        "//lullaby/util:make_unique",
     ],
 )
 
@@ -71,9 +107,13 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":anim_pipeline_lib",
+        ":animation_lib",
         ":export",
+        ":import_asset",
+        ":import_fbx",
         "//lullaby/util:arg_parser",
         "//lullaby/util:filename",
+        "//lullaby/util:math",
         "//lullaby/tools/common:file_utils",
     ],
 )

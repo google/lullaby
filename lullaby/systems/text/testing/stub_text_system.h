@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ class StubTextSystem : public TextSystemImpl {
   const std::string* GetText(Entity entity) const override { return nullptr; }
   void SetText(Entity entity, const std::string& text) override {}
   void SetFontSize(Entity entity, float size) override {}
+  void SetLineHeightScale(Entity entity, float line_height_scale) override {}
   void SetBounds(Entity entity, const mathfu::vec2& bounds) override {}
   void SetWrapMode(Entity entity, TextWrapMode wrap_mode) override {}
   void SetEllipsis(Entity entity, const std::string& ellipsis) override {}

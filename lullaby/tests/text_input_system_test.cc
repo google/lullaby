@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ limitations under the License.
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"
 #include "lullaby/systems/text/text_system.h"
-#include "lullaby/systems/text_input/text_input_system.h"
+#include "lullaby/contrib/text_input/text_input_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
 #include "lullaby/generated/text_input_def_generated.h"
@@ -65,7 +65,7 @@ TEST_F(TextInputSystemTest, SetAndGet) {
   text_input_def.activate_immediately = true;
   text_input_def.deactivate_on_accept = false;
   text_input_def.hint = "Type something";
-  text_input_def.hint_color = lull::Color4ub(1, 1, 1, 1);
+  text_input_def.hint_color = lull::Color4f(1.0f);
   text_input_def.caret_entity = "";
   text_input_def.is_clipped = false;
   blueprint.Write(&text_input_def);

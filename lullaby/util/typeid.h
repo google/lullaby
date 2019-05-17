@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ limitations under the License.
 // have a vtable pointer).  Instead, TypeId can be stored externally to the
 // object with which it belongs on an as-needed basis.
 //
-// TODO(b/26013482): The presubmit script needs to be re-introduced and fixed to
+// TODO: The presubmit script needs to be re-introduced and fixed to
 // be able to check for collisions without specifying the hash value in the
 // macro.
 
@@ -82,20 +82,20 @@ struct TypeIdTraits {
 
 }  // namespace lull
 
-#define LULLABY_SETUP_TYPEID(Type)           \
-  namespace lull {                           \
-  template <>                                \
-  struct TypeIdTraits<Type> {                \
-    static constexpr bool kHasTypeId = true; \
-  };                                         \
-  template <>                                \
-  inline const char* GetTypeName<Type>() {   \
-    return #Type;                            \
-  }                                          \
-  template <>                                \
-  inline TypeId GetTypeId<Type>() {          \
-    return lull::ConstHash(#Type);           \
-  }                                          \
+#define LULLABY_SETUP_TYPEID(Type)            \
+  namespace lull {                            \
+  template <>                                 \
+  struct TypeIdTraits<Type> {                 \
+    static constexpr bool kHasTypeId = true;  \
+  };                                          \
+  template <>                                 \
+  inline const char* GetTypeName<Type>() {    \
+    return #Type;                             \
+  }                                           \
+  template <>                                 \
+  inline constexpr TypeId GetTypeId<Type>() { \
+    return lull::ConstHash(#Type);            \
+  }                                           \
   }  // namespace lull
 
 #endif  // LULLABY_UTIL_TYPEID_H_

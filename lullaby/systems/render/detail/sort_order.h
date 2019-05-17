@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ namespace detail {
 union EntityIdPair {
   struct {
     /// An entity associated with this pair.
-    Entity entity;
+    uint32_t entity;
     /// A unique id used to differentiate multiple components associated with a
     /// given entity.
     HashValue id;

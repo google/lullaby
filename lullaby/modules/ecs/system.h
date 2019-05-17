@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ limitations under the License.
 
 #include "flatbuffers/flatbuffers.h"
 #include "lullaby/modules/ecs/blueprint.h"
+#include "lullaby/modules/ecs/blueprint_type.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/util/entity.h"
 #include "lullaby/util/registry.h"
 #include "lullaby/util/typeid.h"
@@ -46,7 +48,7 @@ class System {
 
   // The Hash of the actual ComponentDef type used for safely casting the
   // Def to a concrete type for extracting data.
-  using DefType = HashValue;
+  using DefType = Blueprint::DefType;
 
   // Initializes inter-system dependencies.  This function is called after all
   // Systems have been created by the EntityFactory.
@@ -90,6 +92,16 @@ class System {
 
   // Associates the System with the DefType in the EntityFactory.
   void RegisterDef(TypeId system_type, DefType type);
+
+  // Helper function to associate the System with DefT in the EntityFactory.
+  // Example usage: RegisterDef<MyComponentDefT>(this);
+  template <typename DefT, typename S>
+  void RegisterDef(S* system) {
+    auto* entity_factory = registry_->Get<EntityFactory>();
+    if (entity_factory) {
+      entity_factory->RegisterDef<DefT>(GetTypeId<S>());
+    }
+  }
 
   // Register a dependency of this system on another type in the registry.
   // Example usage: RegisterDependency<OtherSystem>(this);

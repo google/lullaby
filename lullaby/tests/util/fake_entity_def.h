@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ template <typename T>
 const FakeComponentDefType& FakeComponentDefTypeTraits<T>::enum_value =
     FakeFlatbufferUnion::TypeToDefId<T>::value;
 
-inline const char** EnumNamesFakeComponentDefType() {
+inline const char* const * EnumNamesFakeComponentDefType() {
   return FakeFlatbufferUnion::GetActiveTypeNames();
 }
 

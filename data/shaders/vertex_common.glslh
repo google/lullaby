@@ -1,4 +1,4 @@
-#include "third_party/lullaby/data/shaders/common.glslh"
+#include "lullaby/data/shaders/common.glslh"
 
 // GLSL 130+ / es300+ don't support the "attribute" or "varying" keywords, so
 // provide a compatible way to declare vertex inputs & outputs.

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ SnapSystem::SnapSystem(Registry* registry)
       default_anim_time_ms_(200),
       snappables_(16),
       targets_(16) {
-  RegisterDef(this, kSnappableDefHash);
-  RegisterDef(this, kSnapTargetDefHash);
+  RegisterDef<SnappableDefT>(this);
+  RegisterDef<SnapTargetDefT>(this);
   RegisterDependency<AnimationSystem>(this);
   RegisterDependency<TransformSystem>(this);
 }

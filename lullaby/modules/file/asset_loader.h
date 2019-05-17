@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,6 +44,10 @@ class AssetLoader {
   // Note: The function signature is based on fplbase::LoadFile.
   using LoadFileFn = std::function<bool(const char* filename, std::string*)>;
 
+  // An optional callback that can be used to track errors on file operations.
+  using OnErrorFn =
+      std::function<void(const std::string& filename, ErrorCode error)>;
+
   // Constructs the AssetLoader using the default load function.
   explicit AssetLoader(Registry* registry);
 
@@ -87,8 +91,8 @@ class AssetLoader {
   int Finalize();
   int Finalize(int max_num_assets_to_finalize);
 
-  // Sets a load function so that assets can be loaded from
-  // different places using custom load functions.
+  // Sets a load function so that assets can be loaded from different places
+  // using custom load functions.
   void SetLoadFunction(LoadFileFn load_fn);
 
   // Returns the load function set in |SetLoadFunction|.
@@ -96,6 +100,10 @@ class AssetLoader {
 
   // Returns the default load function.
   LoadFileFn GetDefaultLoadFunction() const;
+
+  // Sets a callback that is called when an error occurs during a load
+  // operation.
+  void SetOnErrorFunction(OnErrorFn error_fn);
 
   // Starts loading assets asynchronously. This is done automatically on
   // construction and it only needs to be called explicitly after Stop.
@@ -118,6 +126,7 @@ class AssetLoader {
     AssetPtr asset;        // Asset object to load data into.
     std::string filename;  // Filename of data being loaded.
     std::string data;      // Actual data contents being loaded.
+    ErrorCode error;
   };
   using LoadRequestPtr = std::shared_ptr<LoadRequest>;
 
@@ -133,6 +142,7 @@ class AssetLoader {
 
   Registry* registry_ = nullptr;
   LoadFileFn load_fn_;  // Client-provided function for performing actual load.
+  OnErrorFn error_fn_;  // Client-provided function for tracking errors.
   int pending_requests_ = 0;  // Number of requests queued for async loading.
   AsyncProcessor<LoadRequestPtr> processor_;  // Async processor for loading
                                               // data on a worker thread.

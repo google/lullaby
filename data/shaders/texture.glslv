@@ -1,6 +1,6 @@
 // Scales and offsets UV0 by "uv_bounds" uniform. Supports multiview.
 
-#include "third_party/lullaby/data/shaders/vertex_common.glslh"
+#include "lullaby/data/shaders/vertex_common.glslh"
 
 STAGE_INPUT vec4 aPosition;
 STAGE_INPUT vec2 aTexCoord;

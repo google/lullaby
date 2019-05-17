@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,11 +39,11 @@ ScriptSystem::ScriptSystem(Registry* registry)
       every_frame_scripts_(8),
       on_destroy_scripts_(8),
       event_scripts_(8) {
-  RegisterDef(this, kScriptOnEventDefHash);
-  RegisterDef(this, kScriptEveryFrameDefHash);
-  RegisterDef(this, kScriptOnCreateDefHash);
-  RegisterDef(this, kScriptOnPostCreateInitDefHash);
-  RegisterDef(this, kScriptOnDestroyDefHash);
+  RegisterDef<ScriptOnEventDefT>(this);
+  RegisterDef<ScriptEveryFrameDefT>(this);
+  RegisterDef<ScriptOnCreateDefT>(this);
+  RegisterDef<ScriptOnPostCreateInitDefT>(this);
+  RegisterDef<ScriptOnDestroyDefT>(this);
 
   RegisterDependency<TransformSystem>(this);
 

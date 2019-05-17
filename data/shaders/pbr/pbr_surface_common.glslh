@@ -1,10 +1,12 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
 
 /// Shared functions used for physically based rendering by
 /// pbr_surface_light.glslh and pbr_surface_env.glslh.
 
-#include "third_party/lullaby/data/shaders/pbr/math_common.glslh"
+#include "lullaby/data/shaders/pbr/math_common.glslh"
+
+const float kDielectricSpecular = 0.04;
 
 
 /// Multiplier for specular component of output color. Defaults to white.
@@ -28,7 +30,6 @@ void DiffuseAndSpecularFromMetallic(vec3 albedo, float metallic,
                                     out vec3 specular_color,
                                     out float reflectivity) {
   // The linear-space unity_ColorSpaceDielectricSpec grayscale value.
-  const float kDielectricSpecular = 0.04;
   specular_color = mix(vec3(kDielectricSpecular), albedo, metallic);
   reflectivity = mix(kDielectricSpecular, 1.0, metallic);
   diffuse_color = albedo * (1.0 - reflectivity);
@@ -43,6 +44,28 @@ float DisneyDiffuseTerm(float n_dot_v, float n_dot_l, float l_dot_h,
   float light_scatter = 1.0 + (fd_90 - 1.0) * Pow5(1.0 - n_dot_l);
   float view_scatter  = 1.0 + (fd_90 - 1.0) * Pow5(1.0 - n_dot_v);
   return light_scatter * view_scatter;
+}
+
+/// Preconvolved IBL uses a single sample to represent many light directions.
+/// For diffuse reflection, these directions span a hemisphere of solid angle.
+/// We treat the L as the set of all directions in the hemisphere centered about
+/// N, and compute coarse averages for the parameters of DisneyDiffuseTerm().
+float DisneyDiffuseIblTerm(float n_dot_v, float perceptual_roughness) {
+  // Average value of cos(theta) over the hemisphere.
+  const float kAvgCosHemisphere = 0.5;
+  // Average value of cos(theta) over a 45-degree (from center) polar cap,
+  // namely: 1 / [2*(2 - sqrt(2)].
+  const float kAvgCosCap45 = 0.853553;
+  // N dot L for L in the hemisphere centered about N is just the cosine average
+  // over the hemisphere.
+  const float n_dot_l = kAvgCosHemisphere;
+  // L dot H is more complicated. If V == N, l_dot_h averages kAvgCosCap45 by
+  // symmetry since L dot H = V dot H = N dot H. If V and N are orthogonal, the
+  // average is lower but is difficult to compute; I'm guessing it's somewhere
+  // around kAvgCosHemisphere (which also just happens make DisneyDiffuseTerm()
+  // a no-op @ roughness = 1).
+  float l_dot_h = mix(kAvgCosHemisphere, kAvgCosCap45, n_dot_v);
+  return DisneyDiffuseTerm(n_dot_v, n_dot_l, l_dot_h, perceptual_roughness);
 }
 
 float DistributionTrowbridgeReitz(float linear_roughness, float n_dot_h) {
@@ -93,4 +116,4 @@ float GeometricOcclusionEpic(float n_dot_l, float n_dot_v,
     return attenuation_l * attenuation_v;
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_COMMON_GLSLH_

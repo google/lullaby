@@ -1,6 +1,6 @@
 #version 300 es
 
-#include "third_party/lullaby/data/shaders/uber_fragment_common.glslh"
+#include "lullaby/data/shaders/uber_fragment_common.glslh"
 
 uniform sampler2D texture_unit_0;
 

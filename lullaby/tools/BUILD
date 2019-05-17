@@ -5,7 +5,7 @@ licenses(["notice"])  # Apache 2.0
 py_binary(
     name = "generate_entity_schema",
     srcs = ["generate_entity_schema.py"],
-    default_python_version = "PY3",
+    python_version = "PY3",
     srcs_version = "PY2AND3",
     visibility = ["//visibility:public"],
 )

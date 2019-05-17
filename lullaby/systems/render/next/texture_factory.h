@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 
 #include "lullaby/modules/render/image_data.h"
 #include "lullaby/systems/render/next/texture.h"
+#include "lullaby/systems/render/next/texture_atlas.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/texture_factory.h"
 #include "lullaby/util/registry.h"
@@ -69,6 +70,10 @@ class TextureFactoryImpl : public TextureFactory {
   TexturePtr LoadTexture(string_view filename,
                          const TextureParams& params) override;
 
+  // Loads a texture atlas with the given |filename| and |params|.
+  void LoadAtlas(const std::string& filename,
+                 const TextureParams& params) override;
+
   /// Updates the entire image contents of |texture| using |image|. Image data
   /// is sent as-is. Returns false if the dimensions don't match or if the
   /// texture isn't internal and 2D.
@@ -87,6 +92,10 @@ class TextureFactoryImpl : public TextureFactory {
   /// by the OES_EGL_image_external extension).
   TexturePtr CreateExternalTexture();
 
+  /// Creates a texture that can be bound to an external texture (as specified
+  /// by the OES_EGL_image_external extension). |size| is ignored.
+  TexturePtr CreateExternalTexture(const mathfu::vec2i& size) override;
+
   /// Creates an "empty" texture of the specified size. The |params| must
   /// specify a format for the texture.
   TexturePtr CreateTexture(const mathfu::vec2i& size,
@@ -101,18 +110,17 @@ class TextureFactoryImpl : public TextureFactory {
                               const mathfu::vec4& uv_bounds);
 
   // Returns a resident white texture with an alpha channel: (1, 1, 1, 1).
-  const TexturePtr& GetWhiteTexture() const;
+  TexturePtr GetWhiteTexture() const override;
 
   // Returns a resident invalid texture to be used when a requested image fails
   // to load.  On debug builds it's a watermelon; on release builds it's just
   // the white texture.
-  const TexturePtr& GetInvalidTexture() const;
+  TexturePtr GetInvalidTexture() const override;
 
   // DEPRECATED. Old RenderSystem API passes ImageData by const reference which
   // can be redirected here.
-  TexturePtr CreateTexture(const ImageData* image, const TextureParams& params);
-  TexturePtr CreateTexture(HashValue name, const ImageData* image,
-                           const TextureParams& params);
+  TexturePtr CreateTextureDeprecated(const ImageData* image,
+                                     const TextureParams& params) override;
 
  private:
   void InitTextureImpl(const TexturePtr& texture, const ImageData* image,
@@ -120,6 +128,7 @@ class TextureFactoryImpl : public TextureFactory {
 
   Registry* registry_;
   ResourceManager<Texture> textures_;
+  ResourceManager<TextureAtlas> atlases_;
   TexturePtr white_texture_;
   TexturePtr invalid_texture_;
 };

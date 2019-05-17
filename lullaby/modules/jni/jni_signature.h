@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ limitations under the License.
 
 #ifndef LULLABY_MODULES_JNI_JNI_SIGNATURE_H_
 #define LULLABY_MODULES_JNI_JNI_SIGNATURE_H_
+
+#ifdef __ANDROID__
 
 #include <jni.h>
 
@@ -90,14 +92,20 @@ inline T&& JniForward(T&& value) {
     return value.jobj;                              \
   }
 
+LULLABY_JNI_TYPE(JavaLangBoolean);
 LULLABY_JNI_TYPE(JavaLangInteger);
 LULLABY_JNI_TYPE(JavaLangLong);
 LULLABY_JNI_TYPE(JavaLangFloat);
+LULLABY_JNI_TYPE(JavaLangDouble);
+LULLABY_JNI_TYPE(JavaxVecmathVector2f);
 LULLABY_JNI_TYPE(JavaxVecmathVector3f);
 LULLABY_JNI_TYPE(JavaxVecmathVector4f);
 LULLABY_JNI_TYPE(JavaxVecmathQuat4f);
 LULLABY_JNI_TYPE(JavaxVecmathMatrix4f);
-LULLABY_JNI_TYPE(AndroidUtilLongSparseArray);
+LULLABY_JNI_TYPE(JavaUtilArrayList);
+LULLABY_JNI_TYPE(JavaUtilHashMap);
+LULLABY_JNI_TYPE(JavaUtilSet);
+LULLABY_JNI_TYPE(JavaUtilIterator);
 LULLABY_JNI_TYPE(ComGoogleLullabyEntity);
 LULLABY_JNI_TYPE(ComGoogleLullabyEvent);
 #undef LULLABY_JNI_TYPE
@@ -131,15 +139,20 @@ LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Class;", jclass);
 LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Object;", jobject);
 LULLABY_JNI_SIGNATURE_HELPER("[Ljava/lang/Object;", jobjectArray);
 
+LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Boolean;", JavaLangBoolean);
 LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Integer;", JavaLangInteger);
 LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Long;", JavaLangLong);
 LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Float;", JavaLangFloat);
+LULLABY_JNI_SIGNATURE_HELPER("Ljava/lang/Double;", JavaLangDouble);
+LULLABY_JNI_SIGNATURE_HELPER("Ljavax/vecmath/Vector2f;", JavaxVecmathVector2f);
 LULLABY_JNI_SIGNATURE_HELPER("Ljavax/vecmath/Vector3f;", JavaxVecmathVector3f);
 LULLABY_JNI_SIGNATURE_HELPER("Ljavax/vecmath/Vector4f;", JavaxVecmathVector4f);
 LULLABY_JNI_SIGNATURE_HELPER("Ljavax/vecmath/Quat4f;", JavaxVecmathQuat4f);
 LULLABY_JNI_SIGNATURE_HELPER("Ljavax/vecmath/Matrix4f;", JavaxVecmathMatrix4f);
-LULLABY_JNI_SIGNATURE_HELPER("Landroid/util/LongSparseArray;",
-                             AndroidUtilLongSparseArray);
+LULLABY_JNI_SIGNATURE_HELPER("Ljava/util/ArrayList;", JavaUtilArrayList);
+LULLABY_JNI_SIGNATURE_HELPER("Ljava/util/HashMap;", JavaUtilHashMap);
+LULLABY_JNI_SIGNATURE_HELPER("Ljava/util/Set;", JavaUtilSet);
+LULLABY_JNI_SIGNATURE_HELPER("Ljava/util/Iterator;", JavaUtilIterator);
 LULLABY_JNI_SIGNATURE_HELPER("Lcom/google/lullaby/Entity;",
                              ComGoogleLullabyEntity);
 LULLABY_JNI_SIGNATURE_HELPER("Lcom/google/lullaby/Event;",
@@ -202,5 +215,7 @@ const JniSignature& GetJniMethodSignature() {
 }
 
 }  // namespace lull
+
+#endif  // __ANDROID__
 
 #endif  // LULLABY_MODULES_JNI_JNI_SIGNATURE_H_

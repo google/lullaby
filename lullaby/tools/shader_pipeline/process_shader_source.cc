@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ namespace lull {
 namespace tool {
 namespace {
 Optional<std::string> LoadIncludeFile(string_view filename) {
+  const std::string filename_string(filename);
   std::string file_content;
-  if (!LoadFile(filename.c_str(), false, &file_content)) {
+  if (!LoadFile(filename_string.c_str(), false, &file_content)) {
     return NullOpt;
   }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ namespace lull {
 //
 // Ideally, we would just use a TypeId to provide information about the type
 // of data stored in a blueprint.  However, legacy Systems use the hash of the
-// string returned by the GetFullyQualifiedName function generated for a
-// flatbuffer schema for identifying blueprints.
+// string name of the flatbuffer ComponentDef, which is used in a union enum
+// that was generated without namespaces.
 //
 // As such, this class stores both the TypeId of the blueprint (if available)
 // and the hash of the name of the schema.  Once all Systems have been updated
@@ -35,6 +35,9 @@ namespace lull {
 // class can be entirely replaced by using TypeIds directly.
 class BlueprintType {
  public:
+  // The Hash of the ComponentDef type.
+  using DefType = HashValue;
+
   BlueprintType() {}
 
   // Creates a BlueprintType for a given class generated from a schema.
@@ -45,28 +48,28 @@ class BlueprintType {
   bool Is() const;
 
   // Creates BlueprintType using only legacy schema name information.
-  static BlueprintType CreateFromSchemaNameHash(HashValue type);
+  static BlueprintType CreateFromSchemaNameHash(DefType type);
 
   // Returns the legacy schema name hash.
-  HashValue GetSchemaNameHash() const;
+  DefType GetSchemaNameHash() const;
 
   // Compares the BlueprintType with another BlueprintType.
   bool operator==(const BlueprintType& rhs) const;
   bool operator!=(const BlueprintType& rhs) const;
 
  private:
-  BlueprintType(TypeId type, HashValue name) : type_(type), name_(name) {}
+  BlueprintType(TypeId type, DefType name) : type_(type), name_(name) {}
 
-  static HashValue GenerateSchemaNameHashFromTypeName(const char* name);
+  static DefType GenerateSchemaNameHashFromTypeName(const char* name);
 
   TypeId type_ = 0;
-  HashValue name_ = 0;
+  DefType name_ = 0;
 };
 
 template <typename T>
 BlueprintType BlueprintType::Create() {
   const TypeId type = GetTypeId<T>();
-  const HashValue name = GenerateSchemaNameHashFromTypeName(GetTypeName<T>());
+  const DefType name = GenerateSchemaNameHashFromTypeName(GetTypeName<T>());
   return BlueprintType(type, name);
 }
 

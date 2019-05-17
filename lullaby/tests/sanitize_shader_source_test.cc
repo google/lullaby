@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ namespace {
 TEST(SanitizeShaderSourceTest, DefaultPrecisionSpecifier) {
   const char* src = "void main() { gl_FragColor = vec4(0); }";
 
-  const std::string gles = SanitizeShaderSource(src, ShaderProfile::Gles);
-  const std::string core = SanitizeShaderSource(src, ShaderProfile::Core);
+  const std::string gles = SanitizeShaderSource(src, ShaderLanguage_GLSL_ES);
+  const std::string core = SanitizeShaderSource(src, ShaderLanguage_GLSL);
 
   // The source should appear unaltered.
   EXPECT_NE(gles.find(src), std::string::npos);
@@ -45,8 +45,8 @@ TEST(SanitizeShaderSourceTest, VersionFirst) {
   const char* src = "#define foo\n"
                     "#extension ex : enable\n"
                     "#version 100\n";
-  const std::string gles = SanitizeShaderSource(src, ShaderProfile::Gles);
-  const std::string core = SanitizeShaderSource(src, ShaderProfile::Core);
+  const std::string gles = SanitizeShaderSource(src, ShaderLanguage_GLSL_ES);
+  const std::string core = SanitizeShaderSource(src, ShaderLanguage_GLSL);
 
   // Only a single "version" and "extension" statement should be present, and
   // the "version" should appear before the others.
@@ -61,41 +61,41 @@ TEST(SanitizeShaderSourceTest, VersionFirst) {
   EXPECT_LT(core.find("version"), core.find("extension"));
 }
 
-std::string SanitizeVersionHelper(ShaderProfile profile,
+std::string SanitizeVersionHelper(ShaderLanguage language,
                                   const std::string& version) {
   const size_t version_tag_len = strlen("#version ");
 
   const std::string src = "#version " + version + "\n";
-  std::string res = SanitizeShaderSource(src.c_str(), profile);
+  std::string res = SanitizeShaderSource(src.c_str(), language);
   EXPECT_EQ(res.find("#version"), size_t(0));
   EXPECT_GT(res.size(), version_tag_len);
   return res.substr(version_tag_len, res.find("\n") - version_tag_len);
 }
 
 TEST(SanitizeShaderSourceTest, VersionNumbers) {
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "100"), "100 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "110"), "100 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "300"), "300 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "330"), "300 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "500"), "500 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "100"), "100 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "110"), "100 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "300"), "300 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "330"), "300 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "500"), "500 es");
 
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "100 es"), "100 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "110 es"), "110 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "300 es"), "300 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "330 es"), "330 es");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Gles, "500 es"), "500 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "100 es"), "100 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "110 es"), "110 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "300 es"), "300 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "330 es"), "330 es");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL_ES, "500 es"), "500 es");
 
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "100"), "100");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "110"), "110");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "300"), "300");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "330"), "330");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "500"), "500");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "100"), "100");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "110"), "110");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "300"), "300");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "330"), "330");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "500"), "500");
 
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "100 es"), "110");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "110 es"), "110");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "300 es"), "330");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "330 es"), "330");
-  EXPECT_EQ(SanitizeVersionHelper(ShaderProfile::Core, "500 es"), "500");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "100 es"), "110");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "110 es"), "110");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "300 es"), "330");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "330 es"), "330");
+  EXPECT_EQ(SanitizeVersionHelper(ShaderLanguage_GLSL, "500 es"), "500");
 }
 
 TEST(SanitizeShaderSourceTest, IgnoreComments) {
@@ -114,8 +114,8 @@ TEST(SanitizeShaderSourceTest, IgnoreComments) {
       "*/"
       "void main() {}";
 
-  const std::string gles = SanitizeShaderSource(src, ShaderProfile::Gles);
-  const std::string core = SanitizeShaderSource(src, ShaderProfile::Core);
+  const std::string gles = SanitizeShaderSource(src, ShaderLanguage_GLSL_ES);
+  const std::string core = SanitizeShaderSource(src, ShaderLanguage_GLSL);
 
   LOG(ERROR) << "gles" << std::endl << gles;
   LOG(ERROR) << "core" << std::endl << core;

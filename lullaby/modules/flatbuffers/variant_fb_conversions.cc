@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -68,6 +68,31 @@ bool VariantFromVariantDefT(const VariantDefT& in, Variant* out) {
       *out = in.get<DataBytesT>()->value;
       return true;
     }
+    case VariantDef_VariantArrayDef: {
+      const VariantArrayDefT* def = in.get<VariantArrayDefT>();
+      VariantArray arr;
+      arr.reserve(def->values.size());
+      for (const VariantArrayDefImplT& value : def->values) {
+        Variant var;
+        VariantFromVariantDefT(value.value, &var);
+        arr.emplace_back(std::move(var));
+      }
+      *out = std::move(arr);
+      return true;
+    }
+    case VariantDef_VariantMapDef: {
+      const VariantMapDefT* def = in.get<VariantMapDefT>();
+      VariantMap map;
+      for (const KeyVariantPairDefT& pair : def->values) {
+        Variant var;
+        VariantFromVariantDefT(pair.value, &var);
+
+        const HashValue key = pair.hash_key ? pair.hash_key : Hash(pair.key);
+        map[key] = std::move(var);
+      }
+      *out = std::move(map);
+      return true;
+    }
     default: {
       const char* label = EnumNameVariantDef(type);
       LOG(ERROR) << "Unknown data variant type: " << label;
@@ -104,7 +129,11 @@ bool VariantFromFbVariant(VariantDef type, const void* in, Variant* out) {
     }
     case VariantDef_DataString: {
       const auto* data = static_cast<const DataString*>(in);
-      *out = data->value()->str();
+      if (data->value() == nullptr) {
+        *out = std::string();
+      } else {
+        *out = data->value()->str();
+      }
       return true;
     }
     case VariantDef_DataVec2: {
@@ -140,6 +169,20 @@ bool VariantFromFbVariant(VariantDef type, const void* in, Variant* out) {
       ByteArray bytes(data->value()->data(),
                       data->value()->data() + data->value()->size());
       *out = std::move(bytes);
+      return true;
+    }
+    case VariantDef_VariantArrayDef: {
+      const auto* data = static_cast<const VariantArrayDef*>(in);
+      VariantArray value;
+      VariantArrayFromFbVariantArray(data, &value);
+      *out = std::move(value);
+      return true;
+    }
+    case VariantDef_VariantMapDef: {
+      const auto* data = static_cast<const VariantMapDef*>(in);
+      VariantMap value;
+      VariantMapFromFbVariantMap(data, &value);
+      *out = std::move(value);
       return true;
     }
     default: {

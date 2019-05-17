@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ class DebugRender {
  private:
   static constexpr const int kMaxTextLength = 256;
 
-  // TODO(b/63639224) Sort Debug elements based on their position + type.
+  // TODO Sort Debug elements based on their position + type.
   // Currently the order is based solely on type.
   enum class Type {
     kBox3D,
@@ -83,7 +83,7 @@ class DebugRender {
     kQuad2DAbsolute,
   };
 
-  // TODO(b/109863487): Use a union or type-specific structures to save space.
+  // TODO: Use a union or type-specific structures to save space.
   struct DrawElement {
     string_view tag;
     mathfu::mat4 world_from_object_matrix;
@@ -248,22 +248,24 @@ void DebugRender::Submit() {
       const mathfu::vec4& color = element.color;
       switch (element.type) {
         case DebugRender::Type::kLine:
-          draw_->DrawLine(element.pos0, element.pos1, lull::Color4ub(color));
+          draw_->DrawLine(element.pos0, element.pos1,
+                          lull::Color4ub::FromVec4(color));
           break;
         case DebugRender::Type::kText3D:
-          draw_->DrawText3D(element.pos0, lull::Color4ub(color), element.text);
+          draw_->DrawText3D(element.pos0, lull::Color4ub::FromVec4(color),
+                            element.text);
           break;
         case DebugRender::Type::kBox3D:
           draw_->DrawBox3D(element.world_from_object_matrix, element.box,
-                           lull::Color4ub(color));
+                           lull::Color4ub::FromVec4(color));
           break;
         case DebugRender::Type::kText2D:
-          draw_->DrawText2D(lull::Color4ub(color), element.text);
+          draw_->DrawText2D(lull::Color4ub::FromVec4(color), element.text);
           break;
         case DebugRender::Type::kQuad2D:
-          draw_->DrawQuad2D(lull::Color4ub(color),
-                            element.pos0.x, element.pos0.y,
-                            element.pos1.x, element.pos1.y, element.texture);
+          draw_->DrawQuad2D(lull::Color4ub::FromVec4(color), element.pos0.x,
+                            element.pos0.y, element.pos1.x, element.pos1.y,
+                            element.texture);
           break;
         case DebugRender::Type::kQuad2DAbsolute:
           draw_->DrawQuad2DAbsolute(color,
@@ -280,6 +282,10 @@ void DebugRender::Submit() {
 void Initialize(DebugRenderDrawInterface* interface) {
   gDebugRender.reset(new DebugRender(interface));
   InitializeLogTag();
+}
+
+bool IsInitialized() {
+  return gDebugRender != nullptr;
 }
 
 void Shutdown() {

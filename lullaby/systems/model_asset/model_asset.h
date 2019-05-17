@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,8 +41,14 @@ class ModelAsset : public Asset {
   /// Updates all Entities that were waiting for the model to finish loading.
   void OnFinalize(const std::string& filename, std::string* data) override;
 
+  /// Returns the id of the model asset, which is a hash of the filename.
+  HashValue GetId() const { return id_; }
+
   /// Returns the MeshData contained in the model asset.
   MeshData& GetMutableMeshData() { return mesh_data_; }
+
+  /// Returns the MeshData contained in the model asset.
+  const MeshData& GetMeshData() const { return mesh_data_; }
 
   /// Returns the list of materials contained in the model asset.
   std::vector<MaterialInfo>& GetMutableMaterials() { return materials_; }
@@ -68,14 +74,40 @@ class ModelAsset : public Asset {
   Span<uint8_t> GetShaderBoneIndices() const;
 
   /// Returns the inverse bind pose of the skeleton stored in the model asset.
+  /// These matrices are the bone-from-mesh transform for each bone.
   Span<mathfu::AffineTransform> GetInverseBindPose() const;
 
   /// Returns the list of bone names stored in the model asset.
   Span<std::string> GetBoneNames() const { return bone_names_; }
 
-  /// Exposes underlying model definition directly.
-  /// TODO(79746085): Refactor BlendShapeSystem so that this can be removed.
-  const ModelDef* GetModelDef();
+  /// Returns true if the model contains blend shapes.
+  bool HasBlendShapes() const { return !blend_shape_names_.empty(); }
+
+  /// Returns the vertex format of the blend shapes stored in the model asset.
+  const VertexFormat& GetBlendShapeFormat() const { return blend_format_; }
+
+  /// Returns the list of names of blend shapes stored in the model asset.
+  Span<HashValue> GetBlendShapeNames() const { return blend_shape_names_; }
+
+  /// Returns the "base" blend shape.
+  const DataContainer& GetBaseBlendShapeData() const {
+    return base_blend_shape_;
+  }
+
+  const MeshData& GetBaseBlendMesh() const {
+    return base_blend_mesh_;
+  }
+
+  /// Returns the vertex data for the given blend shape (by index).
+  const DataContainer& GetBlendShapeData(size_t index) const {
+    return blend_shapes_[index];
+  }
+
+  /// Creates collision data by copying the mesh data.
+  void CopyMeshToCollisionData();
+
+  /// Returns the collision MeshData contained in the model asset.
+  const MeshData& GetCollisionData() const { return collision_data_; }
 
  private:
   /// Provides a simple wrapper around a flatbuffer table class where the actual
@@ -95,11 +127,18 @@ class ModelAsset : public Asset {
   void PrepareTextures();
   void PrepareSkeleton();
 
+  HashValue id_;
   FlatbufferDataObject<ModelDef, std::string> model_def_;
   MeshData mesh_data_;
+  MeshData collision_data_;
+  VertexFormat blend_format_;
+  DataContainer base_blend_shape_;
+  MeshData base_blend_mesh_;
   std::vector<MaterialInfo> materials_;
   std::vector<TextureInfo> textures_;
   std::vector<std::string> bone_names_;
+  std::vector<HashValue> blend_shape_names_;
+  std::vector<DataContainer> blend_shapes_;
   std::function<void()> finalize_callback_;
 };
 

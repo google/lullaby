@@ -1,4 +1,4 @@
-local utils = import "third_party/lullaby/data/jsonnet/utils.jsonnet";
+local utils = import "lullaby/data/jsonnet/utils.jsonnet";
 
 // Audio functions to create AudioResponseDefs. Cannot be used by themselves,
 // must be in call of responses.make_response(event, audio.function).

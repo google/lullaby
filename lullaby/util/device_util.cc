@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -91,6 +91,7 @@ DeviceProfile GetDaydreamControllerProfile() {
   return result;
 }
 
+
 DeviceProfile GetCardboardHeadsetProfile() {
   DeviceProfile result;
 
@@ -118,9 +119,11 @@ DeviceProfile GetDaydreamHeadsetProfile() {
   return result;
 }
 
+
 DeviceProfile GetARHeadsetProfile() {
   DeviceProfile result;
 
+  result.type = DeviceProfile::kTouchScreen;
   result.position_dof = DeviceProfile::kRealDof;
   result.rotation_dof = DeviceProfile::kRealDof;
 
@@ -130,6 +133,14 @@ DeviceProfile GetARHeadsetProfile() {
   result.buttons[0].type = DeviceProfile::Button::kStandardButton;
   result.buttons[0].purpose = DeviceProfile::Button::kButton0;
 
+  result.touchpads.resize(1);
+
   return result;
 }
+
+DeviceProfile GetDeviceProfileForHeadsetModel(const HashValue hash) {
+
+  return GetCardboardHeadsetProfile();
+}
+
 }  // namespace lull

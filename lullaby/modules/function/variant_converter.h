@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ namespace lull {
 /// - std::vector<T> objects, where T is one of the supported types.
 /// - std::unordered_map<HashValue, T> objects, where T is one of the supported
 ///   types.
+/// - std::function<T> objects.
 class VariantConverter {
  public:
   /// Sets the value in |out| using data from the variant.  Returns true if
@@ -72,10 +73,12 @@ class VariantConverter {
   template <typename T>
   struct IsTrivial {
     // In addition to the "fundamental" types (eg. bool, int, float, mathfu),
-    // we want to store strings and EventWrappers directly in Variants.
+    // we want to store strings, EventWrappers, and functions directly in
+    // Variants.
     static const bool kValue = detail::IsSerializeFundamental<T>::kValue ||
                                detail::IsString<T>::kValue ||
-                               detail::IsEventWrapper<T>::kValue;
+                               detail::IsEventWrapper<T>::kValue ||
+                               detail::IsFunction<T>::kValue;
   };
 
   // Type trait that indicates T can be serialized to a Variant.  See

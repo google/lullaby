@@ -1,5 +1,5 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_LIGHT_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_LIGHT_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_LIGHT_GLSLH_
+#define LULLABY_DATA_SHADERS_LIGHT_GLSLH_
 
 /// This file contains helper structures and functions to add lighting
 /// operations to shaders.
@@ -79,7 +79,7 @@
 /// You now have the final light value in your light variable! Add it to your
 /// fragment output as you wish.
 
-#include "third_party/lullaby/data/shaders/math.glslh"
+#include "lullaby/data/shaders/math.glslh"
 
 /// Structure describing a directional light.
 struct DirectionalLight {
@@ -133,8 +133,13 @@ vec3 GetDirectionalLight(vec3 pos, vec3 normal, vec3 view_dir,
 
   // Intensity of the specular light.
   float view_dot_reflect = dot(-view_dir, reflect_dir);
+
+  // Use an epsilon for pow because pow(x,y) is undefined if x < 0 or x == 0
+  // and y <= 0 (GLSL Spec 8.2)
+  const float kEpsilon = 1e-5;
   intensity = kEnergyConservation *
-                        pow(clamp(view_dot_reflect, 0.0, 1.0), light.exponent);
+                        pow(clamp(view_dot_reflect, kEpsilon, 1.0),
+                            light.exponent);
 
   // Specular color:
   vec3 specular = intensity * light.color;
@@ -175,8 +180,12 @@ vec3 GetPointLight(vec3 pos, vec3 normal, vec3 view_dir, PointLight light)
 
     // Intensity of the specular light.
     float view_dot_reflect = dot(-view_dir, reflect_dir);
+    // Use an epsilon for pow because pow(x,y) is undefined if x < 0 or x == 0
+    // and y <= 0 (GLSL Spec 8.2)
+    const float kEpsilon = 1e-5;
     intensity = kEnergyConservation *
-                        pow(clamp(view_dot_reflect, 0.0, 1.0), light.exponent);
+                        pow(clamp(view_dot_reflect, kEpsilon, 1.0),
+                            light.exponent);
 
     // Specular color:
     vec3 specular = intensity * light.color * light.intensity / distance2;
@@ -234,7 +243,7 @@ float ShadowCalculation(vec3 projection_coords, float fragment_depth)
 /// @param VIEW_DIR The camera view direction.
 /// @param S The sampler index for the shadow texture.
 ///
-/// TODO(b/65169179).
+/// TODO.
 #define LIGHT_CALCULATE_DIRECTIONALS_SHADOW_5(OUT_COLOR, POS, NORMAL, VIEW_DIR) vec3 shadow_coords = CalculateShadowCoords(vVertPosLightSpace); float fragment_depth = texture2D(texture_unit_5, shadow_coords.xy).r; for (int i = 0; i < kNumDirectionalShadowLights; ++i) { DirectionalLight dl; dl.direction = light_directional_shadow_dir[i]; dl.color = light_directional_shadow_color[i]; dl.exponent = light_directional_shadow_exponent[i]; float shadow_bias = max(0.05 * (dot(NORMAL, dl.direction)), 0.005); OUT_COLOR += GetDirectionalLight(POS, NORMAL, VIEW_DIR, dl) * ShadowCalculation(shadow_coords, fragment_depth + shadow_bias); }
 
 /// Helper macro to calculate and sum all point lights into a variable.
@@ -245,4 +254,4 @@ float ShadowCalculation(vec3 projection_coords, float fragment_depth)
 /// @param VIEW_DIR The camera view direction.
 #define LIGHT_CALCULATE_POINTS(OUT_COLOR, POS, NORMAL, VIEW_DIR) for (int i = 0; i < kNumPointLights; ++i) { PointLight pl; pl.position = light_point_pos[i]; pl.color = light_point_color[i]; pl.intensity = light_point_intensity[i]; pl.exponent = light_point_exponent[i]; OUT_COLOR += GetPointLight(POS, NORMAL, VIEW_DIR, pl); }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_LIGHT_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_LIGHT_GLSLH_

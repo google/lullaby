@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -89,10 +89,10 @@ int Run(int argc, const char** argv) {
     return -1;
   }
 
-  const std::string output = args.GetString("output").to_string();
+  const std::string output(args.GetString("output"));
   std::string out_dir = GetDirectoryFromFilename(output);
   if (args.IsSet("outdir")) {
-    out_dir = args.GetString("outdir").to_string();
+    out_dir = std::string(args.GetString("outdir"));
   }
   if (!CreateFolder(out_dir.c_str())) {
     LOG(ERROR) << "Could not create directory: " << out_dir;
@@ -109,18 +109,18 @@ int Run(int argc, const char** argv) {
 
   std::string ext = "lullmodel";
   if (args.IsSet("ext")) {
-    ext = args.GetString("ext").to_string();
+    ext = std::string(args.GetString("ext"));
   }
   const std::string outfile = JoinPath(out_dir, mesh_name + "." + ext);
 
 #if !defined(_WINDOWS) && !defined(_WIN32)
   char buff[1024];
-  if(getcwd(buff, 1024)) {
+  if (getcwd(buff, 1024)) {
     LogWrite("working directory: %s\n", buff);
   }
 #endif
   if (args.IsSet("input")) {
-    const std::string input = args.GetString("input").to_string();
+    const std::string input(args.GetString("input"));
     LogWrite("input:             %s\n", input.c_str());
   }
   LogWrite("output:            %s\n\n", outfile.c_str());
@@ -131,7 +131,7 @@ int Run(int argc, const char** argv) {
   pipeline.RegisterImporter(ImportAsset, ".gltf");
   pipeline.RegisterImporter(ImportAsset, ".obj");
 
-  std::string temp = args.GetString("textures").to_string();
+  std::string temp(args.GetString("textures"));
   while (true) {
     auto pos = temp.find(';');
     if (pos == std::string::npos) {
@@ -141,12 +141,12 @@ int Run(int argc, const char** argv) {
     temp = temp.substr(pos + 1);
   }
   if (args.IsSet("schema")) {
-    pipeline.SetModelDefSchema(args.GetString("schema").to_string());
+    pipeline.SetModelDefSchema(std::string(args.GetString("schema")));
   }
 
   std::vector<VertexAttributeUsage> attribs;
   if (args.IsSet("attrib")) {
-    auto attrib = args.GetString("attrib").to_string();
+    std::string attrib(args.GetString("attrib"));
     for (auto c : attrib) {
       switch (c) {
         case 'p':
@@ -183,11 +183,11 @@ int Run(int argc, const char** argv) {
   options.relative_path = args.IsSet("use-relative-paths");
   if (args.IsSet("config-json")) {
     const string_view json = args.GetString("config-json");
-    if (!pipeline.ImportUsingConfig(json.to_string())) {
+    if (!pipeline.ImportUsingConfig(std::string(json))) {
       return -1;
     }
   } else {
-    const std::string source = args.GetString("input").to_string();
+    const std::string source(args.GetString("input"));
     const std::string search_path = GetDirectoryFromFilename(source);
     pipeline.RegisterDirectory(search_path);
     if (!pipeline.ImportFile(source, attribs, options)) {

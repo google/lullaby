@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,13 +22,12 @@ limitations under the License.
 #include "lullaby/util/filename.h"
 #include "lullaby/util/make_unique.h"
 #include "lullaby/generated/model_pipeline_def_generated.h"
+#include "lullaby/tools/common/assimp_base_importer.h"
 #include "lullaby/tools/model_pipeline/model.h"
+#include "lullaby/tools/model_pipeline/util.h"
 
 namespace lull {
 namespace tool {
-
-using ::Assimp::DefaultIOSystem;
-using ::Assimp::Logger;
 
 // These property names are not exposed publicly by Assimp, but are needed to
 // extract PBR material properties from GLTF files.
@@ -43,26 +42,33 @@ const char* AI_MATKEY_GLTF_ALPHACUTOFF = "$mat.gltf.alphaCutoff";
 const char* AI_MATKEY_GLTF_UNLIT = "$mat.gltf.unlit";
 #define AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_TEXTURE \
   aiTextureType_DIFFUSE, 1
+#define AI_MATKEY_GLTF_PBRSPECULARGLOSSINESS \
+  "$mat.gltf.pbrSpecularGlossiness", 0, 0
+#define AI_MATKEY_GLTF_PBRSPECULARGLOSSINESS_GLOSSINESS_FACTOR \
+  "$mat.gltf.pbrMetallicRoughness.glossinessFactor", 0, 0
 #define AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE \
   aiTextureType_UNKNOWN, 0
 
-mathfu::vec3 Convert(const aiVector3D& vec) { return {vec.x, vec.y, vec.z}; }
+static mathfu::vec3 Convert(const aiVector3D& vec) {
+  return {vec.x, vec.y, vec.z};
+}
 
-mathfu::vec4 Convert(const aiColor4D& color) {
+static mathfu::vec4 Convert(const aiColor4D& color) {
   return {color.r, color.g, color.b, color.a};
 }
 
-mathfu::mat4 Convert(const aiMatrix4x4& mat) {
+static mathfu::mat4 Convert(const aiMatrix4x4& mat) {
   return {
       mat.a1, mat.b1, mat.c1, mat.d1, mat.a2, mat.b2, mat.c2, mat.d2,
       mat.a3, mat.b3, mat.c3, mat.d3, mat.a4, mat.b4, mat.c4, mat.d4,
   };
 }
 
-mathfu::vec2 ConvertUv(const aiVector3D& vec) { return {vec.x, vec.y}; }
+static mathfu::vec2 ConvertUv(const aiVector3D& vec) { return {vec.x, vec.y}; }
 
-mathfu::vec4 ConvertTangent(const aiVector3D& normal, const aiVector3D& tangent,
-                            const aiVector3D& bitangent) {
+static mathfu::vec4 ConvertTangent(const aiVector3D& normal,
+                                   const aiVector3D& tangent,
+                                   const aiVector3D& bitangent) {
   const mathfu::vec3 n(normal.x, normal.y, normal.z);
   const mathfu::vec3 t(tangent.x, tangent.y, tangent.z);
   const mathfu::vec3 b(bitangent.x, bitangent.y, bitangent.z);
@@ -72,30 +78,7 @@ mathfu::vec4 ConvertTangent(const aiVector3D& normal, const aiVector3D& tangent,
   return {tangent.x, tangent.y, tangent.z, sign ? -1.f : 1.f};
 }
 
-// Generates a unit vector (+ handedness) orthogonal to the given normal.
-mathfu::vec4 GenerateTangent(const mathfu::vec3& normal) {
-  const mathfu::vec3 axis =
-      (std::fabs(mathfu::dot(normal, mathfu::kAxisX3f)) < 0.99f)
-          ? mathfu::kAxisX3f
-          : mathfu::kAxisY3f;
-  return mathfu::vec4(mathfu::normalize(mathfu::cross(normal, axis)), 1.f);
-}
-
-mathfu::vec4 CalculateOrientation(const mathfu::vec3& normal,
-                                  const mathfu::vec4& tangent) {
-  const mathfu::vec3 n = normal.Normalized();
-  const mathfu::vec3 t = tangent.xyz().Normalized();
-  const mathfu::vec3 b = mathfu::vec3::CrossProduct(n, t).Normalized();
-  const mathfu::mat3 m(t.x, t.y, t.z, b.x, b.y, b.z, n.x, n.y, n.z);
-  mathfu::quat q = mathfu::quat::FromMatrix(m).Normalized();
-  // Align the sign bit of the orientation scalar to our handedness.
-  if (signbit(tangent.w) != signbit(q.scalar())) {
-    q = mathfu::quat(-q.scalar(), -q.vector());
-  }
-  return mathfu::vec4(q.vector(), q.scalar());
-}
-
-TextureWrap Convert(const aiTextureMapMode& mode) {
+static TextureWrap ConvertTextureWrapMode(const aiTextureMapMode& mode) {
   switch (mode) {
     case aiTextureMapMode_Wrap:
       return TextureWrap_Repeat;
@@ -109,157 +92,41 @@ TextureWrap Convert(const aiTextureMapMode& mode) {
   }
 }
 
-// The default logger always spews everything.  People only care when something
-// goes wrong.  BatchLogger collects all the spew so that it can be reported
-// if something goes wrong.
-class BatchLogger : public Logger {
- public:
-  BatchLogger() : Logger() {}
-  ~BatchLogger() override {}
-
-  bool attachStream(Assimp::LogStream* pStream,
-                    unsigned int severity) override {
-    return false;
+static void ReadStringProperty(const aiMaterial* src, Material* dst,
+                               const char* src_name, int a1, int a2,
+                               const char* dst_name) {
+  aiString value;
+  if (src->Get(src_name, a1, a2, value) == AI_SUCCESS) {
+    dst->properties[dst_name] = std::string(value.C_Str());
   }
+}
 
-  bool detatchStream(Assimp::LogStream* pStream,
-                     unsigned int severity) override {
-    return false;
+static void ReadFloatProperty(const aiMaterial* src, Material* dst,
+                              const char* src_name, int a1, int a2,
+                              const char* dst_name) {
+  float value;
+  if (src->Get(src_name, a1, a2, value) == AI_SUCCESS) {
+    dst->properties[dst_name] = value;
   }
+}
 
-  size_t LogCountWithSeverity(Logger::ErrorSeverity severity) {
-    return std::count_if(
-        entries_.begin(), entries_.end(),
-        [severity](const LogEntry& entry) { return entry.first == severity; });
+static void ReadColorProperty(const aiMaterial* src, Material* dst,
+                              const char* src_name, int a1, int a2,
+                              const char* dst_name) {
+  aiColor4D value4;
+  if (src->Get(src_name, a1, a2, value4) == AI_SUCCESS) {
+    dst->properties[dst_name] =
+        mathfu::vec4(value4.r, value4.g, value4.b, value4.a);
+    return;
   }
-
-  virtual void DumpHeader(std::string header) = 0;
-  virtual void DumpLogItem(Logger::ErrorSeverity severity,
-                           const std::string& error) = 0;
-
-  void DumpLog(Logger::ErrorSeverity min_severity = Logger::Info) {
-    for (auto& entry : entries_) {
-      if (entry.first < min_severity) {
-        continue;
-      }
-      DumpLogItem(entry.first, entry.second);
-    }
+  aiColor3D value3;
+  if (src->Get(src_name, a1, a2, value3) == AI_SUCCESS) {
+    dst->properties[dst_name] = mathfu::vec4(value3.r, value3.g, value3.b, 1.f);
+    return;
   }
+}
 
-  void ReportWarningsAndErrors() {
-    const auto warning_count = LogCountWithSeverity(Assimp::Logger::Warn);
-    const auto error_count = LogCountWithSeverity(Assimp::Logger::Err);
-
-    std::ostringstream report_prefix;
-    report_prefix << "Import failed";
-
-    if (warning_count && error_count) {
-      report_prefix << " with " << warning_count << " warnings and "
-                    << error_count << " errors:";
-    } else if (error_count) {
-      report_prefix << " with " << error_count << " errors:";
-    } else if (warning_count) {
-      report_prefix << " with " << warning_count << " warnings:";
-    } else {
-      report_prefix << ".";
-    }
-
-    DumpHeader(report_prefix.str());
-    DumpLog(Assimp::Logger::Warn);
-  }
-
- protected:
-  explicit BatchLogger(LogSeverity severity) : Logger(severity) {}
-
-  void OnDebug(const char* message) override {
-    entries_.emplace_back(Logger::Debugging, message);
-  }
-  void OnInfo(const char* message) override {
-    entries_.emplace_back(Logger::Info, message);
-  }
-  void OnWarn(const char* message) override {
-    entries_.emplace_back(Logger::Warn, message);
-  }
-  void OnError(const char* message) override {
-    entries_.emplace_back(Logger::Err, message);
-  }
-
-  using LogEntry = std::pair<Logger::ErrorSeverity, std::string>;
-  std::vector<LogEntry> entries_;
-};
-
-class StdOutLogger : public BatchLogger {
-  void DumpLogItem(Logger::ErrorSeverity severity,
-                   const std::string& error) override {
-    switch (severity) {
-      case Logger::Debugging: {
-        break;
-      }
-      case Logger::Info: {
-        break;
-      }
-      case Logger::Warn: {
-        std::cout << "-W: ";
-        break;
-      }
-      case Logger::Err: {
-        std::cout << "-E: ";
-        break;
-      }
-    }
-    std::cout << error << std::endl;
-  }
-
-  void DumpHeader(std::string header) override {
-    std::cout << "- " << header << std::endl;
-  }
-};
-
-class LoggingLogger : public BatchLogger {
-  void DumpLogItem(Logger::ErrorSeverity severity,
-                   const std::string& error) override {
-    switch (severity) {
-      case Logger::Debugging: {
-        break;
-      }
-      case Logger::Info: {
-        break;
-      }
-      case Logger::Warn: {
-        LOG(WARNING) << error;
-        break;
-      }
-      case Logger::Err: {
-        LOG(ERROR) << error;
-        break;
-      }
-    }
-  }
-
-  void DumpHeader(std::string header) override { LOG(ERROR) << header; }
-};
-
-class TrackedIOSystem : public DefaultIOSystem {
- public:
-  TrackedIOSystem() : DefaultIOSystem() {}
-  ::Assimp::IOStream* Open(const char* filename,
-                           const char* mode = "rb") override {
-    if (!std::any_of(opened_files_.begin(), opened_files_.end(),
-                     [filename, this](const std::string& opened_file) {
-                       return ComparePaths(filename, opened_file.c_str());
-                     })) {
-      opened_files_.emplace_back(filename);
-    }
-    return DefaultIOSystem::Open(filename, mode);
-  }
-
-  const std::vector<std::string>& GetOpenedFiles() { return opened_files_; }
-
- private:
-  std::vector<std::string> opened_files_;
-};
-
-class AssetImporter {
+class AssetImporter : public AssimpBaseImporter {
  public:
   AssetImporter() {}
   Model Import(const ModelPipelineImportDefT& import_def);
@@ -269,29 +136,12 @@ class AssetImporter {
   void ReadShadingModel(const aiMaterial* src, Material* dst);
   void ReadTexture(const aiMaterial* src, Material* dst, aiTextureType src_type,
                    unsigned int index, MaterialTextureUsage usage);
-  void ReadStringProperty(const aiMaterial* src, Material* dst,
-                          const char* src_name, int a1, int a2,
-                          const char* dst_name);
-  void ReadFloatProperty(const aiMaterial* src, Material* dst,
-                         const char* src_name, int a1, int a2,
-                         const char* dst_name);
-  void ReadColorProperty(const aiMaterial* src, Material* dst,
-                         const char* src_name, int a1, int a2,
-                         const char* dst_name);
 
   void ReadMesh(const aiNode* node, const aiMesh* src);
   void AddVertex(const aiNode* node, const aiMesh* src, int index);
   std::vector<Vertex::Influence> GatherInfluences(const aiMesh* src, int index);
 
-  void AddNodeToHierarchy(const aiNode* node);
-  void PopulateHierarchyRecursive(const aiNode* node);
-  void ReadSkeletonRecursive(const aiNode* node, int parent_bone_index,
-                             const aiMatrix4x4& base_transform);
-  void ReadMeshRecursive(const aiNode* node);
-  void ReportWarningsAndErrors(BatchLogger* logger);
-
   Model* model_ = nullptr;
-  const aiScene* scene_ = nullptr;
   std::unordered_map<const aiNode*, int> hierarchy_;
   std::vector<Material> materials_;
 };
@@ -331,14 +181,6 @@ void AssetImporter::AddVertex(const aiNode* node, const aiMesh* src,
     model_->EnableAttribute(Vertex::kAttribBit_Tangent);
     vertex.tangent = ConvertTangent(src->mNormals[index], src->mTangents[index],
                                     src->mBitangents[index]);
-    model_->EnableAttribute(Vertex::kAttribBit_Orientation);
-    vertex.orientation = CalculateOrientation(vertex.normal, vertex.tangent);
-  } else if (src->HasNormals()) {
-    // Absent a full tangent space, generate an arbitrary basis with a correct
-    // normal vector.  Some clients use orientation to communicate normal.
-    vertex.tangent = GenerateTangent(vertex.normal);
-    model_->EnableAttribute(Vertex::kAttribBit_Orientation);
-    vertex.orientation = CalculateOrientation(vertex.normal, vertex.tangent);
   }
   if (src->mColors[0]) {
     model_->EnableAttribute(Vertex::kAttribBit_Color0);
@@ -404,7 +246,7 @@ void AssetImporter::AddVertex(const aiNode* node, const aiMesh* src,
 
 void AssetImporter::ReadShadingModel(const aiMaterial* src, Material* dst) {
   const std::string& file_name = model_->GetImportDef().file;
-  if (EndsWith(file_name, ".gltf")) {
+  if (EndsWith(file_name, ".gltf") || EndsWith(file_name, ".glb")) {
     bool unlit;
     if (src->Get(AI_MATKEY_GLTF_UNLIT, 0, 0, unlit) == AI_SUCCESS && unlit) {
       dst->properties["ShadingModel"] = std::string("Unlit");
@@ -470,47 +312,47 @@ void AssetImporter::ReadTexture(const aiMaterial* src, Material* dst,
   } else {
     TextureInfo info;
     info.usages = {usage};
-    info.wrap_s = Convert(src_modes[0]);
-    info.wrap_t = Convert(src_modes[1]);
+    info.wrap_s = ConvertTextureWrapMode(src_modes[0]);
+    info.wrap_t = ConvertTextureWrapMode(src_modes[1]);
+
+    // Embedded textures from Assimp are named "*#" where # is a decimal number
+    // corresponding to a texture index.
+    if (path.length > 1 && path.data[0] == '*') {
+      char* path_end = path.data + path.length;
+      uint32_t embedded_index = std::strtoul(path.data + 1, &path_end, 10);
+      const aiTexture* texture = GetScene()->mTextures[embedded_index];
+
+      // If mHeight is 0, it implies that the embedded texture is compressed and
+      // the total size is stored in mWidth. Otherwise, the embedded data is
+      // RGBA data.
+      uint32_t embedded_texture_byte_count =
+          texture->mHeight ? texture->mHeight * texture->mWidth * 4
+                           : texture->mWidth;
+      auto embedded_texture_bytes =
+          reinterpret_cast<const uint8_t*>(texture->pcData);
+
+      info.data = std::make_shared<ByteArray>(
+          embedded_texture_bytes,
+          embedded_texture_bytes + embedded_texture_byte_count);
+    }
+
     dst->textures.emplace(std::move(name), std::move(info));
   }
 }
 
-void AssetImporter::ReadStringProperty(const aiMaterial* src, Material* dst,
-                                       const char* src_name, int a1, int a2,
-                                       const char* dst_name) {
-  aiString value;
-  if (src->Get(src_name, a1, a2, value) == AI_SUCCESS) {
-    dst->properties[dst_name] = std::string(value.C_Str());
-  }
-}
-
-void AssetImporter::ReadFloatProperty(const aiMaterial* src, Material* dst,
-                                      const char* src_name, int a1, int a2,
-                                      const char* dst_name) {
-  float value;
-  if (src->Get(src_name, a1, a2, value) == AI_SUCCESS) {
-    dst->properties[dst_name] = value;
-  }
-}
-
-void AssetImporter::ReadColorProperty(const aiMaterial* src, Material* dst,
-                                      const char* src_name, int a1, int a2,
-                                      const char* dst_name) {
-  aiColor4D value4;
-  if (src->Get(src_name, a1, a2, value4) == AI_SUCCESS) {
-    dst->properties[dst_name] =
-        mathfu::vec4(value4.r, value4.g, value4.b, value4.a);
-    return;
-  }
-  aiColor3D value3;
-  if (src->Get(src_name, a1, a2, value3) == AI_SUCCESS) {
-    dst->properties[dst_name] = mathfu::vec4(value3.r, value3.g, value3.b, 1.f);
-    return;
-  }
-}
-
 void AssetImporter::ReadMaterial(const aiMaterial* src, Material* dst) {
+  auto has_gltf_specular_glossiness = false;
+  src->Get(AI_MATKEY_GLTF_PBRSPECULARGLOSSINESS, has_gltf_specular_glossiness);
+  auto use_specular_glossiness_textures_if_present =
+      model_->GetImportDef().use_specular_glossiness_textures_if_present;
+  auto should_use_specular_glossiness =
+      use_specular_glossiness_textures_if_present &&
+      has_gltf_specular_glossiness;
+
+  if (should_use_specular_glossiness) {
+    dst->properties["UsesSpecularGlossiness"] = true;
+  }
+
   ReadShadingModel(src, dst);
   ReadStringProperty(src, dst, AI_MATKEY_NAME, "Name");
   ReadStringProperty(src, dst, AI_MATKEY_GLTF_ALPHAMODE, 0, 0, "AlphaMode");
@@ -525,13 +367,22 @@ void AssetImporter::ReadMaterial(const aiMaterial* src, Material* dst) {
   ReadFloatProperty(src, dst, AI_MATKEY_SHININESS, "Shininess");
   ReadFloatProperty(src, dst, AI_MATKEY_SHININESS_STRENGTH,
                     "ShininessStrength");
-  ReadFloatProperty(src, dst,
-                    AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, 0, 0,
-                    "Metallic");
-  ReadFloatProperty(src, dst,
-                    AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_ROUGHNESS_FACTOR, 0, 0,
-                    "Roughness");
   ReadFloatProperty(src, dst, AI_MATKEY_REFRACTI, "RefractiveIndex");
+
+  // Conditially reads in either specular-glossiness or metallic-roughness
+  // factors depending on configuration.
+  if (should_use_specular_glossiness) {
+    ReadFloatProperty(src, dst,
+                      AI_MATKEY_GLTF_PBRSPECULARGLOSSINESS_GLOSSINESS_FACTOR,
+                      "Glossiness");
+  } else {
+    ReadFloatProperty(src, dst,
+                      AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, 0, 0,
+                      "Metallic");
+    ReadFloatProperty(src, dst,
+                      AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_ROUGHNESS_FACTOR, 0,
+                      0, "Roughness");
+  }
   ReadColorProperty(src, dst, AI_MATKEY_COLOR_DIFFUSE, "DiffuseColor");
   ReadColorProperty(src, dst, AI_MATKEY_COLOR_AMBIENT, "AmbientColor");
   ReadColorProperty(src, dst, AI_MATKEY_COLOR_SPECULAR, "SpecularColor");
@@ -541,21 +392,34 @@ void AssetImporter::ReadMaterial(const aiMaterial* src, Material* dst) {
   ReadColorProperty(src, dst,
                     AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, 0, 0,
                     "BaseColor");
-  ReadTexture(src, dst, aiTextureType_DIFFUSE, 0,
-              MaterialTextureUsage_BaseColor);
 
-  // If gltf base color texture is available, this overrides the lullaby base
-  // color texture with that. If it isn't available, it doesn't do anything.
-  ReadTexture(src, dst, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_TEXTURE,
-              MaterialTextureUsage_BaseColor);
+  // If configured to use specular-glossines, reads in diffuse type as diffuse
+  // usage. Otherwise, reads in metallic-roughness textures. If both
+  // specular-glossiness and metallic-roughness textures are available, the base
+  // color texture should be used for the base color usage. Otherwise, the
+  // diffuse type will have the base color usage in it.
+  if (should_use_specular_glossiness) {
+    ReadTexture(src, dst, aiTextureType_DIFFUSE, 0,
+                MaterialTextureUsage_DiffuseColor);
+  } else {
+    if (has_gltf_specular_glossiness) {
+      ReadTexture(src, dst,
+                  AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_TEXTURE,
+                  MaterialTextureUsage_BaseColor);
+    } else {
+      ReadTexture(src, dst, aiTextureType_DIFFUSE, 0,
+                  MaterialTextureUsage_BaseColor);
+    }
+    ReadTexture(src, dst,
+                AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE,
+                MaterialTextureUsage_Roughness);
+    ReadTexture(src, dst,
+                AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE,
+                MaterialTextureUsage_Metallic);
+  }
+
   ReadTexture(src, dst, aiTextureType_SPECULAR, 0,
               MaterialTextureUsage_Specular);
-  ReadTexture(src, dst,
-              AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE,
-              MaterialTextureUsage_Roughness);
-  ReadTexture(src, dst,
-              AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE,
-              MaterialTextureUsage_Metallic);
   ReadTexture(src, dst, aiTextureType_LIGHTMAP, 0,
               MaterialTextureUsage_Occlusion);
   ReadTexture(src, dst, aiTextureType_NORMALS, 0, MaterialTextureUsage_Normal);
@@ -573,160 +437,73 @@ void AssetImporter::ReadMaterial(const aiMaterial* src, Material* dst) {
   dst->name = dst->properties["Name"].ValueOr(std::string());
 }
 
-void AssetImporter::AddNodeToHierarchy(const aiNode* node) {
-  while (node != nullptr && node != scene_->mRootNode) {
-    // Nodes with $ symbols seem to be generated as part of the assimp importer
-    // itself and are not part of the original asset.
-    if (!strstr(node->mName.C_Str(), "$")) {
-      const int index = Bone::kInvalidBoneIndex;
-      hierarchy_.emplace(node, index);
-    }
-    node = node->mParent;
-  }
-}
-
-void AssetImporter::PopulateHierarchyRecursive(const aiNode* node) {
-  for (int i = 0; i < node->mNumMeshes; ++i) {
-    AddNodeToHierarchy(node);
-
-    const int mesh_index = node->mMeshes[i];
-    const aiMesh* mesh = scene_->mMeshes[mesh_index];
-    for (int j = 0; j < mesh->mNumBones; ++j) {
-      const aiBone* bone = mesh->mBones[j];
-      const aiNode* bone_node = scene_->mRootNode->FindNode(bone->mName);
-      AddNodeToHierarchy(bone_node);
-    }
-  }
-  for (int i = 0; i < node->mNumChildren; ++i) {
-    PopulateHierarchyRecursive(node->mChildren[i]);
-  }
-}
-
-void AssetImporter::ReadSkeletonRecursive(const aiNode* node,
-                                          int parent_bone_index,
-                                          const aiMatrix4x4& base_transform) {
-  const aiMatrix4x4 transform = base_transform * node->mTransformation;
-  auto iter = hierarchy_.find(node);
-  if (iter != hierarchy_.end()) {
-    const std::string name = node->mName.C_Str();
-    const mathfu::mat4 binding_transform = Convert(transform).Inverse();
-    const Bone bone(name, parent_bone_index, binding_transform);
-    parent_bone_index = model_->AppendBone(bone);
-    iter->second = parent_bone_index;
-  }
-  for (int i = 0; i < node->mNumChildren; ++i) {
-    ReadSkeletonRecursive(node->mChildren[i], parent_bone_index, transform);
-  }
-}
-
-void AssetImporter::ReadMeshRecursive(const aiNode* node) {
-  for (int i = 0; i < node->mNumMeshes; ++i) {
-    const int mesh_index = node->mMeshes[i];
-    const aiMesh* mesh = scene_->mMeshes[mesh_index];
-
-    if (mesh->mNumAnimMeshes != 0 || mesh->mAnimMeshes != nullptr) {
-      LOG(ERROR) << "Animated meshes are unsupported.";
-      continue;
-    } else if (!mesh->HasPositions()) {
-      LOG(ERROR) << "Mesh does not have positions.";
-      continue;
-    } else if (mesh->mMaterialIndex >= materials_.size()) {
-      LOG(ERROR) << "Invalid material index. Cannot bind material.";
-      continue;
-    }
-
-    model_->BindDrawable(materials_[mesh->mMaterialIndex]);
-    for (int face_index = 0; face_index < mesh->mNumFaces; ++face_index) {
-      const aiFace& face = mesh->mFaces[face_index];
-      if (face.mNumIndices != 3) {
-        // Points and lines are serialized as faces with < 3 vertices.
-        continue;
-      }
-
-      for (int j = 0; j < face.mNumIndices; ++j) {
-        const int vertex_index = face.mIndices[j];
-        AddVertex(node, mesh, vertex_index);
-      }
-    }
-  }
-  for (int i = 0; i < node->mNumChildren; ++i) {
-    ReadMeshRecursive(node->mChildren[i]);
-  }
-}
-
 Model AssetImporter::Import(const ModelPipelineImportDefT& import_def) {
   Model model(import_def);
-  model_ = &model;
 
-  Assimp::Importer importer;
-  importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE,
-                            import_def.smoothing_angle);
-  importer.SetPropertyFloat(AI_CONFIG_PP_LBW_MAX_WEIGHTS,
-                            import_def.max_bone_weights);
-  importer.SetPropertyFloat(AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY,
-                            import_def.scale);
+  AssimpBaseImporter::Options opts;
+  opts.recenter = import_def.recenter;
+  opts.axis_system = import_def.axis_system;
+  opts.scale_multiplier = import_def.scale;
+  opts.smoothing_angle = import_def.smoothing_angle;
+  opts.max_bone_weights = import_def.max_bone_weights;
+  opts.flip_texture_coordinates = import_def.flip_texture_coordinates;
+  opts.flatten_hierarchy_and_transform_vertices_to_root_space =
+      import_def.flatten_hierarchy_and_transform_vertices_to_root_space;
+  opts.report_errors_to_stdout = import_def.report_errors_to_stdout;
 
-  int flags = 0;
-  flags |= aiProcess_CalcTangentSpace;
-  flags |= aiProcess_JoinIdenticalVertices;
-  flags |= aiProcess_Triangulate;
-  flags |= aiProcess_GenSmoothNormals;
-  flags |= aiProcess_FixInfacingNormals;
-  flags |= aiProcess_ImproveCacheLocality;
-  flags |= aiProcess_RemoveRedundantMaterials;
-  flags |= aiProcess_LimitBoneWeights;
-  // TODO: Allow these flags to be enabled via the command line. They are
-  // currently incompatible with anim_pipeline.
-  // flags |= aiProcess_OptimizeMeshes;
-  // flags |= aiProcess_OptimizeGraph;
+  const bool success = LoadScene(import_def.file, opts);
+  if (success) {
+    model_ = &model;
+    std::unordered_map<const aiMaterial*, size_t> material_map;
 
-  if (model_->GetImportDef().flip_texture_coordinates)
-    flags |= aiProcess_FlipUVs;
+    ForEachMaterial([&](const aiMaterial* material) {
+      material_map[material] = materials_.size();
 
-  if (model_->GetImportDef()
-          .flatten_hierarchy_and_transform_vertices_to_root_space)
-    flags |= aiProcess_PreTransformVertices;
+      materials_.emplace_back();
+      ReadMaterial(material, &materials_.back());
+    });
 
-  // Assimp expects a pointer to a C++-allocated logger (which it then owns).
-  BatchLogger* logger = model_->GetImportDef().report_errors_to_stdout
-                            ? static_cast<BatchLogger*>(new StdOutLogger())
-                            : static_cast<BatchLogger*>(new LoggingLogger());
-  ::Assimp::DefaultLogger::set(logger);
+    ForEachBone([&](const aiNode* node, const aiNode* parent,
+                    const aiMatrix4x4& transform) {
+      const std::string name = node->mName.C_Str();
+      auto iter = hierarchy_.find(parent);
+      const int parent_index = iter == hierarchy_.end() ? -1 : iter->second;
 
-  TrackedIOSystem io_system;
+      const Bone bone(name, parent_index, Convert(transform).Inverse());
+      const int index = model_->AppendBone(bone);
+      hierarchy_[node] = index;
+    });
 
-  importer.SetIOHandler(&io_system);
+    ForEachMesh([=](const aiMesh* mesh, const aiNode* node,
+                    const aiMaterial* material) {
+      auto iter = material_map.find(material);
+      if (iter == material_map.end()) {
+        return;
+      }
 
-  const std::string& filename = model_->GetImportDef().file;
-  scene_ = importer.ReadFile(filename.c_str(), flags);
-  if (scene_ == nullptr) {
-    LOG(ERROR) << "Unable to load scene: " << filename;
-    LOG(ERROR) << importer.GetErrorString();
-    return model;
+      model_->BindDrawable(materials_[iter->second]);
+      for (int face_index = 0; face_index < mesh->mNumFaces; ++face_index) {
+        const aiFace& face = mesh->mFaces[face_index];
+        if (face.mNumIndices != 3) {
+          // Points and lines are serialized as faces with < 3 vertices.
+          continue;
+        }
+
+        for (int j = 0; j < face.mNumIndices; ++j) {
+          const int vertex_index = face.mIndices[j];
+          AddVertex(node, mesh, vertex_index);
+        }
+      }
+    });
+
+    model_->ComputeOrientationsFromTangentSpaces(
+        import_def.ensure_vertex_orientation_w_not_zero);
+
+    ForEachOpenedFile(
+        [=](const std::string& file) { model_->AddImportedPath(file); });
+
+    model_ = nullptr;
   }
-
-  materials_.resize(scene_->mNumMaterials);
-  for (int i = 0; i < scene_->mNumMaterials; ++i) {
-    ReadMaterial(scene_->mMaterials[i], &materials_[i]);
-  }
-  // TODO: Handle embedded textures.
-  PopulateHierarchyRecursive(scene_->mRootNode);
-  ReadSkeletonRecursive(scene_->mRootNode, Bone::kInvalidBoneIndex,
-                        aiMatrix4x4());
-  ReadMeshRecursive(scene_->mRootNode);
-  if (model_->GetImportDef().recenter) {
-    // TODO(b/78512674): placeholder
-    model_->Recenter();
-  }
-  if (!model_->IsValid()) {
-    logger->ReportWarningsAndErrors();
-  }
-  importer.SetIOHandler(nullptr);
-  for (const auto& opened_file : io_system.GetOpenedFiles()) {
-    model.AddImportedPath(opened_file);
-  }
-
-  model_ = nullptr;
   return model;
 }
 

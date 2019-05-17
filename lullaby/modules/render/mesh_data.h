@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -205,6 +205,11 @@ class MeshData {
     return index_data_.GetSize() / GetIndexSize();
   }
 
+  // Calculates the number of primitives represented by the given number of
+  // indices for the specified primitive type.
+  static size_t GetNumPrimitives(PrimitiveType type, IndexRange range);
+  static size_t GetNumPrimitives(PrimitiveType type, size_t num_indices);
+
   // Adds a single index, casting to the mesh's index type as necessary. If the
   // mesh has index range data, this also adds a new range for the newly added
   // indices. Returns false and does not add any data for any of:
@@ -254,6 +259,12 @@ class MeshData {
     return AddIndices(indices.begin(), indices.size());
   }
 
+  void SetSubmeshAabbs(std::vector<Aabb> aabbs) {
+    submesh_aabbs_ = std::move(aabbs);
+  }
+
+  const std::vector<Aabb>& GetSubmeshAabbs() const { return submesh_aabbs_; }
+
  private:
   template <typename IndexT>
   bool AddIndicesImpl(const IndexT* list, size_t count);
@@ -264,6 +275,7 @@ class MeshData {
   DataContainer vertex_data_;
   DataContainer index_data_;
   DataContainer index_range_data_;
+  std::vector<Aabb> submesh_aabbs_;
   // We keep track of the number of vertices that have been added to the mesh
   // in a field so the user can access this info without knowing the vertex
   // format.

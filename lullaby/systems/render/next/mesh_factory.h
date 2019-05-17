@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,9 +45,11 @@ class MeshFactoryImpl : public MeshFactory {
 
   // Creates a mesh using the specified data.
   MeshPtr CreateMesh(MeshData mesh_data) override;
+  MeshPtr CreateMesh(MeshData* mesh_datas, size_t len) override;
 
   // Creates a named mesh using the specified data.
   MeshPtr CreateMesh(HashValue name, MeshData mesh_data) override;
+  MeshPtr CreateMesh(HashValue name, MeshData* mesh_datas, size_t len) override;
 
   // Returns an empty mesh.
   MeshPtr EmptyMesh() override;

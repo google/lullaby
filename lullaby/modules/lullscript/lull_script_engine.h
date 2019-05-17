@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,85 +23,89 @@ limitations under the License.
 #include "lullaby/modules/function/function_call.h"
 #include "lullaby/modules/function/variant_converter.h"
 #include "lullaby/modules/lullscript/script_env.h"
+#include "lullaby/modules/script/script_engine.h"
 
 namespace lull {
 
 // ScriptEngine implementation for LullScript.  Loads and runs LullScript
 // scripts.
-class LullScriptEngine {
+class LullScriptEngine : public IScriptEngine {
  public:
   LullScriptEngine() {}
 
-  // Sets the function that will allow LullScript to invoke native functions via
-  // a FunctionCall object.
-  void SetFunctionCallHandler(FunctionCall::Handler handler);
+  static Language Lang() { return Language::Language_LullScript; }
+
+  // LullScript doesn't have an include statement, so this is a no-op.
+  void SetLoadFileFunction(const AssetLoader::LoadFileFn& fn) override {}
 
   // Load a script from inline code. The debug_name is used when reporting error
   // messages.
-  uint64_t LoadScript(const std::string& code, const std::string& debug_name);
+  uint64_t LoadScript(const std::string& code,
+                      const std::string& debug_name) override;
 
   // Reloads a script, swapping out its code, but retaining its environment.
-  void ReloadScript(uint64_t id, const std::string& code);
+  void ReloadScript(uint64_t id, const std::string& code) override;
 
   // Run a loaded script.
-  void RunScript(uint64_t id);
+  void RunScript(uint64_t id) override;
 
   // Unload a loaded script.
-  void UnloadScript(uint64_t id);
+  void UnloadScript(uint64_t id) override;
+
+  // Register a function to be callable from script.
+  void RegisterFunction(const std::string& name, ScriptableFn) override;
+
+  // Unregister a function.
+  void UnregisterFunction(const std::string& name) override;
 
   // Set a value in the script's environment.
+  void SetValue(uint64_t id, const std::string& name,
+                const Variant& value) override;
   template <typename T>
   void SetValue(uint64_t id, const std::string& name, const T& value);
 
   // Get a value from the script's environment.
+  bool GetValue(uint64_t id, const std::string& name, Variant* value) override;
   template <typename T>
   bool GetValue(uint64_t id, const std::string& name, T* value);
 
   // Returns the number of scripts currently loaded.
-  size_t GetTotalScripts() const;
+  size_t GetTotalScripts() const override;
+
+  // Returns a new lullscript environment initialized from the base environment.
+  std::unique_ptr<ScriptEnv> MakeEnv() const;
 
  private:
   struct Script {
+    Script() {}
+    explicit Script(const ScriptEnv& env) : env(env) {}
+
     ScriptEnv env;
     ScriptValue script;
     std::string debug_name;
   };
 
-  uint64_t next_script_id_;
-  FunctionCall::Handler handler_;
+  uint64_t next_script_id_ = 0;
+  ScriptEnv base_env_;
   std::unordered_map<uint64_t, Script> scripts_;
 };
 
 template <typename T>
 void LullScriptEngine::SetValue(uint64_t id, const std::string& name,
                                 const T& value) {
-  auto iter = scripts_.find(id);
-  if (iter != scripts_.end()) {
-    Variant var;
-    VariantConverter::ToVariant(value, &var);
-    ScriptValue script_value = ScriptValue::CreateFromVariant(std::move(var));
-
-    ScriptEnv& env = iter->second.env;
-    env.SetValue(Symbol(name), std::move(script_value));
-  }
+  Variant var;
+  VariantConverter::ToVariant(value, &var);
+  SetValue(id, name, var);
 }
 
 template <typename T>
 bool LullScriptEngine::GetValue(uint64_t id, const std::string& name,
                                 T* value) {
-  auto iter = scripts_.find(id);
-  if (iter == scripts_.end()) {
-    return false;
+  Variant var;
+  if (GetValue(id, name, &var)) {
+    return VariantConverter::FromVariant(var, value);
   }
-
-  ScriptEnv& env = iter->second.env;
-  const ScriptValue script_value = env.GetValue(Symbol(name));
-  const Variant* var = script_value.GetVariant();
-  if (var) {
-    return VariantConverter::FromVariant(*var, value);
-  } else {
-    return false;
-  }
+  return false;
 }
 
 }  // namespace lull

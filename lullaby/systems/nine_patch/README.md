@@ -1,6 +1,5 @@
 # `NinePatchSystem`
 
-*   Contact: aaronbdwyer
 *   Status: **Ready**
 
 Provides a component for rendering nine patches. Given the dimensions of a quad

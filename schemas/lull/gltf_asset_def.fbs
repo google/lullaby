@@ -1,0 +1,9 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// Specifies the model of an entity.
+table GltfAssetDef {
+  /// The filename/path to the gltf asset file.
+  filename: string;
+}

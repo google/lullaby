@@ -1,4 +1,4 @@
-local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
+local utils = import 'lullaby/data/jsonnet/utils.jsonnet';
 {
   snippets: [
     {
@@ -20,7 +20,7 @@ local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
         layout(num_views = 2) in;
       |||,
       main_code: |||
-        gl_Position = model_view_projection[gl_ViewID_OVR] * aPosition;
+        gl_Position = UNIFORM(model_view_projection)[gl_ViewID_OVR] * aPosition;
       |||,
     },
   ],

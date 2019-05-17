@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ limitations under the License.
 #include <SDL.h>
 #include <stdint.h>
 #include <string>
+
+#include "lullaby/viewer/src/imgui_bridge.h"
 
 namespace lull {
 namespace tool {
@@ -55,39 +57,15 @@ class Window {
  private:
   void Render(void* ptr);
 
-  struct InputState {
-    float mouse_x = 0.f;
-    float mouse_y = 0.f;
-    float mouse_wheel = 0.f;
-    bool mouse_buttons[3] = {false, false, false};
-  };
-
   void InitializeSdl(const std::string& name, size_t width, size_t height);
   void ShutdownSdl();
 
-  void InitializeImgui();
-  void ShutdownImgui();
-
-  void InitializeGl();
-  void ShutdownGl();
-
-  void InitializeFontTexture();
-  void ShutdownFontTexture();
-
   void ProcessSdlEvent(const SDL_Event* event);
-  void UpdateInputState(double dt);
-  void PrepareImgui(double dt);
-  void RenderImgui();
 
   void* sdl_context_;
   SDL_Window* sdl_window_ = nullptr;
 
-  uint32_t shader_ = 0;
-  uint32_t font_texture_ = 0;
-  uint32_t vbo_ = 0;
-  uint32_t elements_ = 0;
-
-  InputState input_state_;
+  ImguiBridge imgui_bridge_;
   double time_ = 0.f;
   bool quit_ = false;
   int exit_code_ = 0;

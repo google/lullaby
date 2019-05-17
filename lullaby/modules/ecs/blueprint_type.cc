@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@ limitations under the License.
 
 #include "lullaby/modules/ecs/blueprint_type.h"
 
-#include <string.h>
+#include <cstring>
 #include "lullaby/util/logging.h"
 
 namespace lull {
 
-BlueprintType BlueprintType::CreateFromSchemaNameHash(HashValue type) {
+BlueprintType BlueprintType::CreateFromSchemaNameHash(DefType type) {
   return BlueprintType(0, type);
 }
 
@@ -37,9 +37,12 @@ bool BlueprintType::operator!=(const BlueprintType& rhs) const {
   return !(*this == rhs);
 }
 
-HashValue BlueprintType::GetSchemaNameHash() const { return name_; }
+BlueprintType::DefType BlueprintType::GetSchemaNameHash() const {
+  return name_;
+}
 
-HashValue BlueprintType::GenerateSchemaNameHashFromTypeName(const char* name) {
+BlueprintType::DefType BlueprintType::GenerateSchemaNameHashFromTypeName(
+    const char* name) {
   // The generated typename is suffixed with a "T" (to distinguish it from
   // the flatbuffer type).  We need to drop that "T" (hence the -1) before
   // hashing the type name to be consistent with the flatbuffer name.

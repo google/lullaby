@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ class InputManager {
   InputManager();
 
   // List of potential input devices.
+  
   enum DeviceType {
     kHmd,
     kMouse,
@@ -62,6 +63,10 @@ class InputManager {
     kHand,
     kMaxNumDeviceTypes
   };
+  
+  //     //java/com/google/lullaby/\
+  //         InputManager.java
+  // )
 
   // Type for representing the state of a button (or key or touchpad).  States
   // are not necessarily mutually exclusive, so bitwise checks should be used
@@ -78,6 +83,7 @@ class InputManager {
 
   // Identifier for each button on a device.  The number of buttons supported by
   // a device can be queried by calling GetNumButtons.
+  // The ButtonId is the index of the button in the DeviceProfile.
   using ButtonId = uint32_t;
 
   // Common mouse button mappings.
@@ -114,6 +120,23 @@ class InputManager {
   // touchpad is not active.
   static const mathfu::vec2 kInvalidTouchLocation;
 
+  // The index of a touchpad on a given device.  Will be kDefaultTouchId unless
+  // the device has more than one touchpad.
+  using TouchpadId = uint32_t;
+
+  // The id of the first / primary touchpad.
+  static const TouchpadId kPrimaryTouchpadId;
+
+  // When dealing with multitouch, use this to uniquely identify each touch.
+  // When a touch begins it will be assigned an id, and no other touch will
+  // use the same id until all touches have ended on that touchpad.
+  using TouchId = uint32_t;
+
+  // Used to support legacy calls to touch functions.  Will select the oldest
+  // active touch, or the most recently active if the last touch was just
+  // released.  (MAX_VALUE of TouchId)
+  static const TouchId kPrimaryTouchId;
+
   // Type representing the eye (left or right).
   using EyeType = uint32_t;
 
@@ -137,10 +160,12 @@ class InputManager {
 
   // Battery states:
   enum class BatteryState {
+    kError,
     kUnknown,
-    kAlert,
-    kDraining,
     kCharging,
+    kDischarging,
+    kNotCharging,
+    kFull,
   };
 
   // Number returned by GetBatteryCharge when the charge is unknown or not
@@ -161,7 +186,7 @@ class InputManager {
   // Gets the amount of time the device's |button| has been held down.  Will
   // be reset 1 frame after the |button| has been released.
   Clock::duration GetButtonPressedDuration(DeviceType device,
-                                                ButtonId button) const;
+                                           ButtonId button) const;
 
   // Gets the current 2D position of the |joystick| on the |device|.  The range
   // of values for each element is [-1.f, 1.f].
@@ -171,47 +196,94 @@ class InputManager {
   // range of values for each element is [-2.f, 2.f].
   mathfu::vec2 GetJoystickDelta(DeviceType device, JoystickType joystick) const;
 
+  // Returns a vector of touch id's for currently active touches, sorted by age
+  // with the oldest touch at index 0.  Use this for tracking touches on
+  // multitouch devices.  As soon as a touch is released it will disappear from
+  // this list, but the TouchState and GetPreviousTouchLocation will remain
+  // for one frame.
+  std::vector<TouchId> GetTouches(DeviceType device,
+                                  TouchpadId touchpad_id) const;
+
   // Returns true if |device|'s touchpad is active.
-  bool IsValidTouch(DeviceType device) const;
+  bool IsValidTouch(DeviceType device,
+                    TouchpadId touchpad_id = kPrimaryTouchpadId,
+                    TouchId touch_id = kPrimaryTouchId) const;
 
   // Returns whether or not TouchGesture is queryable for |device|.
-  bool IsTouchGestureAvailable(DeviceType device) const;
+  bool IsTouchGestureAvailable(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId) const;
 
   // Gets the current state of the |device|'s touchpad.
-  TouchState GetTouchState(DeviceType device) const;
+  TouchState GetTouchState(DeviceType device,
+                           TouchpadId touchpad_id = kPrimaryTouchpadId,
+                           TouchId touch_id = kPrimaryTouchId) const;
 
   // Gets the current touch position of the |device|'s touchpad.  The range of
   // values for each element is [0.f, 1.f].  A value of kInvalidTouchLocation
   // indicates that the touchpad is not currently being touched.
-  mathfu::vec2 GetTouchLocation(DeviceType device) const;
+  mathfu::vec2 GetTouchLocation(DeviceType device,
+                                TouchpadId touchpad_id = kPrimaryTouchpadId,
+                                TouchId touch_id = kPrimaryTouchId) const;
+
+  // Gets the second to last sampled touch position of the |device|'s touchpad.
+  // The range of values for each element is [0.f, 1.f].  A value of
+  // kInvalidTouchLocation indicates that the touchpad was not touched earlier.
+  mathfu::vec2 GetPreviousTouchLocation(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId,
+      TouchId touch_id = kPrimaryTouchId) const;
+
+  // A touch location that should be used for starting gestures.  Compare this
+  // with the current location to compare to total drag thresholds. This will
+  // initially be the press position, and will be reset whenever a gesture using
+  // the touch finishes.  The range of values for each element is [0.f, 1.f].  A
+  // value of kInvalidTouchLocation indicates that the touchpad is not currently
+  // being touched.
+  mathfu::vec2 GetTouchGestureOrigin(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId,
+      TouchId touch_id = kPrimaryTouchId) const;
 
   // Gets the change in 2D position of the |device|'s touchpad.  The range of
   // values for each element is [-1.f, 1.f].
-  mathfu::vec2 GetTouchDelta(DeviceType device) const;
+  mathfu::vec2 GetTouchDelta(DeviceType device,
+                             TouchpadId touchpad_id = kPrimaryTouchpadId,
+                             TouchId touch_id = kPrimaryTouchId) const;
 
   // Gets the change in 2D position of the |device|'s touchpad, locked to the
   // axis of its initial displacement. The range of values for each element is
   // [-1.f, 1.f]. Always returns [0.f, 0.f] for devices that don't support
   // TouchGesture.
-  mathfu::vec2 GetLockedTouchDelta(InputManager::DeviceType device) const;
+  mathfu::vec2 GetLockedTouchDelta(InputManager::DeviceType device,
+                                   TouchpadId touchpad_id = kPrimaryTouchpadId,
+                                   TouchId touch_id = kPrimaryTouchId) const;
 
   // Gets the filtered touch velocity of |device| or (0,0) if touch isn't valid.
-  mathfu::vec2 GetTouchVelocity(DeviceType device) const;
+  mathfu::vec2 GetTouchVelocity(DeviceType device,
+                                TouchpadId touchpad_id = kPrimaryTouchpadId,
+                                TouchId touch_id = kPrimaryTouchId) const;
 
   // Gets the direction of a just-completed fling on |device|'s touchpad.
   // Despite the generalized name it returns GestureDirection::kNone for all
   // non-fling events.
-  GestureDirection GetTouchGestureDirection(DeviceType device) const;
+  GestureDirection GetTouchGestureDirection(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId) const;
 
   // Gets the just-completed gesture type of |device|'s touchpad, if any.
   // Only valid for the current frame.
-  GestureType GetTouchGestureType(DeviceType device) const;
+  GestureType GetTouchGestureType(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId) const;
 
   // Gets the initial displacement axis across |device|'s touchpad, if any.
   // Returns [0.f, 0.f] if the user hasn't been scrolling (IE if they've flung
   // or haven't performed a touch gesture recently at all), mathfu::kAxisY/X2f
   // otherwise.
-  mathfu::vec2 GetInitialDisplacementAxis(DeviceType device) const;
+  mathfu::vec2 GetInitialDisplacementAxis(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId) const;
+
+  // The physical size of the touchpad in centimeters.  Use this when checking
+  // touch movements against thresholds for gesture detection.
+  // Returns NullOpt if no touchpad size has been specified.
+  Optional<mathfu::vec2> GetTouchpadSize(
+      DeviceType device, TouchpadId touchpad_id = kPrimaryTouchpadId) const;
 
   // Gets the current position of a |device| with a positional sensor.
   mathfu::vec3 GetDofPosition(DeviceType device) const;
@@ -236,6 +308,9 @@ class InputManager {
   // Gets the eye_from_head_matrix for the specified |eye| on the |device|.
   mathfu::mat4 GetEyeFromHead(DeviceType device, EyeType eye) const;
 
+  // Gets the screen_from_eye_matrix for the specified |eye| on the |device|.
+  mathfu::mat4 GetScreenFromEye(DeviceType device, EyeType eye) const;
+
   // Gets the field of view for the specified |eye| on the |device|.
   mathfu::rectf GetEyeFOV(DeviceType device, EyeType eye) const;
 
@@ -254,7 +329,8 @@ class InputManager {
   // Queries for the capabilities of a |device|.
   bool HasPositionDof(DeviceType device) const;
   bool HasRotationDof(DeviceType device) const;
-  bool HasTouchpad(DeviceType device) const;
+  bool HasTouchpad(DeviceType device,
+                   TouchpadId touchpad_id = kPrimaryTouchpadId) const;
   bool HasJoystick(DeviceType device, JoystickType joystick) const;
   bool HasScroll(DeviceType device) const;
   bool HasButton(DeviceType device, ButtonId button) const;
@@ -274,6 +350,10 @@ class InputManager {
     DeviceParams();
 
     bool has_position_dof;
+    // Set |is_position_fake| in addition to |has_position_dof| if your
+    // device has artificial movement (e.g. via the elbow model) instead of
+    // actual position DoF info.
+    bool is_position_fake;
     bool has_rotation_dof;
     bool has_touchpad;
     bool has_touch_gesture;
@@ -318,14 +398,26 @@ class InputManager {
   // Updates touchpad state for the |device|.  The value should be normalized
   // such that the individual components are in the range [0.f, 1.f].  The
   // |valid| flag indicates whether the touchpad is actually being touched or
-  // not.
+  // not. If dealing with a non-multitouch device, use '0' for |touch_id|.
+  // If dealing with multitouch, each touch should have an id that is unique
+  // until all touches are ended.
+  void UpdateTouch(DeviceType device, TouchpadId touchpad_id, TouchId touch_id,
+                   const mathfu::vec2& value, bool valid);
   void UpdateTouch(DeviceType device, const mathfu::vec2& value, bool valid);
 
+  // Resets the gesture origin for the |touch_id|.  This should be called when
+  // a multi touch gesture is released.
+  void ResetTouchGestureOrigin(DeviceType device, TouchpadId touchpad_id,
+                               TouchId touch_id);
+
   // Update gesture for |device|.
-  void UpdateGesture(DeviceType device, GestureType type,
-                     GestureDirection direction,
+  void UpdateGesture(DeviceType device, TouchpadId touchpad_id,
+                     GestureType type, GestureDirection direction,
                      const mathfu::vec2& displacement,
                      const mathfu::vec2& velocity);
+
+  // Set the size of the touchpad in centimeters.
+  void UpdateTouchpadSize(DeviceType device, TouchpadId touchpad_id, const mathfu::vec2& size_cm);
 
   // Updates the scroll value for the |device|.
   void UpdateScroll(DeviceType device, int delta);
@@ -336,10 +428,11 @@ class InputManager {
   // Updates rotation of the |device|.
   void UpdateRotation(DeviceType device, const mathfu::quat& value);
 
-  // Updates the "eye from head", "field of view", and "viewport" settings for
-  // the |device| and |eye|.
+  // Updates the "eye from head", "screen from eye", "field of view", and
+  // "viewport" settings for the |device| and |eye|.
   void UpdateEye(DeviceType device, EyeType eye,
                  const mathfu::mat4& eye_from_head_matrix,
+                 const mathfu::mat4& screen_from_eye_matrix,
                  const mathfu::rectf& eye_fov,
                  const mathfu::recti& eye_viewport = {0, 0, 0, 0});
 
@@ -360,11 +453,12 @@ class InputManager {
 
  private:
   static const Clock::time_point kInvalidSampleTime;
-
-  struct TouchpadState {
+  struct Touch {
     mathfu::vec2 position = kInvalidTouchLocation;
+    mathfu::vec2 gesture_origin = kInvalidTouchLocation;
     mathfu::vec2 velocity = mathfu::kZeros2f;
     Clock::time_point time = kInvalidSampleTime;
+    Clock::time_point press_time = kInvalidSampleTime;
     bool valid = false;
   };
 
@@ -375,6 +469,14 @@ class InputManager {
     mathfu::vec2 velocity = mathfu::kZeros2f;
     mathfu::vec2 displacement = mathfu::kZeros2f;
     mathfu::vec2 initial_displacement_axis = mathfu::kZeros2f;
+  };
+
+  struct TouchpadState {
+    TouchId primary_touch = kPrimaryTouchId;
+    std::vector<TouchId> current_touches;
+    std::unordered_map<TouchId, Touch> touches;
+    TouchGesture gesture;
+    mathfu::vec2 size_cm = mathfu::vec2(-1.0f, -1.0f);
   };
 
   // Structure to hold the "input" state of a device.  std::vector's are used
@@ -388,14 +490,13 @@ class InputManager {
     std::vector<Clock::time_point> button_press_times;
     std::vector<bool> repeat;
     std::vector<mathfu::vec2> joystick;
-    std::vector<TouchpadState> touch;
-    std::vector<Clock::time_point> touch_press_times;
+    std::vector<TouchpadState> touchpads;
     std::vector<mathfu::vec3> position;
     std::vector<mathfu::quat> rotation;
     std::vector<mathfu::mat4> eye_from_head_matrix;
+    std::vector<mathfu::mat4> screen_from_eye_matrix;
     std::vector<mathfu::recti> eye_viewport;
     std::vector<mathfu::rectf> eye_fov;
-    std::vector<TouchGesture> touch_gesture;
     std::vector<uint8_t> battery_charge;
     std::vector<BatteryState> battery_state;
     Clock::time_point time_stamp;
@@ -411,6 +512,9 @@ class InputManager {
     // Update the write-state to now be the first (ie. current) read-only state
     // and prepare a new write-state.
     void Advance(Clock::duration delta_time);
+
+    // Remove touches that were released 2 frames ago.
+    void RemoveInactiveTouches();
 
     // Get reference to writable state.
     DeviceState& GetMutable();
@@ -468,7 +572,12 @@ class InputManager {
   const DataBuffer* GetDataBuffer(DeviceType device) const;
   const DataBuffer* GetConnectedDataBuffer(DeviceType device) const;
   DeviceState* GetDeviceStateForWriteLocked(DeviceType device);
-  const TouchGesture* GetTouchGesturePtr(DeviceType device) const;
+  const TouchGesture* GetTouchGesturePtr(DeviceType device,
+                                         TouchpadId touchpad_id) const;
+  const Touch* GetTouchPtr(DeviceType device, TouchpadId touchpad_id,
+                           TouchId touch_id) const;
+  const Touch* GetPreviousTouchPtr(DeviceType device, TouchpadId touchpad_id,
+                                   TouchId touch_id) const;
 
   std::mutex mutex_;
   Device devices_[kMaxNumDeviceTypes];

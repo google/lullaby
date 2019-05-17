@@ -15,9 +15,10 @@ cc_library(
     deps = [
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
+        "//lullaby/modules/ecs",
         "//lullaby/modules/input",
         "//lullaby/systems/dispatcher",
-        "//lullaby/systems/layout:layout_box",
+        "//lullaby/contrib/layout:layout_box",
         "//lullaby/systems/text",
         "//lullaby/systems/transform",
         "//lullaby/util:entity",

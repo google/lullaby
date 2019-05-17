@@ -1,6 +1,6 @@
 // Samples texture 0 and scales by a "color" uniform.
 
-#include "third_party/lullaby/data/shaders/compatibility.glslh"
+#include "lullaby/data/shaders/compatibility.glslh"
 
 #if !defined(LULLABY_PBR_FIBL_AVAILABLE)
 #define LULLABY_PBR_FIBL_AVAILABLE 0
@@ -14,17 +14,17 @@
 #define LULLABY_PBR_TRANSPARENCY_SUPPORTED 0
 #endif  // !defined(LULLABY_PBR_TRANSPARENCY_SUPPORTED)
 
-#include "third_party/lullaby/data/shaders/uber_fragment_common.glslh"
-#include "third_party/lullaby/data/shaders/math.glslh"
-#include "third_party/lullaby/data/shaders/pbr/pbr_surface_env.glslh"
-#include "third_party/lullaby/data/shaders/pbr/gamma.glslh"
+#include "lullaby/data/shaders/uber_fragment_common.glslh"
+#include "lullaby/data/shaders/math.glslh"
+#include "lullaby/data/shaders/pbr/pbr_surface_env.glslh"
+#include "lullaby/data/shaders/pbr/gamma.glslh"
 
 uniform vec4 BaseColor;
 uniform sampler2D texture_unit_0;  // base color texture
 uniform sampler2D texture_unit_1;  // occlusion roughness metallic
 uniform sampler2D texture_unit_2;  // normal map
 uniform samplerCube texture_unit_16;  // diffuse environment map
-// TODO(b/79987519) Get specular env map working.
+// TODO Get specular env map working.
 // uniform samplerCube texture_unit_17;  // specular environment map
                                         // (already defined)
 uniform sampler2D texture_unit_15;  // brdf look-up table
@@ -49,7 +49,7 @@ vec3 IblContribution(float perceptual_roughness, float n_dot_v,
   vec2 brdf_raw = texture2D(texture_unit_15, lookup_uv).rg;
   vec2 brdf = RemoveGamma(brdf_raw);
   vec3 diffuse_light = RemoveGamma(textureCube(texture_unit_16, normal)).rgb;
-// TODO(b/79987519) Get specular env map working.
+// TODO Get specular env map working.
   // vec3 specular_light = RemoveGamma(textureCube(texture_unit_17,
   //                                               reflection)).rgb;
 
@@ -65,7 +65,7 @@ vec3 IblContribution(float perceptual_roughness, float n_dot_v,
 
 void main() {
   vec4 raw_base_color = texture2D(texture_unit_0, vTexCoord);
-  // TODO(b/79988687) Set BaseColor uniform in the gltf pbr shader.
+  // TODO Set BaseColor uniform in the gltf pbr shader.
   // Currently it is not set, so using it will give us black.  this should be
   // defaulted to 1.
   // vec4 base_color = BaseColor * RemoveGamma(raw_base_color.rgba);

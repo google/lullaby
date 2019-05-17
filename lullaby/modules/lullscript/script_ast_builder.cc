@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -112,13 +112,17 @@ void ScriptAstBuilder::Process(TokenType type, const void* ptr,
       Append(value, token);
       break;
     }
+    case kNull: {
+      Append(ScriptValue::CreateFromVariant(Variant()), token);
+      break;
+    }
     case kSymbol: {
       const auto value = env_->Create(*reinterpret_cast<const Symbol*>(ptr));
       Append(value, token);
       break;
     }
     case kString: {
-      const auto str = reinterpret_cast<const string_view*>(ptr)->to_string();
+      const std::string str(*reinterpret_cast<const string_view*>(ptr));
       const auto value = env_->Create(str);
       Append(value, token);
       break;
@@ -170,8 +174,7 @@ AstNode ScriptAstBuilder::GetRoot() const {
 }
 
 void ScriptAstBuilder::Error(string_view token, string_view message) {
-  LOG(WARNING) << "Error parsing " << token.to_string() << ": " <<
-      message.to_string();
+  LOG(WARNING) << "Error parsing " << token << ": " << message;
   error_ = true;
 }
 

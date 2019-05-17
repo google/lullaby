@@ -48,3 +48,17 @@ enum AudioLoadType : int {
   /// playback after loading.
   Stream,
 }
+
+/// How volume attentuation should occur for sounds with
+/// AudioSourceType::SoundObject. Used in combination with minimum and maximum
+/// attentuation distances.
+enum AudioDistanceRolloffMethod : int {
+  /// Logarithmic attenuation from the minimum distance to the maximum distance.
+  Logarithmic,
+
+  /// Linear attenuation from the minimum distance to the maximum distance.
+  Linear,
+
+  /// No attenuation from the minimum distance to the maximum distance.
+  None,
+}

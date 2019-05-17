@@ -1,7 +1,7 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
 
-#include "third_party/lullaby/data/shaders/math.glslh"
+#include "lullaby/data/shaders/math.glslh"
 
 /// Math constants and functions specific to the PBR shader.
 
@@ -10,4 +10,4 @@ float Pow5(float x) {
   return xx * xx * x;
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_MATH_COMMON_GLSLH_

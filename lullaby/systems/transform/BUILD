@@ -23,3 +23,12 @@ cc_library(
         "@mathfu//:mathfu",
     ],
 )
+
+cc_library(
+    name = "transform_jni",
+    srcs = ["transform_system_jni.cc"],
+    deps = [
+        ":transform",
+        "//lullaby/modules/ecs:ecs_jni",
+    ],
+)

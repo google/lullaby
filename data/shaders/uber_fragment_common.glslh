@@ -1,10 +1,83 @@
-// Implements shared shader features that can be toggled by define flags.
+/* Implements shared shader features that can be toggled by define flags. The
+ * public functions are available no matter the defines, but will have
+ * trivial/no-op behavior if the flag is off. Any combination of flags is
+ * acceptable, except only one *TEX_COORD* flag is needed.
+ *
+ * Flags:
+ *   BATCHED_INDICES
+ *     Required for batching as implemented by BatchRenderSystem.
+ *   CLIP_REGION
+ *     Required for clipping as implemented by ShaderClipSystem.
+ *   CLIP_Y_ONLY
+ *     Optimization of CLIP_REGION that only clips y, ignoring x & z.
+ *   TEX_COORD
+ *     GetVTexCoord() returns TexCoord.
+ *   TEX_COORD_ALT
+ *     GetVTexCoord() returns TexCoordAlt.
+ *   NINE_PATCH_TEX_COORD_ALT
+ *     Same as TEX_COORD_ALT.
+ *
+ *     In NinePatchSystem, TexCoord stores the nine-patch'ed uv's, and
+ *     TexCoordAlt always stores exactly linear coordinates according to the
+ *     final size. In this way, shaders can still draw an unwarped texture with
+ *     TexCoordAlt, but use TexCoord to apply special effects on just the
+ *     corners and edges, such as antialiasing.
+ *   CLAMP
+ *     Applies clamp_bounds to the TexCoord returned by GetVTexCoord().
+ *   SDF_DIST_AA
+ *     When using SetFragColor(), applies various antialiasing based on the
+ *     other enabled flags. Required for CLIP_REGION.
+ *
+ *     TEX_COORD
+ *     TEX_COORD_ALT
+ *       Both antialias just the edges of TexCoord, using uv box of (0,0)-(1,1).
+ *     NINE_PATCH_TEX_COORD_ALT
+ *       A circular antialiasing filter is placed using TexCoord, center at uv
+ *       (0.5, 0.5), radius 0.5. NinePatchSystem can be used to create rounded
+ *       rectangles like so:
+ *         original_size: { x: 2 * radius, y: 2 * radius },
+ *         left/right/bottom/top_slice: 0.5,
+ *   TEX_COORD_AA_PADDING
+ *     If enabled, then (float uniform tex_coord_aa_padding) is added to offset
+ *     the SDF increasing the opaque region. This ensures a minimum amount of
+ *     visible region, useful for thin objects such as text underlines. Note
+ *     that to get proper antialiasing the provided mesh needs to extend beyond
+ *     uv (0,0)-(1,1).
+ *   MULTISAMPLE
+ *     SampleTexture() by default just makes 1 sample, but with this flag it
+ *     will make 4 samples on a 26.6 degree rotated grid.
+ *
+ * Functions:
+ *   GetColor()
+ *     Returns the uniform color, or appropriate batched uniform color.
+ *   PremultiplyAlpha(vec4)
+ *     Returns vec4 with .rgb multiplied by .a, and .a unmodified.
+ *   SetFragColor(vec4)
+ *     Applies all enabled antialiasing and saves to gl_FragColor. Note that as
+ *     defined in fragment_common.glslh, this corresponds to _lullaby_out_color
+ *     for newer glsl versions. The input vec4 is expected to already be
+ *     premultiplied alpha.
+ *   Dither4x4()
+ *     Returns 1 of 16 floats based on screen coordinates that can be used to
+ *     compare with a desired alpha for discarding.
+ *   GetVTexCoord()
+ *     If TEX_COORD only then TexCoord, else if any *TEX_COORD_ALT then
+ *     TexCoordAlt, with clamping applied.
+ *   SampleTexture(sampler2D, vec2)
+ *     Normally or multisamples a texture.
+ *
+ * Some of the other publically available and potentially useful functions:
+ *   GetClampBounds()
+ *   ApplyClamp(vec2)
+ *     Both as modified by BatchRenderSystem.
+ *   GetTexAAPadding()
+ */
 
 #ifdef SDF_DIST_AA
 #extension GL_OES_standard_derivatives : enable
 #endif  // SDF_DIST_AA
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 #ifdef BATCHED_INDICES
 STAGE_INPUT lowp vec4 vColor;
@@ -12,7 +85,7 @@ STAGE_INPUT highp vec4 vClampBounds;
 
 vec4 GetColor() { return vColor; }
 vec4 GetClampBounds() { return vClampBounds; }
-#else  // BATCHED_INDICES
+#else   // BATCHED_INDICES
 uniform lowp vec4 color;
 
 vec4 GetColor() { return color; }
@@ -43,12 +116,12 @@ vec2 ApplyClamp(vec2 uv) { return uv; }
 // region. There is no line break to conform with GLSL ES 1.0.
 #ifdef SDF_DIST_AA
 #define GET_AA_FROM_SDF_PADDING(T, SDF_DIST, PADDING) clamp(SDF_DIST / fwidth(SDF_DIST) + PADDING, 0.0, 1.0)
-#else  // SDF_DIST_AA
+#else   // SDF_DIST_AA
 #define GET_AA_FROM_SDF_PADDING(T, SDF_DIST, PADDING) T(1.0)
 #endif  // SDF_DIST_AA
 #define GET_AA_FROM_SDF(T, SDF_DIST) GET_AA_FROM_SDF_PADDING(T, SDF_DIST, 0.0)
 
-#if defined(TEX_COORD) || defined(NINE_PATCH_TEX_COORD_ALT)
+#if defined(TEX_COORD) || defined(TEX_COORD_ALT) || defined(NINE_PATCH_TEX_COORD_ALT)
 #ifdef TEX_COORD_AA_PADDING
 // If enabled, this adds a minimum pixel width to the 1.0 alpha region within
 // the aa border. The visible region is still delineated with texture
@@ -63,11 +136,15 @@ float GetTexAAPadding() { return 0.0; }
 #endif  // TEX_COORD_AA_PADDING
 
 STAGE_INPUT highp vec2 vTexCoord;
-#ifdef NINE_PATCH_TEX_COORD_ALT
+#if defined(TEX_COORD_ALT) || defined(NINE_PATCH_TEX_COORD_ALT)
 STAGE_INPUT highp vec2 vTexCoordAlt;
 
 vec2 GetVTexCoord() { return ApplyClamp(vTexCoordAlt); }
+#else   // TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
+vec2 GetVTexCoord() { return ApplyClamp(vTexCoord); }
+#endif  // TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
 
+#ifdef NINE_PATCH_TEX_COORD_ALT
 // Distance to the edge of a circle with radius 0.5 centered at (0.5, 0.5).
 // To get a quad with corner radius, use a nine patch with all slices to 0.5 and
 // original_size = corner_radius * 2. The texture will still be uniformly
@@ -77,8 +154,6 @@ float GetTexAA() {
   return GET_AA_FROM_SDF_PADDING(float, sdf_dist, GetTexAAPadding());
 }
 #else   // NINE_PATCH_TEX_COORD_ALT
-vec2 GetVTexCoord() { return ApplyClamp(vTexCoord); }
-
 // Distance to quad edges, without rounded corners.
 float GetTexAA() {
   vec4 bounds = GetClampBounds();
@@ -89,12 +164,12 @@ float GetTexAA() {
   return aa_min.x * aa_min.y * aa_max.x * aa_max.y;
 }
 #endif  // NINE_PATCH_TEX_COORD_ALT
-#else   // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+#else   // TEX_COORD || TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
 vec2 GetVTexCoord() { return vec2(0.0); }
 float GetTexAA() { return 1.0; }
-#endif  // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+#endif  // TEX_COORD || TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
 
-#ifdef CLIP_REGION
+#if defined(CLIP_REGION) || defined(CLIP_Y_ONLY)
 #ifdef BATCHED_INDICES
 STAGE_INPUT highp vec3 vMinInClipRegionSpace;
 STAGE_INPUT highp vec3 vMaxInClipRegionSpace;
@@ -126,9 +201,9 @@ float GetClipAA() {
   return aa_min.x * aa_min.y * aa_min.z * aa_max.x * aa_max.y * aa_max.z;
 #endif  // CLIP_Y_ONLY
 }
-#else   // CLIP_REGION
+#else   // CLIP_REGION || CLIP_Y_ONLY
 float GetClipAA() { return 1.0; }
-#endif  // CLIP_REGION
+#endif  // CLIP_REGION || CLIP_Y_ONLY
 
 // |frag_color| should already have premultiplied alpha.
 void SetFragColor(vec4 frag_color) {
@@ -152,3 +227,38 @@ lowp float Dither4x4() {
       15.5 / 16.0, 7.5  / 16.0, 13.5 / 16.0, 5.5  / 16.0
     )[screen_pixel.x][screen_pixel.y];
 }
+
+#ifdef MULTISAMPLE
+// Supersample texture with 4 samples on a 26.6 degree rotated grid.
+// Lullaby textures are stored with premultiplied alpha, so it is safe to take a
+// simple average and the returned values are still be premultiplied.
+#define XOFFSET 0.33083706448
+#define YOFFSET 0.16567086877
+
+vec4 SampleTextureHelper(sampler2D texture_unit, vec2 uv) {
+  return texture2D(texture_unit, ApplyClamp(uv));
+}
+
+vec4 SampleTexture(sampler2D texture_unit, vec2 uv) {
+  vec2 uv_dx = dFdx(uv);
+  vec2 uv_dy = dFdy(uv);
+  const float xd = XOFFSET;
+  const float yd = YOFFSET;
+  const float xe = -yd;
+  const float ye = xd;
+
+  vec4 color = vec4(0.0);
+  vec2 offset = xd * uv_dx + yd * uv_dy;
+  color += SampleTextureHelper(texture_unit, uv + offset);
+  color += SampleTextureHelper(texture_unit, uv - offset);
+  offset = xe * uv_dx + ye * uv_dy;
+  color += SampleTextureHelper(texture_unit, uv + offset);
+  color += SampleTextureHelper(texture_unit, uv - offset);
+  color *= 0.25;
+  return color;
+}
+#else   // MULTISAMPLE
+vec4 SampleTexture(sampler2D texture_unit, vec2 uv) {
+  return texture2D(texture_unit, uv);
+}
+#endif  // MULTISAMPLE

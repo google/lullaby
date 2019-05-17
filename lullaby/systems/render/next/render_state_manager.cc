@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,11 @@ limitations under the License.
 #include "lullaby/systems/render/next/render_state_manager.h"
 
 #include "lullaby/systems/render/next/detail/glplatform.h"
+
+// The Mac requires a Core OpenGL profile in order to access GLES 3+.
+#if !defined(GL_CORE_PROFILE) && defined(PLATFORM_OSX)
+#define GL_CORE_PROFILE
+#endif
 
 namespace lull {
 
@@ -183,14 +188,14 @@ void RenderStateManager::Reset() { state_ = RenderStateT(); }
 
 static bool ValidateAlphaTestState(const AlphaTestStateT& state) {
   bool ok = true;
-#ifndef FPLBASE_GLES
+#if !defined(GL_CORE_PROFILE) && !defined(FPLBASE_GLES)
   ok &= CheckGlBool(GL_ALPHA_TEST, state.enabled);
   ok &= CheckGlInt(GL_ALPHA_TEST_FUNC, GetGlRenderFunction(state.function));
   ok &= CheckGlFloat(GL_ALPHA_TEST_REF, state.ref);
-#endif
   if (!ok) {
     LOG(ERROR) << "ValidateAlphaTestState failed";
   }
+#endif
   return ok;
 }
 
@@ -252,6 +257,10 @@ static bool ValidatePointState(const PointStateT& state) {
 static bool ValidateScissorState(const ScissorStateT& state) {
   bool ok = true;
   ok &= CheckGlBool(GL_SCISSOR_TEST, state.enabled);
+  GLint values[4];
+  GL_CALL(glGetIntegerv(GL_SCISSOR_BOX, values));
+  ok &= (values[0] != state.rect->pos.x || values[1] != state.rect->pos.y ||
+         values[2] != state.rect->size.x || values[3] != state.rect->size.y);
   if (!ok) {
     LOG(ERROR) << "ValidateScissorState failed";
   }
@@ -362,7 +371,8 @@ void RenderStateManager::SetRenderState(const RenderStateT& state) {
 }
 
 static void SetGlAlphaTestEnabled(const AlphaTestStateT& state) {
-#ifndef FPLBASE_GLES  // Alpha test not supported in ES 2.
+  // Alpha test not supported in ES 2.
+#if !defined(GL_CORE_PROFILE) && !defined(FPLBASE_GLES)
   if (state.enabled) {
     GL_CALL(glEnable(GL_ALPHA_TEST));
   } else {
@@ -372,7 +382,8 @@ static void SetGlAlphaTestEnabled(const AlphaTestStateT& state) {
 }
 
 static void SetGlAlphaFunc(const AlphaTestStateT& state) {
-#ifndef FPLBASE_GLES  // Alpha test not supported in ES 2.
+  // Alpha test not supported in ES 2.
+#if !defined(GL_CORE_PROFILE) && !defined(FPLBASE_GLES)
   const GLenum func = GetGlRenderFunction(state.function);
   GL_CALL(glAlphaFunc(func, state.ref));
 #endif
@@ -555,7 +566,9 @@ void RenderStateManager::SetDepthState(const DepthStateT& state) {
 }
 
 static void SetGlPointSpriteEnabled(const PointStateT& state) {
-#if !defined(FPLBASE_GLES) && defined(GL_POINT_SPRITE)
+#if !defined(GL_CORE_PROFILE) && \
+    !defined(FPLBASE_GLES) && \
+     defined(GL_POINT_SPRITE)
   if (state.point_sprite_enabled) {
     GL_CALL(glEnable(GL_POINT_SPRITE));
   } else {
@@ -628,6 +641,13 @@ void RenderStateManager::SetScissorState(const ScissorStateT& state) {
 
   if (!state_.scissor_state || state.enabled != state_.scissor_state->enabled) {
     SetGlScissorEnabled(state);
+    update = true;
+  }
+
+  if (!state_.scissor_state ||
+      (state.enabled && state.rect != state_.scissor_state->rect)) {
+    GL_CALL(glScissor(state.rect->pos.x, state.rect->pos.y, state.rect->size.x,
+                      state.rect->size.y));
     update = true;
   }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ limitations under the License.
 
 #include "lullaby/generated/controller_def_generated.h"
 #include "lullaby/contrib/fade/fade_system.h"
+#include "lullaby/contrib/fpl_mesh/fpl_mesh_system.h"
+#include "lullaby/events/controller_events.h"
 #include "lullaby/events/input_events.h"
 #include "lullaby/events/lifetime_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
@@ -37,7 +39,6 @@ namespace lull {
 namespace {
 const HashValue kControllerDefHash = ConstHash("ControllerDef");
 const HashValue kLaserDefHash = ConstHash("LaserDef");
-const float kControllerFadeCos = 0.94f;
 const Clock::duration kControllerFadeTime = std::chrono::milliseconds(250);
 
 // Laser Constants
@@ -60,10 +61,31 @@ ControllerSystem::Controller::Controller(Entity entity) : Component(entity) {}
 
 ControllerSystem::ControllerSystem(Registry* registry)
     : System(registry), controllers_(4) {
-  RegisterDef(this, kControllerDefHash);
-  RegisterDef(this, kLaserDefHash);
+  RegisterDef<ControllerDefT>(this);
+  RegisterDef<LaserDefT>(this);
   RegisterDependency<InputManager>(this);
   RegisterDependency<TransformSystem>(this);
+  RegisterDependency<Dispatcher>(this);
+  auto* dispatcher = registry->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Connect(this, [this](const ShowControllerModelEvent&) {
+      ShowControls(/* hard_enable= */ false);
+    });
+    dispatcher->Connect(
+        this, [this](const HideControllerModelEvent&) { HideControls(); });
+    dispatcher->Connect(this, [this](const ShowControllerLaserEvent& event) {
+      ShowLaser(event.controller_type);
+    });
+    dispatcher->Connect(this, [this](const HideControllerLaserEvent& event) {
+      HideLaser(event.controller_type);
+    });
+    dispatcher->Connect(this, [this](const SetLaserFadePointsEvent& event) {
+      SetLaserFadePoints(event.controller_type, event.fade_points);
+    });
+    dispatcher->Connect(this, [this](const ResetLaserFadePointsEvent& event) {
+      ResetLaserFadePoints(event.controller_type);
+    });
+  }
 }
 
 ControllerSystem::~ControllerSystem() {
@@ -75,13 +97,21 @@ ControllerSystem::~ControllerSystem() {
 
 void ControllerSystem::AdvanceFrame(const Clock::duration& delta_time) {
   LULLABY_CPU_TRACE_CALL();
-  if (!show_controls_) {
-    return;
-  }
   auto* input = registry_->Get<InputManager>();
   for (auto& controller : controllers_) {
+    if (controller.should_hide) {
+      continue;
+    }
     const bool connected = input->IsConnected(controller.controller_type);
-    if (connected != controller.connected) {
+    // If a controller is disconnected & reconnected with a new DeviceProfile
+    // on the same frame, the connection status won't change. We check the
+    // DeviceProfile's name against our last frame's name to handle this case.
+    const DeviceProfile* profile =
+        input->GetDeviceProfile(controller.controller_type);
+    const HashValue profile_name = profile ? profile->name : 0;
+    const bool profile_changed = profile_name != controller.device_profile_name;
+    if (connected != controller.connected || profile_changed) {
+      controller.device_profile_name = profile_name;
       if (connected) {
         OnControllerConnected(&controller);
       } else {
@@ -106,7 +136,6 @@ void ControllerSystem::Create(Entity entity, HashValue type, const Def* def) {
     auto* data = ConvertDef<ControllerDef>(def);
     controller->enable_events = data->enable_events();
     controller->disable_events = data->disable_events();
-    controller->use_device_profile = data->use_device_profile();
 
     if (data->controller_type()) {
       if (data->controller_type() == ControllerType_Controller1) {
@@ -118,7 +147,14 @@ void ControllerSystem::Create(Entity entity, HashValue type, const Def* def) {
   } else if (type == kLaserDefHash) {
     Controller* controller = controllers_.Emplace(entity);
     controller->is_laser = true;
-    controller->controller_type = InputManager::kController;
+    auto* data = ConvertDef<LaserDef>(def);
+    controller->controller_type =
+        data->controller_type() == ControllerType_Controller2
+            ? InputManager::kController2
+            : InputManager::kController;
+    auto* render_system = registry_->Get<RenderSystem>();
+    render_system->GetUniform(controller->GetEntity(), "fade_points", 4,
+                              &controller->default_fade_points_[0]);
   } else {
     LOG(DFATAL)
         << "Invalid def passed to Create. Expecting ControllerDef or LaserDef!";
@@ -140,17 +176,7 @@ void ControllerSystem::HandleControllerTransforms(
     return;
   }
 
-  // Assign the laser to the controller currently used by the cursor.
-  if (controller->is_laser) {
-    const auto* input_processor = registry_->Get<InputProcessor>();
-    const auto device = input_processor->GetPrimaryDevice();
-    if (device == InputManager::kController ||
-        device == InputManager::kController2) {
-      controller->controller_type = device;
-    }
-  }
-
-  // If the controller is not enabled than it is definitely not visible. The
+  // If the controller is not enabled then it is definitely not visible. The
   // converse is not true. It could be enabled but in the process of fading out,
   // in which case it is still considered not visible.
   const bool is_enabled =
@@ -172,14 +198,18 @@ void ControllerSystem::HandleControllerTransforms(
     return;
   }
 
-  // If the controller is pointing too far up then it should be disabled/faded
+  // If the controller is too close to the head then it should be disabled/faded
   // out so that it doesn't block the entire view.
-  const mathfu::vec3 controller_dir =
-      (device_sqt.rotation * -mathfu::kAxisZ3f).Normalized();
-  if (controller_dir.y < kControllerFadeCos) {
-    MaybeFadeInController(controller);
-  } else {
-    MaybeFadeOutController(controller);
+  auto* input = registry_->Get<InputManager>();
+  if (input->IsConnected(InputManager::kHmd)) {
+    mathfu::vec3 head_pos = input->GetDofPosition(InputManager::kHmd);
+    if (!controller->should_hide &&
+        (head_pos - device_sqt.translation).LengthSquared() >
+            controller_fade_distance_) {
+      MaybeFadeInController(controller);
+    } else {
+      MaybeFadeOutController(controller);
+    }
   }
 
   transform_system->SetSqt(controller->GetEntity(),
@@ -223,28 +253,86 @@ void ControllerSystem::MaybeFadeOutController(Controller* controller) {
 }
 
 void ControllerSystem::ShowControls(bool hard_enable) {
-  show_controls_ = true;
-  if (hard_enable) {
-    auto* transform_system = registry_->Get<TransformSystem>();
-    controllers_.ForEach([this, transform_system](Controller& controller) {
+  auto* transform_system = registry_->Get<TransformSystem>();
+  controllers_.ForEach([transform_system, hard_enable](Controller& controller) {
+    controller.should_hide = false;
+    if (hard_enable) {
       transform_system->Enable(controller.GetEntity());
-    });
-  }
+    }
+  });
 }
 
 void ControllerSystem::HideControls() {
-  show_controls_ = false;
   auto* transform_system = registry_->Get<TransformSystem>();
-  controllers_.ForEach([this, transform_system](Controller& controller) {
+  controllers_.ForEach([transform_system](Controller& controller) {
+    controller.should_hide = true;
     transform_system->Disable(controller.GetEntity());
   });
 }
 
+void ControllerSystem::ShowLaser(InputManager::DeviceType controller_type) {
+  for (auto& controller : controllers_) {
+    if (controller.controller_type == controller_type && controller.is_laser) {
+      controller.should_hide = false;
+    }
+  }
+}
+
+void ControllerSystem::HideLaser(InputManager::DeviceType controller_type) {
+  for (auto& controller : controllers_) {
+    if (controller.controller_type == controller_type && controller.is_laser) {
+      controller.should_hide = true;
+      auto* transform_system = registry_->Get<TransformSystem>();
+      transform_system->Disable(controller.GetEntity());
+    }
+  }
+}
+
+bool ControllerSystem::IsLaserHidden(InputManager::DeviceType controller_type) {
+  for (const auto& controller : controllers_) {
+    if (controller.controller_type == controller_type && controller.is_laser) {
+      return controller.should_hide;
+    }
+  }
+  // There is no laser model bound with the given controller, return true by
+  // default.
+  return true;
+}
+
+bool ControllerSystem::SetLaserFadePoints(
+    InputManager::DeviceType controller_type, const mathfu::vec4& fade_points) {
+  for (const auto& controller : controllers_) {
+    if (controller.controller_type == controller_type && controller.is_laser) {
+      auto* render_system = registry_->Get<RenderSystem>();
+      render_system->SetUniform(controller.GetEntity(), "fade_points",
+                                &fade_points[0], 4);
+      return true;
+    }
+  }
+  // Return false if there is no laser model bound with the given controller.
+  return false;
+}
+
+bool ControllerSystem::ResetLaserFadePoints(
+    InputManager::DeviceType controller_type) {
+  for (const auto& controller : controllers_) {
+    if (controller.controller_type == controller_type && controller.is_laser) {
+      auto* render_system = registry_->Get<RenderSystem>();
+      render_system->SetUniform(controller.GetEntity(), "fade_points",
+                                &controller.default_fade_points_[0], 4);
+      return true;
+    }
+  }
+  // Return false if there is no laser model bound with the given controller.
+  return false;
+}
+
 void ControllerSystem::OnControllerConnected(Controller* controller) {
   controller->connected = true;
-  if (controller->use_device_profile) {
+  if (!controller->is_laser) {
     auto* input = registry_->Get<InputManager>();
     auto* render_system = registry_->Get<RenderSystem>();
+    auto* dispatcher = registry_->Get<Dispatcher>();
 
     const Entity entity = controller->GetEntity();
     const InputManager::DeviceType device = controller->controller_type;
@@ -253,11 +341,19 @@ void ControllerSystem::OnControllerConnected(Controller* controller) {
 
     const DeviceProfile* profile = input->GetDeviceProfile(device);
     if (profile) {
-      render_system->SetMesh(controller->GetEntity(), profile->assets.mesh);
+      auto* fpl_mesh_system = registry_->Get<FplMeshSystem>();
+      if (fpl_mesh_system) {
+        fpl_mesh_system->CreateMesh(
+            controller->GetEntity(),
+            Hash("Opaque"),  // RenderSystem::kDefaultPass,
+            profile->assets.mesh);
+      } else {
+        render_system->SetMesh(controller->GetEntity(), profile->assets.mesh);
+      }
       render_system->SetTexture(controller->GetEntity(), 0,
                                 profile->assets.unlit_texture);
 
-      // TODO(b/73106522) remove this when all no apps are still using the old
+      // TODO remove this when all no apps are still using the old
       // controller model.
       input->SetDeviceInfo(InputManager::kController, kSelectionRayHash,
                            profile->selection_ray);
@@ -279,7 +375,7 @@ void ControllerSystem::OnControllerConnected(Controller* controller) {
     render_system->SetUniform(entity, kControllerTouchColorUniform,
                               &kTouchColor[0], 4, 1);
 
-    if (profile) {
+    if (profile && !profile->touchpads.empty()) {
       const mathfu::vec4 uv_rect = profile->touchpads[0].uv_coords;
       render_system->SetUniform(entity, kControllerTouchpadRectUniform,
                                 &uv_rect[0], 4, 1);
@@ -289,10 +385,7 @@ void ControllerSystem::OnControllerConnected(Controller* controller) {
     controller->last_battery_level = InputManager::kInvalidBatteryCharge;
     render_system->SetUniform(entity, kControllerBatteryUVRectUniform,
                               &mathfu::kZeros4f[0], 4, 1);
-  }
 
-  if (!controller->is_laser) {
-    auto* dispatcher = registry_->Get<Dispatcher>();
     dispatcher->Send(DeviceConnectedEvent(controller->controller_type,
                                           controller->GetEntity()));
   }
@@ -300,7 +393,7 @@ void ControllerSystem::OnControllerConnected(Controller* controller) {
 
 void ControllerSystem::OnControllerDisconnected(Controller* controller) {
   controller->connected = false;
-  if (controller->use_device_profile) {
+  if (!controller->is_laser) {
     controller->buttons.resize(0);
   }
 }
@@ -378,8 +471,8 @@ void ControllerSystem::UpdateBendUniforms(Controller* laser) {
 
   render_system->SetUniform(entity, kEntityFromWorld, &entity_from_world[0],
                             16);
-  render_system->SetUniform(entity, kControlPoints, &curve_points[0].data[0], 3,
-                            4);
+  render_system->SetUniform(entity, kControlPoints, &curve_points[0].data_[0],
+                            3, 4);
 }
 
 void ControllerSystem::UpdateControllerUniforms(
@@ -440,13 +533,15 @@ void ControllerSystem::UpdateControllerButtonUniforms(
     float button_uv_rects[kControllerMaxColoredButtons * 4] = {0.0f};
     float button_colors[kControllerMaxColoredButtons * 4] = {0.0f};
     size_t num_colored = 0;
+    controller->touchpad_button_pressed = false;
     for (uint8_t i = 0; i < num_buttons && i < buttons.size() &&
                         num_colored < kControllerMaxColoredButtons;
          ++i) {
-      // TODO(b/74081101) update bone transforms
+      // TODO update bone transforms
       if (controller->buttons[i].current_alpha > 0.0f) {
         if (buttons[i].type == DeviceProfile::Button::kTouchpad) {
           // Grow the touch indicator instead of using a button press.
+          controller->touchpad_button_pressed = true;
           controller->touch_ripple_factor =
               controller->buttons[i].current_alpha;
         } else {
@@ -478,16 +573,19 @@ void ControllerSystem::UpdateControllerTouchpadUniforms(
   auto* input = registry_->Get<InputManager>();
   const InputManager::DeviceType device = controller->controller_type;
   const DeviceProfile* profile = input->GetDeviceProfile(device);
-  if (!profile) {
+  if (!profile || !input->HasTouchpad(device)) {
     return;
   }
 
   auto* render_system = registry_->Get<RenderSystem>();
   const Entity entity = controller->GetEntity();
-  if (input->HasTouchpad(device) && input->IsValidTouch(device)) {
+  if (input->IsValidTouch(device) || controller->touchpad_button_pressed) {
     const DeviceProfile::Touchpad& touchpad = profile->touchpads[0];
     controller->was_touched = true;
-    mathfu::vec2 pos = input->GetTouchLocation(device);
+    mathfu::vec2 pos = mathfu::kOnes2f * 0.5f;
+    if (input->IsValidTouch(device)) {
+      pos = input->GetTouchLocation(device);
+    }
     const mathfu::vec4 uv_rect = touchpad.uv_coords;
     pos.x = uv_rect[0] + pos.x * (uv_rect[2] - uv_rect[0]);
     pos.y = uv_rect[1] + pos.y * (uv_rect[3] - uv_rect[1]);

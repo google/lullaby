@@ -7,16 +7,34 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 cc_library(
-    name = "fbx_utils",
+    name = "assimp_base_importer",
     srcs = [
-        "fbx_utils.cc",
+        "assimp_base_importer.cc",
     ],
     hdrs = [
-        "fbx_utils.h",
+        "assimp_base_importer.h",
     ],
     deps = [
+        "@assimp//:assimp",
+        "//:fbs",
+        "//lullaby/util:logging",
+        "@mathfu//:mathfu",
+    ],
+)
+
+cc_library(
+    name = "fbx_base_importer",
+    srcs = [
+        "fbx_base_importer.cc",
+    ],
+    hdrs = [
+        "fbx_base_importer.h",
+    ],
+    deps = [
+        ":file_utils",
         "@libfbx//:libfbx",
         "//:fbs",
+        "@mathfu//:mathfu",
     ],
 )
 
@@ -27,6 +45,20 @@ cc_library(
     ],
     hdrs = [
         "file_utils.h",
+    ],
+)
+
+cc_library(
+    name = "jsonnet_utils",
+    srcs = [
+        "jsonnet_utils.cc",
+    ],
+    hdrs = [
+        "jsonnet_utils.h",
+    ],
+    deps = [
+        "@jsonnet//core:libjsonnet",
+        "//lullaby/util:logging",
     ],
 )
 

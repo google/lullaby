@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 #include "lullaby/modules/animation_channels/deform_channels.h"
 
 #include "lullaby/systems/animation/animation_system.h"
-#include "lullaby/systems/deform/deform_system.h"
+#include "lullaby/contrib/deform/deform_system.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {

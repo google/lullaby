@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -67,6 +67,16 @@ class Span {
   const T* data_ = nullptr;
   size_t size_ = 0;
 };
+
+template <typename T>
+Span<uint8_t> ToByteSpan(const T* data, size_t count = 1) {
+  return {reinterpret_cast<const uint8_t*>(data), sizeof(T) * count};
+}
+
+template <typename T>
+Span<uint8_t> ToByteSpan(const T& container) {
+  return ToByteSpan(container.data(), container.size());
+}
 
 }  // namespace lull
 

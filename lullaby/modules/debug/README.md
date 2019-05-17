@@ -23,7 +23,8 @@ lull::debug::DrawLine(...);
 // Update the systems. \
 // Commit debug data and draw the scene.
 
-debug_impl_->Begin(views, gvr::kNumEyes); lull::debug::Submit();
+debug_impl_->Begin(views, kNumEyes);
+lull::debug::Submit();
 debug_impl_->End(); \
 }`
 

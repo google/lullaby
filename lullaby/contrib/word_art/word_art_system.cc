@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,10 @@ limitations under the License.
 #include <cctype>
 #include <utility>
 
+#include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "lullaby/generated/dispatcher_def_generated.h"
 #include "lullaby/events/render_events.h"
 #include "lullaby/modules/ecs/entity_factory.h"
@@ -32,6 +35,7 @@ limitations under the License.
 #include "lullaby/util/make_unique.h"
 #include "lullaby/util/random_number_generator.h"
 #include "lullaby/generated/transform_def_generated.h"
+#include "mathfu/constants.h"
 #include "mathfu/io.h"
 
 namespace lull {
@@ -47,8 +51,13 @@ namespace {
 constexpr int kMaxDelayChars = 5;
 constexpr int kMinDelayChars = 30;
 
+// Max number of lines for a given word art entity. After this number of lines
+// the text will be truncated with an ellipsis.
+constexpr int kMaxLineCount = 2;
+constexpr char kEllipsis[] = "...";
+
 float smoothstep(float x) {
-  mathfu::Clamp(x, 0.0f, 1.0f);
+  x = mathfu::Clamp(x, 0.0f, 1.0f);
   return x * x * x * (x * (x * 6 - 15) + 10);
 }
 
@@ -88,10 +97,13 @@ AudioPlaybackType GetPlaybackType(const WordArtPlayAudioDefT& play_audio) {
 
 }  // namespace
 
-WordArtSystem::WordArtSystem(Registry* registry)
+WordArtSystem::WordArtSystem(
+    Registry* registry,
+    CharacterMeshFilenameFormat character_mesh_filename_format)
     : System(registry),
-      components_(16) {
-  RegisterDef(this, kWordArtDefHash);
+      components_(16),
+      character_mesh_filename_format_(character_mesh_filename_format) {
+  RegisterDef<WordArtDefT>(this);
   RegisterDependency<AnimationSystem>(this);
   RegisterDependency<AudioSystem>(this);
   RegisterDependency<RenderSystem>(this);
@@ -124,13 +136,18 @@ void WordArtSystem::CreateComponent(Entity entity, const Blueprint& blueprint) {
                                              : word_art_def.mesh_extension);
     component->line_height = word_art_def.line_height;
     component->character_pad = word_art_def.character_pad;
+    component->max_width = word_art_def.max_width;
+    component->selection_bounding_box_offset =
+        word_art_def.selection_bounding_box_offset;
     component->place_behavior = word_art_def.place_behavior;
     component->tap_behavior = word_art_def.tap_behavior;
     component->idle_behavior = word_art_def.idle_behavior;
+    component->color_select_behavior = word_art_def.color_select_behavior;
     component->sync_idle = word_art_def.sync_idle;
-    component->color = Color4ub::ToVec4(word_art_def.color);
+    component->color = Color4f::ToVec4(word_art_def.color);
     component->color_uniform_name = word_art_def.color_uniform_name;
     component->color_uniform_size = word_art_def.color_uniform_size;
+    component->character_mesh_filename_format = character_mesh_filename_format_;
 
     // Bootstrap character widths.  We only need to do this the first time we
     // load a font, but it should be fast enough that it doesn't matter if we
@@ -202,7 +219,7 @@ std::vector<Entity> WordArtSystem::SetText(Entity entity,
 
   component->text = text;
 
-  // TODO(hallbm): Preserve existing character entities rather than deleting and
+  // TODO: Preserve existing character entities rather than deleting and
   // rebuilding everything with each change.
   auto entity_factory = registry_->Get<EntityFactory>();
   for (const auto& c : component->characters) {
@@ -213,7 +230,10 @@ std::vector<Entity> WordArtSystem::SetText(Entity entity,
   auto* dispatcher_system = registry_->Get<DispatcherSystem>();
   DCHECK(dispatcher_system);
   const float space_width = component->GetSpaceWidth();
-  std::vector<absl::string_view> lines = absl::StrSplit(component->text, '\n');
+  std::vector<std::string> lines = GetWrappedLines(*component, entity);
+
+  component->text_bounds.x = 0.0f;
+  component->text_bounds.y = lines.size() * component->line_height;
   float offset_y =
       static_cast<float>((lines.size() - 1)) * component->line_height;
   for (const auto& text : lines) {
@@ -222,6 +242,7 @@ std::vector<Entity> WordArtSystem::SetText(Entity entity,
     }
     float place_time_offset = 0.0f;
     float string_width = component->GetStringWidth(text);
+    component->text_bounds.x = std::max(component->text_bounds.x, string_width);
     float offset_x = -0.5f * string_width;
     for (char c : text) {
       auto mesh_file = component->GetCharacterMeshFile(c);
@@ -302,10 +323,23 @@ std::vector<Entity> WordArtSystem::SetText(Entity entity,
 }
 
 std::string WordArtSystem::WordArtComponent::GetCharacterMeshFile(
-    char character) {
-  character = static_cast<char>(std::toupper(character));
+    char character) const {
+  char char_a;
+  char char_z;
+  switch (character_mesh_filename_format) {
+    case kLowerCaseSuffixes:
+      character = static_cast<char>(std::tolower(character));
+      char_a = 'a';
+      char_z = 'z';
+      break;
+    case kUpperCaseSuffixes:
+    default:
+      character = static_cast<char>(std::toupper(character));
+      char_a = 'A';
+      char_z = 'Z';
+  }
   std::string suffix;
-  if ((character >= 'A' && character <= 'Z') ||
+  if ((character >= char_a && character <= char_z) ||
       (character >= '0' && character <= '9')) {
     suffix = std::string(1, character);
   } else {
@@ -322,17 +356,18 @@ std::string WordArtSystem::WordArtComponent::GetCharacterMeshFile(
       default: return std::string();
     }
   }
-  // TODO(hallbm): Figure out why absl::StrCat wouldn't compile on android.
+  // TODO: Figure out why absl::StrCat wouldn't compile on android.
   return mesh_base + "_" + suffix + mesh_extension;
 }
 
-float WordArtSystem::WordArtComponent::GetStringWidth(absl::string_view str) {
+float WordArtSystem::WordArtComponent::GetStringWidth(
+    absl::string_view str) const {
   const float space_width = GetSpaceWidth();
   float width = 0.0f;
   for (char c : str) {
     if (c == ' ') {
       width += space_width;
-    } else {
+    } else if (!GetCharacterMeshFile(c).empty()) {
       width += GetCharacterWidth(c);
       width += space_width * character_pad;
     }
@@ -341,7 +376,7 @@ float WordArtSystem::WordArtComponent::GetStringWidth(absl::string_view str) {
   return width;
 }
 
-float WordArtSystem::WordArtComponent::GetCharacterWidth(char character) {
+float WordArtSystem::WordArtComponent::GetCharacterWidth(char character) const {
   std::string mesh_file = GetCharacterMeshFile(character);
   if (mesh_file.empty()) {
     return 0.0f;
@@ -349,9 +384,64 @@ float WordArtSystem::WordArtComponent::GetCharacterWidth(char character) {
   return (*character_width)[mesh_file];
 }
 
-float WordArtSystem::WordArtComponent::GetSpaceWidth() {
+float WordArtSystem::WordArtComponent::GetSpaceWidth() const {
   constexpr float kSpaceScale = 0.65f;
   return GetCharacterWidth('0') * kSpaceScale;
+}
+
+void WordArtSystem::SetColor(Entity entity, const mathfu::vec4& color,
+                             const std::string& color_name, bool animate) {
+  auto* component = components_.Get(entity);
+  DCHECK(component);
+  if (!component->color_select_behavior.color_select) {
+    return;
+  }
+
+  component->color = color;
+  for (const auto& color_map_entry :
+       component->color_select_behavior.color_select.value().color_map) {
+    if (color_map_entry.text_color.compare(color_name) == 0) {
+      component->color = Color4f::ToVec4(color_map_entry.mapped_color);
+    }
+  }
+
+  if (animate) {
+    SetUpAnimations(component->color_select_behavior, -1, component);
+  } else {
+    StaggerAnimations(
+        -1, 0,
+        [=](Clock::time_point start_time, WordArtComponent::Character* c) {
+          auto* component = components_.Get(entity);
+          if (component) {
+            c->color_fade.start_time = start_time;
+            c->color_fade.end_time = start_time + DurationFromSeconds(0);
+            c->color_fade.start_color =
+                GetCharacterColor(*component, c->entity);
+            c->color_fade.end_color = component->color;
+          }
+        },
+        component);
+  }
+}
+
+mathfu::vec2 WordArtSystem::GetTextBounds(Entity entity) const {
+  auto* component = components_.Get(entity);
+  if (component) {
+    return component->text_bounds;
+  } else {
+    LOG(ERROR) << "No WordArtComponent on entity " << entity;
+    return mathfu::kZeros2f;
+  }
+}
+
+mathfu::vec3 WordArtSystem::GetSelectionBoundingBoxOffset(Entity entity) const {
+  auto* component = components_.Get(entity);
+  if (component) {
+    return component->selection_bounding_box_offset;
+  } else {
+    LOG(ERROR) << "No WordArtComponent on entity " << entity;
+    return mathfu::kZeros3f;
+  }
 }
 
 void WordArtSystem::HandleDropEvent(Entity entity) {
@@ -417,12 +507,17 @@ void WordArtSystem::StaggerAnimations(int character_index, float stagger_delay,
 void WordArtSystem::SetUpAnimations(const WordArtBehaviorDefT& behavior,
                                     int character_index,
                                     WordArtComponent* component) {
+  if (component->color_select_behavior.color_select && behavior.color_change) {
+    LOG(INFO) << "Ignoring color_change behavior since there is a "
+                 "color_select behavior defined";
+    return;
+  }
   if (behavior.color_change) {
     const auto& color_change = behavior.color_change.value();
     auto color_size = color_change.colors.size();
     component->color_index = (component->color_index + 1) % color_size;
     component->color =
-        Color4ub::ToVec4(color_change.colors[component->color_index]);
+        Color4f::ToVec4(color_change.colors[component->color_index]);
     auto fade_duration = DurationFromSeconds(color_change.fade_s);
     auto end_color = component->color;
     auto delay = cfit(component->text.size(), kMaxDelayChars, kMinDelayChars,
@@ -501,6 +596,28 @@ void WordArtSystem::SetUpAnimations(const WordArtBehaviorDefT& behavior,
           params.start_delay_s = 0.0f;
           animation_system->PlayAnimation(c->entity, component->channel, anim,
                                           params);
+        },
+        component);
+  }
+
+  if (behavior.color_select) {
+    const auto& color_select = behavior.color_select.value();
+    auto fade_duration = DurationFromSeconds(color_select.fade_s);
+    auto end_color = component->color;
+    auto delay = cfit(component->text.size(), kMaxDelayChars, kMinDelayChars,
+                      color_select.max_delay_s, color_select.min_delay_s);
+    auto entity = component->GetEntity();
+    StaggerAnimations(
+        character_index, delay,
+        [=](Clock::time_point start_time, WordArtComponent::Character* c) {
+          auto* component = components_.Get(entity);
+          if (component) {
+            c->color_fade.start_time = start_time;
+            c->color_fade.end_time = start_time + fade_duration;
+            c->color_fade.start_color =
+                GetCharacterColor(*component, c->entity);
+            c->color_fade.end_color = end_color;
+          }
         },
         component);
   }
@@ -720,6 +837,102 @@ mathfu::vec4 WordArtSystem::GetCharacterColor(const WordArtComponent& component,
   }
 
   return result;
+}
+
+std::vector<std::string> WordArtSystem::GetWrappedLines(
+    const WordArtComponent& component, Entity entity) {
+  auto* transform_system = registry_->Get<TransformSystem>();
+  DCHECK(transform_system);
+
+  std::vector<std::string> lines = absl::StrSplit(component.text, '\n');
+  if (component.max_width <= 0) {
+    return lines;
+  }
+
+  const float space_width = component.GetSpaceWidth();
+  const float ellipsis_width = component.GetStringWidth(kEllipsis);
+  std::vector<std::string> wrapped_lines;
+  for (const auto& line : lines) {
+    absl::string_view::size_type line_start = 0;
+    float line_width = 0.0f;
+
+    absl::string_view::size_type last_word_separator = 0;
+    float current_word_width = 0.0f;
+
+    size_t ellipsis_pos = 0;
+    for (absl::string_view::size_type i = 0; i < line.size(); i++) {
+      char c = line[i];
+      float char_width;
+      if (c == ' ') {
+        char_width = space_width;
+        current_word_width = 0.0f;
+        last_word_separator = i;
+      } else {
+        char_width = component.GetCharacterWidth(c) +
+                     space_width * component.character_pad;
+        current_word_width += char_width;
+      }
+
+      const bool is_last_line = wrapped_lines.size() == kMaxLineCount - 1;
+      const float max_line_width = component.max_width;
+      const float new_line_width = line_width + char_width;
+      if (is_last_line && ellipsis_pos == 0 &&
+          new_line_width + ellipsis_width > max_line_width) {
+        ellipsis_pos = i;
+      }
+      if (i > 0 && new_line_width > max_line_width) {
+        // Start a new line at either the last space/hyphen in the current line
+        // (if one exists), or the current character (if it's a one-word line).
+        bool break_at_separator =
+            !is_last_line && last_word_separator > line_start;
+        const size_t word_end = break_at_separator ? last_word_separator : i;
+        const size_t line_end = is_last_line ? ellipsis_pos : word_end;
+        std::string wrapped_line =
+            line.substr(line_start, line_end - line_start);
+        absl::StripAsciiWhitespace(&wrapped_line);
+
+        if (is_last_line) {
+          wrapped_lines.push_back(absl::StrCat(wrapped_line, kEllipsis));
+          break;
+        } else {
+          wrapped_lines.push_back(wrapped_line);
+        }
+
+        line_start = line_end;
+        if (break_at_separator) {
+          line_width = current_word_width;
+        } else {
+          line_width = char_width;
+          current_word_width = char_width;
+        }
+      } else {
+        line_width += char_width;
+      }
+
+      // If this char is a hyphen, start keeping track of a new word to allow
+      // wrapping at hyphens. This must be done *after* the width check above in
+      // case the hyphen itself causes overflow onto the next line.
+      if (c == '-') {
+        current_word_width = 0.0f;
+        last_word_separator = i + 1;
+      }
+
+      if (i == line.size() - 1) {
+        // Append the last (unwrapped) line.
+        std::string last_line =
+            line.substr(line_start, line.size() - line_start);
+        absl::StripAsciiWhitespace(&last_line);
+        if (!last_line.empty()) {
+          wrapped_lines.push_back(last_line);
+        }
+      }
+    }
+    if (wrapped_lines.size() == kMaxLineCount) {
+      break;
+    }
+  }
+
+  return wrapped_lines;
 }
 
 }  // namespace lull

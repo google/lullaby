@@ -13,7 +13,7 @@ FLATC_JS_DEFAULT_ARGS = [
 ]
 
 FLATC_DEFAULT_INCLUDES = [
-    "//:fbs_schema_includes",
+    "//:fbs_includes",
 ]
 
 FLATC_DEFAULT_INCLUDE_PATHS = [

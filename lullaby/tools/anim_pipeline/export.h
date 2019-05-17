@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ limitations under the License.
 namespace lull {
 namespace tool {
 
-// Exports the animation a LullAnim binary object.
+/// Exports the animation to a MotiveAnim binary object.
 ByteArray ExportAnimation(const Animation& animation);
 
 }  // namespace tool

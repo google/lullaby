@@ -2,8 +2,8 @@
 #define MAX_BONES 20
 #define NUM_VEC4S_IN_AFFINE_TRANSFORM 3
 
-#include "third_party/lullaby/data/shaders/vertex_common.glslh"
-#include "third_party/lullaby/data/shaders/skinning.glslh"
+#include "lullaby/data/shaders/vertex_common.glslh"
+#include "lullaby/data/shaders/skinning.glslh"
 
 STAGE_INPUT vec4 aPosition;
 STAGE_INPUT vec2 aTexCoord;

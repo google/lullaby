@@ -58,7 +58,9 @@ table WordArtPlayAudioDef {
 }
 
 // Behavior that staggers an animation of each character from its current
-// color to the next color in the colors list.
+// color to the next color in the colors list. Note: This behavior is ignored if
+// there is a color_select_behavior defined and the runtime supports manual
+// color selection.
 table WordArtColorChangeDef {
   // List of colors that the text will cycle between when tapped (each tap
   // triggers one color change).
@@ -95,6 +97,31 @@ table WordArtColorScaleDef {
   max_delay_s: float = 0.0;
 }
 
+// Defines a mapping from a text color, identified by its string name, to the
+// color that should be applied to the Word Art asset.
+table WordArtColorMapEntry {
+  text_color: string;
+  mapped_color: lull.Color;
+}
+
+// Behavior that is triggered when the user manually chooses a specific color.
+// Staggers an animation of each character from its current color to the
+// selected color.
+table WordArtColorSelectDef {
+  // Mapping from a text color name to the corresponding color that should be
+  // applied to the Word Art asset. If a given color name is not found in the
+  // map, that color's default value will be applied.
+  color_map: [WordArtColorMapEntry];
+  // Duration of the color fade for an individual character once triggered.
+  fade_s: float = 0.2;
+  // Minimum and maximum intervals when staggering color animation between
+  // individual characters.  The actual interval is linearly interpolated
+  // between max_delay_s (at text length == 5) and min_delay_s (at text
+  // length == 30).
+  min_delay_s: float = 0.05;
+  max_delay_s: float = 0.1;
+}
+
 // Behaviors that can be triggered by single tap or at initial placement.
 // If multiple behaviors are defined, they are applied in order declared
 // here.
@@ -105,6 +132,7 @@ table WordArtBehaviorDef {
   color_scale: WordArtColorScaleDef (defaults_to_null);
   // The event which triggers the behavior.
   event: lull.EventDef;
+  color_select: WordArtColorSelectDef (defaults_to_null);
 }
 
 table WordArtGlyphInfo {
@@ -158,5 +186,13 @@ table WordArtDef {
   mesh_extension: string;
   // The template ModelAssetDef to use for creating glyphs.
   model_asset_def: lull.ModelAssetDef;
+  // If defined, the text will automatically wrap at word boundaries to fit
+  // within this width, in meters.
+  max_width: float;
+  // If defined, the selection bounding box will be translated by this amount.
+  // This is useful if the characters have animations that change their
+  // positions.
+  selection_bounding_box_offset: Vec3;
+  // Behaviors trigerred when the user selects a color to apply to the Word Art.
+  color_select_behavior: WordArtBehaviorDef;
 }
-

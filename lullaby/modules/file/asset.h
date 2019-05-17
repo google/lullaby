@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ limitations under the License.
 #include <memory>
 #include <string>
 
+#include "lullaby/util/error.h"
 #include "lullaby/util/typeid.h"
 
 namespace lull {
@@ -58,6 +59,14 @@ class Asset {
   // thread.  Otherwise, it is called by the thread that initiated the load.
   virtual void OnLoad(const std::string& filename, std::string* data) {}
 
+  // TODO: Refactor codebase to remove this function and have
+  // OnLoad return an ErrorCode directly.
+  virtual ErrorCode OnLoadWithError(const std::string& filename,
+                                    std::string* data) {
+    OnLoad(filename, data);
+    return kErrorCode_Ok;
+  }
+
   // This function is called when the asset is ready to be finalized with the
   // specified |data|.  The contents of |data| will be freed after this call
   // is returned.  If the asset requires the data to persist, it should
@@ -67,6 +76,18 @@ class Asset {
   // calls AssetLoader::Finalize.  Otherwise, it is called by the thread that
   // initiated the load.
   virtual void OnFinalize(const std::string& filename, std::string* data) {}
+
+  // TODO: Refactor codebase to remove this function and have
+  // OnFinalize return an ErrorCode directly.
+  virtual ErrorCode OnFinalizeWithError(const std::string& filename,
+                                        std::string* data) {
+    OnFinalize(filename, data);
+    return kErrorCode_Ok;
+  }
+
+  // This function is called when an error was encountered at any time during
+  // the load operation.
+  virtual void OnError(const std::string& filename, ErrorCode error) {}
 
  private:
   Asset(const Asset& rhs) = delete;

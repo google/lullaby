@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,13 +27,12 @@ limitations under the License.
 #include "lullaby/examples/example_app/port/sdl2/software_controller.h"
 #include "lullaby/examples/example_app/port/sdl2/software_hmd.h"
 #if defined(__APPLE__)
-#include <TargetConditionals.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <TargetConditionals.h>
 #include "lullaby/examples/example_app/port/sdl2/get_native_window.h"
 #endif
 
 namespace lull {
-
 
 // Attempts to change the working dir to |target|.  Continuously scans up the
 // current working dir one folder at a time until the target is found.
@@ -116,6 +115,9 @@ class MainWindow {
   // Handles mouse movement event.
   void OnMouseMotion(const mathfu::vec2i& position, const mathfu::vec2i& delta);
 
+  // Simulates HMD movement.
+  void SimulateHMDMovement();
+
   // Handles all SDL events and delegates to the appropriate handler.
   static int HandleEvent(void* userdata, SDL_Event* event);
 
@@ -135,6 +137,7 @@ class MainWindow {
   MouseMode mouse_mode_ = kNone;
   bool quitting_ = false;
   int exit_code_ = 0;
+  bool pressed_keys_[256] = {false};
 };
 
 int MainWindow::Run() {
@@ -151,7 +154,7 @@ bool MainWindow::Init() {
     return false;
   }
 
-  if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS) != 0) {
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
     Exit(1, SDL_GetError());
     return false;
   }
@@ -167,6 +170,11 @@ bool MainWindow::Init() {
                              SDL_WINDOWPOS_UNDEFINED, config.width,
                              config.height, SDL_WINDOW_OPENGL);
 
+  if (!window_) {
+    Exit(1, "SDL_CreateWindow failed.");
+    return false;
+  }
+
   SDL_SysWMinfo wmi;
   SDL_VERSION(&wmi.version);
   SDL_GetWindowWMInfo(window_, &wmi);
@@ -180,6 +188,12 @@ bool MainWindow::Init() {
 #endif
 
   gl_context_ = SDL_GL_CreateContext(window_);
+
+  if (!gl_context_) {
+    Exit(1, "SDL_GL_CreateContext failed.");
+    return false;
+  }
+
   SDL_AddEventWatch(HandleEvent, this);
 
   if (!ChangeWorkingDir("data/assets")) {
@@ -191,7 +205,8 @@ bool MainWindow::Init() {
   std::shared_ptr<Registry> registry = app_->GetRegistry();
   if (config.enable_hmd) {
     hmd_.reset(new SoftwareHmd(registry.get(), config.width, config.height,
-                               config.stereo));
+                               config.stereo, config.near_clip_plane,
+                               config.far_clip_plane));
   }
   if (config.enable_controller) {
     controller_.reset(new SoftwareController(registry.get()));
@@ -202,9 +217,11 @@ bool MainWindow::Init() {
 void MainWindow::Update() {
   while (!quitting_) {
     SDL_Event event;
-    while (SDL_PollEvent(&event)) {}
+    while (SDL_PollEvent(&event)) {
+    }
 
     SDL_GL_MakeCurrent(window_, gl_context_);
+    SimulateHMDMovement();
     if (hmd_) {
       hmd_->Update();
     }
@@ -214,8 +231,9 @@ void MainWindow::Update() {
     if (app_) {
       app_->Update();
     }
-
+#ifndef LULLABY_RENDER_BACKEND_FILAMENT
     SDL_GL_SwapWindow(window_);
+#endif
   }
   Exit(0);
 }
@@ -272,9 +290,9 @@ void MainWindow::OnMouseMotion(const mathfu::vec2i& position,
 
     SoftwareHmd::ControlMode mode = SoftwareHmd::kRotatePitchYaw;
     if (ctrl && shift) {
-      mode = SoftwareHmd::kTranslateXY;
-    } else if (ctrl) {
       mode = SoftwareHmd::kRotateRoll;
+    } else if (ctrl) {
+      mode = SoftwareHmd::kTranslateXY;
     } else if (shift) {
       mode = SoftwareHmd::kTranslateXZ;
     }
@@ -285,6 +303,9 @@ void MainWindow::OnMouseMotion(const mathfu::vec2i& position,
 }
 
 void MainWindow::OnKeyDown(const SDL_Keysym& keysym) {
+  if (keysym.sym < 256) {
+    pressed_keys_[keysym.sym] = true;
+  }
   if (keysym.sym == SDLK_SPACE) {
     if (controller_) {
       controller_->OnButtonDown();
@@ -297,6 +318,10 @@ void MainWindow::OnKeyDown(const SDL_Keysym& keysym) {
 }
 
 void MainWindow::OnKeyUp(const SDL_Keysym& keysym) {
+  if (keysym.sym < 256) {
+    pressed_keys_[keysym.sym] = false;
+  }
+
   if (keysym.sym == SDLK_ESCAPE) {
     OnQuit();
   } else if (keysym.sym == SDLK_SPACE) {
@@ -310,9 +335,7 @@ void MainWindow::OnKeyUp(const SDL_Keysym& keysym) {
   }
 }
 
-void MainWindow::OnQuit() {
-  quitting_ = true;
-}
+void MainWindow::OnQuit() { quitting_ = true; }
 
 int MainWindow::HandleEvent(void* userdata, SDL_Event* event) {
   MainWindow* self = reinterpret_cast<MainWindow*>(userdata);
@@ -351,6 +374,30 @@ int MainWindow::HandleEvent(void* userdata, SDL_Event* event) {
     }
   }
   return 1;
+}
+
+void MainWindow::SimulateHMDMovement() {
+  mathfu::vec2i xy(0);
+  if (pressed_keys_[SDLK_z]) {
+    xy.y += 1;
+  }
+  if (pressed_keys_[SDLK_x]) {
+    xy.y -= 1;
+  }
+  if (pressed_keys_[SDLK_a]) {
+    xy.x += 1;
+  } else if (pressed_keys_[SDLK_d]) {
+    xy.x -= 1;
+  }
+  hmd_->OnMouseMotion(xy, SoftwareHmd::kTranslateXY);
+
+  mathfu::vec2i xz(0);
+  if (pressed_keys_[SDLK_w]) {
+    xz.y += 1;
+  } else if (pressed_keys_[SDLK_s]) {
+    xz.y -= 1;
+  }
+  hmd_->OnMouseMotion(xz, SoftwareHmd::kTranslateXZ);
 }
 
 }  // namespace lull

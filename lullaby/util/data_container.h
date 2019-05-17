@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -109,6 +109,10 @@ class DataContainer {
   // is not enough room for all the bytes. This will overwrite data that is
   // written using the mutable pointer.
   bool Append(const uint8_t* data, size_t size);
+
+  // Advances the write head of the data container by the specified number of
+  // bytes, effectively increasing the size of the data container.
+  bool Advance(size_t size);
 
   // Returns the total number of bytes that can fit into the container.
   size_t GetCapacity() const { return capacity_; }

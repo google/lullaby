@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef LULLABY_UTIL_DETAIL_TYPE_UTIL_H_
 #define LULLABY_UTIL_DETAIL_TYPE_UTIL_H_
 
+#include <functional>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -85,6 +86,16 @@ struct IsOptional {
 
 template <typename T>
 struct IsOptional<Optional<T>> {
+  static constexpr bool kValue = true;
+};
+
+template <typename T>
+struct IsFunction {
+  static constexpr bool kValue = false;
+};
+
+template <typename T>
+struct IsFunction<std::function<T>> {
   static constexpr bool kValue = true;
 };
 

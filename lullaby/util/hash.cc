@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ HashValue Hash(HashValue basis, const char* str, size_t len) {
 
   // A quick good hash, from:
   // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+  // Specifically, the FNV-1a function.
   size_t count = 0;
   HashValue value = basis;
   while (*str && count < len) {
@@ -118,5 +119,10 @@ string_view Unhash(HashValue value) {
   return string_view();
 }
 #endif
+
+HashValue HashCombine(HashValue lhs, HashValue rhs) {
+  // Offset by the golden ratio to avoid mapping all zeros to all zeros.
+  return lhs ^ (rhs + kHashGoldenRatio + (lhs << 6) + (lhs >> 2));
+}
 
 }  // namespace lull

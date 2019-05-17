@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,6 +40,30 @@ mathfu::mat4 CalculateClipFromModelMatrix(const mathfu::mat4& model,
 
 /// Attempts to ensure the RenderPass value is valid and fixes it for rendering.
 HashValue FixRenderPass(HashValue pass);
+
+// Maps a numerical value to the corresponding shader data type with the
+// appropriate dimension.  (eg. 3 -> ShaderDataType_Float3).
+// Note: when dimensions is 4, returns the Vec4 type, not the Mat2x2 type.
+ShaderDataType FloatDimensionsToUniformType(int dimensions);
+ShaderDataType IntDimensionsToUniformType(int dimensions);
+
+// Calls UpdateDynamicMesh with common parameters for rendering quads with the
+// VertexPT format.
+inline void UpdateDynamicMeshQuadsPT(
+    Entity entity, size_t quad_count,
+    const std::function<void(lull::MeshData*)>& update_mesh,
+    RenderSystem* render_system) {
+  const int kVertsPerQuad = 4;
+  const int kIndicesPerQuad = 6;
+  render_system->UpdateDynamicMesh(
+      entity, RenderSystem::PrimitiveType::kTriangles,
+      VertexPT::kFormat, kVertsPerQuad * quad_count,
+      kIndicesPerQuad * quad_count, update_mesh);
+}
+
+// Sets a specific number of bone transforms to the identity transform.
+void ClearBoneTransforms(RenderSystem* render_system, Entity entity,
+                         int bone_count);
 
 }  // namespace lull
 

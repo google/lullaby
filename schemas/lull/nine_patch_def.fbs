@@ -8,7 +8,7 @@ table NinePatchDef {
   // width from original_size is larger it will be scaled down to fit.
   size: Vec2;
 
-  // TODO(b/35040276) factor asset specific data out of this def
+  // TODO factor asset specific data out of this def
   // The texture space width (0 - 1) of the left slice
   left_slice: float;
 

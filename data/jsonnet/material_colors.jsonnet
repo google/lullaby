@@ -1,4 +1,4 @@
-local colors_util = import "third_party/lullaby/data/jsonnet/colors.jsonnet";
+local colors_util = import "lullaby/data/jsonnet/colors.jsonnet";
 {
     // These values were copied from Polymer's paper-styles/color.html
     // https://github.com/PolymerElements/paper-styles/blob/master/color.html

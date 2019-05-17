@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -94,16 +94,33 @@ TEST(MathfuMatchersTest, Quaternion) {
 
   EXPECT_THAT(q1, EqualsMathfu(q1));
 
-  for (int i = 0; i < 4; ++i) {
+  {
     mathfu::quat q2(q1);
-    q2[i] += kLessThanEpsilon;
+    q2.set_scalar(q2.scalar() + kLessThanEpsilon);
     EXPECT_THAT(q1, Not(EqualsMathfu(q2)));
     EXPECT_THAT(q1, NearMathfu(q2, kEpsilon));
   }
 
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 3; ++i) {
     mathfu::quat q2(q1);
-    q2[i] += kMoreThanEpsilon;
+    mathfu::vec3 vec = q2.vector();
+    vec[i] += kLessThanEpsilon;
+    q2.set_vector(vec);
+    EXPECT_THAT(q1, Not(EqualsMathfu(q2)));
+    EXPECT_THAT(q1, NearMathfu(q2, kEpsilon));
+  }
+
+  {
+    mathfu::quat q2(q1);
+    q2.set_scalar(q2.scalar() + kMoreThanEpsilon);
+    EXPECT_THAT(q1, Not(NearMathfu(q2, kEpsilon)));
+  }
+
+  for (int i = 0; i < 3; ++i) {
+    mathfu::quat q2(q1);
+    mathfu::vec3 vec = q2.vector();
+    vec[i] += kMoreThanEpsilon;
+    q2.set_vector(vec);
     EXPECT_THAT(q1, Not(NearMathfu(q2, kEpsilon)));
   }
 }

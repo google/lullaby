@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,9 +43,24 @@ std::vector<std::string> StdFromFbStrings(
 
 TextSystem::TextSystem(Registry* registry, std::unique_ptr<TextSystemImpl> impl)
     : System(registry), impl_(std::move(impl)) {
-  RegisterDef(this, ConstHash("TextDef"));
+  RegisterDef<TextDefT>(this);
+}
 
-  FunctionBinder* binder = registry->Get<FunctionBinder>();
+TextSystem::~TextSystem() {
+  auto* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.Text.SetText");
+    binder->UnregisterFunction("lull.Text.SetTextNoPreprocessing");
+    binder->UnregisterFunction("lull.Text.ProcessTasks");
+  }
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
+  }
+}
+
+void TextSystem::Initialize() {
+  auto* binder = registry_->Get<FunctionBinder>();
   if (binder) {
     binder->RegisterFunction(
         "lull.Text.SetText",
@@ -57,9 +72,11 @@ TextSystem::TextSystem(Registry* registry, std::unique_ptr<TextSystemImpl> impl)
         [this](Entity e, const std::string& text) {
           SetText(e, text, kPreprocessingModeNone);
         });
+    binder->RegisterMethod("lull.Text.ProcessTasks",
+                           &lull::TextSystem::ProcessTasks);
   }
 
-  auto* dispatcher = registry->Get<Dispatcher>();
+  auto* dispatcher = registry_->Get<Dispatcher>();
   if (dispatcher) {
     dispatcher->Connect(this, [this](const SetTextEvent& e) {
       if (e.literal) {
@@ -70,21 +87,9 @@ TextSystem::TextSystem(Registry* registry, std::unique_ptr<TextSystemImpl> impl)
       }
     });
   }
-}
 
-TextSystem::~TextSystem() {
-  FunctionBinder* binder = registry_->Get<FunctionBinder>();
-  if (binder) {
-    binder->UnregisterFunction("lull.Text.SetText");
-    binder->UnregisterFunction("lull.Text.SetTextNoPreprocessing");
-  }
-  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
-  if (dispatcher) {
-    dispatcher->DisconnectAll(this);
-  }
+  impl_->Initialize();
 }
-
-void TextSystem::Initialize() { impl_->Initialize(); }
 
 void TextSystem::Create(Entity entity, DefType type, const Def* def) {
   impl_->Create(entity, type, def);
@@ -128,7 +133,7 @@ const std::string* TextSystem::GetRenderedText(Entity entity) const {
 void TextSystem::SetText(Entity entity, const std::string& text,
                          TextSystemPreprocessingModes preprocess) {
   auto* preprocessor = registry_->Get<StringPreprocessor>();
-  if (preprocessor != nullptr) {
+  if (preprocessor) {
     switch (preprocess) {
       case kPreprocessingModeNone:
         // Adding the kLiteralStringPrefixString causes the preprocessor to
@@ -150,6 +155,10 @@ void TextSystem::SetFontSize(Entity entity, float size) {
 
 void TextSystem::SetLineHeight(Entity entity, float height) {
   SetFontSize(entity, height);
+}
+
+void TextSystem::SetLineHeightScale(Entity entity, float line_height_scale) {
+  impl_->SetLineHeightScale(entity, line_height_scale);
 }
 
 void TextSystem::SetBounds(Entity entity, const mathfu::vec2& bounds) {

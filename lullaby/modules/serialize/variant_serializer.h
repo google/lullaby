@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ namespace lull {
 //
 // VariantSerializers effectively manages a tree of Variants.  Leaf nodes
 // are Variant objects to fundamental types (eg. ints, floats, bools, strings)
-// while inner nodes are VariantMaps (or, sometimes, VaraintArrays).  This
+// while inner nodes are VariantMaps (or, sometimes, VariantArrays).  This
 // allows for the representation of complex composite data, similar to how
 // JSON data is structured.
 
@@ -78,6 +78,9 @@ class SaveToVariant {
 
   // Saves strings as a leaf-node on the current node/map.
   void operator()(std::string* ptr, HashValue key) { Save(ptr, key); }
+
+  // Saves ByteArrays as a leaf-node on the current node/map.
+  void operator()(ByteArray* ptr, HashValue key) { Save(ptr, key); }
 
   // Converts the vector to a VariantArray and stores that array as a leaf-node
   // on the current node/map.
@@ -180,6 +183,9 @@ class LoadFromVariant {
 
   // Loads strings from a leaf-node on the current node/map.
   void operator()(std::string* ptr, HashValue key) { Load(ptr, key); }
+
+  // Loads ByteArrays from a leaf-node on the current node/map.
+  void operator()(ByteArray* ptr, lull::HashValue key) { Load(ptr, key); }
 
   // Loads a VariantArray from the current node/map and converts it to the
   // output vector.

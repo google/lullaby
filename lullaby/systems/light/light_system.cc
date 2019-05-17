@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ limitations under the License.
 #include "lullaby/events/render_events.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/texture_factory.h"
+#include "mathfu/constants.h"
+#include "mathfu/utilities.h"
 
 namespace lull {
 namespace {
@@ -37,7 +39,7 @@ static constexpr char kShadowExponentUniformName[] =
 
 HashValue RenderPassNameFromEntityAndLightGroup(Entity entity,
                                                 HashValue group) {
-  return entity + group;
+  return entity.AsUint32() + group;
 }
 
 void RemoveLightableFromShadowPass(RenderSystem* render_system, Entity entity,
@@ -46,12 +48,14 @@ void RemoveLightableFromShadowPass(RenderSystem* render_system, Entity entity,
   render_system->Destroy(entity, pass);
 }
 
+bool HasShadows(const SpotLightDefT& light) { return false; }
 bool HasShadows(const PointLightDefT& light) { return false; }
 bool HasShadows(const AmbientLightDefT& light) { return false; }
 bool HasShadows(const DirectionalLightDefT& light) {
   return light.shadow_def.type() != ShadowDefT::kNone;
 }
 
+void AddEmptyShadow(SpotLightDefT* light) {}
 void AddEmptyShadow(PointLightDefT* light) {}
 void AddEmptyShadow(AmbientLightDefT* light) {}
 void AddEmptyShadow(DirectionalLightDefT* light) {
@@ -88,11 +92,12 @@ static Sqt GetWorldFromEntitySqt(const TransformSystem* transform_system,
 }
 
 LightSystem::LightSystem(Registry* registry) : System(registry) {
-  RegisterDef(this, ConstHash("AmbientLightDef"));
-  RegisterDef(this, ConstHash("DirectionalLightDef"));
-  RegisterDef(this, ConstHash("EnvironmentLightDef"));
-  RegisterDef(this, ConstHash("PointLightDef"));
-  RegisterDef(this, ConstHash("LightableDef"));
+  RegisterDef<AmbientLightDefT>(this);
+  RegisterDef<DirectionalLightDefT>(this);
+  RegisterDef<EnvironmentLightDefT>(this);
+  RegisterDef<PointLightDefT>(this);
+  RegisterDef<SpotLightDefT>(this);
+  RegisterDef<LightableDefT>(this);
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
 }
@@ -124,6 +129,13 @@ void LightSystem::CreateLight(Entity entity, const PointLightDefT& data) {
   entity_to_group_map_[entity] = data.group;
 }
 
+void LightSystem::CreateLight(Entity entity, const SpotLightDefT& data) {
+  auto* transform_system = registry_->Get<lull::TransformSystem>();
+  groups_[data.group].AddLight(transform_system, entity, data);
+  spot_lights_.insert(entity);
+  entity_to_group_map_[entity] = data.group;
+}
+
 void LightSystem::CreateLight(Entity entity, const LightableDefT& data) {
   LightGroup& group = groups_[data.group];
   group.AddLightable(registry_, entity, data);
@@ -143,6 +155,10 @@ void LightSystem::PostCreateComponent(Entity entity,
     CreateLight(entity, light);
   } else if (blueprint.Is<PointLightDefT>()) {
     PointLightDefT light;
+    blueprint.Read(&light);
+    CreateLight(entity, light);
+  } else if (blueprint.Is<SpotLightDefT>()) {
+    SpotLightDefT light;
     blueprint.Read(&light);
     CreateLight(entity, light);
   } else if (blueprint.Is<DirectionalLightDefT>()) {
@@ -180,12 +196,14 @@ void LightSystem::Destroy(Entity entity) {
   ambients_.erase(entity);
   directionals_.erase(entity);
   points_.erase(entity);
+  spot_lights_.erase(entity);
 }
 
 void LightSystem::AdvanceFrame() {
   auto* transform_system = registry_->Get<lull::TransformSystem>();
   UpdateLightTransforms(transform_system, directionals_);
   UpdateLightTransforms(transform_system, points_);
+  UpdateLightTransforms(transform_system, spot_lights_);
 
   auto* render_system = registry_->Get<RenderSystem>();
   for (auto& iter : groups_) {
@@ -234,11 +252,16 @@ void LightSystem::LightGroup::AddLight(Registry* registry, Entity entity,
     environment_entity_ = entity;
     environment_diffuse_texture_ =
         texture_factory->CreateTexture(light.diffuse);
-    environment_specular_texture_ =
-        texture_factory->CreateTexture(light.specular);
-    environment_brdf_lookup_table_ =
-        texture_factory->CreateTexture(light.brdf_lookup);
+    if (!light.specular.file.empty() || !light.specular.data.empty()) {
+      environment_specular_texture_ =
+          texture_factory->CreateTexture(light.specular);
+    }
+    if (!light.brdf_lookup.file.empty() || !light.brdf_lookup.data.empty()) {
+      environment_brdf_lookup_table_ =
+          texture_factory->CreateTexture(light.brdf_lookup);
+    }
   }
+  environment_light_ = light;
   dirty_ = true;
 }
 
@@ -252,14 +275,28 @@ void LightSystem::LightGroup::AddLight(TransformSystem* transform_system,
   dirty_ = true;
 }
 
+void LightSystem::LightGroup::AddLight(TransformSystem* transform_system,
+                                       Entity entity,
+                                       const SpotLightDefT& light) {
+  const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
+  auto& new_light = spot_lights_[entity];
+  new_light = light;
+  new_light.position = sqt.translation;
+  new_light.rotation = sqt.rotation;
+  dirty_ = true;
+}
+
 void LightSystem::LightGroup::AddLightable(Registry* registry, Entity entity,
                                            const LightableDefT& lightable) {
   auto& new_lightable = lightables_[entity];
   new_lightable = lightable;
   dirty_lightables_.insert(entity);
 
+  auto* render_system = registry->Get<RenderSystem>();
+  if (lightable.max_point_lights > 0) {
+    render_system->RequestShaderFeature(entity, lull::ConstHash("PointLight"));
+  }
   if (lightable.shadow_interaction == ShadowInteraction_CastAndReceive) {
-    auto* render_system = registry->Get<RenderSystem>();
     auto* dispatcher_system = registry->Get<lull::DispatcherSystem>();
     for (const auto& shadow_pass_data : shadow_passes_) {
       AddLightableToShadowPass(render_system, dispatcher_system, entity,
@@ -292,6 +329,9 @@ void LightSystem::LightGroup::Remove(Registry* registry, Entity entity) {
     directionals_.erase(directionals_iterator);
   }
   if (points_.erase(entity)) {
+    dirty_ = true;
+  }
+  if (spot_lights_.erase(entity)) {
     dirty_ = true;
   }
   if (environment_entity_ == entity) {
@@ -365,7 +405,7 @@ void LightSystem::UpdateUniforms(UniformData* uniforms,
     T blacklight;
     AddEmptyShadow(&blacklight);
     uniforms->Add(blacklight);
-    ++count;
+    ++shadow_count;
   }
 }
 
@@ -378,6 +418,23 @@ void LightSystem::LightGroup::UpdateLightable(RenderSystem* render_system,
       &uniforms, directionals_, data.max_directional_lights,
       (data.shadow_interaction == ShadowInteraction_CastAndReceive) ? 1 : 0);
   UpdateUniforms(&uniforms, points_, data.max_point_lights, 0);
+  UpdateUniforms(&uniforms, spot_lights_, /*max_allowed=*/1, 0);
+
+  if (data.apply_environment_light && environment_light_) {
+    uniforms.Add(*environment_light_);
+    render_system->SetTexture(entity, MaterialTextureUsage_DiffuseEnvironment,
+                              environment_diffuse_texture_);
+    if (environment_specular_texture_) {
+      render_system->SetTexture(entity,
+                                MaterialTextureUsage_SpecularEnvironment,
+                                environment_specular_texture_);
+    }
+    if (environment_brdf_lookup_table_) {
+      render_system->SetTexture(entity, MaterialTextureUsage_BrdfLookupTable,
+                                environment_brdf_lookup_table_);
+    }
+  }
+
   uniforms.Apply(render_system, entity);
 
   // Special case: Also update the shadow matrices.
@@ -385,16 +442,6 @@ void LightSystem::LightGroup::UpdateLightable(RenderSystem* render_system,
     render_system->SetUniform(entity, kLightMatrixUniformName,
                               &shadow_pass.view.clip_from_world_matrix[0],
                               16 /*=dimensions*/, 1 /*=count*/);
-  }
-
-  // Special case: environment lighting.
-  if (data.apply_environment_light) {
-    render_system->SetTexture(entity, MaterialTextureUsage_DiffuseEnvironment,
-                              environment_diffuse_texture_);
-    render_system->SetTexture(entity, MaterialTextureUsage_SpecularEnvironment,
-                              environment_specular_texture_);
-    render_system->SetTexture(entity, MaterialTextureUsage_BrdfLookupTable,
-                              environment_brdf_lookup_table_);
   }
 }
 
@@ -420,11 +467,22 @@ void LightSystem::LightGroup::UpdateLight(TransformSystem* transform_system,
       dirty_ = true;
     }
   }
+
+  auto spot_iter = spot_lights_.find(entity);
+  if (spot_iter != spot_lights_.end()) {
+    auto& light = spot_iter->second;
+    const Sqt sqt = GetWorldFromEntitySqt(transform_system, entity);
+    if (light.position != sqt.translation) {
+      light.position = sqt.translation;
+      light.rotation = sqt.rotation;
+      dirty_ = true;
+    }
+  }
 }
 
 bool LightSystem::LightGroup::Empty() const {
   return ambients_.empty() && directionals_.empty() && points_.empty() &&
-         lightables_.empty();
+         spot_lights_.empty() && lightables_.empty();
 }
 
 void LightSystem::LightGroup::DestroyShadowPass(RenderSystem* render_system,
@@ -448,11 +506,9 @@ void LightSystem::UniformData::Clear() { buffers.clear(); }
 void LightSystem::UniformData::Add(const AmbientLightDefT& light) {
   auto& colors = buffers["light_ambient_color"];
   colors.dimension = 3;
-
-  const mathfu::vec4 data = Color4ub::ToVec4(light.color);
-  colors.data.push_back(data.x);
-  colors.data.push_back(data.y);
-  colors.data.push_back(data.z);
+  colors.data.push_back(light.color.r);
+  colors.data.push_back(light.color.g);
+  colors.data.push_back(light.color.b);
 }
 
 void LightSystem::UniformData::Add(const DirectionalLightDefT& light) {
@@ -460,11 +516,9 @@ void LightSystem::UniformData::Add(const DirectionalLightDefT& light) {
   auto& colors =
       buffers[has_shadow ? kShadowColorUniformName : kColorUniformName];
   colors.dimension = 3;
-
-  const mathfu::vec4 data = Color4ub::ToVec4(light.color);
-  colors.data.push_back(data.x);
-  colors.data.push_back(data.y);
-  colors.data.push_back(data.z);
+  colors.data.push_back(light.color.r);
+  colors.data.push_back(light.color.g);
+  colors.data.push_back(light.color.b);
 
   auto& directions =
       buffers[has_shadow ? kShadowDirectionUniformName : kDirectionUniformName];
@@ -475,20 +529,56 @@ void LightSystem::UniformData::Add(const DirectionalLightDefT& light) {
   directions.data.push_back(light_dir.y);
   directions.data.push_back(light_dir.z);
 
-  auto& exponents =
-      buffers[has_shadow ? kShadowExponentUniformName : kExponentUniformName];
-  exponents.dimension = 1;
-  exponents.data.push_back(light.exponent);
+  if (light.exponent != 0.0f) {
+    auto& exponents =
+        buffers[has_shadow ? kShadowExponentUniformName : kExponentUniformName];
+    exponents.dimension = 1;
+    exponents.data.push_back(light.exponent);
+  }
+}
+
+void LightSystem::UniformData::Add(const SpotLightDefT& light) {
+  auto& colors = buffers["light_spotlight_color"];
+  colors.dimension = 3;
+  colors.data.push_back(light.color.r * light.intensity);
+  colors.data.push_back(light.color.g * light.intensity);
+  colors.data.push_back(light.color.b * light.intensity);
+
+  auto& positions = buffers["light_spotlight_pos"];
+  positions.dimension = 3;
+  positions.data.push_back(light.position.x);
+  positions.data.push_back(light.position.y);
+  positions.data.push_back(light.position.z);
+
+  const mathfu::vec3 light_dir = light.rotation * -mathfu::kAxisZ3f;
+  auto& directions = buffers["light_spotlight_dir"];
+  directions.dimension = 3;
+  directions.data.push_back(light_dir.x);
+  directions.data.push_back(light_dir.y);
+  directions.data.push_back(light_dir.z);
+
+  auto& decay = buffers["light_spotlight_decay"];
+  decay.dimension = 1;
+  decay.data.push_back(light.decay);
+
+  const float angle_in_radians =
+      std::min(light.angle, 90.0f) * kDegreesToRadians;
+  auto& angle = buffers["light_spotlight_angle_cos"];
+  angle.dimension = 1;
+  angle.data.push_back(std::cos(angle_in_radians));
+
+  auto& penumbra = buffers["light_spotlight_penumbra_cos"];
+  penumbra.dimension = 1;
+  penumbra.data.push_back(
+      std::cos(mathfu::Clamp(light.penumbra, 0.0f, 1.0f) * angle_in_radians));
 }
 
 void LightSystem::UniformData::Add(const PointLightDefT& light) {
   auto& colors = buffers["light_point_color"];
   colors.dimension = 3;
-
-  const mathfu::vec4 data = Color4ub::ToVec4(light.color);
-  colors.data.push_back(data.x);
-  colors.data.push_back(data.y);
-  colors.data.push_back(data.z);
+  colors.data.push_back(light.color.r * light.intensity);
+  colors.data.push_back(light.color.g * light.intensity);
+  colors.data.push_back(light.color.b * light.intensity);
 
   auto& positions = buffers["light_point_pos"];
   positions.dimension = 3;
@@ -496,13 +586,23 @@ void LightSystem::UniformData::Add(const PointLightDefT& light) {
   positions.data.push_back(light.position.y);
   positions.data.push_back(light.position.z);
 
-  auto& exponents = buffers["light_point_exponent"];
-  exponents.dimension = 1;
-  exponents.data.push_back(light.exponent);
+  if (light.exponent != 0.0f) {
+    auto& exponents = buffers["light_point_exponent"];
+    exponents.dimension = 1;
+    exponents.data.push_back(light.exponent);
+  }
+}
 
-  auto& intensities = buffers["light_point_intensity"];
-  intensities.dimension = 1;
-  intensities.data.push_back(light.intensity);
+void LightSystem::UniformData::Add(const EnvironmentLightDefT& light) {
+  auto& colors = buffers["light_environment_color_factor"];
+  colors.dimension = 3;
+  colors.data.push_back(light.color.r);
+  colors.data.push_back(light.color.g);
+  colors.data.push_back(light.color.b);
+
+  auto& mips = buffers["num_mips"];
+  mips.dimension = 1;
+  mips.data.push_back(static_cast<float>(light.specular_mips));
 }
 
 void LightSystem::UniformData::Apply(RenderSystem* render_system,
@@ -540,25 +640,22 @@ void LightSystem::LightGroup::AddLightableToShadowPass(
   }
 
   render_system->Create(entity, static_cast<RenderPass>(pass));
-  // Retrieve the mesh of the default entity.
-  // TODO(b/65262474): Currently there is no GetMesh function to return the mesh
-  // of the default entity so we cheat by supplying component id of 0.
-  render_system->SetMesh(entity, pass, render_system->GetMesh(entity, 0));
+  render_system->SetMesh({entity, pass}, render_system->GetMesh(entity));
   if (lightable.depth_shader.empty()) {
     LOG(DFATAL) << "Missing depth shader for shadow casting entity.";
   } else {
-    render_system->SetMaterial(entity, pass, NullOpt,
+    render_system->SetMaterial({entity, pass},
                                MaterialInfo(lightable.depth_shader));
   }
-  render_system->SetTexture(entity, 0, lightable.shadow_sampler,
+  render_system->SetTexture({entity, 0}, lightable.shadow_sampler,
                             render_system->GetTexture(pass));
 
   dispatcher_system->Connect(
       entity, this,
       [render_system, entity, pass](const MeshChangedEvent& event) {
         if (event.pass != pass) {
-          render_system->SetMesh(entity, pass,
-                                 render_system->GetMesh(entity, event.pass));
+          render_system->SetMesh({entity, pass},
+                                 render_system->GetMesh({entity, event.pass}));
         }
       });
   dirty_lightables_.insert(entity);

@@ -1,28 +1,21 @@
-local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
+local utils = import 'lullaby/data/jsonnet/utils.jsonnet';
 {
   snippets: [
     {
-      name: "View direction",
-      inputs: [{
-        name: 'aPosition',
-        type: 'Vec4f',
-        usage: 'Position',
-      }],
+      name: 'View Direction',
       outputs: [{
         name: 'vViewDirection',
         type: 'Vec3f',
       }],
       uniforms: [{
-        name: 'model',
-        type: 'Float4x4',
-      }, {
         name: 'camera_pos',
         type: 'Float3',
       }],
+      // world_position variable is assumed to exist and be set by a preceding
+      // snippet.  We have no way to establish this contract formally at build
+      // time.
       main_code: |||
-        vec4 position_homogeneous = model * aPosition;
-        vec3 position = position_homogeneous.xyz / position_homogeneous.w;
-        vViewDirection = camera_pos - position;
+        vViewDirection = UNIFORM(camera_pos) - world_position;
       |||,
     },
   ],

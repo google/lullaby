@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ namespace testing {
 template <typename EntityDef, typename ComponentDef, typename EntityDefBuilder,
           typename ComponentDefBuilder, typename ComponentDefType,
           template <typename T> class ComponentDefTypeTraits,
-          const char** (*const enum_component_names_fn)()>
+          const char* const * (*const enum_component_names_fn)()>
 class EntityTestTypeTraits {
  public:
   using entity_type = EntityDef;
@@ -48,7 +48,7 @@ class EntityTestTypeTraits {
   using component_builder_type = ComponentDefBuilder;
   using component_union_type = ComponentDefType;
 
-  static const char** component_def_type_names() {
+  static const char* const * component_def_type_names() {
     return enum_component_names_fn();
   }
   static const char* component_def_type_name(ComponentDefType type) {
@@ -96,7 +96,7 @@ class EntityTest
 template <typename EntityDef, typename ComponentDef, typename EntityDefBuilder,
           typename ComponentDefBuilder, typename ComponentDefType,
           template <typename T> class ComponentDefTypeTraits,
-          const char** (*const enum_component_names_fn)()>
+          const char* const * (*const enum_component_names_fn)()>
 class EntityTest<EntityTestTypeTraits<
     EntityDef, ComponentDef, EntityDefBuilder, ComponentDefBuilder,
     ComponentDefType, ComponentDefTypeTraits, enum_component_names_fn>>

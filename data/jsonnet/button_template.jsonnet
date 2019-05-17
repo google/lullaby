@@ -1,7 +1,7 @@
 local colors = import "colors.jsonnet";
-local utils = import "third_party/lullaby/data/jsonnet/utils.jsonnet";
+local utils = import "lullaby/data/jsonnet/utils.jsonnet";
 local button_response = import "button_response.jsonnet";
-local responses = import "third_party/lullaby/data/jsonnet/responses.jsonnet";
+local responses = import "lullaby/data/jsonnet/responses.jsonnet";
 
 {
   button_root(position, rotation, scale)::

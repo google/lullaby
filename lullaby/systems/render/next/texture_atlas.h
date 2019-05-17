@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ class TextureAtlas {
   std::shared_ptr<Texture> GetTexture() const;
 
  private:
-  friend class TextureAtlasFactory;
+  friend class TextureFactoryImpl;
   void Init(std::shared_ptr<Texture> texture,
             std::vector<std::string> subtextures);
 

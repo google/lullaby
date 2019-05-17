@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ FadeSystem::FadeComponent::FadeComponent(Entity entity)
     : Component(entity), data(nullptr) {}
 
 FadeSystem::FadeSystem(Registry* registry) : System(registry), fades_(16) {
-  RegisterDef(this, kFadeResponseHash);
+  RegisterDef<FadeDefT>(this);
   RegisterDependency<AnimationSystem>(this);
   RegisterDependency<TransformSystem>(this);
   RegisterDependency<RenderSystem>(this);
@@ -79,7 +79,7 @@ void FadeSystem::PostCreateInit(Entity e, HashValue type, const Def* def) {
       ConnectEventDefs(registry_, e, data->disable_input_events(), response);
     }
 
-    fade->disable_animation_id = kNullEntity;
+    fade->disable_animation_id = kNullAnimation;
     if (data->start_disabled()) {
       FadeOut(e, std::chrono::milliseconds(0));
     } else if (data->animate_on_create()) {
@@ -178,7 +178,7 @@ void FadeSystem::FadeOut(Entity e, const Clock::duration& time) {
   }
 
   // Cause an interrupt for any playing enable animation:
-  fade->enable_animation_id = kNullEntity;
+  fade->enable_animation_id = kNullAnimation;
 
   if (!transform_system->IsEnabled(e)) {
     // Already disabled, although that might be inherited.  Don't play any
@@ -296,7 +296,7 @@ AnimationId FadeSystem::AnimateFadeIn(const FadeComponent& fade, Entity e,
                                       Clock::duration time) {
   if (fade.data && fade.data->enable_anim()) {
     if (time.count() == 0) {
-      // TODO(29831444) would be good to be able to jump to the end of the
+      // TODO would be good to be able to jump to the end of the
       // enable_anim here.
       return kNullAnimation;
     } else {
@@ -335,7 +335,7 @@ AnimationId FadeSystem::AnimateFadeOut(const FadeComponent& fade, Entity e,
                                        Clock::duration time) {
   if (fade.data && fade.data->disable_anim()) {
     if (time.count() == 0) {
-      // TODO(29831444) would be good to be able to jump to the end of the
+      // TODO would be good to be able to jump to the end of the
       // disable_anim here.
       return kNullAnimation;
     } else {

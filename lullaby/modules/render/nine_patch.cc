@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,11 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 
 namespace lull {
+namespace {
+inline float SafeDiv(float num, float den, float otherwise = 0.f) {
+  return den != 0.f ? num / den : otherwise;
+}
+}  // namespace
 
 void NinePatchFromDef(const NinePatchDef* def, NinePatch* nine_patch) {
   MathfuVec2FromFbVec2(def->size(), &nine_patch->size);
@@ -67,7 +72,7 @@ void ComputeVertexValues(float size, float original_size, float low_slice,
     // Texture coordinate is computed by figuring out the fraction of the patch
     // this interval is at, and multiplying that by the original slice UV width.
     *p = vertex_interval;
-    *u = low_slice * (vertex_interval / low_patch_width);
+    *u = SafeDiv(low_slice * vertex_interval, low_patch_width);
   } else if (vertex_index == low_slice_index) {
     // Low slice column.
     // Position is the original size scaled by the low slice UV width.
@@ -82,7 +87,8 @@ void ComputeVertexValues(float size, float original_size, float low_slice,
     // slice.
     *p = vertex_interval;
     const float distance_in_middle_patch = vertex_interval - low_patch_width;
-    *u = middle_patch_uv_size * distance_in_middle_patch / middle_patch_size +
+    *u = SafeDiv(middle_patch_uv_size * distance_in_middle_patch,
+                  middle_patch_size) +
          low_slice;
   } else if (vertex_index == high_slice_index) {
     // High slice column.
@@ -94,14 +100,14 @@ void ComputeVertexValues(float size, float original_size, float low_slice,
   } else {
     // High patch.
     // Position is unchanged from the interval position.
-    // Texture coordinate is the start of this patch's UV plus the UV fraction
-    // within this patch.
+    // Texture coordinate is the end of this patch's UV minus the UV fraction
+    // from the edge.
+    // This counts backwards so that it is symmetrical to low_slice and matches
+    // the way high_slice is measured, i.e. distance from edge.
     *p = vertex_interval;
-    const float distance_in_high_patch =
-        vertex_interval - (low_patch_width + middle_patch_size);
-    const float high_slice_uv_start = 1.0f - high_slice;
-    *u = high_slice_uv_start +
-         high_slice * distance_in_high_patch / high_patch_width;
+    const float distance_in_high_patch_from_edge = size - vertex_interval;
+    *u = 1.0f - SafeDiv(high_slice * distance_in_high_patch_from_edge,
+                         high_patch_width);
   }
 }
 
@@ -125,14 +131,10 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
   // Ratio of slice sizes to determine maximum slice size.
   const float slice_width_sum = nine_patch.left_slice + nine_patch.right_slice;
   const float slice_height_sum = nine_patch.bottom_slice + nine_patch.top_slice;
-  float slice_width_center = 0.5f;
-  float slice_height_center = 0.5f;
-  if (slice_width_sum > 0.f) {
-    slice_width_center = nine_patch.left_slice / slice_width_sum;
-  }
-  if (slice_height_sum > 0.f) {
-    slice_height_center = nine_patch.bottom_slice / slice_height_sum;
-  }
+  const float slice_width_center =
+      SafeDiv(nine_patch.left_slice, slice_width_sum, 0.5f);
+  const float slice_height_center =
+      SafeDiv(nine_patch.bottom_slice, slice_height_sum, 0.5f);
 
   // Make sure that the final positions are always within the final size,
   // even if the original_size was larger.
@@ -152,23 +154,26 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
       nine_patch.size - mathfu::vec2(left_patch_width + right_patch_width,
                                      bottom_patch_width + top_patch_width);
 
-  const float indices_per_width = nine_patch.size.x > 0.f
-      ? static_cast<float>(nine_patch.subdivisions.x) / nine_patch.size.x
-      : 0.f;
-  const float indices_per_height = nine_patch.size.y > 0.f
-      ? static_cast<float>(nine_patch.subdivisions.y) / nine_patch.size.y
-      : 0.f;
+  const float indices_per_width = SafeDiv(
+      static_cast<float>(nine_patch.subdivisions.x), nine_patch.size.x);
+  const float indices_per_height = SafeDiv(
+      static_cast<float>(nine_patch.subdivisions.y), nine_patch.size.y);
   // The 1 + and 2 + here account for the extra vertices added for the slices.
+  // The min accounts for the extra vertices counting from the back.
   const int left_slice_index =
-      1 + static_cast<int>(indices_per_width * left_patch_width);
+      std::min(1 + static_cast<int>(indices_per_width * left_patch_width),
+               row_vert_count - 3);
   const int right_slice_index =
-      2 + static_cast<int>(indices_per_width *
-                           (left_patch_width + middle_patch_size.x));
+      std::min(2 + static_cast<int>(indices_per_width *
+                                    (left_patch_width + middle_patch_size.x)),
+               row_vert_count - 2);
   const int bottom_slice_index =
-      1 + static_cast<int>(indices_per_height * bottom_patch_width);
+      std::min(1 + static_cast<int>(indices_per_height * bottom_patch_width),
+               col_vert_count - 3);
   const int top_slice_index =
-      2 + static_cast<int>(indices_per_height *
-                           (bottom_patch_width + middle_patch_size.y));
+      std::min(2 + static_cast<int>(indices_per_height *
+                                    (bottom_patch_width + middle_patch_size.y)),
+               col_vert_count - 2);
 
   // Save the current number of vertices to use later as a base index during
   // index generation.  This allows a nine patch mesh to be tacked on to the end
@@ -188,9 +193,9 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
                         bottom_patch_width, nine_patch.top_slice,
                         top_slice_index, top_patch_width, middle_patch_size.y,
                         middle_patch_uv_size.y, y_index, interval_y, &y, &v0);
-    v1 =
-        mathfu::Lerp(1.f - nine_patch.texture_alt_min.y,
-                     1.f - nine_patch.texture_alt_max.y, y / nine_patch.size.y);
+    v1 = mathfu::Lerp(1.f - nine_patch.texture_alt_min.y,
+                      1.f - nine_patch.texture_alt_max.y,
+                      SafeDiv(y, nine_patch.size.y));
 
     if (y_index != bottom_slice_index && y_index != top_slice_index) {
       interval_y += y_step;
@@ -205,7 +210,8 @@ void GenerateNinePatchMesh(const NinePatch& nine_patch, MeshData* mesh) {
           right_slice_index, right_patch_width, middle_patch_size.x,
           middle_patch_uv_size.x, x_index, interval_x, &x, &u0);
       u1 = mathfu::Lerp(nine_patch.texture_alt_min.x,
-                        nine_patch.texture_alt_max.x, x / nine_patch.size.x);
+                        nine_patch.texture_alt_max.x,
+                        SafeDiv(x, nine_patch.size.x));
 
       if (x_index != left_slice_index && x_index != right_slice_index) {
         interval_x += x_step;

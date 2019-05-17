@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,10 +16,12 @@ limitations under the License.
 
 #include "lullaby/contrib/grab/spherical_grab_input_system.h"
 
+#include "lullaby/contrib/controller/controller_system.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
+#include "lullaby/modules/input/input_manager.h"
 #include "lullaby/modules/input_processor/input_processor.h"
 #include "lullaby/modules/reticle/input_focus_locker.h"
-#include "lullaby/systems/cursor/cursor_system.h"
+#include "lullaby/contrib/cursor/cursor_system.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
@@ -34,12 +36,13 @@ const HashValue kSphericalGrabInputDef = Hash("SphericalGrabInputDef");
 
 SphericalGrabInputSystem::SphericalGrabInputSystem(Registry* registry)
     : System(registry) {
+  RegisterDependency<ControllerSystem>(this);
+  RegisterDependency<CursorSystem>(this);
   RegisterDependency<GrabSystem>(this);
   RegisterDependency<InputProcessor>(this);
   RegisterDependency<InputFocusLocker>(this);
   RegisterDependency<TransformSystem>(this);
-  RegisterDependency<CursorSystem>(this);
-  RegisterDef(this, kSphericalGrabInputDef);
+  RegisterDef<SphericalGrabInputDefT>(this);
 }
 
 void SphericalGrabInputSystem::Create(Entity entity, HashValue type,
@@ -54,7 +57,9 @@ void SphericalGrabInputSystem::Create(Entity entity, HashValue type,
   auto& handler = handlers_[entity];
   MathfuVec3FromFbVec3(data->sphere_center(), &handler.grab_sphere.position);
   handler.keep_grab_offset = data->keep_grab_offset();
+  handler.move_with_hmd = data->move_with_hmd();
   handler.hide_cursor = data->hide_cursor();
+  handler.hide_laser = data->hide_laser();
 
   auto* grab_system = registry_->Get<GrabSystem>();
   grab_system->SetInputHandler(entity, this);
@@ -87,17 +92,22 @@ bool SphericalGrabInputSystem::StartGrab(Entity entity,
     return false;
   }
 
-  // Store the anchor offset.
-  handler.anchor_local_position =
-      world_from_grabbed->Inverse() * focus->cursor_position;
+  if (handler.move_with_hmd) {
+    handler.grab_sphere.position =
+        registry_->Get<InputManager>()->GetDofPosition(
+            InputManager::DeviceType::kHmd);
+  }
+
+  // Set the grabbing radius as the distance from the entity's origin to the
+  // sphere center at starting.
+  handler.grab_sphere.radius =
+      (world_from_grabbed->TranslationVector3D() - handler.grab_sphere.position)
+          .Length();
 
   if (handler.keep_grab_offset) {
-    // Set the grabbing radius as the distance from the entity's origin to the
-    // sphere center at starting.
-    mathfu::vec3 entity_world_position =
-        world_from_grabbed->TranslationVector3D();
-    handler.grab_sphere.radius =
-        (entity_world_position - handler.grab_sphere.position).Length();
+    ComputeRaySphereCollision(
+        focus->collision_ray, handler.grab_sphere.position,
+        handler.grab_sphere.radius, &handler.last_collision_position);
   }
 
   if (handler.hide_cursor) {
@@ -108,10 +118,21 @@ bool SphericalGrabInputSystem::StartGrab(Entity entity,
       transform_system->Disable(cursor);
     }
   }
-  // Although SphericalGrabSystem itself should not cause cursor shift from the
-  // grabbing point, it's still necessary to lock the cursor, since follow-up
-  // mutators could make the cursor shift.
-  focus_locker->LockOn(device, entity, handler.anchor_local_position);
+
+  if (handler.hide_laser) {
+    auto* controller_system = registry_->Get<ControllerSystem>();
+    handler.laser_enabled_before_grab =
+        !controller_system->IsLaserHidden(device);
+    controller_system->HideLaser(device);
+  }
+
+  // If any of cursor or laser is not hidden, lock cursor on the entity to avoid
+  // cursor or laser drift.
+  if (!handler.hide_laser || !handler.hide_cursor) {
+    const mathfu::vec3 cursor_local_position =
+        world_from_grabbed->Inverse() * focus->cursor_position;
+    focus_locker->LockOn(device, entity, cursor_local_position);
+  }
 
   return true;
 }
@@ -137,39 +158,63 @@ Sqt SphericalGrabInputSystem::UpdateGrab(Entity entity,
   auto* input_processor = registry_->Get<InputProcessor>();
   const InputFocus* focus = input_processor->GetInputFocus(device);
 
+  if (handler.move_with_hmd) {
+    handler.grab_sphere.position =
+        registry_->Get<InputManager>()->GetDofPosition(
+            InputManager::DeviceType::kHmd);
+  }
+
   mathfu::vec3 entity_target_position;
   if (handler.keep_grab_offset) {
-    // Using supporting sphere to calculate the intersection point. Update the
-    // supporting sphere center every frame to reduce grabbing artifacts.
-    mathfu::vec3 anchor_world_offset =
-        (*world_from_grabbed) * handler.anchor_local_position -
-        world_from_grabbed->TranslationVector3D();
-    mathfu::vec3 supporting_sphere_center =
-        handler.grab_sphere.position + anchor_world_offset;
+    // Here the system maintains a fixed rotation from the collision ray to the
+    // entity ray during grabbing. Both rays are originated from the current
+    // grab sphere center.
+    mathfu::vec3 new_collision_position;
+    ComputeRaySphereCollision(
+        focus->collision_ray, handler.grab_sphere.position,
+        handler.grab_sphere.radius, &new_collision_position);
+    const mathfu::quat rotate_from_collision_to_entity =
+        mathfu::quat::RotateFromTo(
+            handler.last_collision_position - handler.grab_sphere.position,
+            world_from_grabbed->TranslationVector3D() -
+                handler.grab_sphere.position);
+    const mathfu::vec3 entity_ray_direction =
+        rotate_from_collision_to_entity *
+        (new_collision_position - handler.grab_sphere.position).Normalized();
 
-    mathfu::vec3 collision_point;
-    ComputeRaySphereCollision(focus->collision_ray, supporting_sphere_center,
-                              handler.grab_sphere.radius, &collision_point);
+    entity_target_position = handler.grab_sphere.position +
+                             entity_ray_direction * handler.grab_sphere.radius;
 
-    entity_target_position = collision_point - anchor_world_offset;
+    handler.last_collision_position = new_collision_position;
   } else {
     ComputeRaySphereCollision(
         focus->collision_ray, handler.grab_sphere.position,
         handler.grab_sphere.radius, &entity_target_position);
   }
 
-  // Put the entity at the target position to get its local sqt.
+  // Keep the original rotation and scale.
+  Sqt sqt = original_sqt;
+
+  // Put the entity at the target position to get its local translation.
   transform_system->SetWorldFromEntityMatrix(
       entity, mathfu::mat4::FromTranslationVector(entity_target_position));
-  Sqt sqt(*(transform_system->GetSqt(entity)));
+  sqt.translation = transform_system->GetLocalTranslation(entity);
 
   return sqt;
 }
 
 bool SphericalGrabInputSystem::ShouldCancel(Entity entity,
                                             InputManager::DeviceType device) {
+  // Cancel grabbing if the entity is disabled.
+  if (!registry_->Get<TransformSystem>()->IsEnabled(entity)) {
+    return true;
+  }
   // Cancel grabbing if the entity's handler is not found.
-  return (handlers_.find(entity) == handlers_.end());
+  if (handlers_.find(entity) == handlers_.end()) {
+    return true;
+  }
+
+  return false;
 }
 
 void SphericalGrabInputSystem::EndGrab(Entity entity,
@@ -187,6 +232,9 @@ void SphericalGrabInputSystem::EndGrab(Entity entity,
   if (handler.hide_cursor && handler.cursor_enabled_before_grab) {
     Entity cursor = registry_->Get<CursorSystem>()->GetCursor(device);
     registry_->Get<TransformSystem>()->Enable(cursor);
+  }
+  if (handler.hide_laser && handler.laser_enabled_before_grab) {
+    registry_->Get<ControllerSystem>()->ShowLaser(device);
   }
 }
 

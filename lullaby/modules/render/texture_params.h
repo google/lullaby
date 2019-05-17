@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ struct TextureParams {
         wrap_t(def.wrap_t()),
         premultiply_alpha(def.premultiply_alpha()),
         generate_mipmaps(def.generate_mipmaps()),
-        is_cubemap(def.target_type() == TextureTargetType_CubeMap) {}
+        is_cubemap(def.target_type() == TextureTargetType_CubeMap),
+        is_rgbm(def.is_rgbm()) {}
 
   explicit TextureParams(const TextureDefT& def)
       : min_filter(def.min_filter),
@@ -43,7 +44,8 @@ struct TextureParams {
         wrap_t(def.wrap_t),
         premultiply_alpha(def.premultiply_alpha),
         generate_mipmaps(def.generate_mipmaps),
-        is_cubemap(def.target_type == TextureTargetType_CubeMap) {}
+        is_cubemap(def.target_type == TextureTargetType_CubeMap),
+        is_rgbm(def.is_rgbm) {}
 
   ImageData::Format format = ImageData::kInvalid;
   TextureFiltering min_filter = TextureFiltering_NearestMipmapLinear;
@@ -53,6 +55,7 @@ struct TextureParams {
   bool premultiply_alpha = true;
   bool generate_mipmaps = false;
   bool is_cubemap = false;
+  bool is_rgbm = false;
 };
 
 }  // namespace lull

@@ -3,12 +3,17 @@ include "lull/dispatcher_def.fbs";
 namespace lull;
 
 /// The language of the script.
+
 enum Language : int {
   Unknown,
   LullScript,
   Lua5_2,
   JavaScript,
 }
+
+//     //java/com/google/lullaby/\
+//         ScriptEngine.java
+// )
 
 /// Specifies a script.
 table ScriptDef {

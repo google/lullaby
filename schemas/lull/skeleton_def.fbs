@@ -11,7 +11,13 @@ table SkeletonDef {
   /// Effectively a map of a bone to its parent bone.
   bone_parents: [ubyte];
 
-  /// The local transformation of a bone's "pivot" from its parent.
+  /// For information on how the matrices below are used for skinning, see
+  /// RigSystem::UpdateShaderTransforms().
+
+  /// The "inverse bind matrices" for each bone. Transforms from mesh space to
+  /// bone space so that skinning may be applied.
   bone_transforms: [Mat4x3];
 
+  root_transforms: [Mat4x3] (deprecated);
+  object_from_mesh: Mat4x3 (deprecated);
 }

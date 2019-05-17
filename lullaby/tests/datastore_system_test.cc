@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,6 +41,22 @@ void AddVariant(DatastoreDefT* def, const std::string& key,
   KeyVariantPairDefT pair;
   pair.key = key;
   pair.value.set<T>()->value = value;
+  def->key_value_pairs.emplace_back(std::move(pair));
+}
+
+void AddVariantArray(DatastoreDefT* def, const std::string& key,
+                     const VariantArrayDefT& arr) {
+  KeyVariantPairDefT pair;
+  pair.key = key;
+  *(pair.value.set<VariantArrayDefT>()) = arr;
+  def->key_value_pairs.emplace_back(std::move(pair));
+}
+
+void AddVariantMap(DatastoreDefT* def, const std::string& key,
+                     const VariantMapDefT& map) {
+  KeyVariantPairDefT pair;
+  pair.key = key;
+  *(pair.value.set<VariantMapDefT>()) = map;
   def->key_value_pairs.emplace_back(std::move(pair));
 }
 
@@ -189,6 +205,23 @@ TEST(DatastoreSystem, CreateFromDatastoreDef) {
   AddVariant<DataVec4T>(&data, "vec4_key", mathfu::vec4(6, 7, 8, 9));
   AddVariant<DataQuatT>(&data, "quat_key", mathfu::quat(1, 0, 0, 0));
 
+  VariantArrayDefT arr;
+  arr.values.resize(3);
+  arr.values[0].value.set<DataIntT>()->value = 123;
+  arr.values[1].value.set<DataFloatT>()->value = 456.f;
+  arr.values[2].value.set<DataStringT>()->value = std::string("hello");
+  AddVariantArray(&data, "arr_key", arr);
+
+  VariantMapDefT map;
+  map.values.resize(3);
+  map.values[0].hash_key = ConstHash("a");
+  map.values[0].value.set<DataIntT>()->value = 123;
+  map.values[1].hash_key = ConstHash("b");
+  map.values[1].value.set<DataFloatT>()->value = 456.f;
+  map.values[2].hash_key = ConstHash("c");
+  map.values[2].value.set<DataStringT>()->value = std::string("hello");
+  AddVariantMap(&data, "map_key", map);
+
   const Blueprint blueprint(&data);
   d.CreateComponent(kTestEntity1, blueprint);
 
@@ -209,6 +242,22 @@ TEST(DatastoreSystem, CreateFromDatastoreDef) {
               Eq(mathfu::quat(1, 0, 0, 0).vector()));
   EXPECT_THAT(d.Get<mathfu::quat>(kTestEntity1, Hash("quat_key"))->scalar(),
               Eq(mathfu::quat(1, 0, 0, 0).scalar()));
+
+  const VariantArray* test_arr =
+      d.Get<VariantArray>(kTestEntity1, Hash("arr_key"));
+  EXPECT_THAT(test_arr, NotNull());
+  EXPECT_THAT(test_arr->size(), Eq(3));
+  EXPECT_THAT(test_arr->at(0).ValueOr<int>(0), Eq(123));
+  EXPECT_THAT(test_arr->at(1).ValueOr<float>(0.f), Eq(456.f));
+  EXPECT_THAT(test_arr->at(2).ValueOr<std::string>(""), Eq("hello"));
+
+  const VariantMap* test_map = d.Get<VariantMap>(kTestEntity1, Hash("map_key"));
+  EXPECT_THAT(test_map, NotNull());
+  EXPECT_THAT(test_map->size(), Eq(3));
+  EXPECT_THAT(test_map->at(ConstHash("a")).ValueOr<int>(0), Eq(123));
+  EXPECT_THAT(test_map->at(ConstHash("b")).ValueOr<float>(0.f), Eq(456.f));
+  EXPECT_THAT(test_map->at(ConstHash("c")).ValueOr<std::string>(""),
+              Eq("hello"));
 }
 
 }  // namespace

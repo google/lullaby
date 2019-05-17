@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ namespace testing {
 // particularly as used by Lullaby.
 template <typename TypeParam>
 class EntityDefTest : public EntityTest<TypeParam> {};
-TYPED_TEST_CASE_P(EntityDefTest);
+TYPED_TEST_SUITE_P(EntityDefTest);
 
 TYPED_TEST_P(EntityDefTest, EntitySchemaIsValid) {
   using EntityDef = typename TypeParam::entity_type;
@@ -81,7 +81,7 @@ TYPED_TEST_P(EntityDefTest, ComponentDefEnumsAreValid) {
   using ComponentDef = typename TypeParam::component_type;
   using ComponentDefType = typename TypeParam::component_union_type;
 
-  const char** component_names = TypeParam::component_def_type_names();
+  const char* const* component_names = TypeParam::component_def_type_names();
 
   EXPECT_STREQ(component_names[0], "NONE");
   EXPECT_STREQ(component_names[1], "ValueDef");
@@ -152,8 +152,8 @@ TYPED_TEST_P(EntityDefTest, CanReadAndWriteBuffer) {
   EXPECT_EQ(buffer_complex_def->data()->value(), 256);
 }
 
-REGISTER_TYPED_TEST_CASE_P(EntityDefTest, EntitySchemaIsValid,
-                           ComponentDefEnumsAreValid, CanReadAndWriteBuffer);
+REGISTER_TYPED_TEST_SUITE_P(EntityDefTest, EntitySchemaIsValid,
+                            ComponentDefEnumsAreValid, CanReadAndWriteBuffer);
 
 }  // namespace testing
 }  // namespace lull

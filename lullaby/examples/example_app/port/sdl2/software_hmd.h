@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,15 +17,17 @@ limitations under the License.
 #ifndef LULLABY_EXAMPLES_EXAMPLE_APP_PORT_SDL2_SOFTWARE_HMD_H_
 #define LULLABY_EXAMPLES_EXAMPLE_APP_PORT_SDL2_SOFTWARE_HMD_H_
 
-#include "mathfu/glsl_mappings.h"
+#include "lullaby/modules/camera/mutable_camera.h"
 #include "lullaby/util/registry.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
 // Emulates the Daydream Head Mounted Display using the mouse.
 class SoftwareHmd {
  public:
-  SoftwareHmd(Registry* registry, size_t width, size_t height, bool stereo);
+  SoftwareHmd(Registry* registry, size_t width, size_t height, bool stereo,
+              float near_clip_plane, float far_clip_plane);
   ~SoftwareHmd();
 
   // Updates the InputManager with the current state of this device.
@@ -49,11 +51,10 @@ class SoftwareHmd {
   size_t height_ = 0;             // Height of the HMD "display".
   size_t num_eyes_ = 1;           // Number of "eyes" represented by this HMD:
                                   // 1 for monoscopic, 2 for stereoscopic.
-  float eye_offset_ = 0.f;        // The interpupillary distance of an eye.
-  mathfu::recti viewport_[2];     // The viewport for each eye.
-  mathfu::rectf fov_[2];          // The field-of-view for each eye.
   mathfu::vec3 translation_;      // Position of the HMD.
   mathfu::vec3 rotation_;         // Euler angles of the HMD rotation.
+
+  std::shared_ptr<MutableCamera> cameras_[2];
 };
 
 }  // namespace lull

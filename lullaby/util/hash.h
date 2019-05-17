@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ limitations under the License.
 #include "lullaby/util/string_view.h"
 
 // String hashing function used by various parts of Lullaby.  It uses the
-// following algorithm:
+// FNV-1a algorithm from:
 // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 //
 // Note: The hash algorithm is implemented twice: once in Hash and once in
@@ -35,6 +35,9 @@ using HashValue = unsigned int;
 
 constexpr HashValue kHashOffsetBasis = 0x84222325;
 constexpr HashValue kHashPrimeMultiplier = 0x000001b3;
+/// Golden ratio hash value is derived by dividing max int by the golden ratio:
+/// 2^32 / 1.61803399.
+constexpr HashValue kHashGoldenRatio = 0x9e3779b9;
 
 HashValue Hash(const char* str);
 HashValue Hash(const char* str, size_t len);
@@ -43,6 +46,7 @@ HashValue Hash(string_view str);
 // Calling Hash(Hash("prefix"), "Suffix") is equivalent to Hash("prefixSuffix").
 HashValue Hash(HashValue prefix, string_view suffix);
 HashValue HashCaseInsensitive(const char* str, size_t len);
+HashValue HashCombine(HashValue lhs, HashValue rhs);
 
 namespace detail {
 

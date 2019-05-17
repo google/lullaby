@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -91,5 +91,29 @@ TEST(SpanTest, Iteration) {
   EXPECT_EQ(6, sum);
 }
 
+TEST(SpanTest, DataToByteSpan) {
+  int arr[] = {1, 2, 3};
+  Span<uint8_t> bytes = ToByteSpan(arr, 3);
+  EXPECT_EQ(sizeof(int) * 3, bytes.size());
+
+  int sum = 0;
+  for (uint8_t value : bytes) {
+    sum += value;
+  }
+  EXPECT_EQ(6, sum);
+}
+
+TEST(SpanTest, ContainerToByteSpan) {
+  std::array<int, 3> arr = {{ 1, 2, 3 }};
+
+  Span<uint8_t> bytes = ToByteSpan(arr);
+  EXPECT_EQ(sizeof(int) * 3, bytes.size());
+
+  int sum = 0;
+  for (uint8_t value : bytes) {
+    sum += value;
+  }
+  EXPECT_EQ(6, sum);
+}
 
 }  // namespace lull

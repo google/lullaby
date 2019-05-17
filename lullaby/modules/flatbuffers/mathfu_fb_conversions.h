@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -107,6 +107,16 @@ inline void MathfuVec4FromFbColorHex(const char* in, mathfu::vec4* out) {
   }
 }
 
+inline void MathfuMat4FromFbVector(const flatbuffers::Vector<float>* in,
+                                   mathfu::mat4* out) {
+  if (in && out && in->size() == mathfu::mat4::kElements) {
+    mathfu::mat4& matrix = *out;
+    for (int i = 0; i < mathfu::mat4::kElements; i++) {
+      matrix(i) = in->Get(i);
+    }
+  }
+}
+
 inline void AabbFromFbAabb(const AabbDef* in, Aabb* out) {
   if (in && out) {
     MathfuVec3FromFbVec3(&in->min(), &out->min);
@@ -135,7 +145,13 @@ inline void Color4ubFromFbColor(const Color* in, Color4ub* out) {
   if (in && out) {
     mathfu::vec4 v;
     MathfuVec4FromFbColor(in, &v);
-    *out = Color4ub(v);
+    *out = Color4ub::FromVec4(v);
+  }
+}
+
+inline void Color4fFromFbColor(const Color* in, Color4f* out) {
+  if (in && out) {
+    *out = Color4f(in->r(), in->g(), in->b(), in->a());
   }
 }
 

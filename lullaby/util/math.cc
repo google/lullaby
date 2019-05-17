@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ mathfu::mat4 CalculatePerspectiveMatrixFromView(float fovy, float aspect,
     return mathfu::mat4::Identity();
   }
 
-  const float tan_fov = static_cast<float>(tan(fovy / 2)) * z_near;
+  const float tan_fov = static_cast<float>(std::tan(fovy / 2)) * z_near;
   const float x_left = -tan_fov * aspect;
   const float x_right = tan_fov * aspect;
   const float y_bottom = -tan_fov;
@@ -302,6 +302,15 @@ float GetHeadingRadians(const mathfu::quat& rotation) {
   return atan2f(-gaze.x, -gaze.z);
 }
 
+float GetYawFromQuat(const mathfu::quat& q) {
+  mathfu::vec3 dir = q * -mathfu::kAxisZ3f;
+  float yaw = std::atan2(dir[2], dir[0]);
+  if (!std::isfinite(yaw)) {
+    return 0.0f;
+  }
+  return yaw;
+}
+
 Sqt GetHeading(const Sqt& sqt) {
   const float heading_radians = GetHeadingRadians(sqt.rotation);
 
@@ -346,6 +355,30 @@ mathfu::quat ProjectRotationToVicinity(const mathfu::quat& rot,
   angle -= max_offset_rad;
 
   return rot * mathfu::quat::FromAngleAxis(angle, axis);
+}
+
+Ray CalculateRayFromCamera(const mathfu::vec3& camera_pos,
+                           const mathfu::mat4& inverse_view_projection_mat,
+                           const mathfu::vec2& point) {
+  const mathfu::vec3 start = camera_pos;
+  // Note: z value here doesn't matter as long as you divide by w.
+  mathfu::vec4 end =
+      inverse_view_projection_mat * mathfu::vec4(point.x, point.y, 1.0f, 1.0f);
+  end = end / end.w;
+  const mathfu::vec3 direction =
+      (mathfu::vec3(end.x, end.y, end.z) - start).Normalized();
+  return Ray(start, direction);
+}
+
+Ray CalculateRayFromCamera(const mathfu::vec3& camera_pos,
+                           const mathfu::quat& camera_rot,
+                           const mathfu::mat4& inverse_projection_mat,
+                           const mathfu::vec2& point) {
+  // Calculate the inverse view matrix.
+  const mathfu::mat4 world_from_camera = mathfu::mat4::Transform(
+      camera_pos, camera_rot.ToMatrix(), mathfu::kOnes3f);
+  return CalculateRayFromCamera(
+      camera_pos, world_from_camera * inverse_projection_mat, point);
 }
 
 Ray TransformRay(const mathfu::mat4& mat, const Ray& ray) {
@@ -501,8 +534,8 @@ bool ComputeLocalRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
                                  mathfu::vec3* out) {
   // First transform the ray into the OBB's space.
   mathfu::mat4 inverse_world_mat;
-  bool invertible_world_mat =
-      world_mat.InverseWithDeterminantCheck(&inverse_world_mat);
+  bool invertible_world_mat = world_mat.InverseWithDeterminantCheck(
+      &inverse_world_mat, kDeterminantThreshold);
   if (!invertible_world_mat) {
     return false;
   }
@@ -527,7 +560,11 @@ float CheckRayOBBCollision(const Ray& ray, const mathfu::mat4& world_mat,
                                    &local_collision)) {
     return kNoHitDistance;
   }
-  const mathfu::vec3 world_collision = world_mat * local_collision;
+  // The Mathfu Mat4x4 * Vec3 code includes code for xyz() / w(). That should
+  // never be needed when dealing with world matrices, so using the
+  // Mat4x4 * Vec4 function is safer and saves us 3 divides.
+  const mathfu::vec3 world_collision =
+      (world_mat * mathfu::vec4(local_collision, 1.0f)).xyz();
   return (world_collision - ray.origin).Length();
 }
 
@@ -552,7 +589,7 @@ mathfu::vec3 ProjectPointOntoPlane(const Plane& plane,
 }
 
 bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
-                              mathfu::vec3* out) {
+                              mathfu::vec3* out_hit, float* out_hit_distance) {
   const mathfu::vec3 origin_diff = plane.Origin() - ray.origin;
   float numerator = dot(origin_diff, plane.normal);
   float denominator = dot(ray.direction, plane.normal);
@@ -563,8 +600,11 @@ bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
   if (t < -1.0 * kDefaultEpsilon) {
     return false;  // plane is behind the ray.
   }
-  if (out) {
-    *out = ray.origin + t * ray.direction.Normalized();
+  if (out_hit) {
+    *out_hit = ray.origin + t * ray.direction.Normalized();
+  }
+  if (out_hit_distance) {
+    *out_hit_distance = t;
   }
   return true;
 }
@@ -715,12 +755,12 @@ bool CheckSphereInFrustum(
   // A sphere lies outside the frustum if its center is on the wrong side of
   // at least one plane and the distance to the plane is greater than the
   // radius of the sphere.
-  // TODO(b/30736927) This can be further optimized by un-rolling the loop and
+  // TODO This can be further optimized by un-rolling the loop and
   // returning the smallest distance to any frustum plane.
   for (int i = 0; i < kNumFrustumPlanes; i++) {
     // Calculate the signed distance of the center from the clipping plane.
     const mathfu::vec4& plane = frustum_clipping_planes[i];
-    // TODO(b/29824351): Use Plane::SignedDistanceToPoint when implemented.
+    // TODO: Use Plane::SignedDistanceToPoint when implemented.
     const float distance =
         mathfu::vec4::DotProduct(plane, mathfu::vec4(center, 1));
     if (distance < -radius) {
@@ -783,6 +823,36 @@ bool AreNearlyEqual(const mathfu::vec4& one, const mathfu::vec4& two,
 bool AreNearlyEqual(const mathfu::vec3& one, const mathfu::vec3& two,
                     float epsilon) {
   for (int i = 0; i < 3; i++) {
+    if (!AreNearlyEqual(one[i], two[i], epsilon)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AreNearlyEqual(const mathfu::vec2& one, const mathfu::vec2& two,
+                    float epsilon) {
+  for (int i = 0; i < 2; i++) {
+    if (!AreNearlyEqual(one[i], two[i], epsilon)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AreNearlyEqual(const mathfu::vec2_packed& one,
+                    const mathfu::vec2_packed& two, float epsilon) {
+  for (int i = 0; i < 2; i++) {
+    if (!AreNearlyEqual(one.data_[i], one.data_[i], epsilon)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AreNearlyEqual(const mathfu::mat4& one, const mathfu::mat4& two,
+                    float epsilon) {
+  for (int i = 0; i < 16; i++) {
     if (!AreNearlyEqual(one[i], two[i], epsilon)) {
       return false;
     }
@@ -888,4 +958,183 @@ float GetPercentageOfLineClosestToPoint(const mathfu::vec3& start_position,
   }
   return dot_product / line_seg_sqr_length;
 }
+
+std::vector<mathfu::vec3> GetAabbCorners(const Aabb& aabb) {
+  // Do not reorder without checking client code.
+  return {mathfu::vec3(aabb.min.x, aabb.min.y, aabb.min.z),
+          mathfu::vec3(aabb.max.x, aabb.min.y, aabb.min.z),
+          mathfu::vec3(aabb.min.x, aabb.max.y, aabb.min.z),
+          mathfu::vec3(aabb.max.x, aabb.max.y, aabb.min.z),
+          mathfu::vec3(aabb.min.x, aabb.min.y, aabb.max.z),
+          mathfu::vec3(aabb.max.x, aabb.min.y, aabb.max.z),
+          mathfu::vec3(aabb.min.x, aabb.max.y, aabb.max.z),
+          mathfu::vec3(aabb.max.x, aabb.max.y, aabb.max.z)};
+}
+
+Aabb ScaledAabb(const Aabb& aabb, const mathfu::vec3& scale) {
+  const mathfu::vec3 center = aabb.Center();
+  return Aabb(scale * (aabb.min - center) + center,
+              scale * (aabb.max - center) + center);
+}
+
+bool PointInAabb(const mathfu::vec3& point, const Aabb& aabb) {
+  return point.x >= aabb.min.x && point.x <= aabb.max.x &&
+         point.y >= aabb.min.y && point.y <= aabb.max.y &&
+         point.z >= aabb.min.z && point.z <= aabb.max.z;
+}
+
+bool AabbsIntersect(const Aabb& aabb1, const Aabb& aabb2) {
+  return aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x &&
+         aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y &&
+         aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z;
+}
+
+static const mathfu::vec4 GetRow(const mathfu::mat4& mat, int row) {
+  return mathfu::vec4(mat(row, 0), mat(row, 1), mat(row, 2), mat(row, 3));
+}
+
+static mathfu::vec4 NormalizeBoxPlane(const mathfu::vec4& p) {
+  const float len = p.xyz().Length();
+  const float recip_len = len > 0.0f ? 1.0f / len : 0.0f;
+  return p * recip_len;
+}
+
+mathfu::mat4 GetBoxMatrix(const lull::Aabb& aabb, const mathfu::mat4& mat) {
+  const mathfu::vec3 center = aabb.Center();
+  const mathfu::vec3 extent = 0.5f * aabb.Size();
+  const mathfu::mat4 scale_mat = mathfu::mat4::FromScaleVector(extent);
+  const mathfu::mat4 trans_mat = mathfu::mat4::FromTranslationVector(center);
+  return mat * trans_mat * scale_mat;
+}
+
+BoxPlanes GetBoxPlanes(const mathfu::mat4& world_to_box_mat) {
+  const mathfu::vec4 axis0 = GetRow(world_to_box_mat, 0);
+  const mathfu::vec4 axis1 = GetRow(world_to_box_mat, 1);
+  const mathfu::vec4 axis2 = GetRow(world_to_box_mat, 2);
+  const mathfu::vec4 axis3 = GetRow(world_to_box_mat, 3);
+
+  BoxPlanes planes;
+  planes.v[kFaceXN] = NormalizeBoxPlane(axis3 - axis0);
+  planes.v[kFaceXP] = NormalizeBoxPlane(axis3 + axis0);
+  planes.v[kFaceYN] = NormalizeBoxPlane(axis3 - axis1);
+  planes.v[kFaceYP] = NormalizeBoxPlane(axis3 + axis1);
+  planes.v[kFaceZN] = NormalizeBoxPlane(axis3 - axis2);
+  planes.v[kFaceZP] = NormalizeBoxPlane(axis3 + axis2);
+  return planes;
+}
+
+IntersectBoxResult IsObbInFrustum(const mathfu::mat4& obb_mat,
+                                  const BoxPlanes& frustum_planes) {
+  const mathfu::vec3 obb_center = obb_mat.GetColumn(3).xyz();
+  const mathfu::vec3 obb_axis0 = obb_mat.GetColumn(0).xyz();
+  const mathfu::vec3 obb_axis1 = obb_mat.GetColumn(1).xyz();
+  const mathfu::vec3 obb_axis2 = obb_mat.GetColumn(2).xyz();
+
+  // Check OBB against each frustum plane.
+  size_t in_count = 0;
+  for (const mathfu::vec4& plane : frustum_planes.v) {
+    // Get the signed distance from the OBB center to the frustum plane.
+    const mathfu::vec3 normal = plane.xyz();
+    const float plane_dist =
+        mathfu::vec3::DotProduct(obb_center, normal) + plane.w;
+
+    // Choose the OBB corner with diagonal most aligned to this frustum plane
+    // and get its distance from the OBB center projected onto the plane normal.
+    // This acts as our determinant by comparing it with the distance from the
+    // OBB center to the plane (plane_dist).
+    const float x = std::abs(mathfu::vec3::DotProduct(obb_axis0, normal));
+    const float y = std::abs(mathfu::vec3::DotProduct(obb_axis1, normal));
+    const float z = std::abs(mathfu::vec3::DotProduct(obb_axis2, normal));
+    const float corner_dist = x + y + z;
+
+    // If the nearest corner of the OBB is outside the frustum plane, the OBB is
+    // fully outside the frustum.
+    if (corner_dist < -plane_dist) {
+      return kIntersectBoxMiss;
+    }
+
+    // If the farthest corner of the OBB is inside the frustum plane, the OBB is
+    // fully inside this plane.
+    if (corner_dist < plane_dist) {
+      ++in_count;
+    }
+  }
+
+  // If the OBB is fully inside all 6 planes, it is fully inside the frustum.
+  // * In the indefinite case, we could refine the result by testing the frustum
+  //   against the OBB's bounding sphere or by reversing the box test.  Except
+  //   in cases where the OBB is large relative to the frustum, it's rare for an
+  //   indefinite result to be a miss, so this is likely overkill for culling.
+  return in_count == kFaceCount ? kIntersectBoxHit : kIntersectBoxIndefinite;
+}
+
+float GetSignedAngle(const mathfu::vec3& v1, const mathfu::vec3& v2,
+                     const mathfu::vec3& axis) {
+  // Use slightly larger epsilon because LengthSquared() instead of Length().
+  DCHECK(lull::AreNearlyEqual(axis.LengthSquared(), 1.0f, 2e-5f));
+
+  // Project v1 and v2 to the plane defined by axis.
+  const mathfu::vec3 pv1 = v1 - mathfu::vec3::DotProduct(v1, axis) * axis;
+  const mathfu::vec3 pv2 = v2 - mathfu::vec3::DotProduct(v2, axis) * axis;
+
+  // For a discussion of atan vs asin+acos, in a very similar context,
+  // see Kahan pp 46-47 http://people.eecs.berkeley.edu/~wkahan/Mindless.pdf
+
+  // Both these values are scaled by ||pv1|| * ||pv2||. Because atan2
+  // only cares about the ratio of the arguments, we don't have to bother
+  // removing the scaling.
+  const float scaled_cos_angle = mathfu::vec3::DotProduct(pv1, pv2);
+  const float scaled_sin_angle =
+      mathfu::vec3::DotProduct(mathfu::vec3::CrossProduct(pv1, pv2), axis);
+  return std::atan2(scaled_sin_angle, scaled_cos_angle);
+}
+
+float EulerDistance(const mathfu::vec3& a, const mathfu::vec3& b) {
+  return std::fabs(a.x - b.x) + std::fabs(a.y - b.y) + std::fabs(a.z - b.z);
+}
+
+float EulerNormalize(float target, float value) {
+  // Ensure the difference is slightly larger than pi to avoid infinite looping.
+  while (fabs(target - value) > kPi + kDefaultEpsilon) {
+    if (target < value) {
+      value -= kTwoPi;
+    } else {
+      value += kTwoPi;
+    }
+  }
+  return value;
+}
+
+mathfu::vec3 EulerFilter(const mathfu::vec3& value, const mathfu::vec3& prev) {
+  // Filter the original |value| to be within pi of |prev|.
+  const mathfu::vec3 filtered_value(EulerNormalize(prev.x, value.x),
+                                    EulerNormalize(prev.y, value.y),
+                                    EulerNormalize(prev.z, value.z));
+
+  // Compute the "Euler flipped" equivalent of |filtered_values|.
+  const mathfu::vec3 euler_flipped(
+      EulerNormalize(prev.x, filtered_value.x + kPi),
+      EulerNormalize(prev.y, filtered_value.y * -1.f + kPi),
+      EulerNormalize(prev.z, filtered_value.z + kPi));
+
+  // Return whichever is "closer" to |prev|.
+  if (EulerDistance(filtered_value, prev) >
+      EulerDistance(euler_flipped, prev)) {
+    return euler_flipped;
+  } else {
+    return filtered_value;
+  }
+}
+
+mathfu::vec4 OrientationForTbn(const mathfu::vec3& normal,
+                               const mathfu::vec3& tangent) {
+  const mathfu::vec3 bitangent = cross(normal, tangent);
+  mathfu::mat3 tbn_mat;
+  tbn_mat.data_[0] = tangent.Normalized();
+  tbn_mat.data_[1] = bitangent.Normalized();
+  tbn_mat.data_[2] = normal.Normalized();
+  const mathfu::quat quat = mathfu::quat::FromMatrix(tbn_mat);
+  return mathfu::vec4(quat.vector(), quat.scalar());
+}
+
 }  // namespace lull

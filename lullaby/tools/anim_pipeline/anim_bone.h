@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,6 +61,28 @@ struct AnimBone {
       : name(std::move(name)), parent_bone_index(parent_bone_index) {
     // There probably won't be more than one of each op type.
     channels.reserve(motive::kNumMatrixOperationTypes);
+  }
+
+  int MaxAnimatedTime() const {
+    int max_time = std::numeric_limits<int>::min();
+    for (auto ch = channels.begin(); ch != channels.end(); ++ch) {
+      // Only consider channels with more than one keyframe (non-constant).
+      if (ch->nodes.size() > 1) {
+        max_time = std::max(max_time, ch->nodes.back().time);
+      }
+    }
+    return max_time == std::numeric_limits<int>::min() ? 0 : max_time;
+  }
+
+  int MinAnimatedTime() const {
+    int min_time = std::numeric_limits<int>::max();
+    for (auto ch = channels.begin(); ch != channels.end(); ++ch) {
+      // Only consider channels with more than one keyframe (non-constant).
+      if (ch->nodes.size() > 1) {
+        min_time = std::min(min_time, ch->nodes[0].time);
+      }
+    }
+    return min_time == std::numeric_limits<int>::max() ? 0 : min_time;
   }
 
   std::string name;

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ class RenderHandle {
 using BufferHnd = RenderHandle<uint32_t, 0>;
 using ShaderHnd = RenderHandle<uint32_t, 0>;
 using ProgramHnd = RenderHandle<uint32_t, 0>;
+using UniformBufferHnd = RenderHandle<uint32_t, 0>;
 using UniformHnd = RenderHandle<int32_t, -1>;
 using TextureHnd = RenderHandle<uint32_t, 0>;
 

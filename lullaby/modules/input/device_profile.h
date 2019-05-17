@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 #define LULLABY_MODULES_INPUT_DEVICE_PROFILE_H_
 
 #include "lullaby/util/clock.h"
+#include "lullaby/util/hash.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/optional.h"
 #include "lullaby/util/typeid.h"
@@ -37,6 +38,10 @@ struct DeviceProfile {
     /// Button 1 = secondary button
     /// Button 2 = system button
     kThreeButtonController,
+
+    /// Device is a smartphone or similar, where a touchpad position needs to be
+    /// projected into real space.
+    kTouchScreen,
 
     /// Not a standard controller type.
     kCustomController,
@@ -63,6 +68,7 @@ struct DeviceProfile {
       kButton0,  // should be primary 'click' button
       kButton1,  // should be 'right click' / 'app click'
       kButton2,
+      kButton3,
       kSystem,  // recenter or go to dashboard
       kVolumeDown,
       kVolumeUp,
@@ -84,6 +90,13 @@ struct DeviceProfile {
       kStick,
       kLeftStick,
       kRightStick,
+      /// A merged button is a special "virtual" button that doesn't necessarily
+      /// correspond to a physical button on the device. This button can merge
+      /// one or more physical buttons into a single action with button states
+      /// ("pressed", "just released", etc.).
+      /// For example, a "primary" button could be a merged button that
+      /// corresponds to both the touchpad and trigger of the device.
+      kMergedButton,
       kOther,
     };
 
@@ -146,7 +159,7 @@ struct DeviceProfile {
     /// Path to a texture to use with an unlit shader.
     std::string unlit_texture = "";
 
-    // TODO(b/74401010) include PBR assets
+    // TODO include PBR assets
   };
 
   /// For now these are just used to count how many a device has, but in the
@@ -154,6 +167,9 @@ struct DeviceProfile {
   struct Joystick {};
   struct Eye {};
   struct ScrollWheel {};
+
+  // An optional name to uniquely identify this profile from other profiles.
+  HashValue name = 0;
 
   /// The assets to use for rendering this controller.
   Assets assets;

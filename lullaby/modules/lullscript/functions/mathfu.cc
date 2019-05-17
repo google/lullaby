@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -149,7 +149,8 @@ void SetX(ScriptFrame* frame, Variant* vec, const Variant* num) {
     return;
   }
   if (quat* qt = vec->Get<quat>()) {
-    qt->vector().x = *f;
+    vec3 v = qt->vector();
+    qt->set_vector(vec3(*f, v.y, v.z));
     return;
   }
   Optional<int> i = num->ImplicitCast<int>();
@@ -187,7 +188,8 @@ void SetY(ScriptFrame* frame, Variant* vec, const Variant* num) {
     return;
   }
   if (quat* qt = vec->Get<quat>()) {
-    qt->vector().y = *f;
+    vec3 v = qt->vector();
+    qt->set_vector(vec3(v.x, *f, v.z));
     return;
   }
   Optional<int> i = num->ImplicitCast<int>();
@@ -221,7 +223,8 @@ void SetZ(ScriptFrame* frame, Variant* vec, const Variant* num) {
     return;
   }
   if (quat* qt = vec->Get<quat>()) {
-    qt->vector().z = *f;
+    vec3 v = qt->vector();
+    qt->set_vector(vec3(v.x, v.y, *f));
     return;
   }
   Optional<int> i = num->ImplicitCast<int>();
@@ -247,7 +250,7 @@ void SetW(ScriptFrame* frame, Variant* vec, const Variant* num) {
     return;
   }
   if (quat* qt = vec->Get<quat>()) {
-    qt->scalar() = *f;
+    qt->set_scalar(*f);
     return;
   }
   Optional<int> i = num->ImplicitCast<int>();

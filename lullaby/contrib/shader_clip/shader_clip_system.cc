@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,8 +49,8 @@ ShaderClipSystem::ShaderClipSystem(Registry* registry)
       clip_regions_(kRegionComponentPoolPageSize),
       clip_targets_(kTargetComponentPoolPageSize),
       disabled_clip_targets_(kTargetComponentPoolPageSize) {
-  RegisterDef(this, kShaderClipDefHash);
-  RegisterDef(this, kShaderClipTargetDefHash);
+  RegisterDef<ShaderClipDefT>(this);
+  RegisterDef<ShaderClipTargetDefT>(this);
   RegisterDependency<TransformSystem>(this);
   RegisterDependency<RenderSystem>(this);
 

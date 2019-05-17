@@ -19,6 +19,8 @@ cc_library(
     ],
     linkstatic = 1,
     deps = [
+        "//lullaby/events",
+        "//lullaby/modules/camera",
         "//lullaby/modules/config",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",
@@ -47,6 +49,8 @@ cc_library(
     deps = [
         ":example_app",
         "@sdl2//:sdl2",
+        "//lullaby/modules/camera",
+        "//lullaby/modules/camera:mutable_camera",
         "//lullaby/modules/input",
         "//lullaby/util:device_util",
         "//lullaby/util:registry",

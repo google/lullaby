@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,10 +20,11 @@ limitations under the License.
 #include "lullaby/modules/ecs/entity_factory.h"
 
 #include <string>
-#include <unordered_set>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "lullaby/modules/ecs/blueprint_builder.h"
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/file/asset_loader.h"
@@ -40,6 +41,7 @@ namespace lull {
 namespace testing {
 
 using ::testing::Eq;
+using ::testing::Gt;
 using ::testing::IsNull;
 using ::testing::Not;
 using ::testing::NotNull;
@@ -51,6 +53,11 @@ const HashValue kComplexDefHash = Hash("ComplexDef");
 // runtime behavior.
 class TestSystem : public System {
  public:
+  enum RegisterMode {
+    DefTypeHash,
+    DefTTemplate
+  };
+
   struct TestComponent : Component {
     explicit TestComponent(Entity e) : Component(e) {}
 
@@ -58,11 +65,45 @@ class TestSystem : public System {
     int simple_value = 0;
     std::string complex_name = "";
     int complex_value = 0;
+
+    Entity parent = kNullEntity;
   };
 
-  explicit TestSystem(Registry* registry) : System(registry), components_(1) {
-    RegisterDef(this, kValueDefHash);
-    RegisterDef(this, kComplexDefHash);
+  explicit TestSystem(Registry* registry, RegisterMode mode = DefTypeHash)
+      : System(registry), components_(1) {
+    switch (mode) {
+     case DefTypeHash:
+      RegisterDef(this, kValueDefHash);
+      RegisterDef(this, kComplexDefHash);
+      break;
+     case DefTTemplate:
+      RegisterDef<ValueDefT>(this);
+      RegisterDef<ComplexDefT>(this);
+      break;
+     default:
+      break;
+    }
+  }
+
+  void SetCreateChildFn() {
+    EntityFactory* entity_factory = registry_->Get<EntityFactory>();
+    if (entity_factory) {
+    entity_factory->SetCreateChildFn(
+        [this, entity_factory](Entity parent, BlueprintTree* bpt) -> Entity {
+          const Entity child = entity_factory->Create();
+          entity_factory->Create(child, bpt);
+
+          auto* child_component = components_.Get(child);
+          // We can't use ASSERT_THAT() in a lambda that returns a non-void.
+          if (child_component == nullptr) {
+            ADD_FAILURE() << "Did not create component.";
+            return child;
+          }
+
+          child_component->parent = parent;
+          return child;
+        });
+    }
   }
 
   void Create(Entity e, HashValue type, const Def* def) override {
@@ -88,7 +129,7 @@ class TestSystem : public System {
     }
   }
 
-  // TODO(b/77916177) test order of create and post create.
+  // TODO test order of create and post create.
 
   void Destroy(Entity e) override { components_.Destroy(e); }
 
@@ -110,6 +151,11 @@ class TestSystem : public System {
   int GetComplexValue(Entity e) {
     auto* component = components_.Get(e);
     return component ? component->complex_value : 0;
+  }
+
+  Entity GetParent(Entity e)  const {
+    auto* component = components_.Get(e);
+    return component ? component->parent : kNullEntity;
   }
 
   const ComponentPool<TestComponent>& GetComponents() { return components_; }
@@ -154,11 +200,11 @@ class EntityFactoryTest : public EntityTest<TypeParam> {
   Registry registry_;
   FakeFileSystem fake_file_system_;
 };
-TYPED_TEST_CASE_P(EntityFactoryTest);
+TYPED_TEST_SUITE_P(EntityFactoryTest);
 
 template <typename TypeParam>
 using EntityFactoryDeathTest = EntityFactoryTest<TypeParam>;
-TYPED_TEST_CASE_P(EntityFactoryDeathTest);
+TYPED_TEST_SUITE_P(EntityFactoryDeathTest);
 
 TYPED_TEST_P(EntityFactoryDeathTest, NoSystems) {
   PORT_EXPECT_DEBUG_DEATH(this->InitializeEntityFactory(), "");
@@ -277,7 +323,7 @@ TYPED_TEST_P(EntityFactoryTest, CreateFromFlatbuffer) {
     auto components_offset = fbb.CreateVector(components);
     EntityDefBuilder entity_builder(fbb);
     entity_builder.add_components(components_offset);
-    fbb.Finish(entity_builder.Finish());
+    fbb.Finish(entity_builder.Finish(), EntityFactory::kLegacyFileIdentifier);
   }
   this->fake_file_system_.SaveToDisk("test_entity.bin", fbb.GetBufferPointer(),
                                      fbb.GetSize());
@@ -293,6 +339,31 @@ TYPED_TEST_P(EntityFactoryTest, CreateFromFlatbuffer) {
 TYPED_TEST_P(EntityFactoryTest, CreateFromBlueprint) {
   auto entity_factory = this->registry_.template Get<EntityFactory>();
   auto* system = entity_factory->template CreateSystem<TestSystem>();
+  this->InitializeEntityFactory();
+
+  // Create a blueprint with ValueDef and ComplexDef components.
+  Blueprint blueprint;
+  ValueDefT value;
+  ComplexDefT complex;
+  value.name = "hello world";
+  value.value = 42;
+  complex.name = "foo bar baz";
+  complex.data.value = 256;
+  blueprint.Write(&value);
+  blueprint.Write(&complex);
+
+  const Entity entity = entity_factory->Create(&blueprint);
+  EXPECT_THAT(entity, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity), Eq("hello world"));
+  EXPECT_THAT(system->GetSimpleValue(entity), Eq(42));
+  EXPECT_THAT(system->GetComplexName(entity), Eq("foo bar baz"));
+  EXPECT_THAT(system->GetComplexValue(entity), Eq(256));
+}
+
+TYPED_TEST_P(EntityFactoryTest, CreateFromBlueprintRegisterDefTTemplate) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>(
+      TestSystem::DefTTemplate);
   this->InitializeEntityFactory();
 
   // Create a blueprint with ValueDef and ComplexDef components.
@@ -451,6 +522,286 @@ TYPED_TEST_P(EntityFactoryTest, CreateFromFinalizedBlueprint) {
   EXPECT_THAT(system->GetComplexValue(entity4), Eq(256));
 }
 
+TYPED_TEST_P(EntityFactoryTest, CreateFromFinalizedBlueprintTree) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>(
+      TestSystem::DefTTemplate);
+  this->InitializeEntityFactory();
+
+  // Create a blueprint tree with ValueDef, and a child with ComplexDef.
+  // Finalize it, then save the finalized blueprint to disk.
+  BlueprintTree blueprint_tree;
+  BlueprintTree* blueprint_child = blueprint_tree.NewChild();
+  ValueDefT value;
+  value.name = "hello world";
+  value.value = 42;
+  blueprint_tree.Write(&value);
+  ComplexDefT complex;
+  complex.name = "foo bar baz";
+  complex.data.value = 256;
+  blueprint_child->Write(&complex);
+  auto data = entity_factory->Finalize(&blueprint_tree);
+  this->fake_file_system_.SaveToDisk("test_entity.bin", data.data(),
+                                     data.size());
+
+
+  const Entity entity = entity_factory->Create("test_entity");
+  EXPECT_THAT(entity, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity), Eq("hello world"));
+  EXPECT_THAT(system->GetSimpleValue(entity), Eq(42));
+
+  bool found = false;
+  system->GetComponents().ForEach(
+      [&](const TestSystem::TestComponent& component) {
+        if (component.complex_name.compare("foo bar baz") == 0 &&
+            component.complex_value == 256) {
+          found = true;
+        }
+      });
+  EXPECT_THAT(found, Eq(true));
+}
+
+TYPED_TEST_P(EntityFactoryTest, CreateBlueprintFromBuilder) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>(
+      TestSystem::DefTTemplate);
+  this->InitializeEntityFactory();
+
+  // Legacy entities are still creatable while having BlueprintDef entities, but
+  // they need the correct identifier "ENTS", which is default for Finalize().
+  Blueprint blueprint;
+  ValueDefT value;
+  ComplexDefT complex;
+  value.name = "hello world";
+  value.value = 42;
+  complex.name = "foo bar baz";
+  complex.data.value = 256;
+  blueprint.Write(&value);
+  blueprint.Write(&complex);
+  auto data = entity_factory->Finalize(&blueprint);
+  const string_view identifier(
+      flatbuffers::GetBufferIdentifier(data.data()),
+      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
+  EXPECT_THAT(identifier, Eq(EntityFactory::kLegacyFileIdentifier));
+  this->fake_file_system_.SaveToDisk("test_entity.bin", data.data(),
+                                     data.size());
+
+  const Entity entity = entity_factory->Create("test_entity");
+  EXPECT_THAT(entity, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity), Eq("hello world"));
+  EXPECT_THAT(system->GetSimpleValue(entity), Eq(42));
+  EXPECT_THAT(system->GetComplexName(entity), Eq("foo bar baz"));
+  EXPECT_THAT(system->GetComplexValue(entity), Eq(256));
+
+  // BlueprintDef entities are created with the raw binary components, and the
+  // Builder will add the correct identifier "BLPT".
+  detail::BlueprintBuilder builder;
+  flatbuffers::FlatBufferBuilder fbb;
+  {
+    auto value_def_offset = CreateValueDefDirect(fbb, "cat dog", 64);
+    fbb.Finish(value_def_offset);
+    builder.AddComponent("ValueDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  {
+    auto complex_def_offset =
+        CreateComplexDefDirect(fbb, "meow bark", CreateIntData(fbb, 123));
+    fbb.Finish(complex_def_offset);
+    builder.AddComponent("ComplexDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  flatbuffers::DetachedBuffer data2 = builder.Finish();
+  const string_view identifier2(
+      flatbuffers::GetBufferIdentifier(data2.data()),
+      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
+  EXPECT_THAT(data2.size(), Gt(0));
+  EXPECT_THAT(identifier2,
+              Eq(detail::BlueprintBuilder::kBlueprintFileIdentifier));
+  this->fake_file_system_.SaveToDisk("test_entity2.bin", data2.data(),
+                                     data2.size());
+
+  const Entity entity2 = entity_factory->Create("test_entity2");
+  EXPECT_THAT(entity2, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity2), Eq("cat dog"));
+  EXPECT_THAT(system->GetSimpleValue(entity2), Eq(64));
+  EXPECT_THAT(system->GetComplexName(entity2), Eq("meow bark"));
+  EXPECT_THAT(system->GetComplexValue(entity2), Eq(123));
+
+  // The builder is reusable to create multiple entities.
+  {
+    auto value_def_offset = CreateValueDefDirect(fbb, "cow sheep", 32);
+    fbb.Finish(value_def_offset);
+    builder.AddComponent("ValueDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  {
+    auto complex_def_offset =
+        CreateComplexDefDirect(fbb, "moo baa", CreateIntData(fbb, 111));
+    fbb.Finish(complex_def_offset);
+    builder.AddComponent("ComplexDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  flatbuffers::DetachedBuffer data3 = builder.Finish();
+  EXPECT_THAT(data3.size(), Gt(0));
+  this->fake_file_system_.SaveToDisk("test_entity3.bin", data3.data(),
+                                     data3.size());
+
+  const Entity entity3 = entity_factory->Create("test_entity3");
+  EXPECT_THAT(entity3, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity3), Eq("cow sheep"));
+  EXPECT_THAT(system->GetSimpleValue(entity3), Eq(32));
+  EXPECT_THAT(system->GetComplexName(entity3), Eq("moo baa"));
+  EXPECT_THAT(system->GetComplexValue(entity3), Eq(111));
+}
+
+TYPED_TEST_P(EntityFactoryTest, CreateNestedBlueprintFromBuilder) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>(
+      TestSystem::DefTTemplate);
+  this->InitializeEntityFactory();
+  system->SetCreateChildFn();
+
+  detail::BlueprintBuilder builder;
+  flatbuffers::FlatBufferBuilder fbb;
+  auto create_component = [&fbb, &builder](char* simple_name,
+                                           int simple_value) {
+    auto value_def_offset =
+        CreateValueDefDirect(fbb, simple_name, simple_value);
+    fbb.Finish(value_def_offset);
+    builder.AddComponent("ValueDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  };
+
+  // BlueprintDef entities can be nested, and parent-child relationships can be
+  // created with SetCreateChildFn(). This creates a hierarchy:
+  //   A -> D
+  //     -> B -> C
+  {
+    builder.StartChildren();
+    create_component("D", 4);
+    EXPECT_TRUE(builder.FinishChild());
+    {
+      builder.StartChildren();
+      create_component("C", 3);
+      EXPECT_TRUE(builder.FinishChild());
+      EXPECT_TRUE(builder.FinishChildren());
+    }
+    create_component("B", 2);
+    EXPECT_TRUE(builder.FinishChild());
+    EXPECT_TRUE(builder.FinishChildren());
+  }
+  create_component("A", 1);
+  flatbuffers::DetachedBuffer data = builder.Finish();
+  EXPECT_THAT(data.size(), Gt(0));
+  this->fake_file_system_.SaveToDisk("test_entity.bin", data.data(),
+                                     data.size());
+
+  const Entity entity = entity_factory->Create("test_entity");
+  EXPECT_THAT(entity, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity), Eq("A"));
+  EXPECT_THAT(system->GetSimpleValue(entity), Eq(1));
+
+  std::unordered_map<int, int> child_to_parent;
+  system->GetComponents().ForEach(
+      [&](const TestSystem::TestComponent& component) {
+        child_to_parent.emplace(
+            component.simple_value,
+            system->GetSimpleValue(system->GetParent(component.GetEntity())));
+      });
+  EXPECT_THAT(child_to_parent,
+              Eq(std::unordered_map<int, int>{{1, 0}, {2, 1}, {3, 2}, {4, 1}}));
+}
+
+TYPED_TEST_P(EntityFactoryDeathTest,
+             CreateBlueprintFromBuilderRegisterDefTypeHash) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>();
+  this->InitializeEntityFactory();
+
+  detail::BlueprintBuilder builder;
+  flatbuffers::FlatBufferBuilder fbb;
+  {
+    auto value_def_offset = CreateValueDefDirect(fbb, "cat dog", 64);
+    fbb.Finish(value_def_offset);
+    builder.AddComponent("ValueDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  {
+    auto complex_def_offset =
+        CreateComplexDefDirect(fbb, "meow bark", CreateIntData(fbb, 123));
+    fbb.Finish(complex_def_offset);
+    builder.AddComponent("ComplexDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  flatbuffers::DetachedBuffer data = builder.Finish();
+  EXPECT_THAT(data.size(), Gt(0));
+  this->fake_file_system_.SaveToDisk("test_entity.bin", data.data(),
+                                     data.size());
+
+  PORT_EXPECT_DEBUG_DEATH(entity_factory->Create("test_entity"), "");
+}
+
+TYPED_TEST_P(EntityFactoryDeathTest, CreateBlueprintFromBuilderUnknown) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>(
+      TestSystem::DefTTemplate);
+  this->InitializeEntityFactory();
+
+  detail::BlueprintBuilder builder;
+  flatbuffers::FlatBufferBuilder fbb;
+  {
+    auto value_def_offset = CreateValueDefDirect(fbb, "cat dog", 64);
+    fbb.Finish(value_def_offset);
+    builder.AddComponent("ValueDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  {
+    auto complex_def_offset =
+        CreateComplexDefDirect(fbb, "meow bark", CreateIntData(fbb, 123));
+    fbb.Finish(complex_def_offset);
+    builder.AddComponent("ComplexDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  {
+    auto unknown_def_offset =
+        CreateUnknownDefDirect(fbb, "missingno", -1);
+    fbb.Finish(unknown_def_offset);
+    builder.AddComponent("UnknownDef", {fbb.GetBufferPointer(), fbb.GetSize()});
+    fbb.Clear();
+  }
+  flatbuffers::DetachedBuffer data = builder.Finish();
+  EXPECT_THAT(data.size(), Gt(0));
+  this->fake_file_system_.SaveToDisk("test_entity.bin", data.data(),
+                                     data.size());
+
+  PORT_EXPECT_DEBUG_DEATH(entity_factory->Create("test_entity"), "");
+}
+
+TYPED_TEST_P(EntityFactoryTest, BlueprintBuilderErrors) {
+  {
+    // FinishChild() must be between StartChildren() and FinishChildren().
+    detail::BlueprintBuilder builder;
+    builder.StartChildren();
+    EXPECT_TRUE(builder.FinishChild());
+    EXPECT_TRUE(builder.FinishChildren());
+    EXPECT_FALSE(builder.FinishChild());
+  }
+  {
+    // FinishChildren() must be balanced with StartChildren().
+    detail::BlueprintBuilder builder;
+    builder.StartChildren();
+    EXPECT_TRUE(builder.FinishChildren());
+    EXPECT_FALSE(builder.FinishChildren());
+  }
+  {
+    // StartChildren() must be balanced with FinishChildren().
+    detail::BlueprintBuilder builder;
+    builder.StartChildren();
+    auto data = builder.Finish();
+    EXPECT_THAT(data.size(), Eq(0));
+  }
+}
+
 TYPED_TEST_P(EntityFactoryDeathTest, UnknownComponentDef) {
   auto entity_factory = this->registry_.template Get<EntityFactory>();
   auto* system = entity_factory->template CreateSystem<TestSystem>();
@@ -495,7 +846,25 @@ TYPED_TEST_P(EntityFactoryDeathTest, UnknownSystem) {
   PORT_EXPECT_DEBUG_DEATH(entity_factory->Create(&blueprint), "");
 }
 
-TYPED_TEST_P(EntityFactoryTest, CreateFromBadBlueprint) {
+TYPED_TEST_P(EntityFactoryDeathTest, UnknownSystemRegisterDefTTemplate) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>(
+      TestSystem::DefTTemplate);
+  // Overwrite the system for ValueDef to a null value.
+  entity_factory->template RegisterDef<ValueDefT>(0);
+  this->InitializeEntityFactory();
+
+  // Try to create a blueprint with ValueDef, which will fail.
+  Blueprint blueprint;
+  ValueDefT value;
+  value.name = "hello world";
+  value.value = 42;
+  blueprint.Write(&value);
+
+  PORT_EXPECT_DEBUG_DEATH(entity_factory->Create(&blueprint), "");
+}
+
+TYPED_TEST_P(EntityFactoryDeathTest, CreateFromBadBlueprint) {
   auto entity_factory = this->registry_.template Get<EntityFactory>();
   auto* system = entity_factory->template CreateSystem<TestSystem>();
   this->InitializeEntityFactory();
@@ -503,6 +872,23 @@ TYPED_TEST_P(EntityFactoryTest, CreateFromBadBlueprint) {
   // Save some bad data to disk, which will fail to create.
   uint8_t bad[16];
   memset(bad, 0, sizeof(bad));
+  this->fake_file_system_.SaveToDisk("test_entity.bin", bad, sizeof(bad));
+
+  PORT_EXPECT_DEBUG_DEATH(entity_factory->Create("test_entity"), "");
+}
+
+TYPED_TEST_P(EntityFactoryTest, CreateFromBadBlueprintCorrectIdentifier) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>();
+  this->InitializeEntityFactory();
+
+  // Same as before, but also save a valid identifier. This will pass the
+  // identifier check, but should fail to verify.
+  uint8_t bad[16];
+  memset(bad, 0, sizeof(bad));
+  char* identifier = const_cast<char*>(flatbuffers::GetBufferIdentifier(bad));
+  memcpy(identifier, EntityFactory::kLegacyFileIdentifier,
+         flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
   this->fake_file_system_.SaveToDisk("test_entity.bin", bad, sizeof(bad));
 
   const Entity entity = entity_factory->Create("test_entity");
@@ -644,14 +1030,14 @@ TYPED_TEST_P(EntityFactoryTest, MultipleSchemas) {
 
   this->InitializeEntityFactory();
   EXPECT_THAT(entity_factory->GetFlatbufferConverterCount(),
-              Eq(static_cast<size_t>(1)));
+              Eq(static_cast<size_t>(2)));
 
   entity_factory->template RegisterFlatbufferConverter<
       lull::testing2::EntityDef, lull::testing2::ComponentDef>(
       lull::testing2::GetEntityDef, lull::testing2::EnumNamesComponentDefType(),
       "TEST");
   EXPECT_THAT(entity_factory->GetFlatbufferConverterCount(),
-              Eq(static_cast<size_t>(2)));
+              Eq(static_cast<size_t>(3)));
 
   // Create a flatbuffer EntityDef with a ValueDef component.  Save the
   // flatbuffer to disk and attempt to create an Entity from that saved
@@ -685,16 +1071,11 @@ TYPED_TEST_P(EntityFactoryTest, MultipleSchemas) {
   EXPECT_THAT(system->GetSimpleValue(entity2), Eq(2));
 }
 
-TYPED_TEST_P(EntityFactoryDeathTest, FinalizeMultipleSchemas) {
+TYPED_TEST_P(EntityFactoryDeathTest, FinalizeWrongIdentifier) {
   auto entity_factory = this->registry_.template Get<EntityFactory>();
-  auto* system = entity_factory->template CreateSystem<TestSystem>();
+  entity_factory->template CreateSystem<TestSystem>();
   this->InitializeEntityFactory();
-  entity_factory->template RegisterFlatbufferConverter<
-      lull::testing2::EntityDef, lull::testing2::ComponentDef>(
-      lull::testing2::GetEntityDef, lull::testing2::EnumNamesComponentDefType(),
-      "TEST");
 
-  // TODO(b/62545422) Finalize is not support with multiple schemas.
   Blueprint blueprint;
   ValueDefT value;
   ComplexDefT complex;
@@ -704,7 +1085,56 @@ TYPED_TEST_P(EntityFactoryDeathTest, FinalizeMultipleSchemas) {
   complex.data.value = 256;
   blueprint.Write(&value);
   blueprint.Write(&complex);
-  PORT_EXPECT_DEBUG_DEATH(entity_factory->Finalize(&blueprint), "");
+  PORT_EXPECT_DEBUG_DEATH(entity_factory->Finalize(&blueprint, "UNKN"), "");
+}
+
+TYPED_TEST_P(EntityFactoryTest, FinalizeMultipleSchemas) {
+  auto entity_factory = this->registry_.template Get<EntityFactory>();
+  auto* system = entity_factory->template CreateSystem<TestSystem>();
+  this->InitializeEntityFactory();
+  entity_factory->template RegisterFlatbufferConverter<
+      lull::testing2::EntityDef, lull::testing2::ComponentDef>(
+      lull::testing2::GetEntityDef, lull::testing2::EnumNamesComponentDefType(),
+      "TEST");
+
+  Blueprint blueprint;
+  ValueDefT value;
+  ComplexDefT complex;
+  value.name = "hello world";
+  value.value = 42;
+  complex.name = "foo bar baz";
+  complex.data.value = 256;
+  blueprint.Write(&value);
+  blueprint.Write(&complex);
+  auto data = entity_factory->Finalize(&blueprint);
+  const string_view identifier(
+      flatbuffers::GetBufferIdentifier(data.data()),
+      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
+  EXPECT_THAT(identifier, Eq(EntityFactory::kLegacyFileIdentifier));
+  this->fake_file_system_.SaveToDisk("test_entity.bin", data.data(),
+                                     data.size());
+
+  const Entity entity = entity_factory->Create("test_entity");
+  EXPECT_THAT(entity, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity), Eq("hello world"));
+  EXPECT_THAT(system->GetSimpleValue(entity), Eq(42));
+  EXPECT_THAT(system->GetComplexName(entity), Eq("foo bar baz"));
+  EXPECT_THAT(system->GetComplexValue(entity), Eq(256));
+
+  auto data2 = entity_factory->Finalize(&blueprint, "TEST");
+  const string_view identifier2(
+      flatbuffers::GetBufferIdentifier(data2.data()),
+      flatbuffers::FlatBufferBuilder::kFileIdentifierLength);
+  EXPECT_THAT(identifier2, Eq("TEST"));
+  this->fake_file_system_.SaveToDisk("test_entity2.bin", data2.data(),
+                                     data2.size());
+
+  const Entity entity2 = entity_factory->Create("test_entity2");
+  EXPECT_THAT(entity2, Not(Eq(kNullEntity)));
+  EXPECT_THAT(system->GetSimpleName(entity2), Eq("hello world"));
+  EXPECT_THAT(system->GetSimpleValue(entity2), Eq(42));
+  EXPECT_THAT(system->GetComplexName(entity2), Eq("foo bar baz"));
+  EXPECT_THAT(system->GetComplexValue(entity2), Eq(256));
 }
 
 TYPED_TEST_P(EntityFactoryDeathTest, UnknownSchema) {
@@ -877,7 +1307,7 @@ TYPED_TEST_P(EntityFactoryTest, CreateBlueprintTree) {
     EntityDefBuilder entity_builder(fbb);
     entity_builder.add_components(components_offset);
     entity_builder.add_children(children_offset);
-    fbb.Finish(entity_builder.Finish());
+    fbb.Finish(entity_builder.Finish(), EntityFactory::kLegacyFileIdentifier);
   }
   this->fake_file_system_.SaveToDisk("test_entity.bin", fbb.GetBufferPointer(),
                                      fbb.GetSize());
@@ -910,21 +1340,23 @@ TYPED_TEST_P(EntityFactoryTest, CreateBlueprintTree) {
   EXPECT_TRUE(children->front().Children()->empty());
 }
 
-REGISTER_TYPED_TEST_CASE_P(EntityFactoryTest, LoadNonExistantBlueprint,
-                           CreateFromFlatbuffer, CreateFromBlueprint,
-                           CreateFromBlueprintTree,
-                           CreateFromBlueprintTreeWithEntity,
-                           CreateFromFinalizedBlueprint, CreateFromBadBlueprint,
-                           Destroy, QueuedDestroy, GetEntityToBlueprintMap,
-                           MultipleSchemas, CreateBlueprint,
-                           CreateBlueprintTree);
+REGISTER_TYPED_TEST_SUITE_P(
+    EntityFactoryTest, LoadNonExistantBlueprint, CreateFromFlatbuffer,
+    CreateFromBlueprint, CreateFromBlueprintRegisterDefTTemplate,
+    CreateFromBlueprintTree, CreateFromBlueprintTreeWithEntity,
+    CreateFromFinalizedBlueprint, CreateFromFinalizedBlueprintTree,
+    CreateBlueprintFromBuilder, CreateNestedBlueprintFromBuilder,
+    BlueprintBuilderErrors, CreateFromBadBlueprintCorrectIdentifier, Destroy,
+    QueuedDestroy, GetEntityToBlueprintMap, MultipleSchemas,
+    FinalizeMultipleSchemas, CreateBlueprint, CreateBlueprintTree);
 
-REGISTER_TYPED_TEST_CASE_P(EntityFactoryDeathTest, NoSystems, MissingDependency,
-                           MissingSystem, MissingInitialize, CreateFromNullData,
-                           CreateFromNullBlueprint, CreateNullEntity,
-                           UnknownComponentDef, UnknownSystem,
-                           FinalizeMultipleSchemas, UnknownSchema,
-                           CreateBlueprintWithoutInitialize);
+REGISTER_TYPED_TEST_SUITE_P(
+    EntityFactoryDeathTest, NoSystems, MissingDependency, MissingSystem,
+    MissingInitialize, CreateFromNullData, CreateFromNullBlueprint,
+    CreateNullEntity, CreateBlueprintFromBuilderRegisterDefTypeHash,
+    CreateBlueprintFromBuilderUnknown, UnknownComponentDef, UnknownSystem,
+    UnknownSystemRegisterDefTTemplate, CreateFromBadBlueprint,
+    FinalizeWrongIdentifier, UnknownSchema, CreateBlueprintWithoutInitialize);
 
 }  // namespace testing
 }  // namespace lull

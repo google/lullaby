@@ -1,0 +1,9 @@
+include "lull/lull_common.fbs";
+include "lull/physics_shapes.fbs";
+
+namespace lull;
+
+/// Attaches shapes to this entity that can be raycast or used for physics.
+table PhysicsShapeDef {
+  shapes: [PhysicsShapePart];
+}

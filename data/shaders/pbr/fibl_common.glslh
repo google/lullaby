@@ -1,0 +1,18 @@
+#ifndef LULLABY_DATA_SHADERS_FIBL_COMMON_GLSLH_
+#define LULLABY_DATA_SHADERS_FIBL_COMMON_GLSLH_
+
+uniform vec4 fibl_args;  // <enabled, tan_half_fov, sample_scale.xy>
+
+bool IsFiblEnabled() {
+  return bool(fibl_args.x);
+}
+
+float GetFiblTanHalfFov() {
+  return fibl_args.y;
+}
+
+vec2 GetFiblSampleScale() {
+  return fibl_args.zw;
+}
+
+#endif  // LULLABY_DATA_SHADERS_FIBL_COMMON_GLSLH_

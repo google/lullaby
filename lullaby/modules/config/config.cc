@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,22 +21,42 @@ limitations under the License.
 
 namespace lull {
 
-void SetConfigFromVariantMap(Config* config, const VariantMap* variant_map) {
-  if (!config || !variant_map) {
-    return;
+std::string Config::LoadFile(Registry* registry, string_view filename) {
+  if (!registry) {
+    return "";
   }
-  for (const auto& iter : *variant_map) {
-    config->Set(iter.first, iter.second);
+
+  AssetLoader* asset_loader = registry->Get<AssetLoader>();
+  if (!asset_loader) {
+    return "";
   }
+  auto asset = asset_loader->LoadNow<SimpleAsset>(std::string(filename));
+  if (!asset || asset->GetSize() == 0) {
+    return "";
+  }
+  return asset->ReleaseData();
 }
 
-void SetConfigFromFlatbuffer(Config* config, const ConfigDef* config_def) {
-  if (!config || !config_def) {
+void Config::LoadConfig(Registry* registry,  string_view filename) {
+  const std::string data = LoadFile(registry, filename);
+  if (data.empty()) {
+    return;
+  }
+
+  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(data.data()),
+                                 data.size());
+  if (!verifier.VerifyBuffer<ConfigDef>()) {
+    LOG(DFATAL) << "Invalid flatbuffer object.";
+    return;
+  }
+
+  const auto* config_def = flatbuffers::GetRoot<ConfigDef>(data.data());
+  if (config_def == nullptr) {
     return;
   }
 
   const auto* values = config_def->values();
-  if (!values) {
+  if (values == nullptr) {
     return;
   }
 
@@ -51,27 +71,9 @@ void SetConfigFromFlatbuffer(Config* config, const ConfigDef* config_def) {
     Variant var;
     if (VariantFromFbVariant(iter->value_type(), variant_def, &var)) {
       const HashValue key_hash = Hash(key->c_str());
-      config->Set(key_hash, var);
+      Set(key_hash, var);
     }
   }
-}
-
-void LoadConfigFromFile(Registry* registry, Config* config,
-                        string_view filename) {
-  if (!registry || !config) {
-    return;
-  }
-
-  AssetLoader* asset_loader = registry->Get<AssetLoader>();
-  if (!asset_loader) {
-    return;
-  }
-  auto asset = asset_loader->LoadNow<SimpleAsset>(filename.to_string());
-  if (!asset || asset->GetSize() == 0) {
-    return;
-  }
-  const auto* config_def = flatbuffers::GetRoot<ConfigDef>(asset->GetData());
-  SetConfigFromFlatbuffer(config, config_def);
 }
 
 }  // namespace lull

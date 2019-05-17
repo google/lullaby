@@ -46,12 +46,11 @@ cc_library(
         "arg.h",
         "arg_parser.h",
     ],
-    visibility = ["//visibility:public"],
     deps = [
+        ":hash",
+        ":logging",
         ":span",
-        "//lullaby/util:hash",
-        "//lullaby/util:logging",
-        "//lullaby/util:string_view",
+        ":string_view",
     ],
 )
 
@@ -89,6 +88,7 @@ cc_library(
     ],
     deps = [
         ":hash",
+        ":time",
         "@mathfu//:mathfu",
     ],
 )
@@ -103,6 +103,7 @@ cc_library(
 
 cc_library(
     name = "color",
+    srcs = ["color.cc"],
     hdrs = ["color.h"],
     deps = [
         "@mathfu//:mathfu",
@@ -167,6 +168,9 @@ cc_library(
 cc_library(
     name = "entity",
     hdrs = ["entity.h"],
+    deps = [
+        ":typeid",
+    ],
 )
 
 cc_library(
@@ -181,6 +185,7 @@ cc_library(
     ],
     deps = [
         ":string_view",
+        ":typeid",
     ],
 )
 
@@ -202,6 +207,9 @@ cc_library(
     ],
     hdrs = [
         "filename.h",
+    ],
+    deps = [
+        ":string_view",
     ],
 )
 
@@ -448,7 +456,6 @@ cc_library(
     hdrs = ["resource_manager.h"],
     deps = [
         ":hash",
-        ":make_unique",
     ],
 )
 
@@ -481,6 +488,20 @@ cc_library(
     name = "span",
     hdrs = [
         "span.h",
+    ],
+)
+
+cc_library(
+    name = "spring",
+    srcs = [
+        "spring.cc",
+    ],
+    hdrs = [
+        "spring.h",
+    ],
+    deps = [
+        ":math",
+        "@mathfu//:mathfu",
     ],
 )
 
@@ -628,8 +649,10 @@ cc_library(
         "variant.h",
     ],
     deps = [
+        ":aligned_alloc",
         ":clock",
         ":common_types",
+        ":entity",
         ":logging",
         ":type_util",
         ":typeid",

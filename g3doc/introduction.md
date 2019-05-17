@@ -41,28 +41,17 @@ uses an
 An [Entity](ecs.md#entity) represents a single, uniquely identifiable "thing" in
 the virtual reality world. However, an [Entity](ecs.md#entity) is literally just
 a number; it has no other data on its own. Instead, specific pieces of data
-(like position, or velocity, or shape) are associated with an Entity at runtime.
-These data objects are called [Components](ecs.md#component). Lastly,
-[Systems](ecs.md#system) process and update [Components](ecs.md#component),
-effectively giving [Entities](ecs.md#entity) their behaviours. In other words,
-the behaviour of an [Entity](ecs.md#entity) is a result of the
+(like 3D position, velocity, shape, or interaction state) are associated with an
+Entity at runtime. These data objects are called [Components](ecs.md#component).
+Lastly, [Systems](ecs.md#system) process and update one or more types of
+[Components](ecs.md#component), effectively giving [Entities](ecs.md#entity)
+their functions and behaviours. Each [System](ecs.md#system) is specialized to
+perform a specific job, such as playing animations, rendering graphics or
+detecting collisions.
+
+In other words, the behaviour of an [Entity](ecs.md#entity) is a result of the
 [Components](ecs.md#components) associated with it and the
-[Systems](ecs.md#system) which operate on those [Compeonents](ecs.md#component).
-
-[Systems](ecs.md#system) provide all the actual functions and behaviours. Each
-[System](ecs.md#system) is specialized to perform a specific job, such as
-playing animations, rendering graphics or detecting collisions.
-[Systems](ecs.md#system) perform these tasks by processing one or more types of
-[Components](ecs.md#component). A [Component](ecs.md#component) defines a set of
-properties, such as 3D position, render shape, or interaction state. A
-collection of [Components](ecs.md#component) is associated with an
-[Entity](ecs.md#entity). An [Entity](ecs.md#entity) represents a single,
-uniquely identifiable "thing" in the virtual reality world. However, an
-[Entity](ecs.md#entity) is literally just a number; it has no other data on its
-own. The behaviour of an [Entity](ecs.md#entity) is defined by the
-[Components](ecs.md#component) associated with it and the
 [Systems](ecs.md#system) which operate on those [Components](ecs.md#component).
-
 For example, a Physics System could update the position of all
 [Entities](ecs.md#entity) with both position and velocity
 [Components](ecs.md#component), or a Render System would render
@@ -91,7 +80,7 @@ A list of available Systems can be found [here](list-of-systems.md).
 
 Lullaby's [Systems](#systems) often require access to a common set of
 functionality in order to work with each other. This functionality, along with
-the ECS implementation, represent the "base" of the Lullaby Engine. It is
+the ECS implementation, represents the "base" of the Lullaby Engine. It is
 important for users of Lullaby to have a good understanding these libraries.
 
 More information about these base libraries can be found [here](base-tech.md).
@@ -99,8 +88,8 @@ More information about these base libraries can be found [here](base-tech.md).
 #### Utilities
 
 Lastly, Lullaby provides several utility libraries. These range from simple
-functions (eg. string hashes, bit manipulation, etc.), to classes (eg. variant
-types, optional type, thread-safe containers, etc.) to complete modules (like a
+functions (e.g. string hashes and bit manipulation), to classes (e.g. variant
+types, optional type, and thread-safe containers) to complete modules (like a
 JNI interface and integration with scripting languages like JavaScript and Lua).
 
 Most of these Utilities are used internally by [Systems](#systems) and [Core

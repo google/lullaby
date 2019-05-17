@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,13 +31,13 @@ constexpr float kDroppedFrameAllowanceMS = .2f;
 Profiler::Profiler() {}
 
 float Profiler::GetFilteredFps() const {
-  float total = 0.0f;
+  float total_ms = 0.0f;
   int count = 0;
 
   for (int i = 0; i < kMaxFrames; ++i) {
     const Frame& f = frames_[i];
     if (IsFrameProfiled(f)) {
-      total += GetFrameFps(f);
+      total_ms += f.cpu_interval_ms;
       ++count;
     }
   }
@@ -45,7 +45,8 @@ float Profiler::GetFilteredFps() const {
   if (count == 0) {
     return 0;
   }
-  return total / static_cast<float>(count);
+  const float average_ms = total_ms / static_cast<float>(count);
+  return 1.0f / SecondsFromMilliseconds(average_ms);
 }
 
 float Profiler::GetLastFps() const {
@@ -204,7 +205,7 @@ bool Profiler::IsFrameProfiled(const Frame& f) const {
 }
 
 float Profiler::GetFrameFps(const Frame& f) const {
-  // TODO(b/28473647) use max of cpu / gpu when we get accurate gpu timings.
+  // TODO use max of cpu / gpu when we get accurate gpu timings.
   // return (1000.0f / std::max(f.cpu_interval_ms, f.gpu_interval_ms));
   return (1.0f / SecondsFromMilliseconds(f.cpu_interval_ms));
 }

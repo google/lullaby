@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,23 +18,15 @@ limitations under the License.
 #include <unordered_set>
 #include "lullaby/util/common_types.h"
 #include "lullaby/generated/model_pipeline_def_generated.h"
-#include "lullaby/tools/common/fbx_utils.h"
+#include "lullaby/tools/common/fbx_base_importer.h"
 #include "lullaby/tools/model_pipeline/model.h"
+#include "lullaby/tools/model_pipeline/util.h"
 
 namespace lull {
 namespace tool {
 
-static bool NodeHasMesh(FbxNode* node) {
-  if (node->GetMesh() != nullptr) {
-    return true;
-  }
-  for (int i = 0; i < node->GetChildCount(); i++) {
-    if (NodeHasMesh(node->GetChild(i))) {
-      return true;
-    }
-  }
-  return false;
-}
+// Anonymous namespace to avoid collisions with the anim_pipeline FbxImporter.
+namespace {
 
 template <class T>
 static T ElementFromIndices(const FbxLayerElementTemplate<T>* element,
@@ -89,20 +81,6 @@ static mathfu::mat4 Mat4FromFbx(const FbxAMatrix& m) {
                       static_cast<float>(d[14]), static_cast<float>(d[15]));
 }
 
-static mathfu::vec4 CalculateOrientation(const mathfu::vec3& normal,
-                                         const mathfu::vec4& tangent) {
-  const mathfu::vec3 n = normal.Normalized();
-  const mathfu::vec3 t = tangent.xyz().Normalized();
-  const mathfu::vec3 b = mathfu::vec3::CrossProduct(n, t).Normalized();
-  const mathfu::mat3 m(t.x, t.y, t.z, b.x, b.y, b.z, n.x, n.y, n.z);
-  mathfu::quat q = mathfu::quat::FromMatrix(m).Normalized();
-  // Align the sign bit of the orientation scalar to our handedness.
-  if (signbit(tangent.w) != signbit(q.scalar())) {
-    q = mathfu::quat(-q.scalar(), -q.vector());
-  }
-  return mathfu::vec4(q.vector(), q.scalar());
-}
-
 // Generates a unit vector (+ handedness) orthogonal to the given normal.
 static mathfu::vec4 GenerateTangentFbx(const mathfu::vec3& normal) {
   const mathfu::vec3 axis =
@@ -122,15 +100,14 @@ class FbxImporter : public FbxBaseImporter {
   Material GatherMaterial(FbxNode* node, FbxMesh* mesh);
 
   // Generates the influences for all vertices on a given mesh.
-  std::vector<std::vector<Vertex::Influence>> GatherInfluences(FbxMesh* mesh,
-                                                               int bone_index);
+  std::vector<std::vector<Vertex::Influence>> GatherInfluences(
+      FbxMesh* mesh, int bone_index, const FbxAMatrix& world_from_model);
 
   // Builds the skeleton.
-  void AddBoneForNode(FbxNode* node, int parent_bone_index);
+  void AddBone(FbxNode* node, FbxNode* parent, const mathfu::mat4& transform);
 
   // Builds the model.
-  void BuildBonesRecursive(FbxNode* node, int parent_bone_index);
-  void BuildMeshRecursive(FbxNode* node, FbxNode* parent_node);
+  void AddMesh(FbxNode* node);
   void BuildDrawable(FbxNode* node, FbxMesh* mesh, int bone_index,
                      const FbxAMatrix& point_transform);
 
@@ -143,38 +120,29 @@ class FbxImporter : public FbxBaseImporter {
 Model FbxImporter::Import(const ModelPipelineImportDefT& import_def) {
   Model model(import_def);
 
-  const bool success = LoadScene(import_def.file);
-  if (!success) {
-    return model;
+  FbxBaseImporter::Options opts;
+  opts.recenter = import_def.recenter;
+  opts.axis_system = import_def.axis_system;
+  opts.scale_multiplier = import_def.scale;
+  opts.cm_per_unit = import_def.cm_per_unit;
+
+  const bool success = LoadScene(import_def.file, opts);
+  if (success) {
+    model_ = &model;
+
+    ForEachBone([this](FbxNode* node, FbxNode* parent) {
+      const FbxAMatrix global_transform = node->EvaluateGlobalTransform();
+      const FbxAMatrix default_bone_transform_inverse =
+          global_transform.Inverse();
+      const mathfu::mat4 transform =
+          Mat4FromFbx(default_bone_transform_inverse);
+      AddBone(node, parent, transform);
+    });
+    ForEachMesh([this](FbxNode* node) { AddMesh(node); });
+
+    model.AddImportedPath(import_def.file);
+    model_ = nullptr;
   }
-
-  // Ensure the correct distance unit and axis system are being used.
-  if (import_def.scale > 1e-7) {
-    // FbxSdk expects scale to describe the ratio of the runtime scale over the
-    // FBX scale; e.g. if FBX uses default of cm and runtime uses inches, scale
-    // should be 2.54f, which after the conversion makes the position values
-    // *smaller*.
-    // We treat the import scale to mean larger==bigger, so invert.
-    ConvertFbxScale(1.0f / import_def.scale);
-  } else {
-    LOG(ERROR) << "Ignoring tiny import scale of " << import_def.scale;
-  }
-  ConvertFbxAxes(import_def.axis_system);
-  ConvertGeometry(import_def.recenter);
-
-  model_ = &model;
-
-  // Create the skeleton in the model using the bones from the asset.
-  const std::vector<BoneInfo> bones = BuildBoneList();
-  for (const BoneInfo& bone : bones) {
-    AddBoneForNode(bone.node, bone.parent_index);
-  }
-
-  // Traverse the scene and output one surface per mesh.
-  FbxNode* root_node = GetRootNode();
-  BuildMeshRecursive(root_node, root_node);
-  model.AddImportedPath(import_def.file);
-  model_ = nullptr;
   return model;
 }
 
@@ -190,68 +158,51 @@ mathfu::vec2 FbxImporter::Vec2FromFbxUv(const FbxVector2& v) {
                                         : static_cast<float>(d[1]));
 }
 
-void FbxImporter::AddBoneForNode(FbxNode* node, int parent_bone_index) {
-  // Add the bone entry.
-  const FbxAMatrix global_transform = node->EvaluateGlobalTransform();
-  const FbxAMatrix default_bone_transform_inverse = global_transform.Inverse();
+void FbxImporter::AddBone(FbxNode* node, FbxNode* parent,
+                          const mathfu::mat4& transform) {
+  auto iter = node_to_bone_map_.find(parent);
+  const int parent_bone_index =
+      (iter == node_to_bone_map_.end()) ? -1 : iter->second;
 
-  const char* name = node->GetName();
-  const Bone bone(name, parent_bone_index,
-                  Mat4FromFbx(default_bone_transform_inverse));
+  const Bone bone(node->GetName(), parent_bone_index, transform);
   const int bone_index = model_->AppendBone(bone);
   node_to_bone_map_.emplace(node, bone_index);
 }
 
-void FbxImporter::BuildMeshRecursive(FbxNode* node, FbxNode* parent_node) {
-  // We're only interested in mesh nodes. If a node and all nodes under it
-  // have no meshes, we early out.
-  if (node == nullptr) {
-    return;
-  } else if (!NodeHasMesh(node)) {
-    return;
-  }
+void FbxImporter::AddMesh(FbxNode* node) {
+  // Get the transform to this node from its parent.
+  // Note: geometric_transform is applied to each point, but is not inherited
+  // by children.
+  const FbxVector4 geometric_translation =
+      node->GetGeometricTranslation(FbxNode::eSourcePivot);
+  const FbxVector4 geometric_rotation =
+      node->GetGeometricRotation(FbxNode::eSourcePivot);
+  const FbxVector4 geometric_scaling =
+      node->GetGeometricScaling(FbxNode::eSourcePivot);
+  const FbxAMatrix geometric_transform(geometric_translation,
+                                       geometric_rotation, geometric_scaling);
+  const FbxAMatrix global_transform = node->EvaluateGlobalTransform();
 
-  // The root node cannot have a transform applied to it, so we do not export it
-  // as a bone.
-  if (node != GetRootNode()) {
-    // Get the transform to this node from its parent.
-    // Note: geometric_transform is applied to each point, but is not inherited
-    // by children.
-    const FbxVector4 geometric_translation =
-        node->GetGeometricTranslation(FbxNode::eSourcePivot);
-    const FbxVector4 geometric_rotation =
-        node->GetGeometricRotation(FbxNode::eSourcePivot);
-    const FbxVector4 geometric_scaling =
-        node->GetGeometricScaling(FbxNode::eSourcePivot);
-    const FbxAMatrix geometric_transform(geometric_translation,
-                                         geometric_rotation, geometric_scaling);
-    const FbxAMatrix global_transform = node->EvaluateGlobalTransform();
+  // We want the root node to be the identity. Everything in object space
+  // is relative to the root.
+  FbxAMatrix point_transform = global_transform * geometric_transform;
 
-    // We want the root node to be the identity. Everything in object space
-    // is relative to the root.
-    FbxAMatrix point_transform = global_transform * geometric_transform;
+  // Find the bone for this node.  It must have one, because we checked that
+  // it contained a mesh.
+  CHECK(node_to_bone_map_.count(node));
+  const int bone_index = node_to_bone_map_[node];
 
-    // Find the bone for this node.  It must have one, because we checked that
-    // it contained a mesh.
-    CHECK(node_to_bone_map_.count(node));
-    const int bone_index = node_to_bone_map_[node];
-
-    // Gather mesh data for this bone.
-    // Note: that there may be more than one mesh attached to a node.
-    for (int i = 0; i < node->GetNodeAttributeCount(); ++i) {
-      FbxNodeAttribute* attr = node->GetNodeAttributeByIndex(i);
-      if (attr == nullptr) {
-        continue;
-      } else if (attr->GetAttributeType() != FbxNodeAttribute::eMesh) {
-        continue;
-      }
-      FbxMesh* mesh = static_cast<FbxMesh*>(attr);
-      BuildDrawable(node, mesh, bone_index, point_transform);
+  // Gather mesh data for this bone.
+  // Note: that there may be more than one mesh attached to a node.
+  for (int i = 0; i < node->GetNodeAttributeCount(); ++i) {
+    FbxNodeAttribute* attr = node->GetNodeAttributeByIndex(i);
+    if (attr == nullptr) {
+      continue;
+    } else if (attr->GetAttributeType() != FbxNodeAttribute::eMesh) {
+      continue;
     }
-  }
-
-  for (int i = 0; i < node->GetChildCount(); i++) {
-    BuildMeshRecursive(node->GetChild(i), node);
+    FbxMesh* mesh = static_cast<FbxMesh*>(attr);
+    BuildDrawable(node, mesh, bone_index, point_transform);
   }
 }
 
@@ -268,7 +219,7 @@ void FbxImporter::BuildDrawable(FbxNode* node, FbxMesh* mesh, int bone_index,
   const FbxGeometryElementVertexColor* color_element =
       mesh->GetElementVertexColor();
   const std::vector<std::vector<Vertex::Influence>> influences =
-      GatherInfluences(mesh, bone_index);
+      GatherInfluences(mesh, bone_index, point_transform);
   const FbxGeometryElementUV* uv_elements[Vertex::kMaxUvs] = {nullptr};
   int num_uvs = mesh->GetElementUVCount();
   if (num_uvs > Vertex::kMaxUvs) {
@@ -381,7 +332,6 @@ void FbxImporter::BuildDrawable(FbxNode* node, FbxMesh* mesh, int bone_index,
         for (int target_shape_loop = 0; target_shape_loop < target_shape_count;
              ++target_shape_loop) {
           auto* blend_shape = blend_shapes->GetTargetShape(target_shape_loop);
-          Vertex blend_vertex;
 
           // For blends, we will only concern ourselves with pos/norm/tangent.
           const FbxVector4* vertices = blend_shape->GetControlPoints();
@@ -398,24 +348,17 @@ void FbxImporter::BuildDrawable(FbxNode* node, FbxMesh* mesh, int bone_index,
           const FbxVector4 tangent_fbx = ElementFromIndices(
               tangent_element, control_index, vertex_counter);
 
-          blend_vertex.position =
-              Vec3FromFbx(point_transform.MultT(vertex_fbx));
-          blend_vertex.normal =
+          Vertex::Blend blend;
+          blend.name = blend_shape->GetName();
+          blend.position = Vec3FromFbx(point_transform.MultT(vertex_fbx));
+          blend.normal =
               Vec3FromFbx(vector_transform.MultT(normal_fbx)).Normalized();
-          blend_vertex.tangent = mathfu::vec4(
+          blend.tangent = mathfu::vec4(
               Vec3FromFbx(vector_transform.MultT(tangent_fbx)).Normalized(),
               static_cast<float>(tangent_fbx[3]));
-          blend_vertex.orientation =
+          blend.orientation =
               CalculateOrientation(vertex.normal, vertex.tangent);
-
-          // Texture / influence information will be copied from the source
-          // vertex.
-          // TODO(b/79591694): Remove superfluous information from vertex data.
-          blend_vertex.color0 = vertex.color0;
-          blend_vertex.uv0 = vertex.uv0;
-          blend_vertex.uv1 = vertex.uv1;
-          blend_vertex.influences = influences[control_index];
-          model_->AddVertexToBlendShape(blend_shape->GetName(), blend_vertex);
+          vertex.blends.push_back(blend);
         }
       }
 
@@ -428,7 +371,7 @@ void FbxImporter::BuildDrawable(FbxNode* node, FbxMesh* mesh, int bone_index,
 }
 
 std::vector<std::vector<Vertex::Influence>> FbxImporter::GatherInfluences(
-    FbxMesh* mesh, int bone_index) {
+    FbxMesh* mesh, int bone_index, const FbxAMatrix& point_transform) {
   const unsigned int point_count = mesh->GetControlPointsCount();
   std::vector<std::vector<Vertex::Influence>> influences(point_count);
 
@@ -449,11 +392,29 @@ std::vector<std::vector<Vertex::Influence>> FbxImporter::GatherInfluences(
       CHECK(node_to_bone_map_.count(link_node));
       const int bone_index = node_to_bone_map_[link_node];
 
-      // Update the inverse bind pose for this bone using the Link matrix.
-      FbxAMatrix matrix;
-      cluster->GetTransformLinkMatrix(matrix);
-      model_->SetInverseBindTransform(bone_index,
-                                      Mat4FromFbx(matrix).Inverse());
+      // The "global initial transform of the geometry node that contains the
+      // link node", meaning the global initial transform of the node that
+      // contains the mesh or the world-from-mesh matrix.
+      FbxAMatrix fbx_world_from_mesh;
+      cluster->GetTransformMatrix(fbx_world_from_mesh);
+
+      // The "global initial transform of the link node", meaning the global
+      // initial transform of the link itself. Because the link is the bone,
+      // this is the world-from-bone matrix.
+      FbxAMatrix fbx_world_from_bone;
+      cluster->GetTransformLinkMatrix(fbx_world_from_bone);
+
+      // Combining these two gives the bone-from-mesh matrix, which is often
+      // referred to as the "inverse bind pose" since it undoes the "binding" of
+      // the mesh to the skin.
+      FbxAMatrix fbx_bone_from_mesh =
+          fbx_world_from_bone.Inverse() * fbx_world_from_mesh;
+
+      // Optimize skinning by combining the inverse bind matrix and the un-bake
+      // matrix into the resulting model's inverse bind matrix.
+      model_->SetInverseBindTransform(
+          bone_index,
+          Mat4FromFbx(fbx_bone_from_mesh * point_transform.Inverse()));
 
       // We currently only support normalized weights.  Both eNormalize and
       // eTotalOne can be treated as normalized, because we renormalize
@@ -564,14 +525,79 @@ void FbxImporter::ReadProperty(const FbxProperty& property,
       info.wrap_t = ConvertWrapMode(texture->GetWrapModeV());
       info.premultiply_alpha = texture->GetPremultiplyAlpha();
 
-      const std::string filename = texture->GetFileName();
+      const std::string filename = texture->GetRelativeFileName();
       material->textures[filename] = info;
     }
-    if (property.GetSrcObjectCount<FbxLayeredTexture>() > 0) {
-      LOG(ERROR) << "Layered textures not supported.";
+    for (int i = 0; i < property.GetSrcObjectCount<FbxLayeredTexture>(); ++i) {
+      FbxLayeredTexture* layered_texture =
+          property.GetSrcObject<FbxLayeredTexture>(i);
+      // Inspect the layers to see if it is composite or if it just boils down
+      // to one normal texture; if it's the latter, pretend it's the only one.
+      FbxFileTexture* single_texture = nullptr;
+      // Whether our current result would be composed from multiple input
+      // textures.  Used to disambiguate single_texture==nullptr (false: current
+      // result is empty/black; true: current result is composite).
+      bool composite = false;
+      const int layer_count =
+          layered_texture->GetSrcObjectCount<FbxFileTexture>();
+      for (int layer_index = 0; layer_index < layer_count; ++layer_index) {
+        FbxLayeredTexture::EBlendMode layer_blend_mode =
+            FbxLayeredTexture::eBlendModeCount;
+        if (!layered_texture->GetTextureBlendMode(layer_index,
+                                                  layer_blend_mode)) {
+          // Invalid if we can't query.
+          single_texture = nullptr;
+          break;
+        }
+
+        double alpha = 0.0;
+        if (!layered_texture->GetTextureAlpha(layer_index, alpha)) {
+          // Invalid if we can't query.
+          single_texture = nullptr;
+          break;
+        }
+
+        if (alpha == 0.0) {
+          // Skip layers that are completely transparent since they don't affect
+          // the composite texture.
+          continue;
+        }
+
+        if ((layer_blend_mode == FbxLayeredTexture::eAdditive ||
+             layer_blend_mode == FbxLayeredTexture::eOver ||
+             layer_blend_mode == FbxLayeredTexture::eTranslucent) &&
+            single_texture == nullptr && !composite) {
+          // An 'additive', 'over', or 'translucent' layer, when adding to
+          // (or blending against) nothing, resolves to a single texture.
+          single_texture =
+              layered_texture->GetSrcObject<FbxFileTexture>(layer_index);
+        } else if (layer_blend_mode == FbxLayeredTexture::eNormal) {
+          // A 'normal' layer just replaces what's beneath it.
+          single_texture =
+              layered_texture->GetSrcObject<FbxFileTexture>(layer_index);
+          composite = false;
+        } else {
+          // Otherwise, our status as of this level of the evaluation is a
+          // composite of multiple textures.
+          composite = true;
+          single_texture = nullptr;
+        }
+      }
+
+      if (single_texture) {
+        TextureInfo info;
+        info.usages = {ConvertUsage(name, single_texture->GetTextureUse())};
+        info.wrap_s = ConvertWrapMode(single_texture->GetWrapModeU());
+        info.wrap_t = ConvertWrapMode(single_texture->GetWrapModeV());
+        info.premultiply_alpha = single_texture->GetPremultiplyAlpha();
+        std::string filename = single_texture->GetRelativeFileName();
+        material->textures[filename] = info;
+      } else {
+        LOG_ONCE(ERROR) << "Unsupported Layered Texture configuration.";
+      }
     }
     if (property.GetSrcObjectCount<FbxProceduralTexture>() > 0) {
-      LOG(ERROR) << "Procedural textures not supported.";
+      LOG_ONCE(ERROR) << "Procedural textures not supported.";
     }
   } else {
     const FbxDataType type = property.GetPropertyDataType();
@@ -606,10 +632,12 @@ void FbxImporter::ReadProperty(const FbxProperty& property,
                        value[2][0], value[2][1], value[2][2], value[2][3],
                        value[3][0], value[3][1], value[3][2], value[3][3]);
     } else if (FbxCompoundDT == type) {
-      // TODO(b/78612335): Figure out what this property does; filtering it
+      // TODO: Figure out what this property does; filtering it
       // out of error spam because stingray assets seem to have lots of them.
+    } else if (FbxReferenceDT == type) {
+      // According to the documentation, FbxReference is an internal property.
     } else {
-      LOG(ERROR) << "Unsupported property type: " << type.GetName();
+      LOG_ONCE(ERROR) << "Unsupported property type: " << type.GetName();
     }
   }
 }
@@ -644,6 +672,8 @@ Material FbxImporter::GatherMaterial(FbxNode* node, FbxMesh* mesh) {
   }
   return material;
 }
+
+}  // namespace
 
 Model ImportFbx(const ModelPipelineImportDefT& import_def) {
   FbxImporter importer;

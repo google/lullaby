@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <array>
+#include <unordered_map>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -68,20 +68,19 @@ TEST(RenderPoolTest, ForEach) {
   registry.Create<TransformSystem>(&registry);
   RenderPool<TestComponent> pool(&registry, kInitialSize);
 
-  constexpr Entity kNumEntities = 10;
-  for (Entity e = 1; e <= kNumEntities; ++e) {
+  const uint32_t kNumEntities = 10;
+  for (uint32_t e = 1; e <= kNumEntities; ++e) {
     pool.EmplaceComponent(e);
   }
   EXPECT_THAT(pool.Size(), Eq(kNumEntities));
 
-  std::array<size_t, kNumEntities> count;
-  count.fill(0);
+  std::unordered_map<Entity, size_t> count;
 
   pool.ForEachComponent([&count](const TestComponent& component) {
-    ++count[component.GetEntity() - 1];
+    ++count[component.GetEntity()];
   });
 
-  for (size_t i = 0; i < kNumEntities; ++i) {
+  for (uint32_t i = 1; i <= kNumEntities; ++i) {
     EXPECT_THAT(count[i], Eq(1U));
   }
 }

@@ -38,8 +38,8 @@ results=$((extract "lull::Hash";
            extract "LULLABY_SETUP_TYPEID") | LC_ALL=c sort -u)
 
 # Generate the native hashes for those strings.
-blaze build //third_party/lullaby/tests:hasher
+blaze build //lullaby/tests:hasher
 while read -r result; do
-  value=$(blaze-bin/third_party/lullaby/tests/hasher "$result")
+  value=$(blaze-bin/lullaby/tests/hasher "$result")
   echo "$result,$value"
 done <<< "$results"

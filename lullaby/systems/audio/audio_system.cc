@@ -388,7 +388,6 @@ void AudioSystem::Destroy(Entity e) {
 void AudioSystem::CreateEnvironment(Entity e, const AudioEnvironmentDef* data) {
   auto* model = environments_.Emplace(e);
   MathfuVec3FromFbVec3(data->room_dimensions(), &model->room_dimensions);
-  model->reflection_scalar = data->reflection_scalar();
   model->reverb_brightness_modifier = data->reverb_brightness_modifier();
   model->reverb_gain = data->reverb_gain();
   model->reverb_time = data->reverb_time();

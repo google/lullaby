@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +21,10 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
+#include "lullaby/util/aligned_alloc.h"
 #include "lullaby/util/clock.h"
 #include "lullaby/util/common_types.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/type_util.h"
 #include "lullaby/util/typeid.h"
@@ -79,20 +81,21 @@ class Variant {
 
  public:
   // Default constructor, no value set.
-  Variant() : type_(0), handler_(nullptr) {}
+  Variant() : type_(0), size_(0), handler_(nullptr) {}
 
   // Copy constructor, copies variant value stored in |rhs|.
-  Variant(const Variant& rhs) : type_(rhs.type_), handler_(rhs.handler_) {
+  Variant(const Variant& rhs)
+      : type_(rhs.type_), size_(0), handler_(rhs.handler_) {
     if (!rhs.Empty()) {
+      Resize(rhs.size_);
       DoOp(kCopy, Data(), rhs.Data(), nullptr);
     }
   }
 
   // Move constructor, copies variant value stored in |rhs|.
-  Variant(Variant&& rhs) : type_(rhs.type_), handler_(rhs.handler_) {
+  Variant(Variant&& rhs) : type_(0), size_(0), handler_(nullptr) {
     if (!rhs.Empty()) {
-      DoOp(kMove, Data(), nullptr, rhs.Data());
-      rhs.Clear();
+      Move(&rhs, this);
     }
   }
 
@@ -113,6 +116,7 @@ class Variant {
       if (!rhs.Empty()) {
         type_ = rhs.type_;
         handler_ = rhs.handler_;
+        Resize(rhs.size_);
         DoOp(kCopy, Data(), rhs.Data(), nullptr);
       }
     }
@@ -124,10 +128,7 @@ class Variant {
     if (this != &rhs) {
       Clear();
       if (!rhs.Empty()) {
-        type_ = rhs.type_;
-        handler_ = rhs.handler_;
-        DoOp(kMove, Data(), nullptr, rhs.Data());
-        rhs.Clear();
+        Move(&rhs, this);
       }
     }
     return *this;
@@ -147,7 +148,9 @@ class Variant {
   void Clear() {
     if (!Empty()) {
       DoOp(kDestroy, nullptr, nullptr, Data());
+      FreeHeapData();
       type_ = 0;
+      size_ = 0;
       handler_ = nullptr;
     }
   }
@@ -212,6 +215,7 @@ class Variant {
   LULLABY_CASE(mathfu::rectf)      \
   LULLABY_CASE(mathfu::recti)      \
   LULLABY_CASE(mathfu::mat4)       \
+  LULLABY_CASE(lull::Entity)       \
   LULLABY_CASE(lull::VariantArray) \
   LULLABY_CASE(lull::VariantMap)
 
@@ -230,9 +234,10 @@ class Variant {
 #undef LULLABY_CASE
 #undef LULLABY_TYPE_SWITCH
 
-    bool is_enum = (handler_ == nullptr);
+    bool is_enum = IsEnum();
     archive(&is_enum, ConstHash("is_enum"));
     if (is_enum) {
+      size_ = sizeof(EnumType);
       handler_ = nullptr;
       EnumType* ptr = reinterpret_cast<EnumType*>(Data());
       archive(ptr, 0);
@@ -245,14 +250,13 @@ class Variant {
 
   // Similar to Get(), but will also attempt to cast similar types:
   //   static_cast if both T and the type are numeric (int, float, enum, etc.)
-  //   mathfu::rectf/i from mathfu::vec4, vec4i, and each other.
+  //   Entity to/from certain numeric types. Empty() will turn into kNullEntity
+  //   any of mathfu::rectf/i or mathfu::vec4/i into each other.
   //   Clock::duration from (u)int64_t (interpreted as nanoseconds)
   template <typename T>
   Optional<T> ImplicitCast() const {
     if (auto ptr = Get<T>()) {
       return *ptr;
-    } else if (Empty()) {
-      return NullOpt;
     } else {
       return ImplicitCastImpl<T>();
     }
@@ -260,12 +264,17 @@ class Variant {
 
  private:
   enum {
-    kStoreSize = 128,  // Large enough to store a mathfu::mat4.
+    // Embedded buffer size. Any types larger than this will be heap-allocated.
+    // This is chosen to be just large enough to contain the common primitive
+    // types (e.g. int, float, vector, string), so most variants don't require a
+    // separate allocation.
+    kStoreSize = 32,
     kStoreAlign = 16,  // Aligned for mathfu types.
   };
 
   // Enum types are assumed to be no larger than a uint64_t.
   using EnumType = uint64_t;
+  static_assert(sizeof(EnumType) <= kStoreSize, "");
 
   // Type of operations that may be performed on the variant value.
   enum Operation {
@@ -343,7 +352,6 @@ class Variant {
   template <typename T>
   auto SetImpl(T&& value) ->
       typename std::enable_if<HasTypeId<T>::value, void>::type {
-    static_assert(sizeof(value) <= kStoreSize, "Variant size too small.");
     static_assert(alignof(T) <= kStoreAlign, "Variant aligment too small.");
     using Type = typename std::decay<T>::type;
 
@@ -353,9 +361,13 @@ class Variant {
 
     if (std::is_enum<Type>::value) {
       assert(sizeof(value) <= sizeof(EnumType));
-      memcpy(Data(), &value, sizeof(value));
+      size_ = sizeof(EnumType);
+      EnumType* const data = static_cast<EnumType*>(EmbeddedData());
+      *data = 0;  // Fill excess bits to 0 so we don't serialize garbage.
+      memcpy(data, &value, sizeof(value));
       handler_ = nullptr;
     } else {
+      Resize(sizeof(value));
       new (Data()) Type(std::forward<T>(value));
       handler_ = &HandlerImpl<Type>;
     }
@@ -372,7 +384,7 @@ class Variant {
   void DoOp(Operation op, void* to, const void* from, void* victim) {
     if (type_ == 0) {
       return;
-    } else if (handler_) {
+    } else if (!IsEnum()) {
       handler_(op, to, from, victim);
     } else if (op == kCopy) {
       memcpy(to, from, sizeof(EnumType));
@@ -451,11 +463,76 @@ class Variant {
     SetImpl(std::move(out));
   }
 
-  // Returns a pointer to the internal buffer storage.
-  void* Data() { return &buffer_; }
+  // Get data for small types with embedded storage.
+  void* EmbeddedData() {
+    assert(size_ <= kStoreSize && size_ > 0);
+    return &buffer_;
+  }
+  const void* EmbeddedData() const {
+    return const_cast<Variant*>(this)->EmbeddedData();
+  }
 
-  // Returns a pointer to the internal buffer storage.
-  const void* Data() const { return &buffer_; }
+  // Get data for large types with heap storage.
+  void* HeapData() {
+    assert(size_ > kStoreSize);
+    return *reinterpret_cast<void**>(&buffer_);
+  }
+  const void* HeapData() const {
+    return const_cast<Variant*>(this)->HeapData();
+  }
+
+  // Get data irrespective of storage location.
+  void* Data() {
+    return size_ <= kStoreSize ? &buffer_ : *reinterpret_cast<void**>(&buffer_);
+  }
+  const void* Data() const {
+    return const_cast<Variant*>(this)->Data();
+  }
+
+  // Set data to a heap-allocated pointer.
+  void SetDataAsPointer(void* pointer) {
+    *reinterpret_cast<void**>(&buffer_) = pointer;
+  }
+
+  // Free heap data if necessary.
+  void FreeHeapData() {
+    if (size_ > kStoreSize) {
+      AlignedFree(HeapData());
+    }
+  }
+
+  // Move storage between variants.
+  static void Move(Variant* from, Variant* to) {
+    assert(to->Empty());  // Destination should be cleared by caller.
+    to->type_ = from->type_;
+    to->size_ = from->size_;
+    to->handler_ = from->handler_;
+
+    if (!from->Empty()) {
+      if (from->size_ <= kStoreSize) {
+        to->DoOp(kMove, to->EmbeddedData(), nullptr, from->EmbeddedData());
+        from->DoOp(kDestroy, nullptr, nullptr, from->Data());
+      } else {
+        // Heap data can be moved by copying the pointer.
+        to->SetDataAsPointer(from->HeapData());
+      }
+    }
+
+    from->type_ = 0;
+    from->size_ = 0;
+    from->handler_ = nullptr;
+  }
+
+  // Resize storage, freeing and reallocating heap memory as necessary.
+  void Resize(size_t size) {
+    if (size_ != size) {
+      FreeHeapData();
+      if (size > kStoreSize) {
+        SetDataAsPointer(AlignedAlloc(size, kStoreAlign));
+      }
+      size_ = static_cast<uint32_t>(size);
+    }
+  }
 
   // Cast specialization for int and float casts.
   template <typename T>
@@ -475,7 +552,11 @@ class Variant {
     return NullOpt;
   }
 
+  // Note: This does not check Empty().
+  bool IsEnum() const { return handler_ == nullptr; }
+
   TypeId type_ = 0;    // TypeId of the stored value, or 0 if no value stored.
+  uint32_t size_;
   HandlerFn handler_;  // Used to perform type-specific operations on the value.
   Buffer buffer_;      // Memory buffer to hold variant value.
 };
@@ -493,6 +574,11 @@ Variant::ImplicitCastImpl() const {
   if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
   if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
   if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
+  if (auto ptr = Get<Entity>()) return static_cast<T>(ptr->AsUint32());
+  if (!Empty() && IsEnum()) {
+    const EnumType* ptr = reinterpret_cast<const EnumType*>(EmbeddedData());
+    return static_cast<T>(*ptr);
+  }
   return NullOpt;
 }
 
@@ -507,6 +593,48 @@ Variant::ImplicitCastImpl() const {
   if (auto ptr = Get<uint16_t>()) return static_cast<T>(*ptr);
   if (auto ptr = Get<int8_t>()) return static_cast<T>(*ptr);
   if (auto ptr = Get<uint8_t>()) return static_cast<T>(*ptr);
+  return NullOpt;
+}
+
+// Cast specialization for Entity from integers.
+template <>
+inline Optional<Entity> Variant::ImplicitCastImpl<Entity>() const {
+  if (auto ptr = Get<uint32_t>()) return Entity(*ptr);
+  if (auto ptr = Get<int64_t>()) return Entity(*ptr);
+  if (auto ptr = Get<int32_t>()) return Entity(*ptr);
+  if (auto ptr = Get<uint64_t>()) return Entity(*ptr);
+  if (Empty()) return kNullEntity;
+  return NullOpt;
+}
+
+// Cast specialization for vec4 from vec4i and rectf(i).
+template <>
+inline Optional<mathfu::vec4> Variant::ImplicitCastImpl<mathfu::vec4>() const {
+  if (auto ptr = Get<mathfu::vec4i>()) {
+    return mathfu::vec4(*ptr);
+  }
+  if (auto ptr = Get<mathfu::rectf>()) {
+    return mathfu::vec4(ptr->pos, ptr->size);
+  }
+  if (auto ptr = Get<mathfu::recti>()) {
+    return mathfu::vec4(mathfu::vec2(ptr->pos), mathfu::vec2(ptr->size));
+  }
+  return NullOpt;
+}
+
+// Cast specialization for vec4i from vec4 and rectf(i).
+template <>
+inline Optional<mathfu::vec4i> Variant::ImplicitCastImpl<mathfu::vec4i>()
+    const {
+  if (auto ptr = Get<mathfu::vec4>()) {
+    return mathfu::vec4i(*ptr);
+  }
+  if (auto ptr = Get<mathfu::rectf>()) {
+    return mathfu::vec4i(mathfu::vec2i(ptr->pos), mathfu::vec2i(ptr->size));
+  }
+  if (auto ptr = Get<mathfu::recti>()) {
+    return mathfu::vec4i(ptr->pos, ptr->size);
+  }
   return NullOpt;
 }
 
@@ -542,7 +670,7 @@ inline Optional<mathfu::recti> Variant::ImplicitCastImpl<mathfu::recti>()
   return NullOpt;
 }
 
-// Cast specialization for duration from (u)int64.
+// Cast specialization for duration from (u)int64_t.
 template <>
 inline Optional<Clock::duration> Variant::ImplicitCastImpl<Clock::duration>()
     const {

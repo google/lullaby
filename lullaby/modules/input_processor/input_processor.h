@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,13 +17,16 @@ limitations under the License.
 #ifndef LULLABY_UTIL_INPUT_PROCESSOR_H_
 #define LULLABY_UTIL_INPUT_PROCESSOR_H_
 
+#include <memory>
 #include <set>
+#include <vector>
 
 #include "lullaby/events/input_events.h"
-#include "lullaby/util/entity.h"
 #include "lullaby/modules/input/input_focus.h"
 #include "lullaby/modules/input/input_manager.h"
+#include "lullaby/modules/input_processor/gesture.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/enum_hash.h"
 #include "lullaby/util/math.h"
 #include "lullaby/util/registry.h"
@@ -71,6 +74,10 @@ class InputProcessor {
   explicit InputProcessor(Registry* registry,
                           LegacyMode legacy_mode = kNoLegacy);
 
+  /// Create and register a new InputProcessor in the Registry.
+  static InputProcessor* Create(Registry* registry,
+                                LegacyMode legacy_mode = kNoLegacy);
+
   /// Gets the entity that the |device| is focused on, with some metadata.
   const InputFocus* GetInputFocus(InputManager::DeviceType device) const;
 
@@ -101,6 +108,23 @@ class InputProcessor {
   void SetPrefix(InputManager::DeviceType device, InputManager::ButtonId button,
                  string_view prefix);
 
+  /// If set for a device, touch events for that device will be
+  /// |prefix|.  i.e. "ClickEvent" could become "SystemClickEvent". All touches
+  /// will also send an event named "AnyClickEvent".
+  /// If |prefix| is an empty string, events for that device will be sent with
+  /// no prefix.
+  void SetTouchPrefix(InputManager::DeviceType device,
+                      InputManager::TouchpadId touchpad, string_view prefix);
+
+  /// Set a list of gesture recognizers to process touches.  If set, the Swipe
+  /// and Drag events will not be sent by the touch.  Instead, the recognizers
+  /// will be fed touches, and any detected gestures will generate events.
+  /// The recognizers are called in the order they are present in a list, so
+  /// lower index recognizers will get first chance at claiming touches.
+  void SetTouchGestureRecognizers(InputManager::DeviceType device,
+                                  InputManager::TouchpadId touchpad,
+                                  GestureRecognizerList recognizers);
+
   /// Removes the prefix for |device|, meaning focus events for that device will
   /// only be sent with the "Any" prefix.
   void ClearPrefix(InputManager::DeviceType device);
@@ -110,11 +134,31 @@ class InputProcessor {
   void ClearPrefix(InputManager::DeviceType device,
                    InputManager::ButtonId button);
 
+  /// Removes the touch prefix for |device|, meaning touch events for that
+  /// device will only be sent with the "Any" prefix.
+  void ClearTouchPrefix(InputManager::DeviceType device,
+                        InputManager::TouchpadId touchpad);
+
   /// Update the focus state and send events for |device|.  This should be
   /// called once per frame per device, with input_focus containing information
   /// about what entity the device is currently focused on.
   void UpdateDevice(const Clock::duration& delta_time,
                     const InputFocus& input_focus);
+
+  /// If a touch is currently driving a gesture, this will return that gesture.
+  GesturePtr GetTouchOwner(InputManager::DeviceType device,
+                           InputManager::TouchpadId touchpad,
+                           InputManager::TouchId id);
+
+  /// Pauses the input processing of the current processor in favor of
+  /// |processor|. Use this to implement alternate input modes. Multiple
+  /// overriding processors are stored in the order they were added, with only
+  /// the most recent receiving updates.
+  void AddOverrideProcessor(const std::shared_ptr<InputProcessor>& processor);
+
+  /// Removes |processor| from the list of override InputProcessors.
+  void RemoveOverrideProcessor(
+      const std::shared_ptr<InputProcessor>& processor);
 
  private:
 // A macro to expand an event list into the contents of an enum.
@@ -131,6 +175,16 @@ class InputProcessor {
     LULLABY_BUTTON_EVENT_LIST(LULLABY_GENERATE_ENUM)
     kNumButtonEventTypes
   };
+
+  enum TouchEventType {
+    LULLABY_TOUCH_EVENT_LIST(LULLABY_GENERATE_ENUM)
+    kNumTouchEventTypes
+  };
+
+  enum GestureEventType {
+    LULLABY_GESTURE_EVENT_LIST(LULLABY_GENERATE_ENUM)
+    kNumGestureEventTypes
+  };
   // clang-format on
 #undef LULLABY_GENERATE_ENUM
 
@@ -139,6 +193,17 @@ class InputProcessor {
   // Hash function to allow DeviceButtonPair to be used as a key in a map.
   struct DeviceButtonPairHash {
     std::size_t operator()(const DeviceButtonPair& pair) const {
+      uint64_t combine = pair.first;
+      combine = combine << 32;
+      combine += pair.second;
+      return std::hash<uint64_t>{}(combine);
+    }
+  };
+  using DeviceTouchpadPair =
+      std::pair<InputManager::DeviceType, InputManager::TouchpadId>;
+  // Hash function to allow DeviceTouchpadPair to be used as a key in a map.
+  struct DeviceTouchpadPairHash {
+    std::size_t operator()(const DeviceTouchpadPair& pair) const {
       uint64_t combine = pair.first;
       combine = combine << 32;
       combine += pair.second;
@@ -155,6 +220,8 @@ class InputProcessor {
   };
   using DeviceEvents = EventHashes<kNumDeviceEventTypes>;
   using ButtonEvents = EventHashes<kNumButtonEventTypes>;
+  using TouchEvents = EventHashes<kNumTouchEventTypes>;
+  using GestureEvents = EventHashes<kNumGestureEventTypes>;
 
   struct FocusPair {
     InputFocus current;
@@ -165,8 +232,14 @@ class InputProcessor {
   enum ButtonStates {
     /// Collision ray is still inside the ray slop.
     kInsideSlop,
+    // TODO (b/126901687) remove kDragging and replace with kGesturing
     /// Collision ray is between the ray slop and the cancel threshold.
     kDragging,
+    // TODO (b/126901687) remove this and replace with kGesturing
+    /// Touch exclusive state, occurs when the touch (and not the ray) moves.
+    kTouchMoved,
+    /// A gesture is happening or has happened.
+    kGesturing,
     /// Focus changed after press happened.  Only ReleaseEvent can be sent from
     /// this state..
     kPressedBeforeFocus,
@@ -192,6 +265,22 @@ class InputProcessor {
     int64_t ms_since_press = 0;
   };
 
+  /// The current state of a touch. Mostly the same as a button, but with
+  /// gesture support.
+  struct Touch : ButtonState {
+    /// The gesture that currently 'owns' this touch.
+    GesturePtr owner = nullptr;
+  };
+
+  struct Touchpad {
+    std::unordered_map<InputManager::TouchId, Touch> touches;
+    std::vector<GesturePtr> gestures;
+    GestureRecognizerList recognizers;
+    // List of events for each recognizer.
+    std::unordered_map<HashValue, GestureEvents> events;
+    std::unordered_map<HashValue, GestureEvents> any_events;
+  };
+
   /// Update the stored InputFocus.  Must be called before UpdateFocus or
   /// UpdateButtons.
   void SwapBuffers(const InputFocus& input_focus);
@@ -207,6 +296,30 @@ class InputProcessor {
   /// As UpdateButtons, but uses the logic from ReticleSystem.
   void UpdateButtonsLegacy(const Clock::duration& delta_time,
                            InputManager::DeviceType device);
+
+  /// Send touch touchpad events associated with |device|.
+  void UpdateTouches(const Clock::duration& delta_time,
+                     InputManager::DeviceType device,
+                     InputManager::TouchpadId touchpad);
+
+  void UpdateTouch(const int64_t delta_time, InputManager::DeviceType device,
+                   InputManager::TouchpadId touchpad, InputManager::TouchId id,
+                   InputManager::TouchState touch_state);
+
+  void UpdateTouchGestures(const Clock::duration& delta_time,
+                           InputManager::DeviceType device,
+                           InputManager::TouchpadId touchpad);
+  void CancelAllGestures(const Clock::duration& delta_time,
+                         InputManager::DeviceType device,
+                         InputManager::TouchpadId touchpad);
+
+  void HandleGestureStart(InputManager::DeviceType device,
+                          InputManager::TouchpadId touchpad,
+                          Gesture::TouchIdSpan ids, GesturePtr gesture,
+                          GestureRecognizerPtr recognizer);
+  void HandleGestureEnd(InputManager::DeviceType device,
+                        InputManager::TouchpadId touchpad, GesturePtr gesture,
+                        GestureEventType event_type);
 
   void HandlePress(InputManager::DeviceType device,
                    InputManager::ButtonId button_id, ButtonState* button_state);
@@ -229,10 +342,28 @@ class InputProcessor {
                              InputManager::ButtonId button_id,
                              ButtonState* button_state);
 
+  void HandleTouchPress(InputManager::DeviceType device,
+                        InputManager::TouchpadId touchpad,
+                        InputManager::TouchId id, Touch* touch);
+  void HandleTouchDragStart(InputManager::DeviceType device,
+                            InputManager::TouchpadId touchpad,
+                            InputManager::TouchId id, Touch* touch);
+  void HandleTouchRelease(InputManager::DeviceType device,
+                          InputManager::TouchpadId touchpad,
+                          InputManager::TouchId id, Touch* touch,
+                          const InputManager::TouchState& touch_state);
+  void HandleTouchCancel(InputManager::DeviceType device,
+                         InputManager::TouchpadId touchpad,
+                         InputManager::TouchId id, Touch* touch);
+  void HandleTouchSwipeStart(InputManager::DeviceType device,
+                             InputManager::TouchpadId touchpad,
+                             InputManager::TouchId id, Touch* touch);
+
   void SetButtonTarget(InputManager::DeviceType device,
                        ButtonState* button_state);
 
   void ResetButton(ButtonState* button_state);
+  void ResetTouch(Touch* touch);
 
   void SendDeviceEvent(InputManager::DeviceType device,
                        DeviceEventType event_type, Entity target,
@@ -241,18 +372,27 @@ class InputProcessor {
   void SendButtonEvent(InputManager::DeviceType device,
                        InputManager::ButtonId button,
                        ButtonEventType event_type, Entity target,
-                       const VariantMap* values);
+                       VariantMap* values);
+  void SendTouchEvent(InputManager::DeviceType device,
+                      InputManager::TouchpadId touchpad,
+                      InputManager::TouchId id, TouchEventType event_type,
+                      Entity target, VariantMap* values);
+  void SendGestureEvent(InputManager::DeviceType device,
+                        InputManager::TouchpadId touchpad,
+                        const GesturePtr gesture, GestureEventType event_type,
+                        Entity target, VariantMap* values);
 
   template <typename EventSet, typename EventType>
   void SendEvent(const EventSet& event_set, EventType event_type, Entity target,
-                 InputManager::DeviceType device, InputManager::ButtonId button,
-                 const VariantMap* values);
+                 InputManager::DeviceType device, const VariantMap* values);
 
   void SetupDeviceEvents(const string_view prefix,
                          InputProcessor::DeviceEvents* events);
   void SetupButtonEvents(const string_view prefix,
                          InputProcessor::ButtonEvents* events);
-
+  void SetupTouchEvents(const string_view prefix,
+                        InputProcessor::TouchEvents* events);
+  void SetupGestureEvents(const string_view prefix, Touchpad* touchpad);
   void SetupLegacyEvents();
 
   /// Calculate the angle in radians [0, PI] between the InputFocus's
@@ -264,22 +404,31 @@ class InputProcessor {
 
   static const char* GetDeviceEventName(DeviceEventType type);
   static const char* GetButtonEventName(ButtonEventType type);
-
+  static const char* GetTouchEventName(TouchEventType type);
+  static const char* GetGestureEventName(GestureEventType type);
+  std::vector<std::shared_ptr<InputProcessor>> override_input_processors_;
   Registry* registry_;
 
   std::unordered_map<InputManager::DeviceType, FocusPair, EnumHash> input_foci_;
   std::unordered_map<DeviceButtonPair, ButtonState, DeviceButtonPairHash>
       button_states_;
+  std::unordered_map<DeviceTouchpadPair, Touchpad, DeviceButtonPairHash>
+      touchpad_states_;
 
   // Maps from device (& button) to a hash of the prefix, if set.
   std::unordered_map<InputManager::DeviceType, DeviceEvents, EnumHash>
       device_events_;
   std::unordered_map<DeviceButtonPair, ButtonEvents, DeviceButtonPairHash>
       button_events_;
+  std::unordered_map<InputManager::DeviceType, TouchEvents, EnumHash>
+      touch_events_;
+  std::unordered_map<DeviceTouchpadPair, std::string, DeviceTouchpadPairHash>
+      touchpad_prefixes_;
 
   // Names and hashes for events with the "Any" prefix.
   DeviceEvents any_device_events_;
   ButtonEvents any_button_events_;
+  TouchEvents any_touch_events_;
 
   DeviceEvents legacy_device_events_;
   ButtonEvents legacy_button_events_;

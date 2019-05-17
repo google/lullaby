@@ -1,4 +1,4 @@
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 STAGE_INPUT mediump vec2 vTexCoord;
 STAGE_INPUT lowp vec4 vColor;
@@ -9,7 +9,7 @@ uniform mediump float inner_ring_thickness;
 uniform mediump float mid_ring_end;
 uniform mediump float mid_ring_opacity;
 
-// TODO(b/35149595)  Some of this math could be precomputed on the CPU, which is
+// TODO  Some of this math could be precomputed on the CPU, which is
 // always preferable to doing it per-fragment: color_radius,
 // color_feather_radius, hole_radius, black_radius, black_feather.
 

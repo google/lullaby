@@ -12,6 +12,7 @@ cc_library(
     deps = [
         "//:fbs",
         "//lullaby/contrib/fade",
+        "//lullaby/contrib/fpl_mesh",
         "//lullaby/events",
         "//lullaby/modules/dispatcher",
         "//lullaby/modules/ecs",

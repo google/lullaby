@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ limitations under the License.
 #include "lullaby/util/variant.h"
 
 // If the editor is active, we need to track event names.
-#define LULLABY_TRACK_EVENT_NAMES 0
 #ifndef LULLABY_TRACK_EVENT_NAMES
 #if LULLABY_ENABLE_EDITOR
 #define LULLABY_TRACK_EVENT_NAMES 1
@@ -330,16 +329,20 @@ void EventWrapper::EnsureConcreteEventAvailable() const {
   handler_ = &Handler<Event>;
 
   new (ptr_) Event();
-  handler_(kLoadFromVariant, ptr_, data_.get());
+  if (data_) {
+    handler_(kLoadFromVariant, ptr_, data_.get());
+  }
 }
 
 inline void EventWrapper::EnsureRuntimeEventAvailable() const {
   if (data_) {
     return;
   }
-
   data_.reset(new VariantMap());
-  handler_(kSaveToVariant, data_.get(), ptr_);
+
+  if (handler_) {
+    handler_(kSaveToVariant, data_.get(), ptr_);
+  }
 }
 
 }  // namespace lull

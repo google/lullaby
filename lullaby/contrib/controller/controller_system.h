@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ limitations under the License.
 
 namespace lull {
 
+namespace {
+const float kControllerFadeDistance = 0.10f;
+}  // namespace
+
 // The controller system handles the visual representation of the controller,
 // tracking the controller's position in a similar manner as the TrackHmdSystem
 // tracks the head.
@@ -50,6 +54,32 @@ class ControllerSystem : public System {
   /// Hide all controller and laser models.
   void HideControls();
 
+  /// Show the laser model of |controller_type|.
+  void ShowLaser(InputManager::DeviceType controller_type);
+  /// Hide the laser model of |controller_type|.
+  void HideLaser(InputManager::DeviceType controller_type);
+  /// Retuns whether the laser model of |controller_type| is hidden by request.
+  bool IsLaserHidden(InputManager::DeviceType controller_type);
+  /// Sets the fading points of the laser to a given value. Returns true if
+  /// succeeded.
+  bool SetLaserFadePoints(InputManager::DeviceType controller_type,
+                          const mathfu::vec4& fade_points);
+  /// Resets the fading points of the laser to the default value. Returns true
+  /// if succeeded.
+  bool ResetLaserFadePoints(InputManager::DeviceType controller_type);
+
+  /// Sets the controller fading distance from the head. The value is used to
+  /// fade the controller when it's too close to the head so that it doesn't
+  /// block the entire view.
+  void SetControllerFadeDistance(float controller_fade_distance) {
+    controller_fade_distance_ = controller_fade_distance;
+  }
+
+  /// Resets the controller fading distance from the head.
+  void ResetControllerFadeDistance() {
+    controller_fade_distance_ = kControllerFadeDistance;
+  }
+
  private:
   struct Button {
     bool was_pressed = false;
@@ -65,19 +95,27 @@ class ControllerSystem : public System {
     InputManager::DeviceType controller_type = InputManager::kController;
     bool is_laser = false;
     bool is_visible = false;
-    bool use_device_profile = false;
     bool connected = false;
+    // The name of the last DeviceProfile this controller was rendered with.
+    // This is used to detect when the profile changed without the connection
+    // status changing.
+    HashValue device_profile_name = 0;
+    // Indicates whether this model should hide. Note should_hide == false does
+    // not necessarily mean it should show.
+    bool should_hide = false;
 
     const EventDefArray* enable_events = nullptr;
     const EventDefArray* disable_events = nullptr;
 
     // Laser specific variables.
     float last_bend_fraction = 0.0f;
+    mathfu::vec4 default_fade_points_;
 
     // Controller specific variables;
     std::vector<Button> buttons = std::vector<Button>(3);
     float touch_ripple_factor = 0.0f;
     bool was_touched = false;
+    bool touchpad_button_pressed = false;
     uint8_t last_battery_level = InputManager::kInvalidBatteryCharge;
   };
 
@@ -100,7 +138,7 @@ class ControllerSystem : public System {
                                        Controller* controller);
 
   ComponentPool<Controller> controllers_;
-  bool show_controls_ = true;
+  float controller_fade_distance_ = kControllerFadeDistance;
 };
 
 }  // namespace lull

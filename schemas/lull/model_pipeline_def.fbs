@@ -39,6 +39,35 @@ table ModelPipelineImportDef {
   /// Pre-transforms vertices by their node hierarchy so that all vertices are
   /// in the same object-space, and the node hierarchy is flattened.
   flatten_hierarchy_and_transform_vertices_to_root_space : bool = false;
+
+  /// If a model contains both metallic-roughness textures and
+  /// specular-glossiness textures, this flag causes the import to only use the
+  /// specular-glossiness textures. Otherwise, it uses the metallic-rougness
+  /// textures.
+  use_specular_glossiness_textures_if_present : bool = false;
+
+  /// Toggle for Assimp's aiProcess_FixInfacingNormals process.
+  fix_infacing_normals : bool = true;
+
+  /// Encodes a sign into the w value of the orientation quaternion such that >0
+  /// implies a right handed space, and <0 implies a left handed space. w==0
+  /// should never happen. This allows orientation components to be encoded in a
+  // 16 bit int.
+  ensure_vertex_orientation_w_not_zero : bool = false;
+
+  /// Distinct from 'scale'; defines the unit we expect positions to be in.
+  /// Kept as 0 for backwards compatibility, this would be 100.0 for contexts
+  /// where world units would be measured in meters, and 2.54 for inches.
+  cm_per_unit : float = 0.0;
+}
+
+/// Information about a renderable material.
+table ModelPipelineMaterialDef {
+  /// Description of the desired material.
+  material: MaterialDef;
+
+  /// Optional replacement name to use at runtime.
+  name_override: string;
 }
 
 /// Information about a renderable model.
@@ -48,7 +77,7 @@ table ModelPipelineRenderableDef {
 
   /// The material properties for the model. Each index in the array corresponds
   /// to a submesh in the model.
-  materials: [MaterialDef];
+  materials: [ModelPipelineMaterialDef];
 
   /// Specific vertex attributes to export. For multiple attributes with the
   /// same usage (eg. two uv-coords for textures), simply list the attribute

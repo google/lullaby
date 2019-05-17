@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -111,6 +111,9 @@ class TextSystem : public System {
   // DEPRECATED.  Do not use.
   void SetLineHeight(Entity entity, float height);
 
+  // Set the line height as a scale of font size.
+  void SetLineHeightScale(Entity entity, float line_height_scale);
+
   // Sets |entity|'s rectangle area for rendering the text in meters.
   // If both the width and height are zero, the text will be displayed on a
   // single line.
@@ -202,6 +205,8 @@ class TextSystemImpl : public System {
   virtual void SetText(Entity entity, const std::string& text) = 0;
 
   virtual void SetFontSize(Entity entity, float size) = 0;
+
+  virtual void SetLineHeightScale(Entity entity, float line_height_scale) = 0;
 
   virtual void SetBounds(Entity entity, const mathfu::vec2& bounds) = 0;
 

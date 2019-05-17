@@ -1,8 +1,8 @@
-local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
+local utils = import 'lullaby/data/jsonnet/utils.jsonnet';
 {
   snippets: [
     {
-      name: "Tangent Bitangent Normals",
+      name: "Tangent Bitangent Normals (Quaternions In)",
       environment: [utils.hash('Texture_Normal')],
       inputs: [{
         name: 'aOrientation',
@@ -50,11 +50,44 @@ local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
         }
       |||,
       main_code: |||
-        mat3 tangentBitangentNormal = mat_normal *
+        mat3 tangentBitangentNormal = UNIFORM(mat_normal) *
                                       Mat3FromQuaternion(aOrientation);
         vTangent = tangentBitangentNormal[0];
         vBitangent = tangentBitangentNormal[1];
         vNormal = tangentBitangentNormal[2];
+      |||,
+    },
+    {
+      name: "Tangent Bitangent Normals (2 Vectors In)",
+      environment: [utils.hash('Texture_Normal')],
+      inputs: [{
+        name: 'aTangent',
+        type: 'Vec4f',
+        usage: 'Tangent',
+      }, {
+        name: 'aNormal',
+        type: 'Vec3f',
+        usage: 'Normal',
+      }],
+      outputs: [{
+        name: 'vTangent',
+        type: 'Vec3f',
+      }, {
+        name: 'vBitangent',
+        type: 'Vec3f',
+      }, {
+        name: 'vNormal',
+        type: 'Vec3f',
+        usage: 'Normal',
+      }],
+      uniforms: [{
+        name: 'mat_normal',
+        type: 'Float3x3',
+      }],
+      main_code: |||
+        vTangent = UNIFORM(mat_normal) * aTangent.xyz;
+        vNormal = UNIFORM(mat_normal) * aNormal;
+        vBitangent = cross(vNormal, vTangent) * aTangent.w;
       |||,
     },
   ],

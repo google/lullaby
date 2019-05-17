@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,11 @@ limitations under the License.
 #define LULLABY_SYSTEMS_COLLISION_COLLISION_SYSTEM_H_
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
+#include "lullaby/systems/collision/collision_provider.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
 
@@ -95,6 +97,23 @@ class CollisionSystem : public System {
   // nearest ancestor's bound's aabb if one can be found.
   void EnableClipping(Entity entity);
 
+  // Registers a collision provider.
+  void RegisterCollisionProvider(CollisionProvider* provider);
+
+  // Unregisters a collision provider.
+  void UnregisterCollisionProvider(CollisionProvider* provider);
+
+  // Returns the number of registered collision providers.
+  size_t GetNumCollisionProviders() const;
+
+  // Iterates over each collision provider.
+  template <typename CollisionProviderCallback>
+  void ForEachCollisionProvider(const CollisionProviderCallback& callback) {
+    for (CollisionProvider* provider : collision_providers_) {
+      callback(provider);
+    }
+  }
+
  private:
   Entity GetContainingBounds(Entity entity) const;
   bool IsCollisionClipped(Entity entity, const mathfu::vec3& point) const;
@@ -106,6 +125,7 @@ class CollisionSystem : public System {
   TransformSystem::TransformFlags default_interaction_flag_;
   TransformSystem::TransformFlags clip_flag_;
   std::unordered_map<Entity, Aabb> clip_bounds_;
+  std::unordered_set<CollisionProvider*> collision_providers_;
 
   CollisionSystem(const CollisionSystem&) = delete;
   CollisionSystem& operator=(const CollisionSystem&) = delete;

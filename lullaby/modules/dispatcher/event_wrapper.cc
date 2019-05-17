@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ EventWrapper::EventWrapper(TypeId type, string_view name)
       owned_(kDoNotOwn),
       serializable_(true) {
 #if LULLABY_TRACK_EVENT_NAMES
-  name_ = name.to_string();
+  name_ = std::string(name);
 #endif
 }
 

@@ -116,6 +116,6 @@ table TextDef {
   /// antialiasing shaders can be used.
   underline_padding: Vec2 (defaults_to_null);
 
-  // TODO(b/33705812) Add blueprint for suggestion / highlight underline.
-  // TODO(b/33705315) Add caret_blueprint.
+  // TODO Add blueprint for suggestion / highlight underline.
+  // TODO Add caret_blueprint.
 }

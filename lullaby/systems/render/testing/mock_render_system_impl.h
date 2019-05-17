@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -124,6 +124,7 @@ class RenderSystemImplInternal {
   MOCK_METHOD2(SetAndDeformMesh, void(Entity e, const MeshData& mesh));
   MOCK_METHOD3(SetMesh, void(Entity e, HashValue pass, MeshPtr mesh));
   MOCK_METHOD2(SetMesh, void(Entity e, const MeshData& mesh));
+  MOCK_METHOD3(SetMesh, void(Entity e, HashValue pass, const MeshData& mesh));
   MOCK_METHOD2(SetMesh, void(Entity e, const std::string& file));
   MOCK_METHOD2(GetMesh, MeshPtr(Entity e, HashValue pass));
   MOCK_METHOD1(GetShader, ShaderPtr(Entity e));
@@ -134,6 +135,20 @@ class RenderSystemImplInternal {
   MOCK_METHOD4(SetMaterial,
                void(Entity e, Optional<HashValue> pass,
                     Optional<int> submesh_index, const MaterialInfo& material));
+  MOCK_CONST_METHOD4(IsShaderFeatureRequested,
+                     bool(Entity entity, Optional<HashValue> pass,
+                          Optional<int> submesh_index, HashValue feature));
+  MOCK_METHOD4(RequestShaderFeature,
+               std::set<HashValue>(Entity entity, Optional<HashValue> pass,
+                                   Optional<int> submesh_index,
+                                   HashValue feature));
+  MOCK_METHOD4(ClearShaderFeature,
+               std::set<HashValue>(Entity entity, Optional<HashValue> pass,
+                                   Optional<int> submesh_index,
+                                   HashValue feature));
+  MOCK_METHOD3(ClearShaderFeatures,
+               bool(Entity entity, Optional<HashValue> pass,
+                    Optional<int> submesh_index));
   MOCK_METHOD2(SetSortOrderOffset,
                void(Entity e, RenderSortOrderOffset sort_order_offset));
   MOCK_METHOD3(SetSortOrderOffset,
@@ -141,10 +156,16 @@ class RenderSystemImplInternal {
                     RenderSortOrderOffset sort_order_offset));
   MOCK_METHOD3(SetStencilMode,
                void(Entity e, RenderStencilMode mode, int value));
+  MOCK_METHOD4(SetStencilMode, void(Entity e, HashValue pass,
+                                    RenderStencilMode mode, int value));
   MOCK_METHOD2(SetDeformationFunction,
                void(Entity e, const RenderSystem::DeformationFn& deform));
   MOCK_METHOD1(Hide, void(Entity e));
+  MOCK_METHOD3(Hide, void(Entity e, Optional<HashValue> pass,
+                          Optional<int> submesh_index));
   MOCK_METHOD1(Show, void(Entity e));
+  MOCK_METHOD3(Show, void(Entity e, Optional<HashValue> pass,
+                          Optional<int> submesh_index));
   MOCK_METHOD2(SetRenderPass, void(Entity e, HashValue pass));
   MOCK_CONST_METHOD1(GetSortMode, SortMode(HashValue pass));
   MOCK_METHOD2(SetSortMode, void(HashValue pass, SortMode mode));
@@ -162,10 +183,6 @@ class RenderSystemImplInternal {
   MOCK_METHOD1(SetDepthWrite, void(const bool enabled));
   MOCK_METHOD1(SetBlendMode, void(const fplbase::BlendMode blend_mode));
   MOCK_METHOD1(SetViewport, void(const RenderView& view));
-  MOCK_METHOD1(SetClipFromModelMatrix, void(const mathfu::mat4& mvp));
-  MOCK_METHOD1(SetClipFromModelMatrixFunction,
-               void(const RenderSystem::ClipFromModelMatrixFn& func));
-
   MOCK_CONST_METHOD1(GetNumBones, int(Entity e));
   MOCK_CONST_METHOD2(GetBoneParents, const uint8_t*(Entity e, int* num));
   MOCK_CONST_METHOD2(GetBoneNames, const std::string*(Entity e, int* num));
@@ -182,6 +199,8 @@ class RenderSystemImplInternal {
   MOCK_CONST_METHOD1(IsReadyToRender, bool(Entity e));
   MOCK_CONST_METHOD2(IsReadyToRender, bool(Entity e, HashValue p));
   MOCK_CONST_METHOD1(IsHidden, bool(Entity e));
+  MOCK_CONST_METHOD3(IsHidden, bool(Entity e, Optional<HashValue> pass,
+                                    Optional<int> submesh_index));
 
   MOCK_CONST_METHOD0(GetCachedRenderState, const fplbase::RenderState&());
   MOCK_METHOD1(UpdateCachedRenderState,
@@ -207,7 +226,8 @@ class RenderSystemImplInternal {
   MOCK_METHOD3(BindUniform,
                void(const char* name, const float* data, int dimension));
 
-  MOCK_METHOD1(DrawMesh, void(const MeshData& mesh));
+  MOCK_METHOD2(DrawMesh, void(const MeshData& mesh,
+                              Optional<mathfu::mat4> clip_from_model));
 
   MOCK_CONST_METHOD0(GetClearColor, mathfu::vec4());
   MOCK_METHOD4(SetClearColor, void(float r, float g, float b, float a));
@@ -231,12 +251,18 @@ class RenderSystemImplInternal {
   MOCK_METHOD2(SetGroupParams,
                void(HashValue group_id,
                     const RenderSystem::GroupParams& group_params));
+  MOCK_CONST_METHOD4(GetShaderString,
+                     std::string(Entity entity, HashValue pass,
+                                 int submesh_index, ShaderStageType stage));
+  MOCK_METHOD2(CompileShaderString,
+               ShaderPtr(const std::string& vertex_string,
+                         const std::string& fragment_string));
 };
 
 using NiceMockRenderSystem = ::testing::NiceMock<RenderSystemImplInternal>;
 
 // To use this implementation in tests, link against the
-// third_party/lullaby:mock_render_system target and simply instantiate a
+// lullaby:mock_render_system target and simply instantiate a
 // RenderSystem as usual. To setup the behavior of the mock, get a handle to it
 // through the RenderGetImpl() method. See the
 // mock_render_system_test.cc for an example.

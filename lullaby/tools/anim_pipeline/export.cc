@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,9 +49,9 @@ flatbuffers::Offset<motive::CompactSplineFb> CreateSplineFlatBuffer(
   float last_time = -std::numeric_limits<float>::max();
   for (auto n = nodes.begin(); n != nodes.end(); ++n) {
     const float n_time = static_cast<float>(std::max(0, n->time));
-    // Exclude any non-increasing time values, as these may produce
-    // zero-length spans at evaluation time and lead to division by zero.
-    if (n_time > last_time) {
+    // Exclude any decreasing time values, as these may produce invalid spans at
+    // evaluation time and lead to errors.
+    if (n_time >= last_time) {
       s->AddNode(n_time, n->val, n->derivative,
                  motive::kAddWithoutModification);
       last_time = n_time;
@@ -122,7 +122,7 @@ flatbuffers::Offset<motive::RigAnimFb> CreateRigAnimFb(
     // Convert vector into a FlatBuffers vector, and create the
     // MatrixAnimation.
     auto ops_fb = fbb.CreateVector(ops);
-    auto matrix_anim_fb = CreateMatrixAnimFb(fbb, ops_fb);
+    auto matrix_anim_fb = CreateMatrixAnimFb(fbb, ops_fb, anim.IsSqtAnim());
     matrix_anims.push_back(matrix_anim_fb);
     bone_names.push_back(fbb.CreateString(bone.name));
     bone_parents.push_back(anim.BoneParent(bone_idx));
@@ -140,6 +140,11 @@ flatbuffers::Offset<motive::RigAnimFb> CreateRigAnimFb(
 }
 
 ByteArray ExportAnimation(const Animation& animation) {
+  if (animation.NumBones() > motive::kMaxNumBones) {
+    LOG(ERROR) << "Too many bones in animation: " << animation.NumBones();
+    return {};
+  }
+
   const RepeatPreference repeat_preference = kNeverRepeat;
 
   flatbuffers::FlatBufferBuilder fbb;

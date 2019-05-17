@@ -37,6 +37,9 @@ table ModelAssetMaterialDef {
   /// The submesh index to which to apply this material. A negative value
   /// indicates the material should be applied to all submeshes.
   submesh: int = -1;
+
+  /// List of features to activate in the shading model.
+  shading_features: [uint] (hashvalue);
 }
 
 /// Specifies the model of an entity.
@@ -51,4 +54,9 @@ table ModelAssetDef {
   /// Additional material data that can override the material data in the model
   /// file.
   materials: [ModelAssetMaterialDef];
+
+  /// Do not share the mesh created from this asset between entities.  This
+  /// allows individual entities to then further modify the mesh data (which
+  /// can be useful for things like blend shapes and other animated geometry).
+  create_distinct_meshes: bool = false;
 }

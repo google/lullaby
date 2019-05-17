@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,19 +19,12 @@ limitations under the License.
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "lullaby/systems/render/next/material.h"
+#include "lullaby/systems/render/next/shader.h"
+#include "lullaby/systems/render/next/texture.h"
+#include "lullaby/systems/render/next/texture_factory.h"
 #include "lullaby/tests/portable_test_macros.h"
 
 namespace lull {
-
-struct Shader {
-  explicit Shader(int id) : id(id) {}
-  int id;
-};
-
-struct Texture {
-  explicit Texture(int id) : id(id) {}
-  int id;
-};
 
 namespace {
 
@@ -41,7 +34,7 @@ using ::testing::NotNull;
 using ::testing::Pointee;
 
 MATCHER_P(TextureIdEquals, expected_texture_id, "") {
-  return arg.id == expected_texture_id;
+  return *arg.GetResourceId() == expected_texture_id;
 }
 
 TEST(Material, SetGetUniform) {
@@ -51,7 +44,7 @@ TEST(Material, SetGetUniform) {
   Material material;
   material.SetUniform<float>(kName, ShaderDataType_Float1, {kFloatValues, 4});
 
-  const UniformData* uniform = material.GetUniformData(kName);
+  const detail::UniformData* uniform = material.GetUniformData(kName);
   EXPECT_THAT(uniform, NotNull());
 
   const float* data = uniform->GetData<float>();
@@ -70,42 +63,38 @@ TEST(Material, SetGetShader) {
 }
 
 TEST(Material, SetGetTexture) {
+  Registry registry;
+  TextureFactoryImpl factory(&registry);
+
+  const TextureUsageInfo color(MaterialTextureUsage_BaseColor);
+  const TextureUsageInfo metallic(MaterialTextureUsage_Metallic);
+  const TextureUsageInfo specular(MaterialTextureUsage_Specular);
+
   Material material;
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_BaseColor), IsNull());
+  EXPECT_THAT(material.GetTexture(color), IsNull());
 
   // Set a few textures one at a time and see that they are set.
-  material.SetTexture(MaterialTextureUsage_BaseColor,
-                      TexturePtr(new Texture(5)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_BaseColor),
-              Pointee(TextureIdEquals(5)));
-  material.SetTexture(MaterialTextureUsage_Metallic,
-                      TexturePtr(new Texture(20)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_Metallic),
-              Pointee(TextureIdEquals(20)));
-  material.SetTexture(MaterialTextureUsage_Specular,
-                      TexturePtr(new Texture(15)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_Specular),
-              Pointee(TextureIdEquals(15)));
+  material.SetTexture(color, factory.CreateTexture(0, 5));
+  EXPECT_THAT(material.GetTexture(color), Pointee(TextureIdEquals(5)));
+
+  material.SetTexture(metallic, factory.CreateTexture(0, 20));
+  EXPECT_THAT(material.GetTexture(metallic), Pointee(TextureIdEquals(20)));
+
+  material.SetTexture(specular, factory.CreateTexture(0, 15));
+  EXPECT_THAT(material.GetTexture(specular), Pointee(TextureIdEquals(15)));
 
   // Re-write a texture.
-  material.SetTexture(MaterialTextureUsage_BaseColor,
-                      TexturePtr(new Texture(42)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_BaseColor),
-              Pointee(TextureIdEquals(42)));
+  material.SetTexture(color, factory.CreateTexture(0, 42));
+  EXPECT_THAT(material.GetTexture(color), Pointee(TextureIdEquals(42)));
 
   // Re-write another texture.
-  material.SetTexture(MaterialTextureUsage_Metallic,
-                      TexturePtr(new Texture(8100)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_Metallic),
-              Pointee(TextureIdEquals(8100)));
+  material.SetTexture(metallic, factory.CreateTexture(0, 8100));
+  EXPECT_THAT(material.GetTexture(metallic), Pointee(TextureIdEquals(8100)));
 
   // See that all the textures are correct.
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_BaseColor),
-              Pointee(TextureIdEquals(42)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_Metallic),
-              Pointee(TextureIdEquals(8100)));
-  EXPECT_THAT(material.GetTexture(MaterialTextureUsage_Specular),
-              Pointee(TextureIdEquals(15)));
+  EXPECT_THAT(material.GetTexture(color), Pointee(TextureIdEquals(42)));
+  EXPECT_THAT(material.GetTexture(metallic), Pointee(TextureIdEquals(8100)));
+  EXPECT_THAT(material.GetTexture(specular), Pointee(TextureIdEquals(15)));
 }
 
 }  // namespace

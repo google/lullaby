@@ -1,4 +1,4 @@
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 STAGE_INPUT mediump vec2 vTexCoord;
 uniform sampler2D texture_unit_0;

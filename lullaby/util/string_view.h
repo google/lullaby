@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,6 +49,11 @@ class string_view {
   string_view(const std::string& str)
       : str_(str.data()), len_(str.size()) {}
 
+#ifdef HAS_GLOBAL_STRING
+  string_view(const string& str)
+      : str_(str.data()), len_(str.size()) {}
+#endif  // HAS_GLOBAL_STRING
+
   // Returns the number of characters in the string_view.
   size_t size() const { return len_; }
   size_t length() const { return len_; }
@@ -63,9 +68,13 @@ class string_view {
   // be null-terminated.
   const char* data() const { return str_; }
 
+  // Returns reference to the last character in the view. The behavior is
+  // undefined if empty() == true.
+  const char& back() const { return str_[len_ - 1]; }
+
   // Get the null-terminated c-string of the string_view. Note: If the
   // string_view is a substring view that isn't null-terminated, then this
-  // function will return null.
+  // function will return a default empty string.
   const char* c_str() const {
     if (str_ == nullptr) {
       return "";
@@ -146,6 +155,15 @@ inline bool operator>=(string_view str1, string_view str2) {
 
 inline std::ostream& operator<<(std::ostream& o, const string_view& str) {
   return o.write(str.data(), static_cast<std::streamsize>(str.size()));
+}
+
+// Creates a new std::string from 2 string_views.
+inline std::string operator+(string_view str1, string_view str2) {
+  std::string sum;
+  sum.reserve(str1.size() + str2.size());
+  sum.append(str1.data(), str1.size());
+  sum.append(str2.data(), str2.size());
+  return sum;
 }
 
 }  // namespace lull

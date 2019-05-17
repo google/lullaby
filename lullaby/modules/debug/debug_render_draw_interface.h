@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class DebugRenderDrawInterface {
       const mathfu::vec4& color,
       const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
       const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
-      const TexturePtr& texture) const = 0;
+      const TexturePtr& texture) = 0;
 };
 
 }  // namespace debug

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,73 @@ limitations under the License.
 #include "lullaby/modules/render/image_decode.h"
 
 namespace lull {
+
+TextureAsset::TextureAsset(const TextureParams& params,
+                           const Finalizer& finalizer, uint32_t decode_flags)
+    : params_(params), finalizer_(finalizer), flags_(decode_flags) {}
+
+TextureAsset::TextureAsset(const TextureParams& params,
+                           const Finalizer& finalizer, const ErrorFn& error_fn,
+                           uint32_t decode_flags)
+    : params_(params),
+      finalizer_(finalizer),
+      error_fn_(error_fn),
+      flags_(decode_flags) {}
+
+ErrorCode TextureAsset::OnLoadWithError(const std::string& filename,
+                                        std::string* data) {
+  if (data->empty()) {
+    return kErrorCode_InvalidArgument;
+  }
+  if (filename.find("cubemap") != std::string::npos) {
+    params_.is_cubemap = true;
+  }
+  if (filename.find("nopremult") != std::string::npos) {
+    params_.premultiply_alpha = false;
+  }
+  if (filename.find("rgbm") != std::string::npos) {
+    params_.is_rgbm = true;
+  }
+
+  const auto* bytes = reinterpret_cast<const uint8_t*>(data->data());
+  const size_t num_bytes = data->size();
+  uint32_t flags = flags_;
+  if (params_.premultiply_alpha) {
+    flags |= kDecodeImage_PremultiplyAlpha;
+  }
+
+  // If this is an animated image, keep around the raw file bytes to pass off
+  // to the decoder.
+  if (IsAnimated(bytes, num_bytes)) {
+    params_.generate_mipmaps = false;
+    params_.premultiply_alpha = false;
+
+    animated_image_ = LoadAnimatedImage(data);
+
+    // Decode first frame while we're in the background thread.
+    image_data_ = animated_image_->DecodeNextFrame();
+    return kErrorCode_Ok;
+  }
+
+  image_data_ = DecodeImage(bytes, num_bytes, DecodeImageFlags(flags));
+  if (image_data_.IsEmpty()) {
+    LOG(ERROR) << "Unsupported texture file type.";
+    return kErrorCode_InvalidArgument;
+  }
+  return kErrorCode_Ok;
+}
+
+void TextureAsset::OnFinalize(const std::string& filename, std::string* data) {
+  if (!image_data_.IsEmpty() || animated_image_ != nullptr) {
+    finalizer_(this);
+  }
+}
+
+void TextureAsset::OnError(const std::string& filename, ErrorCode error) {
+  if (error_fn_) {
+    error_fn_(error);
+  }
+}
 
 TexturePtr TextureFactory::CreateTexture(const TextureDef* texture_def) {
   if (texture_def == nullptr) {
@@ -70,6 +137,10 @@ TexturePtr TextureFactory::CreateTexture(const TextureDefT& texture_def) {
     LOG(DFATAL) << "TextureDef must contain either filename or image data!";
     return nullptr;
   }
+}
+
+TexturePtr TextureFactory::LoadTexture(string_view filename) {
+  return LoadTexture(filename, TextureParams());
 }
 
 }  // namespace lull

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,8 +46,8 @@ namespace lull {
 using RenderSortOrderOffset = int;
 
 // A global render sort order for a given entity relative to all other entities.
-// TODO(b/78536715): Add tests for different sizes.
-// TODO(b/78605006): Hide implementation details such as left shift operation.
+// TODO: Add tests for different sizes.
+// TODO: Hide implementation details such as left shift operation.
 class RenderSortOrder {
  public:
   constexpr static int kNumBitsPerGroup = SORT_ORDER_OFFSET_SIZE;

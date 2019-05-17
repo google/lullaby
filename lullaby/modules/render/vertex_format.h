@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <cstddef>
 #include <initializer_list>
+#include <ostream>
 
 #include "lullaby/util/math.h"
 #include "lullaby/generated/vertex_attribute_def_generated.h"
@@ -72,6 +73,7 @@ class VertexFormat {
 
   // Tests if the structures described by two VertexFormats are equal.
   bool operator==(const VertexFormat& rhs) const;
+  bool operator!=(const VertexFormat& rhs) const;
 
  private:
   static constexpr uint32_t kAlignment = 4;
@@ -95,6 +97,8 @@ bool VertexFormat::Matches() const {
   return (sizeof(Vertex) == vertex_size_ &&
           (this == &Vertex::kFormat || *this == Vertex::kFormat));
 }
+
+std::ostream& operator<<(std::ostream& os, const VertexFormat& vf);
 
 }  // namespace lull
 

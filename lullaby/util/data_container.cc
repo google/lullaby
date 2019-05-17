@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -92,6 +92,11 @@ bool DataContainer::Append(const uint8_t* data, size_t size) {
 
   std::memcpy(append_ptr, data, size);
   return true;
+}
+
+bool DataContainer::Advance(size_t size) {
+  uint8_t* append_ptr = GetAppendPtr(size);
+  return (append_ptr != nullptr);
 }
 
 DataContainer DataContainer::CreateHeapCopy() const {

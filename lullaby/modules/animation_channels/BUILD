@@ -30,7 +30,7 @@ cc_library(
     ],
     deps = [
         "//lullaby/systems/animation",
-        "//lullaby/systems/deform",
+        "//lullaby/contrib/deform",
         "//lullaby/util:logging",
         "//lullaby/util:registry",
     ],
@@ -67,6 +67,24 @@ cc_library(
         "//lullaby/systems/render:render_helpers",
         "//lullaby/systems/transform",
         "//lullaby/util:color",
+        "//lullaby/util:logging",
+        "//lullaby/util:registry",
+        "@motive//:motive",
+    ],
+)
+
+cc_library(
+    name = "skeleton_channel",
+    srcs = [
+        "skeleton_channel.cc",
+    ],
+    hdrs = [
+        "skeleton_channel.h",
+    ],
+    deps = [
+        "//lullaby/systems/animation",
+        "//lullaby/systems/blend_shape",
+        "//lullaby/systems/transform",
         "//lullaby/util:logging",
         "//lullaby/util:registry",
         "@motive//:motive",

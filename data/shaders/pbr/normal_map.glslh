@@ -1,12 +1,12 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
 
 // Applies a tangent-space normal map to a given shading normal. If smoothness
 // is passed in, its value is modified to compensate for the smoothing effect of
 // normal map mip-mapping (see ToksvigSmoothness() below).
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/pbr/specular_conversions.glslh"
 
 STAGE_INPUT mediump vec3 vBinormal;
 STAGE_INPUT mediump vec3 vTangent;
@@ -26,8 +26,6 @@ float ToksvigSmoothness(float smoothness, float normal_len) {
 // Alters normal based on normal_map color (in linear space).
 void ApplyNormalMap(vec3 normal_map, inout vec3 normal) {
   normal_map = normal_map * 2.0 - 1.0;
-  float len = length(normal_map);
-  normal_map /= len;
   normal =
       normalize(normal_map.x * normalize(vTangent) +
                 normal_map.y * normalize(vBinormal) + normal_map.z * normal);
@@ -38,11 +36,10 @@ void ApplyNormalMap(vec3 normal_map, inout vec3 normal,
                     inout float smoothness) {
   normal_map = normal_map * 2.0 - 1.0;
   float len = length(normal_map);
-  normal_map /= len;
   smoothness = ToksvigSmoothness(smoothness, len);
   normal =
       normalize(normal_map.x * normalize(vTangent) +
                 normal_map.y * normalize(vBinormal) + normal_map.z * normal);
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_NORMAL_MAP_GLSLH_

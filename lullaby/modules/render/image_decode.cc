@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 #include "lullaby/modules/render/image_decode.h"
+#include "lullaby/modules/render/image_decode_ktx.h"
 
-#include <stdlib.h>
+#include <cstdlib>
+#include <memory>
 
 #if !LULLABY_DISABLE_STB_LOADERS
 #include "stb/stb_image.h"
@@ -25,23 +27,36 @@ limitations under the License.
 #if !LULLABY_DISABLE_WEBP_LOADER
 #ifdef LULLABY_GYP
 #include "webp/decode.h"
+#include "webp/demux.h"
+#include "webp/mux_types.h"
 #else
 #include "webp/decode.h"
+#include "webp/demux.h"
+#include "webp/mux_types.h"
 #endif
 #endif
 
+#include "GL/gl.h"
+#include "GL/glext.h"
 #include "lullaby/modules/render/image_util.h"
+#include "lullaby/util/clock.h"
+#include "lullaby/util/data_container.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/util/time.h"
+#include "mathfu/glsl_mappings.h"
+#if defined(LULLABY_ASTC_CPU_DECODE) && !defined(LULLABY_DISABLE_ASTC_LOADERS)
+#include "lullaby/modules/render/image_decode_astc.h"
+#endif  // defined(LULLABY_ASTC_CPU_DECODE) &&
+        // !defined(LULLABY_DISABLE_ASTC_LOADERS)
 
 namespace lull {
 namespace {
 
-static const char kRiffMagicId[] = "RIFF";
-static const char kWebpMagicId[] = "WEBP";
-static const char kKtxMagicId[] = "\xABKTX 11\xBB\r\n\x1A\n";
-static const char kPkmMagicId[] = "PKM ";
-static const char kPkmVersion[] = "10";
-static const uint8_t kAstcMagicId[] = {0x13, 0xab, 0xa1, 0x5c};
+constexpr char kRiffMagicId[] = "RIFF";
+constexpr char kWebpMagicId[] = "WEBP";
+constexpr char kPkmMagicId[] = "PKM ";
+constexpr char kPkmVersion[] = "10";
+constexpr uint8_t kAstcMagicId[] = {0x13, 0xab, 0xa1, 0x5c};
 
 ImageData BuildImageData(
     const uint8_t* bytes, size_t num_bytes, ImageData::Format format,
@@ -58,11 +73,6 @@ ImageData BuildImageData(
   return ImageData(format, size, std::move(data));
 }
 
-mathfu::vec2i GetKtxImageDimensions(const KtxHeader* header) {
-  DCHECK(header != nullptr);
-  return mathfu::vec2i(header->width, header->height);
-}
-
 int GetPkmSize(const uint8_t (&size)[2]) {
   // Pkm dimension is stored in big endian format.
   return (size[0] << 8) | (size[1]);
@@ -75,10 +85,6 @@ mathfu::vec2i GetPkmImageDimensions(const PkmHeader* header) {
   return mathfu::vec2i(xsize, ysize);
 }
 
-int GetAstcSize(const uint8_t (&size)[3]) {
-  return (size[0]) | (size[1] << 8) | (size[2] << 16);
-}
-
 mathfu::vec2i GetAstcImageDimensions(const AstcHeader* header) {
   DCHECK(header != nullptr);
   const int xsize = GetAstcSize(header->xsize);
@@ -87,10 +93,11 @@ mathfu::vec2i GetAstcImageDimensions(const AstcHeader* header) {
 }
 
 ImageData DecodeStbi(const uint8_t* src, size_t len, DecodeImageFlags flags) {
+  // TODO: Include the source image name in log messages.
 #if LULLABY_DISABLE_STB_LOADERS
   // libstb isn't known to be safe, so we've disabled it to eliminate an
   // attack vector.
-  LOG(DFATAL) << "Unable to decode image.";
+  LOG(DFATAL) << "STB decoding disabled.";
   return ImageData();
 #else
   int width = 0;
@@ -129,10 +136,11 @@ ImageData DecodeStbi(const uint8_t* src, size_t len, DecodeImageFlags flags) {
 }
 
 ImageData DecodeWebp(const uint8_t* data, size_t len, DecodeImageFlags flags) {
+  // TODO: Include the source image name in log messages.
 #if LULLABY_DISABLE_WEBP_LOADER
   // libwebp isn't known to be safe, so we've disabled it to eliminate an
   // attack vector.
-  LOG(DFATAL) << "Unable to decode image.";
+  LOG(DFATAL) << "WebP decoding disabled.";
   return ImageData();
 #else
   WebPDecoderConfig config;
@@ -190,6 +198,149 @@ ImageData DecodeWebp(const uint8_t* data, size_t len, DecodeImageFlags flags) {
 #endif
 }
 
+mathfu::vec2i GetAstcBlockSizeFromGlInternalFormat(int gl_internal_format) {
+  switch (gl_internal_format) {
+    case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR:
+      return mathfu::vec2i(4, 4);
+    case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR:
+      return mathfu::vec2i(5, 4);
+    case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR:
+      return mathfu::vec2i(5, 5);
+    case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR:
+      return mathfu::vec2i(6, 5);
+    case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR:
+      return mathfu::vec2i(6, 6);
+    case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR:
+      return mathfu::vec2i(8, 5);
+    case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR:
+      return mathfu::vec2i(8, 6);
+    case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR:
+      return mathfu::vec2i(8, 8);
+    case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR:
+      return mathfu::vec2i(10, 5);
+    case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR:
+      return mathfu::vec2i(10, 6);
+    case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR:
+      return mathfu::vec2i(10, 8);
+    case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR:
+      return mathfu::vec2i(10, 10);
+    case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR:
+      return mathfu::vec2i(12, 10);
+    case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:
+    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:
+      return mathfu::vec2i(12, 12);
+    default:
+      LOG(ERROR) << "Unsupported ASTC internal format " << gl_internal_format;
+      break;
+  }
+  return mathfu::vec2i(0, 0);
+}
+
+bool g_gpu_astc_supported = false;
+
+#if defined(LULLABY_ASTC_CPU_DECODE) && !defined(LULLABY_DISABLE_ASTC_LOADERS)
+AstcDecoderFn g_astc_decoder = DecodeAstc;
+#else
+AstcDecoderFn g_astc_decoder = nullptr;
+#endif  // defined(LULLABY_ASTC_CPU_DECODE) &&
+        // !defined(LULLABY_DISABLE_ASTC_LOADERS)
+
+#if !LULLABY_DISABLE_WEBP_LOADER
+class WebPAnimatedImage : public lull::AnimatedImage {
+ public:
+  WebPAnimatedImage(std::string* data);
+  ~WebPAnimatedImage() override;
+  ImageData DecodeNextFrame() override;
+  ImageData GetCurrentFrame() override;
+  size_t GetFrameSize() override;
+  Clock::duration GetCurrentFrameDuration() override;
+
+ private:
+  std::string raw_webp_bytes_;
+  WebPData webp_data_;
+  WebPAnimDecoderOptions decoder_options_;
+  WebPAnimDecoder* decoder_ = nullptr;
+  mathfu::vec2i canvas_size_ = {0, 0};
+  uint8_t* decoded_frame_ = nullptr;
+  int timestamp_ms_ = 0;  // time point in webp's animation timeline
+  int duration_ms_ = 0;   // time to hold this frame.
+};
+
+WebPAnimatedImage::WebPAnimatedImage(std::string* data) {
+  raw_webp_bytes_ = std::move(*data);
+
+  WebPDataInit(&webp_data_);
+  webp_data_.bytes = reinterpret_cast<const uint8_t*>(raw_webp_bytes_.data());
+  webp_data_.size = raw_webp_bytes_.size();
+
+  WebPAnimDecoderOptionsInit(&decoder_options_);
+  decoder_options_.color_mode = MODE_rgbA;
+  decoder_options_.use_threads = 0;
+
+  decoder_ = WebPAnimDecoderNew(&webp_data_, &decoder_options_);
+
+  WebPAnimInfo anim_info;
+  WebPAnimDecoderGetInfo(decoder_, &anim_info);
+  canvas_size_ =
+      mathfu::vec2i(anim_info.canvas_width, anim_info.canvas_height);
+}
+
+WebPAnimatedImage::~WebPAnimatedImage() {
+  // Delete the decoder.
+  WebPAnimDecoderDelete(decoder_);
+}
+
+ImageData WebPAnimatedImage::DecodeNextFrame() {
+  // Decode & return
+  if (!WebPAnimDecoderHasMoreFrames(decoder_)) {
+    WebPAnimDecoderReset(decoder_);
+  }
+  int prev_timestamp_ms_ = timestamp_ms_;
+  WebPAnimDecoderGetNext(decoder_, &decoded_frame_, &timestamp_ms_);
+  duration_ms_ = timestamp_ms_ - prev_timestamp_ms_;
+
+  // Account for looping animation back to beginning.
+  if (duration_ms_ < 0) {
+    duration_ms_ = timestamp_ms_;
+  }
+
+  // Note: intentionally not providing a deleter since the decoded frame is
+  // owned by the decoder.
+  return BuildImageData(decoded_frame_, GetFrameSize(),
+                        ImageData::kRgba8888, canvas_size_);
+}
+
+ImageData WebPAnimatedImage::GetCurrentFrame() {
+  // Note: intentionally not providing a deleter since the decoded frame is
+  // owned by the decoder.
+  return BuildImageData(decoded_frame_, GetFrameSize(),
+                        ImageData::kRgba8888, canvas_size_);
+}
+
+size_t WebPAnimatedImage::GetFrameSize() {
+  size_t bytes_per_pixel = 4;  // RGBA
+  return canvas_size_.x * canvas_size_.y * bytes_per_pixel;
+}
+
+Clock::duration WebPAnimatedImage::GetCurrentFrameDuration() {
+  return DurationFromMilliseconds(static_cast<float>(duration_ms_));
+}
+
+#endif  // !LULLABY_DISABLE_WEBP_LOADER
+
 }  // namespace
 
 const WebpHeader* GetWebpHeader(const uint8_t* data, size_t len) {
@@ -201,17 +352,6 @@ const WebpHeader* GetWebpHeader(const uint8_t* data, size_t len) {
     return nullptr;
   }
   if (memcmp(header->webp, kWebpMagicId, sizeof(header->webp))) {
-    return nullptr;
-  }
-  return header;
-}
-
-const KtxHeader* GetKtxHeader(const uint8_t* data, size_t len) {
-  const auto* header = reinterpret_cast<const KtxHeader*>(data);
-  if (len < sizeof(KtxHeader)) {
-    return nullptr;
-  }
-  if (memcmp(header->magic, kKtxMagicId, sizeof(header->magic))) {
     return nullptr;
   }
   return header;
@@ -231,6 +371,10 @@ const PkmHeader* GetPkmHeader(const uint8_t* data, size_t len) {
   return header;
 }
 
+int GetAstcSize(const uint8_t (&size)[3]) {
+  return (size[0]) | (size[1] << 8) | (size[2] << 16);
+}
+
 const AstcHeader* GetAstcHeader(const uint8_t* data, size_t len) {
   const auto* header = reinterpret_cast<const AstcHeader*>(data);
   if (len < sizeof(AstcHeader)) {
@@ -242,21 +386,91 @@ const AstcHeader* GetAstcHeader(const uint8_t* data, size_t len) {
   return header;
 }
 
+void SetAstcDecoder(AstcDecoderFn decoder) { g_astc_decoder = decoder; }
+
+void SetGpuDecodingEnabled(bool enabled) { g_gpu_astc_supported = enabled; }
+
+bool CpuAstcDecodingAvailable() { return g_astc_decoder != nullptr; }
+
+bool GpuAstcDecodingAvailable() { return g_gpu_astc_supported; }
+
 ImageData DecodeImage(const uint8_t* data, size_t len, DecodeImageFlags flags) {
   if (auto header = GetAstcHeader(data, len)) {
     const mathfu::vec2i size = GetAstcImageDimensions(header);
-    return BuildImageData(data, len, ImageData::kAstc, size);
+    const int zsize = GetAstcSize(header->zsize);
+    DCHECK(zsize == 1 || !(flags & kDecodeImage_DecodeAstc));
+    if (g_astc_decoder != nullptr && zsize == 1 &&
+        (flags & kDecodeImage_DecodeAstc)) {
+      const mathfu::vec2i block(header->blockdim_x, header->blockdim_y);
+      DCHECK(header->blockdim_z == 1);
+      // Skip the ASTC header.
+      len -= sizeof(*header);
+      data += sizeof(*header);
+      return g_astc_decoder(size, block, 1, data, len);
+    } else {
+      return BuildImageData(data, len, ImageData::kAstc, size);
+    }
   } else if (auto header = GetPkmHeader(data, len)) {
     const mathfu::vec2i size = GetPkmImageDimensions(header);
     return BuildImageData(data, len, ImageData::kPkm, size);
   } else if (auto header = GetKtxHeader(data, len)) {
-    const mathfu::vec2i size = GetKtxImageDimensions(header);
+    const mathfu::vec2i size(header->width, header->height);
+    if (g_astc_decoder != nullptr && (flags & kDecodeImage_DecodeAstc)) {
+      const bool is_simple = header->depth == 0 && header->array_elements == 0;
+      DCHECK(is_simple) << "3D or array textures not yet supported.";
+      const mathfu::vec2i block =
+          GetAstcBlockSizeFromGlInternalFormat(header->internal_format);
+      if (is_simple && block.x != 0 && block.y != 0) {
+        // Skip the KTX header.
+        len -= sizeof(*header);
+        data += sizeof(*header);
+        // Skip any key/value data.
+        len -= header->keyvalue_data;
+        data += header->keyvalue_data;
+        // Skip the 32 bits of size data.
+        len -= sizeof(uint32_t);
+        data += sizeof(uint32_t);
+        return g_astc_decoder(size, block, header->faces, data, len);
+      }
+    }
     return BuildImageData(data, len, ImageData::kKtx, size);
   } else if (GetWebpHeader(data, len)) {
     return DecodeWebp(data, len, flags);
   } else {
     return DecodeStbi(data, len, flags);
   }
+}
+
+bool IsAnimated(const uint8_t* data, size_t len) {
+  if (GetWebpHeader(data, len)) {
+#if LULLABY_DISABLE_WEBP_LOADER
+    return false;
+#else
+    WebPBitstreamFeatures features;
+    std::memset(&features, 0, sizeof(WebPBitstreamFeatures));
+    auto status = WebPGetFeatures(data, len, &features);
+    if (status != VP8_STATUS_OK) {
+      LOG(DFATAL) << "Source image data not an WebP file.";
+      return false;
+    }
+    return features.has_animation;
+#endif
+  }
+  return false;
+}
+
+AnimatedImagePtr LoadAnimatedImage(std::string* data) {
+  const auto* bytes = reinterpret_cast<const uint8_t*>(data->data());
+  const size_t num_bytes = data->size();
+  if (GetWebpHeader(bytes, num_bytes)) {
+#if LULLABY_DISABLE_WEBP_LOADER
+    LOG(DFATAL) << "WebP decoding disabled.";
+    return nullptr;
+#else
+    return std::unique_ptr<AnimatedImage>(new WebPAnimatedImage(data));
+#endif  // LULLABY_DISABLE_WEBP_LOADER
+  }
+  return nullptr;
 }
 
 }  // namespace lull

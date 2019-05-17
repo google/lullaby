@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ namespace lull {
 /// InputProcessor will use macros to expand this list into an enum statement
 /// and name function.
 /// All events in this list will include following parameters:
-///   "Entity"
-///   "Target"
-///   "Device"
+///   "entity"
+///   "target"
+///   "device"
 #define LULLABY_DEVICE_EVENT_LIST(FUNC) \
   FUNC(kFocusStart, FocusStartEvent)    \
   FUNC(kFocusStop, FocusStopEvent)
@@ -40,10 +40,10 @@ namespace lull {
 /// InputProcessor will use macros to expand this list into an enum statement
 /// and name function.
 /// All events in this list will include following parameters:
-///   "Entity"
-///   "Target"
-///   "Device"
-///   "Button"
+///   "entity"
+///   "target"
+///   "device"
+///   "button"
 #define LULLABY_BUTTON_EVENT_LIST(FUNC) \
   FUNC(kPress, PressEvent)              \
   FUNC(kRelease, ReleaseEvent)          \
@@ -52,6 +52,43 @@ namespace lull {
   FUNC(kCancel, CancelEvent)            \
   FUNC(kDragStart, DragStartEvent)      \
   FUNC(kDragStop, DragStopEvent)
+
+/// The list of touch events that are associated with a devices trackpad.
+/// InputProcessor will use macros to expand this list into an enum statement
+/// and name function.
+/// All events in this list will include following parameters:
+///   "entity"
+///   "target"
+///   "device"
+///   "touchpad"
+///   "touch"
+#define LULLABY_TOUCH_EVENT_LIST(FUNC)  \
+  FUNC(kTouchPress, PressEvent)         \
+  FUNC(kTouchRelease, ReleaseEvent)     \
+  FUNC(kTouchClick, ClickEvent)         \
+  FUNC(kTouchLongPress, LongPressEvent) \
+  FUNC(kTouchCancel, CancelEvent)       \
+  FUNC(kTouchDragStart, DragStartEvent) \
+  FUNC(kTouchDragStop, DragStopEvent)   \
+  FUNC(kSwipeStart, SwipeStartEvent)    \
+  FUNC(kSwipeStop, SwipeStopEvent)
+
+/// The list of input events that are associated with a gesture.
+/// InputProcessor will use macros to expand this list into an enum statement
+/// and name function.  These will always be combined with a Gesture's
+/// EventName, and the device touchpad's prefix.
+/// See GestureRecognizer::GetName() for more details.
+/// All events in this list will include following parameters:
+///   "entity"
+///   "target"
+///   "device"
+///   "touchpad"
+///   "touch_0"
+///   "touch_1"  (Only for gestures with > 1 touch)
+#define LULLABY_GESTURE_EVENT_LIST(FUNC) \
+  FUNC(kGestureStart, StartEvent)       \
+  FUNC(kGestureStop, StopEvent)         \
+  FUNC(kGestureCancel, CancelEvent)
 
 /// Hashes of commonly used event names for convenience:
 /// Input Events with no prefix.  Generally sent out by Controller 1's button 0.
@@ -78,9 +115,15 @@ constexpr HashValue kDragStartEventHash = ConstHash("DragStartEvent");
 /// Sent when a release or cancel event is sent to an entity that received a
 /// DragStartEvent.  Only sent if InputFocus.draggable is true for this entity.
 constexpr HashValue kDragStopEventHash = ConstHash("DragStopEvent");
+/// Sent when a touch moves outside the touch slop and the device's collision
+/// ray hasn't left a threshold.
+constexpr HashValue kSwipeStartEvent = ConstHash("SwipeStartEvent");
+/// Sent when a release or cancel event is sent to an entity that received a
+/// SwipeStartEvent.
+constexpr HashValue kSwipeStopEvent = ConstHash("SwipeStopEvent");
 
 /// Input Events with the "Any" prefix.  Sent out by every device being updated
-/// by InputProcessor, and for every button on those devices.
+/// by InputProcessor, and for every button and touchpad on those devices.
 constexpr HashValue kAnyFocusStartEventHash = ConstHash("AnyFocusStartEvent");
 constexpr HashValue kAnyFocusStopEventHash = ConstHash("AnyFocusStopEvent");
 constexpr HashValue kAnyPressEventHash = ConstHash("AnyPressEvent");
@@ -90,6 +133,8 @@ constexpr HashValue kAnyLongPressEventHash = ConstHash("AnyLongPressEvent");
 constexpr HashValue kAnyCancelEventHash = ConstHash("AnyCancelEvent");
 constexpr HashValue kAnyDragStartEventHash = ConstHash("AnyDragStartEvent");
 constexpr HashValue kAnyDragStopEventHash = ConstHash("AnyDragStopEvent");
+constexpr HashValue kAnySwipeStartEventHash = ConstHash("AnySwipeStartEvent");
+constexpr HashValue kAnySwipeStopEventHash = ConstHash("AnySwipeStopEvent");
 
 /// Standard fields to be included in Input Events sent by the InputProcessor:
 /// The entity the device is focused on, if any.
@@ -97,13 +142,21 @@ constexpr HashValue kEntityHash = ConstHash("entity");
 constexpr HashValue kTargetHash = ConstHash("target");
 /// The InputManager::DeviceType that caused the event.
 constexpr HashValue kDeviceHash = ConstHash("device");
-/// The InputManager::ButtonId that caused the event.
+/// The InputManager::ButtonId that caused the event. Value will be
+/// InputManager::kInvalidButton when sent from a touchpad.
 constexpr HashValue kButtonHash = ConstHash("button");
+/// The InputManager::TouchpadId of the touchpad that generated the event.
+constexpr HashValue kTouchpadIdHash = ConstHash("touchpad");
+/// The InputManager::TouchId of the single touch that generated the event.
+/// For multi touch events (gesture events), see gesture.h's kTouchIdHashes.
+constexpr HashValue kTouchIdHash = ConstHash("touch");
 
 /// A mathfu::vec3 that is the local position of the cursor on the frame the
-/// button was pressed, in the space of the pressed entity. Only set for
-/// ClickEvent.
+/// button was pressed, in the space of the pressed entity. Set for Press and
+/// DragStart
 constexpr HashValue kLocationHash = ConstHash("location");
+/// A mathfu::vec2 of the touchpad position 0,0->1,1 set for all touch events
+constexpr HashValue kTouchLocationHash = ConstHash("touch_location");
 /// The originally pressed entity. Only set for ReleaseEvent.
 constexpr HashValue kPressedEntityHash = ConstHash("pressed_entity");
 /// A duration of time in milliseconds.
@@ -113,9 +166,9 @@ constexpr HashValue kDurationHash = ConstHash("duration");
 // ControllerSystem for devices that are being displayed. May be sent multiple
 // times if multiple entities are displaying the same device.
 struct DeviceConnectedEvent {
-  DeviceConnectedEvent(){};
+  DeviceConnectedEvent() {}
   DeviceConnectedEvent(InputManager::DeviceType device, Entity display_entity)
-      : device(device), display_entity(display_entity){};
+      : device(device), display_entity(display_entity) {}
 
   template <typename Archive>
   void Serialize(Archive archive) {

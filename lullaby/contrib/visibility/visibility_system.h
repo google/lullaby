@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ namespace lull {
 // used to hide content that moves out of the window, and show content that
 // moves into it.
 // Note: This system does not take deformations into account.
-// TODO(b/73001382): add unit tests
+// TODO: add unit tests
 class VisibilitySystem : public System {
  public:
   explicit VisibilitySystem(Registry* registry);
@@ -54,6 +54,10 @@ class VisibilitySystem : public System {
     std::unordered_map<Entity, VisibilityContentState> states;
     const EventDefArray* on_enter_events = nullptr;
     const EventDefArray* on_exit_events = nullptr;
+    const EventDefArray* on_exit_top_events = nullptr;
+    const EventDefArray* on_exit_bottom_events = nullptr;
+    const EventDefArray* on_exit_left_events = nullptr;
+    const EventDefArray* on_exit_right_events = nullptr;
     CollisionAxes collision_axes = CollisionAxes_XY;
   };
 

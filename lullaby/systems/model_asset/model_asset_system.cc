@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,11 @@ limitations under the License.
 #include "lullaby/systems/model_asset/model_asset_system.h"
 
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/systems/blend_shape/blend_shape_system.h"
+#include "lullaby/systems/collision/collision_provider.h"
+#include "lullaby/systems/collision/collision_system.h"
 #include "lullaby/systems/render/mesh_factory.h"
+#include "lullaby/systems/render/render_helpers.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/texture_factory.h"
 #include "lullaby/util/filename.h"
@@ -28,8 +32,11 @@ namespace lull {
 constexpr HashValue kModelAssetDefHash = ConstHash("ModelAssetDef");
 
 ModelAssetSystem::ModelAssetInstance::ModelAssetInstance(
-    Registry* registry, std::shared_ptr<ModelAsset> asset)
-    : registry_(registry), model_asset_(std::move(asset)) {}
+    Registry* registry, std::shared_ptr<ModelAsset> asset,
+    bool create_distinct_meshes)
+    : registry_(registry),
+      model_asset_(std::move(asset)),
+      create_distinct_meshes_(create_distinct_meshes) {}
 
 ModelAssetSystem::ModelAssetInstance::~ModelAssetInstance() {
   auto* texture_factory = registry_->Get<TextureFactory>();
@@ -40,15 +47,25 @@ ModelAssetSystem::ModelAssetInstance::~ModelAssetInstance() {
   }
 }
 
-bool ModelAssetSystem::ModelAssetInstance::IsReady() const {
-  return mesh_ != nullptr;
-}
-
 void ModelAssetSystem::ModelAssetInstance::Finalize() {
   auto* mesh_factory = registry_->Get<MeshFactory>();
-  if (mesh_factory) {
-    MeshData& data = model_asset_->GetMutableMeshData();
-    mesh_ = mesh_factory->CreateMesh(std::move(data));
+  auto* collision_system = registry_->Get<CollisionSystem>();
+
+  if (collision_system != nullptr &&
+      collision_system->GetNumCollisionProviders() > 0) {
+    model_asset_->CopyMeshToCollisionData();
+  }
+
+  // Build a single Mesh that can be shared between all Entities created from
+  // this model.  However, if the model has BlendShapes, then we don't want to
+  // share the mesh and, instead, we will let the BlendShapeSystem manage the
+  // mesh data.
+  if (mesh_factory && !create_distinct_meshes_) {
+    auto* blend_shape_system = registry_->Get<BlendShapeSystem>();
+    if (blend_shape_system == nullptr || !model_asset_->HasBlendShapes()) {
+      MeshData& data = model_asset_->GetMutableMeshData();
+      mesh_ = mesh_factory->CreateMesh(std::move(data));
+    }
   }
 
   auto* texture_factory = registry_->Get<TextureFactory>();
@@ -81,7 +98,7 @@ MeshPtr ModelAssetSystem::ModelAssetInstance::GetMesh() const { return mesh_; }
 ModelAssetSystem::ModelAssetSystem(Registry* registry)
     : System(registry),
       models_(ResourceManager<ModelAssetInstance>::kCacheFullyOnCreate) {
-  RegisterDef(this, kModelAssetDefHash);
+  RegisterDef<ModelAssetDefT>(this);
 }
 
 void ModelAssetSystem::Initialize() {
@@ -102,8 +119,13 @@ void ModelAssetSystem::PostCreateInit(Entity entity, HashValue type,
 }
 
 void ModelAssetSystem::CreateModel(Entity entity, string_view filename,
-                                   const ModelAssetDef* data) {
-  LoadModel(filename);
+                                   const ModelAssetDef* data,
+                                   HashValue override_render_pass) {
+  bool create_distinct_meshes = false;
+  if (data) {
+    create_distinct_meshes = data->create_distinct_meshes();
+  }
+  LoadModel(filename, create_distinct_meshes);
 
   const HashValue key = Hash(filename);
   auto instance = models_.Find(key);
@@ -113,6 +135,8 @@ void ModelAssetSystem::CreateModel(Entity entity, string_view filename,
   if (entity == kNullEntity) {
     return;
   }
+
+  entity_to_asset_hash_[entity] = key;
 
   EntitySetupInfo setup;
   setup.entity = entity;
@@ -124,6 +148,10 @@ void ModelAssetSystem::CreateModel(Entity entity, string_view filename,
     setup.def.pass = RenderSystem::kDefaultPass;
   }
 
+  if (override_render_pass) {
+    setup.def.pass = override_render_pass;
+  }
+
   if (instance->IsReady()) {
     FinalizeEntity(setup);
   } else {
@@ -132,22 +160,38 @@ void ModelAssetSystem::CreateModel(Entity entity, string_view filename,
       // We want to create the RenderComponent with an empty mesh early to make
       // sure that IsReadyToRender doesn't return true before we're ready.
       render_system->Create(setup.entity, setup.def.pass);
-      render_system->SetMesh(setup.entity, setup.def.pass, empty_mesh_);
+      render_system->SetMesh({setup.entity, setup.def.pass}, empty_mesh_);
     }
     pending_entities_[key].push_back(setup);
   }
 }
 
-void ModelAssetSystem::LoadModel(string_view filename) {
+const ModelAsset* ModelAssetSystem::GetModelAsset(Entity entity) {
+  auto pair = entity_to_asset_hash_.find(entity);
+  if (pair == entity_to_asset_hash_.end()) {
+    return nullptr;
+  }
+
+  std::shared_ptr<ModelAssetInstance> instance = models_.Find(pair->second);
+
+  if (instance == nullptr) {
+    return nullptr;
+  }
+
+  return instance->GetAsset().get();
+}
+
+void ModelAssetSystem::LoadModel(string_view filename,
+                                 bool create_distinct_meshes) {
   const HashValue key = Hash(filename);
 
-
-  models_.Create(key, [this, filename, key]() {
+  models_.Create(key, [this, filename, key, create_distinct_meshes]() {
     auto* asset_loader = registry_->Get<AssetLoader>();
     auto callback = [this, key]() { Finalize(key); };
     auto model_asset =
-        asset_loader->LoadAsync<ModelAsset>(filename.to_string(), callback);
-    return std::make_shared<ModelAssetInstance>(registry_, model_asset);
+        asset_loader->LoadAsync<ModelAsset>(std::string(filename), callback);
+    return std::make_shared<ModelAssetInstance>(registry_, model_asset,
+                                                create_distinct_meshes);
   });
 }
 
@@ -194,8 +238,10 @@ void ModelAssetSystem::FinalizeEntity(const EntitySetupInfo& setup) {
   std::vector<TexturePtr> local_texture_cache;
 
   auto asset = setup.instance->GetAsset();
+  auto* blend_shape_system = registry_->Get<BlendShapeSystem>();
   auto* render_system = registry_->Get<RenderSystem>();
   auto* texture_factory = registry_->Get<TextureFactory>();
+  auto* collision_system = registry_->Get<CollisionSystem>();
   if (render_system && texture_factory) {
     render_system->Create(setup.entity, setup.def.pass);
 
@@ -218,6 +264,9 @@ void ModelAssetSystem::FinalizeEntity(const EntitySetupInfo& setup) {
         // Next copy all the material properties from the def into the material.
         VariantMap properties;
         VariantMapFromVariantMapDefT(def->properties, &properties);
+        for (HashValue feature : def->shading_features) {
+          properties[feature] = true;
+        }
         material.SetProperties(properties);
 
         // The def may specify its own set of textures to use, so create them
@@ -236,7 +285,7 @@ void ModelAssetSystem::FinalizeEntity(const EntitySetupInfo& setup) {
             local_texture_cache.emplace_back(std::move(texture));
           }
         }
-        render_system->SetMaterial(setup.entity, NullOpt, submesh_index,
+        render_system->SetMaterial({setup.entity, DrawableIndex(submesh_index)},
                                    material);
         local_texture_cache.clear();
 
@@ -245,13 +294,32 @@ void ModelAssetSystem::FinalizeEntity(const EntitySetupInfo& setup) {
         ApplyUniforms(setup.entity, setup.def.pass, submesh_index, material,
                       def);
       } else {
-        render_system->SetMaterial(setup.entity, NullOpt, submesh_index,
+        render_system->SetMaterial({setup.entity, DrawableIndex(submesh_index)},
                                    materials[i]);
       }
     }
+  }
 
-    render_system->SetMesh(setup.entity, setup.def.pass,
-                           setup.instance->GetMesh());
+  if (blend_shape_system && !asset->GetBlendShapeNames().empty()) {
+    blend_shape_system->InitBlendShape(
+        setup.entity, asset->GetBaseBlendMesh().CreateHeapCopy(),
+        asset->GetBlendShapeFormat(),
+        asset->GetBaseBlendShapeData().CreateHeapCopy(),
+        BlendShapeSystem::BlendMode::kInterpolate);
+    const Span<HashValue>& shapes = asset->GetBlendShapeNames();
+    for (size_t i = 0; i < shapes.size(); ++i) {
+      blend_shape_system->AddBlendShape(
+          setup.entity, shapes[i],
+          asset->GetBlendShapeData(i).CreateHeapCopy());
+    }
+  } else if (render_system) {
+    MeshPtr mesh = setup.instance->GetMesh();
+    if (mesh) {
+      render_system->SetMesh({setup.entity, setup.def.pass}, mesh);
+    } else {
+      const MeshData& data = asset->GetMeshData();
+      render_system->SetMesh({setup.entity, setup.def.pass}, data);
+    }
   }
 
   if (asset->HasValidSkeleton()) {
@@ -269,22 +337,22 @@ void ModelAssetSystem::FinalizeEntity(const EntitySetupInfo& setup) {
     } else if (render_system) {
       const size_t num_bones = asset->GetParentBoneIndices().size();
       if (num_bones > 0) {
-        // Clear the bone transforms to identity.
-        constexpr const char* kBoneTransformsUniform = "bone_transforms";
-        constexpr int kDimension = 4;
-        constexpr int kNumVec4sInAffineTransform = 3;
-        const int count =
-            kNumVec4sInAffineTransform * static_cast<int>(num_bones);
-        const mathfu::AffineTransform identity =
-            mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
-        std::vector<mathfu::AffineTransform> bones(num_bones, identity);
-        const float* data = &(bones[0][0]);
-        render_system->SetUniform(setup.entity, setup.def.pass,
-                                  kBoneTransformsUniform, data, kDimension,
-                                  count);
+        ClearBoneTransforms(render_system, setup.entity,
+                            static_cast<int>(num_bones));
       }
     }
   }
+
+  if (collision_system != nullptr) {
+    collision_system->ForEachCollisionProvider(
+        [&setup](CollisionProvider* provider) {
+          provider->CreateMeshShape(
+              setup.entity, setup.instance->GetAsset()->GetId(),
+              setup.instance->GetAsset()->GetCollisionData());
+        });
+  }
+
+  setup.instance->SetReady(true);
 }
 
 static Span<uint8_t> GetUniformData(const ShaderUniformDefT& uniform,
@@ -343,7 +411,7 @@ void ModelAssetSystem::ApplyUniforms(Entity entity, HashValue pass,
   for (const ShaderUniformDefT& uniform : def->shading_uniforms) {
     const Span<uint8_t> data = GetUniformData(uniform, material);
     if (data.data()) {
-      render_system->SetUniform(entity, pass, submesh_index, uniform.name,
+      render_system->SetUniform({entity, pass, submesh_index}, uniform.name,
                                 uniform.type, data);
     }
   }

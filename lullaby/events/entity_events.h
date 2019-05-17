@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -188,6 +188,18 @@ struct ChildIndexChangedEvent {
   size_t new_index = 0;
 };
 
+// Like ChildIndexChangedEvent, this is sent whenever a child's index has
+// changed. However, this event is sent immediately (without being queued in the
+// dispatcher). Listener callbacks can be invoked at potentially unsafe times
+// (eg within PostCreateInit or Destroy), so users of this event should take
+// precautions such as verifying the existence of specified entities' data.
+struct ChildIndexChangedImmediateEvent : public ChildIndexChangedEvent {
+  ChildIndexChangedImmediateEvent() {}
+  ChildIndexChangedImmediateEvent(Entity parent, Entity child, size_t old_index,
+                                  size_t new_index)
+      : ChildIndexChangedEvent(parent, child, old_index, new_index) {}
+};
+
 struct AabbChangedEvent {
   AabbChangedEvent() {}
   explicit AabbChangedEvent(Entity entity) : target(entity) {}
@@ -275,6 +287,7 @@ LULLABY_SETUP_TYPEID(lull::AddChildEvent);
 LULLABY_SETUP_TYPEID(lull::AddChildPreserveWorldToEntityTransformEvent);
 LULLABY_SETUP_TYPEID(lull::ChildAddedEvent);
 LULLABY_SETUP_TYPEID(lull::ChildIndexChangedEvent);
+LULLABY_SETUP_TYPEID(lull::ChildIndexChangedImmediateEvent);
 LULLABY_SETUP_TYPEID(lull::ChildRemovedEvent);
 LULLABY_SETUP_TYPEID(lull::DisableCollisionEvent);
 LULLABY_SETUP_TYPEID(lull::DisableEvent);

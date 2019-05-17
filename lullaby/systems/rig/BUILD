@@ -14,6 +14,7 @@ cc_library(
         "//lullaby/systems/animation",
         "//lullaby/systems/render",
         "//lullaby/util:make_unique",
+        "//lullaby/util:math",
         "//lullaby/util:span",
         "@mathfu//:mathfu",
     ],

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,26 +30,39 @@ struct TestAsset : public Asset {
     callbacks.push_back(kSetFilename);
   }
 
-  void OnLoad(const std::string& filename, std::string* data) override {
+  ErrorCode OnLoadWithError(const std::string& filename,
+                            std::string* data) override {
     on_load_data = *data;
     callbacks.push_back(kOnLoad);
+    return on_load_result;
   }
 
-  void OnFinalize(const std::string& filename, std::string* data) override {
+  ErrorCode OnFinalizeWithError(const std::string& filename,
+                                std::string* data) override {
     on_final_data = *data;
     callbacks.push_back(kOnFinalize);
+    return on_finalize_result;
+  }
+
+  void OnError(const std::string& filename, ErrorCode error) override {
+    error_callback = error;
+    callbacks.push_back(kOnError);
   }
 
   enum CallbackEvent {
     kSetFilename,
     kOnLoad,
     kOnFinalize,
+    kOnError,
   };
 
   std::string filename;
   std::string on_load_data;
   std::string on_final_data;
   std::vector<CallbackEvent> callbacks;
+  ErrorCode on_load_result = kErrorCode_Ok;
+  ErrorCode on_finalize_result = kErrorCode_Ok;
+  ErrorCode error_callback = kErrorCode_Ok;
 };
 
 constexpr char kDummyData[] = "hello world";
@@ -63,6 +76,10 @@ bool LoadFile(const char* filename, std::string* data) {
 bool LoadFile2(const char* filename, std::string* data) {
   *data = kDummyData2;
   return true;
+}
+
+bool LoadFileBad(const char* filename, std::string* data) {
+  return false;
 }
 
 TEST(AssetLoader, LoadNow) {
@@ -151,6 +168,60 @@ TEST(AssetLoader, SetFileLoader) {
   EXPECT_EQ(kDummyData2, asset2->on_final_data);
 }
 
+TEST(AssetLoader, LoadFileError) {
+  AssetLoader loader(LoadFileBad);
+  auto asset = std::make_shared<TestAsset>();
+  loader.LoadIntoNow<TestAsset>("filename.txt", asset);
+
+  EXPECT_EQ(kErrorCode_NotFound, asset->error_callback);
+  EXPECT_EQ(2, static_cast<int>(asset->callbacks.size()));
+  EXPECT_EQ(TestAsset::kSetFilename, asset->callbacks[0]);
+  EXPECT_EQ(TestAsset::kOnError, asset->callbacks[1]);
+}
+
+TEST(AssetLoader, OnLoadError) {
+  AssetLoader loader(LoadFile);
+  auto asset = std::make_shared<TestAsset>();
+  asset->on_load_result = kErrorCode_Unknown;
+  loader.LoadIntoNow<TestAsset>("filename.txt", asset);
+
+  EXPECT_EQ(kErrorCode_Unknown, asset->error_callback);
+  EXPECT_EQ(3, static_cast<int>(asset->callbacks.size()));
+  EXPECT_EQ(TestAsset::kSetFilename, asset->callbacks[0]);
+  EXPECT_EQ(TestAsset::kOnLoad, asset->callbacks[1]);
+  EXPECT_EQ(TestAsset::kOnError, asset->callbacks[2]);
+}
+
+TEST(AssetLoader, OnFinalizeError) {
+  AssetLoader loader(LoadFile);
+  auto asset = std::make_shared<TestAsset>();
+  asset->on_finalize_result = kErrorCode_Unknown;
+  loader.LoadIntoNow<TestAsset>("filename.txt", asset);
+
+  EXPECT_EQ(kErrorCode_Unknown, asset->error_callback);
+  EXPECT_EQ(4, static_cast<int>(asset->callbacks.size()));
+  EXPECT_EQ(TestAsset::kSetFilename, asset->callbacks[0]);
+  EXPECT_EQ(TestAsset::kOnLoad, asset->callbacks[1]);
+  EXPECT_EQ(TestAsset::kOnFinalize, asset->callbacks[2]);
+  EXPECT_EQ(TestAsset::kOnError, asset->callbacks[3]);
+}
+
+TEST(AssetLoader, OnErrorCallback) {
+  AssetLoader loader(LoadFileBad);
+
+  std::string error_filename;
+  ErrorCode error_code;
+  loader.SetOnErrorFunction([&](const std::string& filename, ErrorCode error) {
+    error_filename = filename;
+    error_code = error;
+  });
+
+  auto asset = std::make_shared<TestAsset>();
+  loader.LoadIntoNow<TestAsset>("filename.txt", asset);
+
+  EXPECT_EQ("filename.txt", error_filename);
+  EXPECT_EQ(kErrorCode_NotFound, error_code);
+}
 
 }  // namespace
 }  // namespace lull

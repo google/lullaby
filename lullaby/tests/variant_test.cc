@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,10 @@ limitations under the License.
 */
 
 #include "lullaby/util/variant.h"
+
 #include "gtest/gtest.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/dispatcher/event_wrapper.h"
 #include "lullaby/modules/serialize/serialize.h"
 #include "lullaby/modules/serialize/variant_serializer.h"
 #include "lullaby/util/logging.h"
@@ -35,8 +38,8 @@ struct VariantTestClass {
 
   template <typename Archive>
   void Serialize(Archive archive) {
-    archive(&key, lull::Hash("key"));
-    archive(&value, lull::Hash("value"));
+    archive(&key, lull::ConstHash("key"));
+    archive(&value, lull::ConstHash("value"));
   }
 
   int key = 0;
@@ -49,20 +52,24 @@ struct ComplexTestClass : VariantTestClass {
   template <typename Archive>
   void Serialize(Archive archive) {
     VariantTestClass::Serialize(archive);
-    archive(&other, lull::Hash("other"));
-    archive(&word, lull::Hash("word"));
-    archive(&arr, lull::Hash("arr"));
-    archive(&map, lull::Hash("map"));
-    archive(&optional, lull::Hash("optional"));
-    archive(&optional_unset, lull::Hash("optional_unset"));
+    archive(&other, lull::ConstHash("other"));
+    archive(&bytes, lull::ConstHash("bytes"));
+    archive(&word, lull::ConstHash("word"));
+    archive(&arr, lull::ConstHash("arr"));
+    archive(&map, lull::ConstHash("map"));
+    archive(&optional, lull::ConstHash("optional"));
+    archive(&optional_unset, lull::ConstHash("optional_unset"));
+    archive(&entity, lull::ConstHash("entity"));
   }
 
   VariantTestClass other;
   std::string word;
+  lull::ByteArray bytes;
   std::vector<int> arr;
   std::unordered_map<lull::HashValue, float> map;
   Optional<float> optional;
   Optional<float> optional_unset;
+  Entity entity;
 };
 
 struct MoveOnlyVariantTestClass {
@@ -140,6 +147,16 @@ TEST(Variant, Basics) {
   EXPECT_TRUE(var.Empty());
   EXPECT_EQ(nullptr, var.Get<int>());
   EXPECT_EQ(nullptr, var.Get<float>());
+}
+
+TEST(Variant, Strings) {
+  lull::Variant var;
+  EXPECT_TRUE(var.Empty());
+
+  var = std::string("abc");
+  EXPECT_FALSE(var.Empty());
+  ASSERT_NE(var.Get<std::string>(), nullptr);
+  EXPECT_EQ(*var.Get<std::string>(), "abc");
 }
 
 TEST(Variant, Class) {
@@ -220,6 +237,7 @@ TEST(Variant, VariantSerializer) {
   u1.value = 456;
   u1.other.key = 789;
   u1.other.value = 987654321;
+  u1.bytes = {1, 2, 3, 4, 5};
   u1.word = "hello";
   u1.arr.push_back(10);
   u1.arr.push_back(11);
@@ -228,6 +246,7 @@ TEST(Variant, VariantSerializer) {
   u1.map[456] = 456.f;
   u1.map[789] = 789.f;
   u1.optional = 13.f;
+  u1.entity = Entity(111);
 
   lull::VariantMap map;
   lull::SaveToVariant save(&map);
@@ -240,24 +259,26 @@ TEST(Variant, VariantSerializer) {
   EXPECT_EQ(u1.key, u2.key);
   EXPECT_EQ(u1.value, u2.value);
   EXPECT_EQ(u1.word, u2.word);
+  EXPECT_EQ(u1.bytes, u2.bytes);
   EXPECT_EQ(u1.other.key, u2.other.key);
   EXPECT_EQ(u1.other.value, u2.other.value);
   EXPECT_EQ(u1.arr, u2.arr);
   EXPECT_EQ(u1.map, u2.map);
   EXPECT_EQ(u1.optional, u2.optional);
   EXPECT_EQ(u1.optional_unset, u2.optional_unset);
+  EXPECT_EQ(u1.entity, u2.entity);
   {
-    const auto other_key = lull::Hash("other");
+    const auto other_key = lull::ConstHash("other");
     const auto& other_var = map.find(other_key)->second;
     const auto& other_map = other_var.Get<lull::VariantMap>();
 
-    const auto value_key = lull::Hash("value");
+    const auto value_key = lull::ConstHash("value");
     const auto& value_var = other_map->find(value_key)->second;
     const auto& value_ptr = value_var.Get<int>();
     EXPECT_EQ(987654321, *value_ptr);
   }
   {
-    const auto map_key = lull::Hash("map");
+    const auto map_key = lull::ConstHash("map");
     const auto& map_var = map.find(map_key)->second;
     const auto& map_varmap = map_var.Get<lull::VariantMap>();
     const auto& value_var = map_varmap->find(123)->second;
@@ -372,10 +393,117 @@ TEST(Variant, Optionals) {
   EXPECT_EQ(nullptr, vo2);
   float* f1 = v1.Get<float>();
   float* f2 = v2.Get<float>();
-  EXPECT_NE(nullptr, f1);
+  ASSERT_NE(nullptr, f1);
   EXPECT_EQ(nullptr, f2);
   EXPECT_EQ(2.f, *f1);
   EXPECT_EQ(true, v2.Empty());
+}
+
+TEST(Variant, Entities) {
+  Entity e(123);
+  uint32_t u = 456;
+  Variant ve = e;
+  Variant vu = u;
+  auto* e1 = ve.Get<uint32_t>();
+  auto* u1 = vu.Get<Entity>();
+  EXPECT_EQ(nullptr, e1);
+  EXPECT_EQ(nullptr, u1);
+  Entity* e2 = ve.Get<Entity>();
+  uint32_t* u2 = vu.Get<uint32_t>();
+  ASSERT_NE(nullptr, e2);
+  ASSERT_NE(nullptr, u2);
+  EXPECT_EQ(*e2, Entity(123));
+  EXPECT_EQ(*u2, 456);
+}
+
+TEST(Variant, EventHandlers) {
+  int count = 0;
+  Variant var;
+  {
+    Dispatcher::EventHandler handler = [&count](const EventWrapper& event) {
+      ++count;
+      EXPECT_EQ(event.GetTypeId(), Hash("myEvent"));
+      auto* ptr = event.GetValue<int>(Hash("myInt"));
+      ASSERT_NE(ptr, nullptr);
+      EXPECT_EQ(*ptr, 123);
+    };
+    var = handler;
+  }
+  auto* ptr = var.Get<Dispatcher::EventHandler>();
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_EQ(count, 0);
+  EventWrapper event(Hash("myEvent"));
+  event.SetValue(Hash("myInt"), 123);
+  (*ptr)(event);
+  EXPECT_EQ(count, 1);
+}
+
+TEST(Variant, LargeTypes) {
+  const mathfu::mat4 d0(8, 7, 9, 1, 2, 3, 7, 8, 2, 5, 1, 7, 8, 0, 2, 3);
+  Variant v0 = d0;
+  const mathfu::mat4* const result_d0 = v0.Get<mathfu::mat4>();
+  ASSERT_NE(result_d0, nullptr);
+  EXPECT_EQ(*result_d0, d0);
+
+  // Copy large type to large type.
+  Variant copy_v0 = v0;
+  const mathfu::mat4* const result_copy_d0 = copy_v0.Get<mathfu::mat4>();
+  ASSERT_NE(result_copy_d0, nullptr);
+  EXPECT_EQ(*result_copy_d0, d0);
+
+  // Replace large type with large type.
+  const mathfu::mat4 d1(7, 8, 0, 2, 3, 7, 8, 9, 4, 9, 0, 8, 2, 3, 7, 2);
+  Variant v1 = d1;
+  v1 = v0;
+  const mathfu::mat4* const result_replace_d1 = v1.Get<mathfu::mat4>();
+  ASSERT_NE(result_replace_d1, nullptr);
+  EXPECT_EQ(*result_replace_d1, d0);
+
+  // Replace small type with large type.
+  const int d2 = 342;
+  Variant v2 = d2;
+  v2 = v0;
+  const mathfu::mat4* const result_replace_d2 = v2.Get<mathfu::mat4>();
+  ASSERT_NE(result_replace_d2, nullptr);
+  EXPECT_EQ(*result_replace_d2, d0);
+
+  // Replace large type with small type.
+  const mathfu::mat4 d3(7, 8, 9, 0, 1, 2, 7, 1, 2, 0, 9, 1, 2, 7, 3, 0);
+  const int i3 = 7912;
+  Variant v3 = d3;
+  Variant vi3 = i3;
+  v3 = vi3;
+  const int* const result_replace_i3 = v3.Get<int>();
+  ASSERT_NE(result_replace_i3, nullptr);
+  EXPECT_EQ(*result_replace_i3, i3);
+
+  // Move large type to large type.
+  const mathfu::mat4 d4(7, 8, 0, 2, 3, 7, 8, 9, 4, 9, 0, 8, 2, 3, 7, 2);
+  Variant v4 = d4;
+  v4 = std::move(v0);
+  const mathfu::mat4* const result_move_d4 = v4.Get<mathfu::mat4>();
+  ASSERT_NE(result_move_d4, nullptr);
+  EXPECT_EQ(*result_move_d4, d0);
+  v0 = d0;
+
+  // Move small type to large type.
+  const int d5 = 342;
+  Variant v5 = d5;
+  v5 = std::move(v0);
+  const mathfu::mat4* const result_move_d5 = v5.Get<mathfu::mat4>();
+  ASSERT_NE(result_move_d5, nullptr);
+  EXPECT_EQ(*result_move_d5, d0);
+  v0 = d0;
+
+  // Move large type to small type.
+  const mathfu::mat4 d6(7, 8, 9, 0, 1, 2, 7, 1, 2, 0, 9, 1, 2, 7, 3, 0);
+  const int i6 = 43570;
+  Variant v6 = d6;
+  Variant vi6 = i6;
+  v6 = std::move(vi6);
+  const int* const result_move_d6 = v6.Get<int>();
+  ASSERT_NE(result_move_d6, nullptr);
+  EXPECT_EQ(*result_move_d6, i6);
 }
 
 TEST(Variant, ImplicitCastNumeric) {
@@ -411,50 +539,106 @@ TEST(Variant, ImplicitCastNumeric) {
   EXPECT_FALSE(vf3);
   EXPECT_EQ(1, *vf1);
   EXPECT_EQ(1u, *vf2);
+
+  Variant empty;
+  ASSERT_TRUE(empty.Empty());
+  auto empty_int = empty.ImplicitCast<int>();
+  auto empty_uint = empty.ImplicitCast<unsigned int>();
+  auto empty_float = empty.ImplicitCast<float>();
+  auto empty_enum = empty.ImplicitCast<VariantTestEnum>();
+  auto empty_class = empty.ImplicitCast<VariantTestClass>();
+  EXPECT_FALSE(empty_int);
+  EXPECT_FALSE(empty_uint);
+  EXPECT_FALSE(empty_float);
+  EXPECT_FALSE(empty_enum);
+  EXPECT_FALSE(empty_class);
 }
 
 TEST(Variant, ImplicitCastEnum) {
   int i = 1;
   unsigned int u = 2;
+  VariantTestEnum e = Baz;
   Variant vi = i;
   Variant vu = u;
+  Variant ve = e;
   auto ci = vi.ImplicitCast<VariantTestEnum>();
   auto cu = vu.ImplicitCast<VariantTestEnum>();
+  auto ce = ve.ImplicitCast<unsigned int>();
   ASSERT_TRUE(ci);
   ASSERT_TRUE(cu);
+  ASSERT_TRUE(ce);
   EXPECT_EQ(Bar, *ci);
   EXPECT_EQ(Baz, *cu);
+  EXPECT_EQ(2u, *ce);
+}
+
+TEST(Variant, ImplicitCastEntity) {
+  Entity e(123);
+  uint32_t u = 456;
+  Variant ve = e;
+  Variant vu = u;
+  auto ce = ve.ImplicitCast<uint32_t>();
+  auto cu = vu.ImplicitCast<Entity>();
+  ASSERT_TRUE(ce);
+  ASSERT_TRUE(cu);
+  EXPECT_EQ(*ce, 123);
+  EXPECT_EQ(*cu, Entity(456));
+
+  Variant empty;
+  auto cempty = empty.ImplicitCast<Entity>();
+  ASSERT_TRUE(cempty);
+  EXPECT_EQ(*cempty, kNullEntity);
 }
 
 TEST(Variant, ImplicitCastRect) {
   mathfu::vec4 vec(1.1f, 2.2f, 3.3f, 4.4f);
-  Variant v_vec = vec;
-  auto v_recti = v_vec.ImplicitCast<mathfu::recti>();
-  auto v_rectf = v_vec.ImplicitCast<mathfu::rectf>();
-  ASSERT_TRUE(v_recti);
-  ASSERT_TRUE(v_rectf);
-  EXPECT_EQ(mathfu::recti(1, 2, 3, 4), *v_recti);
-  EXPECT_EQ(mathfu::rectf(1.1f, 2.2f, 3.3f, 4.4f), *v_rectf);
-
   mathfu::vec4i veci(1, 2, 3, 4);
-  Variant v_veci = veci;
-  auto v_recti2 = v_veci.ImplicitCast<mathfu::recti>();
-  auto v_rectf2 = v_veci.ImplicitCast<mathfu::rectf>();
-  ASSERT_TRUE(v_recti2);
-  ASSERT_TRUE(v_rectf2);
-  EXPECT_EQ(mathfu::recti(1, 2, 3, 4), *v_recti2);
-  EXPECT_EQ(mathfu::rectf(1.0f, 2.0f, 3.0f, 4.0f), *v_rectf2);
-
   mathfu::rectf rf(1.1f, 2.2f, 3.3f, 4.4f);
   mathfu::recti ri(1, 2, 3, 4);
+  Variant v_vec = vec;
+  Variant v_veci = veci;
   Variant v_rf = rf;
   Variant v_ri = ri;
-  auto v_recti3 = v_rf.ImplicitCast<mathfu::recti>();
-  auto v_rectf3 = v_ri.ImplicitCast<mathfu::rectf>();
-  ASSERT_TRUE(v_recti3);
-  ASSERT_TRUE(v_rectf3);
-  EXPECT_EQ(mathfu::recti(1, 2, 3, 4), *v_recti3);
-  EXPECT_EQ(mathfu::rectf(1.0f, 2.0f, 3.0f, 4.0f), *v_rectf3);
+
+  auto recti_vec = v_vec.ImplicitCast<mathfu::recti>();
+  auto rectf_vec = v_vec.ImplicitCast<mathfu::rectf>();
+  auto veci_vec = v_vec.ImplicitCast<mathfu::vec4i>();
+  ASSERT_TRUE(recti_vec);
+  ASSERT_TRUE(rectf_vec);
+  ASSERT_TRUE(veci_vec);
+  EXPECT_EQ(mathfu::recti(1, 2, 3, 4), *recti_vec);
+  EXPECT_EQ(mathfu::rectf(1.1f, 2.2f, 3.3f, 4.4f), *rectf_vec);
+  EXPECT_EQ(mathfu::vec4i(1, 2, 3, 4), *veci_vec);
+
+  auto recti_veci = v_veci.ImplicitCast<mathfu::recti>();
+  auto rectf_veci = v_veci.ImplicitCast<mathfu::rectf>();
+  auto vec_veci = v_veci.ImplicitCast<mathfu::vec4>();
+  ASSERT_TRUE(recti_veci);
+  ASSERT_TRUE(rectf_veci);
+  ASSERT_TRUE(vec_veci);
+  EXPECT_EQ(mathfu::recti(1, 2, 3, 4), *recti_veci);
+  EXPECT_EQ(mathfu::rectf(1.0f, 2.0f, 3.0f, 4.0f), *rectf_veci);
+  EXPECT_EQ(mathfu::vec4(1.0f, 2.0f, 3.0f, 4.0f), *vec_veci);
+
+  auto recti_rectf = v_rf.ImplicitCast<mathfu::recti>();
+  auto vec_rectf = v_rf.ImplicitCast<mathfu::vec4>();
+  auto veci_rectf = v_rf.ImplicitCast<mathfu::vec4i>();
+  ASSERT_TRUE(recti_rectf);
+  ASSERT_TRUE(vec_rectf);
+  ASSERT_TRUE(veci_rectf);
+  EXPECT_EQ(mathfu::recti(1, 2, 3, 4), *recti_rectf);
+  EXPECT_EQ(mathfu::vec4(1.1f, 2.2f, 3.3f, 4.4f), *vec_rectf);
+  EXPECT_EQ(mathfu::vec4i(1, 2, 3, 4), *veci_rectf);
+
+  auto rectf_recti = v_ri.ImplicitCast<mathfu::rectf>();
+  auto vec_recti = v_ri.ImplicitCast<mathfu::vec4>();
+  auto veci_recti = v_ri.ImplicitCast<mathfu::vec4i>();
+  ASSERT_TRUE(rectf_recti);
+  ASSERT_TRUE(vec_recti);
+  ASSERT_TRUE(veci_recti);
+  EXPECT_EQ(mathfu::rectf(1.0f, 2.0f, 3.0f, 4.0f), *rectf_recti);
+  EXPECT_EQ(mathfu::vec4(1.0f, 2.0f, 3.0f, 4.0f), *vec_recti);
+  EXPECT_EQ(mathfu::vec4i(1, 2, 3, 4), *veci_recti);
 }
 
 TEST(Variant, ImplicitCastDuration) {

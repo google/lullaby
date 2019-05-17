@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,10 +18,12 @@ limitations under the License.
 #define LULLABY_SYSTEMS_SHAPE_SHAPE_SYSTEM_H_
 
 #include "lullaby/modules/ecs/system.h"
+#include "lullaby/modules/render/mesh_data.h"
+#include "lullaby/generated/shape_def_generated.h"
 
 namespace lull {
 
-// The ShapeSystem generates specifically defined mesh shapes for entities.
+// The ShapeSystem generates common mesh shapes for entities.
 class ShapeSystem : public System {
  public:
   explicit ShapeSystem(Registry* registry);
@@ -29,12 +31,16 @@ class ShapeSystem : public System {
   ShapeSystem(const ShapeSystem&) = delete;
   ShapeSystem& operator=(const ShapeSystem&) = delete;
 
-  void PostCreateComponent(Entity entity,
-                           const Blueprint& blueprint) override;
+  void PostCreateComponent(Entity entity, const Blueprint& blueprint) override;
+
+  void CreateRect(Entity entity, const RectMeshDefT& rect);
+  void CreateSphere(Entity entity, const SphereDefT& sphere);
+
+ private:
+  void CreateShape(Entity entity, HashValue pass, MeshData mesh_data);
 };
 
 }  // namespace lull
-
 
 LULLABY_SETUP_TYPEID(lull::ShapeSystem);
 

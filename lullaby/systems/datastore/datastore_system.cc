@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace lull {
 static const HashValue kDatastoreDef = ConstHash("DatastoreDef");
 
 DatastoreSystem::DatastoreSystem(Registry* registry) : System(registry) {
-  RegisterDef(this, kDatastoreDef);
+  RegisterDef<DatastoreDefT>(this);
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {

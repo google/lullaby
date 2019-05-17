@@ -1,4 +1,6 @@
 # Lullaby, a collection of C++ libraries for building XR applications.
+
+
 load(
     "@//dev:generate_schema_cc_library.bzl",
     "generate_schema_cc_library",
@@ -29,6 +31,27 @@ config_setting(
     visibility = ["//visibility:public"],
 )
 
+config_setting(
+    name = "target_os_android",
+    constraint_values = [
+        "@bazel_tools//platforms:android",
+    ],
+)
+
+config_setting(
+    name = "target_os_windows",
+    constraint_values = [
+        "@bazel_tools//platforms:windows",
+    ],
+)
+
+config_setting(
+    name = "target_os_ios",
+    constraint_values = [
+        "@bazel_tools//platforms:ios",
+    ],
+)
+
 lullaby_schemas = [
     "schemas/lull/animation_def.fbs",
     "schemas/lull/animation_response_def.fbs",
@@ -41,6 +64,7 @@ lullaby_schemas = [
     "schemas/lull/axis_system.fbs",
     "schemas/lull/backdrop_def.fbs",
     "schemas/lull/blend_shape_def.fbs",
+    "schemas/lull/blueprint_def.fbs",
     "schemas/lull/clip_def.fbs",
     "schemas/lull/collision_def.fbs",
     "schemas/lull/common.fbs",
@@ -53,6 +77,8 @@ lullaby_schemas = [
     "schemas/lull/dispatcher_def.fbs",
     "schemas/lull/fade_in_def.fbs",
     "schemas/lull/face_point_mutator_def.fbs",
+    "schemas/lull/fpl_mesh_def.fbs",
+    "schemas/lull/gltf_asset_def.fbs",
     "schemas/lull/grab_def.fbs",
     "schemas/lull/input_behavior_def.fbs",
     "schemas/lull/layout_def.fbs",
@@ -69,6 +95,7 @@ lullaby_schemas = [
     "schemas/lull/nav_button_def.fbs",
     "schemas/lull/nine_patch_def.fbs",
     "schemas/lull/pano_def.fbs",
+    "schemas/lull/physics_shape_def.fbs",
     "schemas/lull/physics_shapes.fbs",
     "schemas/lull/planar_grab_input_def.fbs",
     "schemas/lull/planar_grabbable_def.fbs",
@@ -95,6 +122,7 @@ lullaby_schemas = [
     "schemas/lull/spherical_grab_input_def.fbs",
     "schemas/lull/stategraph_def.fbs",
     "schemas/lull/stay_in_box_mutator_def.fbs",
+    "schemas/lull/tab_header_layout_def.fbs",
     "schemas/lull/text_def.fbs",
     "schemas/lull/text_input_def.fbs",
     "schemas/lull/texture_atlas_def.fbs",
@@ -111,7 +139,6 @@ lullaby_schemas = [
 generate_schema_cc_library(
     name = "fbs",
     srcs = lullaby_schemas,
-    filegroup_name = "fbs_schema_includes",
     visibility = ["//visibility:public"],
     out_prefix = "lullaby/generated/"
 )

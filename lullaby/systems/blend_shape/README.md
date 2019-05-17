@@ -1,6 +1,5 @@
 # `BlendShapeSystem`
 
-*   Contact: mhays
 *   Status: **Under Development**
 
 Creates a model whose mesh can be interpolated (morphed) across several meshes

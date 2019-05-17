@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,9 +21,12 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
+#include "lullaby/systems/render/detail/uniform_data.h"
+#include "lullaby/modules/render/material_info.h"
+#include "lullaby/modules/render/shader_description.h"
 #include "lullaby/systems/render/next/render_handle.h"
-#include "lullaby/systems/render/next/uniform.h"
 #include "lullaby/systems/render/shader.h"
+#include "lullaby/systems/render/texture.h"
 #include "lullaby/util/span.h"
 #include "lullaby/generated/material_def_generated.h"
 #include "lullaby/generated/shader_def_generated.h"
@@ -33,25 +36,7 @@ namespace lull {
 // Represents a shader program used for rendering.
 class Shader {
  public:
-  /// Description containing shader data included in the shader.
-  struct Description {
-    std::string shading_model;
-    std::vector<ShaderUniformDefT> uniforms;
-    std::vector<ShaderSamplerDefT> samplers;
-    std::vector<ShaderAttributeDefT> attributes;
-
-    Description() = default;
-    explicit Description(string_view shading_model)
-        : shading_model(shading_model) {}
-  };
-
-  /// Information to be used to bind textures to uniform samplers.
-  struct Sampler {
-    UniformHnd uniform;
-    int texture_unit = -1;
-  };
-
-  explicit Shader(Description description)
+  explicit Shader(ShaderDescription description)
       : description_(std::move(description)) {}
   Shader() {}
   ~Shader();
@@ -59,41 +44,52 @@ class Shader {
   Shader(const Shader& rhs) = delete;
   Shader& operator=(const Shader& rhs) = delete;
 
-  // Locates the uniform in the shader with the specified |name|.
-  UniformHnd FindUniform(const char* name);
-  UniformHnd FindUniform(HashValue hash) const;
+  bool IsUniformBlock(HashValue name) const;
 
   // Sets the data for the specified uniform.
   bool SetUniform(HashValue name, const int* data, size_t len, int count = 1);
   bool SetUniform(HashValue name, const float* data, size_t len, int count = 1);
-  bool SetUniform(UniformHnd id, const int* data, size_t len, int count = 1);
-  bool SetUniform(UniformHnd id, const float* data, size_t len, int count = 1);
 
   // Binds the shader (ie. glUseProgram) for rendering.
   void Bind();
 
   // Returns the shader description structure.
-  const Description& GetDescription() const;
+  const ShaderDescription& GetDescription() const;
 
-  // Returns the sampler data associated with the texture usage.
-  Sampler GetSampler(MaterialTextureUsage usage) const;
-
-  // Binds a uniform.
-  void BindUniform(UniformHnd hnd, const UniformData& uniform);
-  void BindUniform(UniformHnd hnd, ShaderDataType type, Span<uint8_t> data);
+  // Binds uniforms.
+  void BindSampler(TextureUsageInfo usage, const TexturePtr& texture);
+  void BindUniform(HashValue name, ShaderDataType type, Span<uint8_t> data);
+  void BindUniformBlock(HashValue name, UniformBufferHnd ubo);
+  void BindShaderUniformDef(const ShaderUniformDefT& uniform);
+  void BindShaderSamplerDef(const ShaderSamplerDefT& sampler);
 
  private:
   friend class ShaderFactory;
   void Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs);
 
+  UniformHnd FindUniform(HashValue hash) const;
+  UniformHnd FindUniformBlock(HashValue hash) const;
+  UniformBufferHnd GetDefaultUbo(const ShaderUniformDefT& uniform);
+  void BindTexture(UniformHnd uniform, TextureHnd texture, int type, int unit);
+
   ProgramHnd program_;
   ShaderHnd vs_;
   ShaderHnd fs_;
 
-  Description description_;
+  ShaderDescription description_;
+
+  /// Information to be used to bind textures to uniform samplers.
+  struct Sampler {
+    UniformHnd uniform;
+    int unit = -1;
+  };
+
 
   std::unordered_map<HashValue, UniformHnd> uniforms_;
-  Sampler samplers_[MaterialTextureUsage_MAX + 1];
+  std::unordered_map<HashValue, UniformHnd> uniform_blocks_;
+  std::unordered_map<HashValue, UniformBufferHnd> default_ubos_;
+  std::unordered_map<TextureUsageInfo, Sampler, TextureUsageInfo::Hasher>
+      samplers_;
 };
 
 }  // namespace lull

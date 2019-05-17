@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ constexpr HashValue kNavButtonDefHash = ConstHash("NavButtonDef");
 
 NavButtonSystem::NavButtonSystem(Registry* registry)
     : System(registry), buttons_(1) {
-  RegisterDef(this, kNavButtonDefHash);
+  RegisterDef<NavButtonDefT>(this);
   RegisterDependency<AnimationSystem>(this);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<RenderSystem>(this);

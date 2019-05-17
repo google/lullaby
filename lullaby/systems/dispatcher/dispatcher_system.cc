@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,42 +16,63 @@ limitations under the License.
 
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 
+#include "lullaby/modules/dispatcher/dispatcher_binder.h"
+#include "lullaby/modules/dispatcher/queued_dispatcher.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {
 const HashValue kEventResponseDefHash = ConstHash("EventResponseDef");
-bool DispatcherSystem::enable_queued_dispatch_ = false;
 
 DispatcherSystem::DispatcherSystem(Registry* registry) : System(registry) {
-  RegisterDef(this, kEventResponseDefHash);
+  RegisterDef<EventResponseDefT>(this);
+  RegisterDependency<Dispatcher>(this);
+}
 
-  FunctionBinder* binder = registry->Get<FunctionBinder>();
+void DispatcherSystem::Initialize() {
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  dispatcher->Connect(this, [this](const EntityEvent& entity_event) {
+    SendImmediatelyImpl(entity_event);
+  });
+
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
   if (binder) {
+    void (DispatcherSystem::*send)(Entity, const EventWrapper&) =
+        &lull::DispatcherSystem::SendImmediatelyImpl;
+    binder->RegisterMethod("lull.Dispatcher.Dispatch",
+                           &lull::DispatcherSystem::Dispatch);
     binder->RegisterMethod("lull.Dispatcher.Send",
                            &lull::DispatcherSystem::SendImpl);
-    binder->RegisterFunction("lull.Dispatcher.SendGlobal",
-                             [registry](const EventWrapper& event) {
-                               registry->Get<lull::Dispatcher>()->Send(event);
-                             });
+    binder->RegisterMethod("lull.Dispatcher.SendImmediately", send);
+    void (DispatcherSystem::*disconnect)(Entity entity, TypeId,
+                                         Dispatcher::ConnectionId) =
+        &lull::DispatcherSystem::Disconnect;
+    binder->RegisterMethod("lull.Dispatcher.Disconnect", disconnect);
+    binder->RegisterFunction(
+        "lull.Dispatcher.Connect",
+        [this](Entity entity, TypeId type, Dispatcher::EventHandler handler) {
+          auto connection = Connect(entity, type, this, std::move(handler));
+          return connection.GetId();
+        });
+
+    registry_->Create<DispatcherBinder>(registry_);
   }
 }
 
 DispatcherSystem::~DispatcherSystem() {
-  FunctionBinder* binder = registry_->Get<FunctionBinder>();
-  if (binder) {
-    binder->UnregisterFunction("lull.Dispatcher.Send");
-    binder->UnregisterFunction("lull.Dispatcher.SendGlobal");
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
   }
-}
-
-void DispatcherSystem::EnableQueuedDispatch() {
-  enable_queued_dispatch_ = true;
-}
-
-void DispatcherSystem::DisableQueuedDispatch() {
-  enable_queued_dispatch_ = false;
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
+  if (binder && binder->IsFunctionRegistered("lull.Dispatcher.Dispatch")) {
+    binder->UnregisterFunction("lull.Dispatcher.Dispatch");
+    binder->UnregisterFunction("lull.Dispatcher.Send");
+    binder->UnregisterFunction("lull.Dispatcher.SendImmediately");
+    binder->UnregisterFunction("lull.Dispatcher.Disconnect");
+    binder->UnregisterFunction("lull.Dispatcher.Connect");
+  }
 }
 
 void DispatcherSystem::Create(Entity entity, HashValue type, const Def* def) {
@@ -108,43 +129,35 @@ void DispatcherSystem::ConnectEventImpl(
     Connect(entity, id, this, handler);
   }
   if (global) {
-    auto dispatcher = registry_->Get<Dispatcher>();
-    if (dispatcher) {
-      auto connection = dispatcher->Connect(id, handler);
-      connections_[entity].emplace_back(std::move(connection));
-    }
+    Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+    auto connection = dispatcher->Connect(id, handler);
+    connections_[entity].emplace_back(std::move(connection));
   }
 }
 
 void DispatcherSystem::SendImpl(Entity entity, const EventWrapper& event) {
-  if (enable_queued_dispatch_) {
-    queue_.Enqueue(EntityEvent(entity, event));
-  } else {
-    SendImmediatelyImpl(entity, event);
-  }
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  dispatcher->Send(EntityEvent(entity, event));
 }
 
 void DispatcherSystem::SendImmediatelyImpl(Entity entity,
                                            const EventWrapper& event) {
+  SendImmediatelyImpl(EntityEvent(entity, event));
+}
+
+void DispatcherSystem::SendImmediatelyImpl(const EntityEvent& entity_event) {
   ++dispatch_count_;
   // When an entity has been queued for destruction, treat it as already
   // destroyed.
-  if (queued_destruction_.count(entity) == 0) {
-    auto iter = dispatchers_.find(entity);
+  if (queued_destruction_.count(entity_event.entity) == 0) {
+    auto iter = dispatchers_.find(entity_event.entity);
     if (iter != dispatchers_.end()) {
-      iter->second.Send(event);
+      iter->second.Send(entity_event.event);
     }
-    universal_dispatcher_.Send(EntityEvent(entity, event));
+    universal_dispatcher_.Send(entity_event);
   }
   --dispatch_count_;
   DestroyQueued();
-}
-
-void DispatcherSystem::Dispatch() {
-  EntityEvent event;
-  while (queue_.Dequeue(&event)) {
-    SendImmediatelyImpl(event.entity, event.event);
-  }
 }
 
 Dispatcher* DispatcherSystem::GetDispatcher(Entity entity) {
@@ -163,6 +176,20 @@ void DispatcherSystem::Disconnect(Entity entity, TypeId type,
 
   Dispatcher& dispatcher = iter->second;
   dispatcher.Disconnect(type, owner);
+  if (dispatcher.GetHandlerCount() == 0) {
+    Destroy(entity);
+  }
+}
+
+void DispatcherSystem::Disconnect(Entity entity, TypeId type,
+                                  Dispatcher::ConnectionId id) {
+  auto iter = dispatchers_.find(entity);
+  if (iter == dispatchers_.end()) {
+    return;
+  }
+
+  Dispatcher& dispatcher = iter->second;
+  dispatcher.Disconnect(type, id);
   if (dispatcher.GetHandlerCount() == 0) {
     Destroy(entity);
   }

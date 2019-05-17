@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ const HashValue kSlideshowDefHash = ConstHash("SlideshowDef");
 
 SlideshowSystem::SlideshowSystem(Registry* registry)
     : System(registry), widgets_(8) {
-  RegisterDef(this, kSlideshowDefHash);
+  RegisterDef<SlideshowDefT>(this);
   RegisterDependency<AnimationSystem>(this);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<TransformSystem>(this);

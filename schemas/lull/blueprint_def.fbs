@@ -1,0 +1,28 @@
+include "lull/lull_common.fbs";
+
+namespace lull;
+
+/// These should not be written by hand in JSON, but are instead output by tools
+/// such as compile_blueprint_from_json.bzl or BlueprintBuilder.
+
+/// Opaquely holds the data for any generic component, so Lullaby can manage
+/// this data without knowing the schema of the components.
+table BlueprintComponentDef {
+  /// The HashValue type of the component name without namespaces, e.g.
+  /// Hash("TransformDef").
+  type: uint (hashvalue);
+
+  /// The compiled flatbuffer binary data of the component def.
+  def: [uint8];
+}
+
+/// A blueprint that can be used to initialize an Entity.
+table BlueprintDef {
+  /// A list of components that will each be passed to the System associated
+  /// with the type.
+  components: [BlueprintComponentDef];
+
+  /// A list of nested Blueprints to create as new Entity children of this
+  /// Entity.
+  children: [BlueprintDef];
+}

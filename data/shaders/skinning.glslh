@@ -17,7 +17,7 @@
 /// |FOUR_BONE_SKINNED_VERTEX|. To get the position, normal, tangent and
 /// binormal, call |FOUR_BONE_SKINNED_VERTEX_PNTB|.
 
-#include "third_party/lullaby/data/shaders/vertex_common.glslh"
+#include "lullaby/data/shaders/vertex_common.glslh"
 
 uniform vec4 bone_transforms[MAX_BONES * NUM_VEC4S_IN_AFFINE_TRANSFORM];
 

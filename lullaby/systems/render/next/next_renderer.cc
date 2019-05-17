@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 
 #include <atomic>
 #ifdef __APPLE__
-#include "fplbase/internal/renderer_ios.h"
+#include "TargetConditionals.h"
 #endif
 #include "lullaby/systems/render/next/detail/glplatform.h"
 #include "lullaby/systems/render/next/gl_helpers.h"
@@ -45,6 +45,10 @@ WINGDIAPI PROC WINAPI wglGetProcAddress(LPCSTR);
 
 namespace lull {
 
+#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+int GetIosContextClientVersion();
+#endif  // TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+
 constexpr HashValue kEnvironmentHashMultiview = ConstHash("MULTIVIEW");
 
 struct ContextCapabilities {
@@ -55,7 +59,10 @@ struct ContextCapabilities {
         supports_vertex_arrays(false),
         supports_npot_textures(false),
         supports_astc_textures(false),
-        supports_etc2_textures(false) {}
+        supports_etc2_textures(false),
+        supports_uniform_buffer_objects(false),
+        max_shader_version(0),
+        max_texture_units(0) {}
 
   std::atomic<bool> feature_level_3;
   std::atomic<bool> supports_samplers;
@@ -64,6 +71,9 @@ struct ContextCapabilities {
   std::atomic<bool> supports_npot_textures;
   std::atomic<bool> supports_astc_textures;
   std::atomic<bool> supports_etc2_textures;
+  std::atomic<bool> supports_uniform_buffer_objects;
+  std::atomic<int> max_shader_version;
+  std::atomic<int> max_texture_units;
 
 #ifdef FPLBASE_GLES
   static const bool is_gles = true;
@@ -102,10 +112,98 @@ static std::set<std::string> GetExtensions() {
   return extensions;
 }
 
+static int GetShaderVersion() {
+  std::string shader_version;
+  const GLubyte* gl_shader_version = glGetString(GL_SHADING_LANGUAGE_VERSION);
+  if (gl_shader_version) {
+    shader_version = reinterpret_cast<const char*>(gl_shader_version);
+  }
+  if (!shader_version.empty()) {
+    // Thr GL Shader version string is formatted thus:
+    // <version number><space><vendor-specific information>, where <version
+    // number> is a MAJOR.MINOR format, with an optional release number.
+    //
+    // We only care for the major and minor versions so we remove everything
+    // else.
+
+    // Due to a bug in the Android emulator, we need to find where the version
+    // number starts and remove anything before that.
+    size_t  char_pos = shader_version.find_first_of("1234567890");
+    if (char_pos != 0 && char_pos != std::string::npos) {
+      shader_version.erase(shader_version.begin(),
+                           shader_version.begin() + char_pos);
+    }
+
+    // Remove optional release number.
+    char_pos = shader_version.find('.');
+    if (char_pos != std::string::npos) {
+      char_pos = shader_version.find('.', char_pos + 1);
+      if (char_pos != std::string::npos) {
+        shader_version.erase(shader_version.begin() + char_pos,
+                             shader_version.end());
+      }
+    }
+    // Remove optional vendor inormation.
+    char_pos = shader_version.find(' ');
+    if (char_pos != std::string::npos) {
+      shader_version.erase(shader_version.begin() + char_pos,
+                           shader_version.end());
+    }
+
+    // Remove all '.' characters from the version string.
+    shader_version.erase(
+        std::remove(shader_version.begin(), shader_version.end(), '.'),
+        shader_version.end());
+
+    // Convert the string to an integer.
+    int version_num = std::stoi(shader_version);
+    if (version_num > 0) {
+      while (version_num < 100) {
+        version_num *= 10;
+      }
+      return version_num;
+    }
+  }
+  if (GetShaderLanguage() == ShaderLanguage_GLSL) {
+    return 110;
+  }
+  return 100;
+}
+
 template<class T, size_t N>
 static constexpr size_t ArraySize(T (&)[N]) { return N; }
 
-NextRenderer::NextRenderer() {
+int GetGLMajorVersion() {
+#if !defined(PLATFORM_MOBILE) && !defined(__EMSCRIPTEN__)
+#ifdef GL_MAJOR_VERSION
+  GLint version = 0;
+  glGetIntegerv(GL_MAJOR_VERSION, &version);
+  if (glGetError() == 0) {
+    return version;
+  }
+#endif  // defined(GL_MAJOR_VERSION)
+#endif  // !defined(PLATFORM_MOBILE) && !defined(__EMSCRIPTEN__)
+
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+  EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+  CHECK_NE(display, EGL_NO_DISPLAY) << "Display is not available.";
+  EGLContext context = eglGetCurrentContext();
+  CHECK_NE(context, EGL_NO_CONTEXT) << "Context is not available.";
+  EGLint version = 0;
+  eglQueryContext(display, context, EGL_CONTEXT_CLIENT_VERSION, &version);
+  return version;
+#endif  // defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+
+#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+  const int version = GetIosContextClientVersion();
+  assert(version >= 2);
+  return version;
+#endif  // TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+
+  return 0;
+}
+
+NextRenderer::NextRenderer(Optional<int> gl_major_version_override) {
 #if defined(_WIN32) && !defined(FPLBASE_GLES)
 #define GLEXT(type, name, required) \
   LULLABY_GL_FUNCTION(type, name, required, wglGetProcAddress)
@@ -113,60 +211,23 @@ NextRenderer::NextRenderer() {
 #undef GLEXT
 #endif
 
-#ifndef PLATFORM_MOBILE
-#ifdef GL_MAJOR_VERSION
-      GLint version = 0;
-  glGetIntegerv(GL_MAJOR_VERSION, &version);
-  if (glGetError() == 0) {
-    if (version >= 3) {
-      gContextCapabilities.feature_level_3 = true;
-      gContextCapabilities.supports_samplers = true;
-      gContextCapabilities.supports_vertex_arrays = true;
-    }
-  }
-#endif  // defined(GL_MAJOR_VERSION)
-#endif  // !defined(PLATFORM_MOBILE)
+  int gl_major_version =
+      gl_major_version_override ? gl_major_version_override.value()
+                                : GetGLMajorVersion();
 
-#ifdef __ANDROID__
-  EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-  CHECK_NE(display, EGL_NO_DISPLAY) << "Display is not available.";
-  EGLContext context = eglGetCurrentContext();
-  CHECK_NE(context, EGL_NO_CONTEXT) << "Context is not available.";
-  EGLint version = 0;
-  eglQueryContext(display, context, EGL_CONTEXT_CLIENT_VERSION, &version);
-  if (version >= 3) {
+  if (gl_major_version >= 3) {
     gContextCapabilities.feature_level_3 = true;
     gContextCapabilities.supports_samplers = true;
     gContextCapabilities.supports_vertex_arrays = true;
-#if __ANDROID_API__ < 18
+#if defined(__ANDROID__) && __ANDROID_API__ < 18
     gl3stubInit();
 #endif
   }
-#endif  // defined(__ANDROID__)
-
-#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
-  const int version = fplbase::IosGetContextClientVersion();
-  assert(version >= 2);
-  if (version >= 3) {
-    gContextCapabilities.feature_level_3 = true;
-    gContextCapabilities.supports_samplers = true;
-    gContextCapabilities.supports_vertex_arrays = true;
-  }
-#endif  // TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
 
   const std::set<std::string> extensions = GetExtensions();
   for (const std::string& ext : extensions) {
     environment_flags_.insert(Hash(ext));
   }
-
-#ifndef FPLBASE_GLES
-  if (!extensions.count("GL_ARB_vertex_buffer_object") ||
-      !extensions.count("GL_ARB_multitexture") ||
-      !extensions.count("GL_ARB_vertex_program") ||
-      !extensions.count("GL_ARB_fragment_program")) {
-    LOG(ERROR) << "Missing required extensions";
-  }
-#endif
 
   // Check for multiview extension support.
   if (extensions.count("GL_OVR_multiview") ||
@@ -175,7 +236,7 @@ NextRenderer::NextRenderer() {
   }
 
   // Check for ASTC.
-#if defined(GL_COMPRESSED_RGBA_ASTC_4x4_KHR) and \
+#if defined(GL_COMPRESSED_RGBA_ASTC_4x4_KHR) && \
     defined(GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
   // If we have the ASTC type enums defined, check using them.
   gContextCapabilities.supports_astc_textures = true;
@@ -183,7 +244,7 @@ NextRenderer::NextRenderer() {
   int num_formats = 0;
   GL_CALL(glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &num_formats));
   CHECK_LE(num_formats, 256);
-  std::array<int, 256> supported_formats;
+  std::array<int, 256> supported_formats = {0};
   GL_CALL(
       glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, supported_formats.data()));
 
@@ -218,9 +279,10 @@ NextRenderer::NextRenderer() {
       GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR};
   for (int ii = 0; ii < ArraySize(astc_formats); ++ii) {
     int astc_format = astc_formats[ii];
-    auto itr = std::find(supported_formats.begin(), supported_formats.end(),
+    const auto supported_formats_end = supported_formats.begin() + num_formats;
+    auto itr = std::find(supported_formats.begin(), supported_formats_end,
                          astc_format);
-    if (itr == supported_formats.end()) {
+    if (itr == supported_formats_end) {
       gContextCapabilities.supports_astc_textures = false;
       break;
     }
@@ -246,7 +308,7 @@ NextRenderer::NextRenderer() {
 #endif
 
   // Check for ETC2:
-  // TODO(b/80516463): GLES3/GL_ARB_ES3_compatibility implies ETC2 support, but
+  // TODO: GLES3/GL_ARB_ES3_compatibility implies ETC2 support, but
   // is not required for it.  The ETC2 formats may also be individually queried
   // via the OES_compressed_ETC2_* extension strings.
 #ifdef FPLBASE_GLES
@@ -257,7 +319,23 @@ NextRenderer::NextRenderer() {
     gContextCapabilities.supports_etc2_textures = true;
   }
 
-  glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_texture_units_);
+#ifdef PLATFORM_OSX
+  if (true) {  // Always support UBO on OSX.
+#elif defined(FPLBASE_GLES)
+  if (gContextCapabilities.feature_level_3) {
+#else
+  if (extensions.count("GL_ARB_uniform_buffer_object")) {
+#endif
+    gContextCapabilities.supports_uniform_buffer_objects = true;
+  }
+
+  gContextCapabilities.max_shader_version = GetShaderVersion();
+
+  int max_texture_units = 0;
+  glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_texture_units);
+  gContextCapabilities.max_texture_units = max_texture_units;
+
+  mesh_helper_ = MakeUnique<MeshHelper>();
 }
 
 NextRenderer::~NextRenderer() {}
@@ -329,6 +407,18 @@ bool NextRenderer::SupportsAstc() {
 
 bool NextRenderer::SupportsEtc2() {
   return gContextCapabilities.supports_etc2_textures;
+}
+
+bool NextRenderer::SupportsUniformBufferObjects() {
+  return gContextCapabilities.supports_uniform_buffer_objects;
+}
+
+int NextRenderer::MaxTextureUnits() {
+  return gContextCapabilities.max_texture_units;
+}
+
+int NextRenderer::MaxShaderVersion() {
+  return gContextCapabilities.max_shader_version;
 }
 
 void NextRenderer::EnableMultiview() {
@@ -414,7 +504,7 @@ void NextRenderer::ApplyMaterial(const std::shared_ptr<Material>& material) {
     return;
   }
 
-  material->Bind(max_texture_units_);
+  material->Bind();
 
   if (material->GetBlendState()) {
     render_state_manager_.SetBlendState(*material->GetBlendState());

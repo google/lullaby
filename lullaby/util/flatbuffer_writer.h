@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ class FlatbufferWriter {
 
   explicit FlatbufferWriter(InwardBuffer* buffer) : buffer_(buffer) {}
 
-  // Serializes a scalar value (eg. uint8, int32, float, double, etc.).
+  // Serializes a scalar value (eg. uint8_t, int32_t, float, double, etc.).
   template <typename T, typename U>
   void Scalar(T* value, uint16_t offset, U default_value) {
     AddValueField(offset / 2, *value);
@@ -202,7 +202,9 @@ class FlatbufferWriter {
   // Serializes an array of scalar values.
   template <typename T, typename U = T>
   void VectorOfScalars(std::vector<T>* value, uint16_t offset) {
-    Prealign(alignof(T));
+    const size_t total_bytes = value->size() * sizeof(T);
+    Prealign(alignof(uint32_t), total_bytes);
+
     const size_t start = StartVector();
     for (auto iter = value->rbegin(); iter != value->rend(); ++iter) {
       const U u = *iter;
@@ -214,6 +216,7 @@ class FlatbufferWriter {
 
   // Serializes an array of strings.
   void VectorOfStrings(std::vector<std::string>* value, uint16_t offset) {
+    Prealign(alignof(uint32_t));
     const size_t start = StartVector();
     for (const std::string& str : *value) {
       AddVectorReference(CreateString(str));
@@ -373,11 +376,18 @@ class FlatbufferWriter {
   }
 
  private:
-  void Prealign(size_t alignment) {
+  size_t Prealign(size_t alignment) {
+    return Prealign(alignment, 0);
+  }
+
+  size_t Prealign(size_t alignment, size_t extra_bytes) {
     CHECK(alignment <= kMaxAlignment);
-    while ((buffer_->BackSize()) % alignment != 0) {
+    size_t count = 0;
+    while ((buffer_->BackSize() + extra_bytes) % alignment != 0) {
       buffer_->WriteBack<uint8_t>(0);
+      ++count;
     }
+    return count;
   }
 
   template <typename T>
@@ -424,6 +434,9 @@ class FlatbufferWriter {
     if (str.empty()) {
       return 0;
     }
+
+    Prealign(alignof(uint32_t), str.length() + 1);
+
     buffer_->WriteBack(static_cast<uint8_t>(0));  // Null terminator.
     buffer_->WriteBack(str.data(), str.length());
     buffer_->WriteBack(static_cast<uint32_t>(str.length()));
@@ -443,12 +456,14 @@ class FlatbufferWriter {
       }
 
       if (field->size == 0) {
+        const size_t padding_bytes = Prealign(sizeof(field->offset));
         WriteReference(field->offset);
         // Reacquire the field pointer in case the buffer was reallocated after
         // writing the reference.
         field = reinterpret_cast<Field*>(buffer_->FrontAt(iter));
         field->offset = static_cast<uint32_t>(buffer_->BackSize());
         *object_size += sizeof(field->offset);
+        *object_size += padding_bytes;
       } else {
         *object_size += field->size;
       }
@@ -462,6 +477,8 @@ class FlatbufferWriter {
     // value of N indicates the vtable is N bytes lower than the root.  In
     // our case, the vtable is directly ahead of the table root.
     const int32_t offset_to_vtable = static_cast<int32_t>(*vtable_size);
+
+    Prealign(sizeof(int32_t));
     buffer_->WriteBack<int32_t>(offset_to_vtable);
 
     return buffer_->BackSize();

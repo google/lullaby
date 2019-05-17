@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -388,6 +388,7 @@ PointStateT Convert(const fplbase::PointState& state) {
 ScissorStateT Convert(const fplbase::ScissorState& state) {
   ScissorStateT res;
   res.enabled = state.enabled;
+  res.rect = state.rect;
   return res;
 }
 

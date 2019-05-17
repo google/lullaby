@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ limitations under the License.
 namespace lull {
 namespace testing {
 
-INSTANTIATE_TYPED_TEST_CASE_P(Fake, EntityDefTest,
-                              LULL_ENTITY_TEST_TYPE(FakeEntityDef,
-                                                    FakeComponentDef));
+INSTANTIATE_TYPED_TEST_SUITE_P(Fake, EntityDefTest,
+                               LULL_ENTITY_TEST_TYPE(FakeEntityDef,
+                                                     FakeComponentDef));
 
 }  // namespace testing
 }  // namespace lull

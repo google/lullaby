@@ -1,4 +1,4 @@
-local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
+local utils = import 'lullaby/data/jsonnet/utils.jsonnet';
 {
   snippets: [
     {
@@ -19,6 +19,22 @@ local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
       }],
       main_code: |||
         vTexCoord = uv_bounds.xy + aTexCoord * uv_bounds.zw;
+      |||,
+    },
+    {
+      name: 'Texture UV1s',
+      features: [utils.hash('Texture1')],
+      inputs: [{
+        name: 'aTexCoordAlt',
+        type: 'Vec2f',
+        usage: 'TexCoord',
+      }],
+      outputs: [{
+        name: 'vTexCoordAlt',
+        type: 'Vec2f',
+      }],
+      main_code: |||
+        vTexCoordAlt = aTexCoordAlt;
       |||,
     },
   ],

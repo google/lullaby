@@ -1,0 +1,9 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "astc_codec",
+    hdrs = glob(["include/**/*.h"]),
+    includes = ["include"],
+)

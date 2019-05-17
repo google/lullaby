@@ -132,6 +132,7 @@ table StencilState {
 // Corresponds to the state set by glScissor.
 table ScissorState {
   enabled: bool = false;
+  rect: Recti (defaults_to_null);
 }
 
 // Corresponds to the state set by glPointSize.

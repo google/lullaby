@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,12 +28,12 @@ std::string JsonnetWriter::ToString() const {
 
 void JsonnetWriter::Code(string_view str) {
   NewLine();
-  ss_ << str.to_string();
+  ss_ << str;
 }
 
 void JsonnetWriter::Field(string_view name) {
   NewLine();
-  ss_ << name.to_string() << ": ";
+  ss_ << name << ": ";
 }
 
 void JsonnetWriter::BeginMap() {
@@ -61,7 +61,7 @@ void JsonnetWriter::EndMap(string_view comment) {
       ss_ << "},";
     }
     if (comment.length()) {
-      ss_ << "  // " << comment.to_string();
+      ss_ << "  // " << comment;
     }
   }
 }
@@ -73,7 +73,7 @@ void JsonnetWriter::EndArray(string_view comment) {
     NewLine();
     ss_ << "],";
     if (comment.length()) {
-      ss_ << "  // " << comment.to_string();
+      ss_ << "  // " << comment;
     }
   }
 }

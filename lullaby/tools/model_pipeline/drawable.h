@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef LULLABY_TOOLS_MODEL_PIPELINE_DRAWABLE_H_
 #define LULLABY_TOOLS_MODEL_PIPELINE_DRAWABLE_H_
 
+#include <limits>
 #include <vector>
 #include "lullaby/tools/model_pipeline/material.h"
 
@@ -26,10 +27,14 @@ namespace tool {
 // A material and the collection of vertices (as specified by indices in an
 // externally managed vertex array) to which that material applies.
 struct Drawable {
-  Drawable() {}
+  Drawable()
+      : min_position_(std::numeric_limits<float>::max()),
+        max_position_(std::numeric_limits<float>::lowest()) {}
 
   Material material;
   std::vector<size_t> indices;
+  mathfu::vec3 min_position_;
+  mathfu::vec3 max_position_;
 };
 
 }  // namespace tool

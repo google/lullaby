@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,11 +46,15 @@ class ModelAssetSystem : public System {
   /// Sets up the mesh and surface properties for an Entity using the model
   /// file specified by the filename.
   void CreateModel(Entity entity, string_view filename,
-                   const ModelAssetDef* data = nullptr);
+                   const ModelAssetDef* data = nullptr,
+                   HashValue override_render_pass = 0);
+
+  /// Returns the ModelAsset for an entity, or nullptr if there is none.
+  const ModelAsset* GetModelAsset(Entity entity);
 
   /// Explicitly loads the specified model file and stores it in the internal
   /// cache.
-  void LoadModel(string_view filename);
+  void LoadModel(string_view filename, bool create_distinct_meshes = false);
 
   /// Releases the loaded model file from the internal cache.
   void ReleaseModel(HashValue key);
@@ -58,11 +62,13 @@ class ModelAssetSystem : public System {
  private:
   class ModelAssetInstance {
    public:
-    ModelAssetInstance(Registry* registry, std::shared_ptr<ModelAsset> asset);
+    ModelAssetInstance(Registry* registry, std::shared_ptr<ModelAsset> asset,
+                       bool create_distinct_meshes);
     ~ModelAssetInstance();
 
     void Finalize();
-    bool IsReady() const;
+    bool IsReady() const { return ready_; }
+    void SetReady(bool b) { ready_ = b; }
 
     MeshPtr GetMesh() const;
     std::shared_ptr<ModelAsset> GetAsset() const { return model_asset_; }
@@ -72,6 +78,8 @@ class ModelAssetSystem : public System {
     MeshPtr mesh_;
     std::unordered_map<HashValue, TexturePtr> textures_;
     std::shared_ptr<ModelAsset> model_asset_;
+    bool create_distinct_meshes_ = false;
+    bool ready_ = false;
   };
 
   struct EntitySetupInfo {
@@ -94,6 +102,7 @@ class ModelAssetSystem : public System {
   ResourceManager<ModelAssetInstance> models_;
   std::unordered_map<HashValue, std::vector<EntitySetupInfo>> pending_entities_;
   MeshPtr empty_mesh_;
+  std::unordered_map<Entity, HashValue> entity_to_asset_hash_;
 };
 
 }  // namespace lull

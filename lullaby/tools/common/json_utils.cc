@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -56,24 +56,25 @@ char* JsonnetImportCallback(void* ctx, const char* base, const char* rel,
 }  // namespace
 
 std::string ConvertJsonnetToJson(string_view jsonnet_filename) {
+  const std::string jsonnet_filename_string(jsonnet_filename);
   std::string json;
 
   struct JsonnetVm* jvm = jsonnet_make();
   jsonnet_import_callback(jvm, JsonnetImportCallback, jvm);
 
   std::string data;
-  if (!LoadFile(jsonnet_filename.c_str(), false, &data)) {
-    LOG(ERROR) << "Could not load jsonnet file: " << jsonnet_filename.c_str();
+  if (!LoadFile(jsonnet_filename_string.c_str(), false, &data)) {
+    LOG(ERROR) << "Could not load jsonnet file: " << jsonnet_filename;
     return json;
   }
 
   int error = 0;
-  auto res = jsonnet_evaluate_snippet(jvm, jsonnet_filename.c_str(),
+
+  auto res = jsonnet_evaluate_snippet(jvm, jsonnet_filename_string.c_str(),
                                       data.c_str(), &error);
   if (error != 0 || res == nullptr) {
     LOG(ERROR) << "Jsonnet error [" << error << "]: " << (res ? res : "?");
-    LOG(ERROR) << "Could not process jsonnet file: "
-               << jsonnet_filename.c_str();
+    LOG(ERROR) << "Could not process jsonnet file: " << jsonnet_filename;
   } else {
     json = res;
   }
@@ -90,25 +91,28 @@ flatbuffers::DetachedBuffer JsonToFlatbuffer(string_view json_contents,
   flatbuffers::Parser parser;
 
   std::string schema_file_contents;
-  if (!LoadFile(schema_file_path.c_str(), false, &schema_file_contents)) {
-    LOG(ERROR) << "Failed to load: " << schema_file_path.c_str();
+  const std::string schema_file_path_string(schema_file_path);
+  if (!LoadFile(schema_file_path_string.c_str(), false,
+                &schema_file_contents)) {
+    LOG(ERROR) << "Failed to load: " << schema_file_path;
     return flatbuffers::DetachedBuffer();
   }
 
   if (!parser.Parse(schema_file_contents.c_str())) {
-    LOG(ERROR) << "Flatbuffer failed to parse schema: "
-               << schema_file_path.c_str();
+    LOG(ERROR) << "Flatbuffer failed to parse schema: " << schema_file_path;
     return flatbuffers::DetachedBuffer();
   }
 
-  if (!parser.SetRootType(schema_type.c_str())) {
-    LOG(ERROR) << "Failed setting parser root type to " << schema_type.c_str();
+  const std::string schema_type_string(schema_type);
+  if (!parser.SetRootType(schema_type_string.c_str())) {
+    LOG(ERROR) << "Failed setting parser root type to " << schema_type;
     return flatbuffers::DetachedBuffer();
   }
 
-  if (!parser.Parse(json_contents.c_str())) {
+  const std::string json_contents_string(json_contents);
+  if (!parser.Parse(json_contents_string.c_str())) {
     LOG(ERROR) << "Flatbuffer parse from JSON failed. JSON contents: \n"
-               << json_contents.c_str() << "\nError: " << parser.error_;
+               << json_contents << "\nError: " << parser.error_;
     return flatbuffers::DetachedBuffer();
   }
   return parser.builder_.ReleaseBufferPointer();

@@ -1,6 +1,5 @@
 # `MutatorSystem`
 
-*   Contact: mehe
 *   Status: **Ready**
 
 The MutatorSystem is a utility that allows other systems to apply standardized

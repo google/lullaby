@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -140,13 +140,50 @@ TEST(ArgParserTest, MultipleValues) {
   EXPECT_THAT(parser.GetString("test", 1), Eq(string_view("meh")));
 }
 
+TEST(ArgParserTest, MultipleValuesSingleFlag) {
+  ArgParser parser;
+  parser.AddArg("test").SetNumArgs(2);
+
+  const char* args[] = {"test_program", "--test", "foo", "meh"};
+  const int num_args = sizeof(args) / sizeof(args[0]);
+  const bool result = parser.Parse(num_args, args);
+  EXPECT_TRUE(result);
+
+  EXPECT_TRUE(parser.IsSet("test"));
+  EXPECT_THAT(parser.GetNumValues("test"), Eq(size_t(2)));
+  EXPECT_THAT(parser.GetString("test", 0), Eq(string_view("foo")));
+  EXPECT_THAT(parser.GetString("test", 1), Eq(string_view("meh")));
+}
+
+TEST(ArgParserTest, GetVariableValues) {
+  ArgParser parser;
+  parser.AddArg("test").SetVariableNumArgs();
+  parser.AddArg("moo").SetVariableNumArgs();
+
+  const char* args[] = {"test_program", "--test", "foo", "bar",
+                        "baz",          "--moo", "woo", "meh"};
+  const int num_args = sizeof(args) / sizeof(args[0]);
+  const bool result = parser.Parse(num_args, args);
+  EXPECT_TRUE(result);
+
+  EXPECT_TRUE(parser.IsSet("test"));
+  EXPECT_TRUE(parser.IsSet("moo"));
+  EXPECT_THAT(parser.GetNumValues("test"), Eq(size_t(3)));
+  EXPECT_THAT(parser.GetNumValues("moo"), Eq(size_t(2)));
+  EXPECT_THAT(parser.GetString("test", 0), Eq(string_view("foo")));
+  EXPECT_THAT(parser.GetString("test", 1), Eq(string_view("bar")));
+  EXPECT_THAT(parser.GetString("test", 2), Eq(string_view("baz")));
+  EXPECT_THAT(parser.GetString("moo", 0), Eq(string_view("woo")));
+  EXPECT_THAT(parser.GetString("moo", 1), Eq(string_view("meh")));
+}
+
 TEST(ArgParserTest, GetValues) {
   ArgParser parser;
   parser.AddArg("test").SetNumArgs(1);
-  parser.AddArg("moo").SetNumArgs(1);
+  parser.AddArg("moo").SetVariableNumArgs();
 
-  const char* args[] = {"test_program", "--test", "foo", "--test",
-                        "meh",          "--moo",  "woo"};
+  const char* args[] = {"test_program", "--test", "foo", "--test", "meh",
+                        "--moo",        "woo",    "dog", "cat"};
   const int num_args = sizeof(args) / sizeof(args[0]);
   const bool result = parser.Parse(num_args, args);
   EXPECT_TRUE(result);
@@ -154,7 +191,7 @@ TEST(ArgParserTest, GetValues) {
   EXPECT_TRUE(parser.IsSet("test"));
   EXPECT_TRUE(parser.IsSet("moo"));
   EXPECT_THAT(parser.GetNumValues("test"), Eq(size_t(2)));
-  EXPECT_THAT(parser.GetNumValues("moo"), Eq(size_t(1)));
+  EXPECT_THAT(parser.GetNumValues("moo"), Eq(size_t(3)));
 
   Span<string_view> test_span = parser.GetValues("test");
   EXPECT_THAT(test_span.size(), Eq(size_t(2)));
@@ -162,8 +199,10 @@ TEST(ArgParserTest, GetValues) {
   EXPECT_THAT(test_span[1], Eq(string_view("meh")));
 
   Span<string_view> moo_span = parser.GetValues("moo");
-  EXPECT_THAT(moo_span.size(), Eq(size_t(1)));
+  EXPECT_THAT(moo_span.size(), Eq(size_t(3)));
   EXPECT_THAT(moo_span[0], Eq(string_view("woo")));
+  EXPECT_THAT(moo_span[1], Eq(string_view("dog")));
+  EXPECT_THAT(moo_span[2], Eq(string_view("cat")));
 }
 
 TEST(ArgParserTest, Required) {

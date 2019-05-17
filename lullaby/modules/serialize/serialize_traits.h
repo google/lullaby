@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ limitations under the License.
 #include <type_traits>
 
 #include "lullaby/util/clock.h"
+#include "lullaby/util/entity.h"
 #include "lullaby/util/hash.h"
 #include "mathfu/glsl_mappings.h"
 
@@ -38,6 +39,7 @@ struct IsSerializeFundamental {
       std::is_same<U, int64_t>::value || std::is_same<U, uint64_t>::value ||
       std::is_same<U, size_t>::value || std::is_same<U, float>::value ||
       std::is_same<U, double>::value ||
+      std::is_same<U, Entity>::value ||
       std::is_same<U, Clock::duration>::value ||
       std::is_same<U, mathfu::vec2>::value ||
       std::is_same<U, mathfu::vec2i>::value ||

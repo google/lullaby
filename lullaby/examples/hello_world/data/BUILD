@@ -27,9 +27,9 @@ Fileset(
             strip_prefix = "",
         ),
         FilesetEntry(
-            srcdir = "//third_party/lullaby/data:BUILD",
+            srcdir = "//data:BUILD",
             files = [
-                "//third_party/lullaby/data:text_shader",
+                "//data:text_shader",
             ],
             strip_prefix = "",
         ),

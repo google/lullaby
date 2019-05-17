@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ TextBuffer::TextBuffer(flatui::FontManager* manager,
     : font_manager_(manager), font_buffer_(font_buffer), params_(params) {
   font_manager_->StartLayoutPass();
 
-  // TODO(b/30064717): Don't make copy once flatui support creating font
+  // TODO: Don't make copy once flatui support creating font
   // buffer without cache.
   const std::vector<flatui::FontVertex> glyph_vertices =
       font_buffer_->get_vertices();
@@ -448,7 +448,7 @@ TextBufferPtr TextBuffer::Create(flatui::FontManager* manager,
 
   flatui::FontBufferParameters flatui_params(
       manager->GetCurrentFont()->GetFontId(), flatui::HashId(text.c_str()),
-      // TODO(b/33921724) Don't base font size on world size.
+      // TODO Don't base font size on world size.
       kPixelsFromMetersScale * params.font_size, flatui_size, halign,
       flatui::GlyphFlags::kGlyphFlagsOuterSDF |
           flatui::GlyphFlags::kGlyphFlagsInnerSDF,

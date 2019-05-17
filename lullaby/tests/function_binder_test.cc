@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ limitations under the License.
 
 #include <string>
 #include "gtest/gtest.h"
+#include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/dispatcher/event_wrapper.h"
 #include "lullaby/util/variant.h"
 #include "lullaby/tests/portable_test_macros.h"
 
@@ -61,13 +63,13 @@ TEST(FunctionBinderTest, Maps) {
   FunctionBinder binder(&registry);
 
   binder.RegisterFunction("RepeatStrings",
-                            [](const std::map<HashValue, std::string>& m) {
-                              std::map<HashValue, std::string> out;
-                              for (const auto& kv : m) {
-                                out[kv.first] = kv.second + kv.second;
-                              }
-                              return out;
-                            });
+                          [](const std::map<HashValue, std::string>& m) {
+                            std::map<HashValue, std::string> out;
+                            for (const auto& kv : m) {
+                              out[kv.first] = kv.second + kv.second;
+                            }
+                            return out;
+                          });
   std::map<HashValue, std::string> m = {{0, "abc"}, {1, "def"}, {2, "ghi"}};
   Variant result = binder.Call("RepeatStrings", m);
   const VariantMap* rm = result.Get<VariantMap>();
@@ -117,6 +119,71 @@ TEST(FunctionBinderTest, Optionals) {
   EXPECT_EQ(8.f, *r1.Get<float>());
   EXPECT_EQ(nullptr, r2.Get<float>());
   EXPECT_EQ(true, r2.Empty());
+}
+
+TEST(FunctionBinderTest, EventHandlerArgument) {
+  Registry registry;
+  FunctionBinder binder(&registry);
+  int count = 0;
+  int handled_count = 0;
+
+  binder.RegisterFunction(
+      "EventHandlerArgument",
+      [&count](const Dispatcher::EventHandler& handler) {
+        ++count;
+        ASSERT_TRUE(handler);
+        EventWrapper event(Hash("myEvent"));
+        event.SetValue(Hash("myInt"), 999);
+        handler(event);
+      });
+  Dispatcher::EventHandler handler =
+      [&handled_count](const EventWrapper& event) {
+        ++handled_count;
+        EXPECT_EQ(event.GetTypeId(), Hash("myEvent"));
+        auto* ptr = event.GetValue<int>(Hash("myInt"));
+        EXPECT_NE(ptr, nullptr);
+        EXPECT_EQ(*ptr, 999);
+      };
+
+  EXPECT_EQ(count, 0);
+  EXPECT_EQ(handled_count, 0);
+  binder.Call("EventHandlerArgument", handler);
+  EXPECT_EQ(count, 1);
+  EXPECT_EQ(handled_count, 1);
+}
+
+TEST(FunctionBinderTest, EventHandlerReturn) {
+  Registry registry;
+  FunctionBinder binder(&registry);
+  int count = 0;
+  int handled_count = 0;
+
+  binder.RegisterFunction(
+      "EventHandlerReturn",
+      [&count, &handled_count]() -> Dispatcher::EventHandler {
+        ++count;
+        return [&handled_count](const EventWrapper& event) {
+          ++handled_count;
+          EXPECT_EQ(event.GetTypeId(), Hash("myEvent"));
+          auto* ptr = event.GetValue<int>(Hash("myInt"));
+          EXPECT_NE(ptr, nullptr);
+          EXPECT_EQ(*ptr, 999);
+        };
+      });
+
+  EXPECT_EQ(count, 0);
+  EXPECT_EQ(handled_count, 0);
+  Variant result = binder.Call("EventHandlerReturn");
+  EXPECT_EQ(count, 1);
+  EXPECT_EQ(handled_count, 0);
+  auto* handler = result.Get<Dispatcher::EventHandler>();
+  EXPECT_NE(handler, nullptr);
+
+  EventWrapper event(Hash("myEvent"));
+  event.SetValue(Hash("myInt"), 999);
+  (*handler)(event);
+  EXPECT_EQ(count, 1);
+  EXPECT_EQ(handled_count, 1);
 }
 
 TEST(FunctionBinderDeathTest, WrongNumberOfArgsError) {

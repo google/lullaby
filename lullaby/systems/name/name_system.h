@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_NAME_NAME_SYSTEM_H_
 #define LULLABY_SYSTEMS_NAME_NAME_SYSTEM_H_
 
+#include <set>
 #include <unordered_map>
 
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/hash.h"
+#include "lullaby/util/string_view.h"
 
 namespace lull {
 
@@ -65,6 +67,11 @@ class NameSystem : public System {
   // If |allow_duplicate_names| is true and more than one entity with the name
   // is present, which of those entities will be returned is not well defined.
   Entity FindDescendant(Entity root, const std::string& name) const;
+
+  // SLOW: Should not be called every frame.
+  // Searches all entities for the set of entities with names that
+  // contain the given name substring parameter.
+  std::set<Entity> SearchEntitiesByName(const string_view& name) const;
 
  private:
   std::unordered_map<Entity, std::string> entity_to_name_;

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -67,8 +67,8 @@ int main(int argc, const char** argv) {
   }
 
   // Write flatbuffer binary to output file.
-  const char* out_path = parser.GetString("out").c_str();
-  if (!lull::tool::SaveFile(fb.data(), fb.size(), out_path,
+  const std::string out_path(parser.GetString("out"));
+  if (!lull::tool::SaveFile(fb.data(), fb.size(), out_path.c_str(),
                             /* binary = */ true)) {
     LOG(FATAL) << "Failed to save flatbuffer binary to file: " << out_path;
     return -1;

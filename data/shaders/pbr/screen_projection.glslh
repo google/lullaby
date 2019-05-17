@@ -1,25 +1,25 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SCREEN_PROJECTION_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SCREEN_PROJECTION_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_SCREEN_PROJECTION_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_SCREEN_PROJECTION_GLSLH_
 
-// TODO(b/79370194): Switch these to directly sample using textureProj or
+// TODO: Switch these to directly sample using textureProj or
 // textureProjLod.
 
-// Converts model-space position to screen UV such that a any point
-// within the view frustum maps to [0, 1]^2.
-vec2 ModelToScreenUv(vec4 local_pos, mat4 mvp) {
-  vec4 clip_pos = mvp * local_pos;
+// Converts position to screen UV such that any point within the view frustum
+// maps to [0, 1]^2. The transform matrix must transform from whatever space pos
+// is in into clip space, and should *not* incorporate EIS.
+vec2 PosToScreenUv(vec4 pos, mat4 transform) {
+  vec4 clip_pos = transform * pos;
   return 0.5 * (vec2(1.0) + clip_pos.xy / clip_pos.w);
 }
 
-// Projects world_pos to screen coordinates suitable for texture
-// lookup. Coordinates are clamped to [0, 1]^2, preserving direction from
-// center.
-vec2 WorldToClampedScreenUv(vec4 world_pos, mat4 vp) {
-  vec4 clip_pos = vp * world_pos;
+// Similar to PosToScreenUv, but points outside the view frustum map to points
+// clamped within [0, 1]^2, preserving direction from center.
+vec2 PosToClampedScreenUv(vec4 pos, mat4 transform) {
+  vec4 clip_pos = transform * pos;
   vec2 ndc_pos = clip_pos.xy / clip_pos.w;
   float len = max(abs(ndc_pos.x), abs(ndc_pos.y));
   ndc_pos /= max(len, 1.0);
   return 0.5 * (vec2(1.0) + ndc_pos);
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_SCREEN_PROJECTION_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_SCREEN_PROJECTION_GLSLH_

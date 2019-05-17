@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,10 @@ struct Tolerances {
   /// Amount output translate curves can deviate, in scene's distance units.
   /// Default is arbitrary and should probably depend on model size.
   float translate = 0.01f;
+
+  /// Amount output quaternion curves can deviate, unitless.  Default is
+  /// arbitrary.
+  float quaternion = 0.0005f;
 
   /// Amount derivative--converted to an angle in x/y--can deviate, in radians.
   /// Default is 0.5 degrees in radians.

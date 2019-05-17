@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 #include "lullaby/modules/lullscript/script_env.h"
 #include "lullaby/modules/lullscript/script_frame.h"
 #include "lullaby/modules/lullscript/script_types.h"
+#include "lullaby/util/entity.h"
 
 // This file implements the following script functions:
 //
@@ -51,6 +52,9 @@ limitations under the License.
 // (double [number])
 //   Casts the number to a double.
 //
+// (Entity [number])
+//   Casts the number to an Entity.
+//
 
 namespace lull {
 namespace {
@@ -76,6 +80,7 @@ CONVERT(uint16_t, "uint16")
 CONVERT(int64_t, "int64")
 CONVERT(float, "float")
 CONVERT(double, "double")
+CONVERT(Entity, "Entity")
 
 #undef CONVERT
 

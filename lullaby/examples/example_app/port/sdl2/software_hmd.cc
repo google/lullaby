@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,57 +16,77 @@ limitations under the License.
 
 #include "lullaby/examples/example_app/port/sdl2/software_hmd.h"
 
+#include "lullaby/modules/camera/camera_manager.h"
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/util/device_util.h"
 #include "lullaby/util/math.h"
 
+namespace {
+const float kStereoEyeOffset = 0.031f;
+}  // namespace
 namespace lull {
-
 SoftwareHmd::SoftwareHmd(Registry* registry, size_t width, size_t height,
-                         bool stereo)
-      : registry_(registry),
-        width_(width),
-        height_(height),
-        num_eyes_(stereo ? 2 : 1),
-        eye_offset_(stereo ? 0.031f : 0.0f),
-        translation_(0.f, 0.f, 0.f),
-        rotation_(0.f, 0.f, 0.f) {
-  const float kFovAngle = 45.f * kDegreesToRadians;
+                         bool stereo, float near_clip_plane,
+                         float far_clip_plane)
+    : registry_(registry),
+      width_(width),
+      height_(height),
+      num_eyes_(stereo ? 2 : 1),
+      translation_(0.f, 0.f, 0.f),
+      rotation_(0.f, 0.f, 0.f) {
+  const float kFovAngle = 90.f * kDegreesToRadians;
   const size_t viewport_width = stereo ? width / 2 : width;
-  const float aspect_ratio = static_cast<float>(viewport_width) /
-                             static_cast<float>(height);
-  const float hfov = atanf(tanf(kFovAngle) * aspect_ratio);
-  fov_[0] = mathfu::rectf(hfov, hfov, kFovAngle, kFovAngle);
-  fov_[1] = mathfu::rectf(hfov, hfov, kFovAngle, kFovAngle);
-  viewport_[0] = mathfu::recti(0, 0, viewport_width, height);
-  viewport_[1] = mathfu::recti(viewport_width, 0, viewport_width, height);
+
+  // Configure the cameras:
+  for (int i = 0; i < num_eyes_; ++i) {
+    const float viewport_x = i * viewport_width;
+    cameras_[i] = std::make_shared<MutableCamera>(registry_);
+    cameras_[i]->SetupDisplay(
+        near_clip_plane, far_clip_plane, kFovAngle,
+        mathfu::recti(viewport_x, 0, viewport_width, height));
+
+    if (stereo) {
+      const float offset = (i == 0) ? kStereoEyeOffset : -kStereoEyeOffset;
+      const mathfu::vec3 translation(offset, 0.0f, 0.0f);
+      cameras_[i]->SetCameraFromSensor(
+          mathfu::mat4::FromTranslationVector(translation));
+    }
+  }
 
   DeviceProfile profile = GetCardboardHeadsetProfile();
   profile.eyes.resize(num_eyes_);
 
   InputManager* input_manager = registry_->Get<InputManager>();
   input_manager->ConnectDevice(InputManager::kHmd, profile);
+
+  CameraManager* camera_manager = registry_->Get<CameraManager>();
+  camera_manager->RegisterScreenCamera(cameras_[0]);
+  if (num_eyes_ > 1) {
+    camera_manager->RegisterScreenCamera(cameras_[1]);
+  }
 }
 
 SoftwareHmd::~SoftwareHmd() {
   InputManager* input_manager = registry_->Get<InputManager>();
   input_manager->DisconnectDevice(InputManager::kHmd);
+
+  CameraManager* camera_manager = registry_->Get<CameraManager>();
+  camera_manager->UnregisterScreenCamera(cameras_[0]);
+  if (num_eyes_ > 1) {
+    camera_manager->UnregisterScreenCamera(cameras_[1]);
+  }
 }
 
 void SoftwareHmd::Update() {
-  InputManager* input_manager = registry_->Get<InputManager>();
-  input_manager->UpdatePosition(InputManager::kHmd, -translation_);
-  input_manager->UpdateRotation(InputManager::kHmd,
-                                lull::FromEulerAnglesYXZ(rotation_));
-
   for (int i = 0; i < num_eyes_; ++i) {
-    const float offset = (i == 0) ? -eye_offset_ : eye_offset_;
-    const mathfu::vec3 translation(offset, 0.0f, 0.0f);
-    const mathfu::mat4 eye_from_head =
-        mathfu::mat4::FromTranslationVector(translation);
-    input_manager->UpdateEye(InputManager::kHmd, i, eye_from_head, fov_[i],
-                             viewport_[i]);
+    cameras_[i]->SetSensorPose(-translation_,
+                               lull::FromEulerAnglesYXZ(rotation_));
+
+    cameras_[i]->UpdateInputManagerEye(/* eye = */ i);
   }
+  // Note: both cameras have the same sensor pose, so just use the 1st camera to
+  // set the Hmd pose.
+  cameras_[0]->UpdateInputManagerHmdPose();
 }
 
 void SoftwareHmd::OnMouseMotion(const mathfu::vec2i& delta, ControlMode mode) {

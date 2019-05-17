@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -96,7 +96,6 @@ class FixedString {
   void assign(string_view str) {
     len_ = str.size();
     if (len_ > N) {
-      LOG(ERROR) << "Cannot exceed max number of non null chars " << N;
       len_ = N;
     }
     strncpy(str_, str.data(), len_);
@@ -105,10 +104,8 @@ class FixedString {
 
   void append(string_view str) {
     size_t strlength = str.length();
-    if (strlength + len_ > kCapacity) {
-      LOG(ERROR) << "Exceeded max number of non null chars " << N
-                 << ". String will be trimmed.";
-      strlength = kCapacity - len_ - 1;
+    if (strlength > N - len_) {
+      strlength = N - len_;
     }
     memcpy(str_ + len_, str.data(), strlength);
     len_ += strlength;
@@ -117,7 +114,6 @@ class FixedString {
 
   void push_back(char c) {
     if (len_ + 1 >= kCapacity) {
-      LOG(ERROR) << "Cannot exceed max num of non null chars " << N;
       return;
     }
     if (c == '\0') {

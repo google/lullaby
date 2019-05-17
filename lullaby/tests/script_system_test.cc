@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 #include "gtest/gtest.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
+#include "lullaby/modules/lullscript/lull_script_engine.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/modules/script/script_engine.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
@@ -32,6 +33,7 @@ class ScriptSystemTest : public ::testing::Test {
  protected:
   ScriptSystemTest() {
     script_engine_ = registry_.Create<ScriptEngine>(&registry_);
+    script_engine_->CreateEngine<LullScriptEngine>();
     dispatcher_ = registry_.Create<Dispatcher>();
     entity_factory_ = registry_.Create<EntityFactory>(&registry_);
     entity_factory_->CreateSystem<DispatcherSystem>();

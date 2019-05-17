@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ TEST_F(TextSystemTest, UnknownEntityHasNoData) {
   EXPECT_THAT(text_system_->GetCaretPositions(entity), IsNull());
 }
 
-// TODO(b/33947628) Write more tests.
+// TODO Write more tests.
 
 }  // namespace
 }  // namespace lull

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ limitations under the License.
 #include "lullaby/util/logging.h"
 
 namespace lull {
+namespace {
+static constexpr int kUnspecifiedVersion = 0;
+}  // namespace
 
 static const char kVersionTag[] = "version";
 static const char kIfTag[] = "if";
@@ -43,7 +46,7 @@ static const size_t kEndIfTagLength = sizeof(kEndIfTag) - 1;
   MAP(420, 300)                \
   MAP(430, 300)
 
-static int ConvertVersionFromEsToCore(int version) {
+int ConvertShaderVersionFromEsToCore(int version) {
 #define MAP(_core, _es) \
   if (version == _es) return _core;
   LULLABY_GL_VERSION_MAP
@@ -51,7 +54,7 @@ static int ConvertVersionFromEsToCore(int version) {
   return version;
 }
 
-static int ConvertVersionFromCoreToEs(int version) {
+int ConvertShaderVersionFromCoreToEs(int version) {
 #define MAP(_core, _es) \
   if (version == _core) return _es;
   LULLABY_GL_VERSION_MAP
@@ -59,30 +62,57 @@ static int ConvertVersionFromCoreToEs(int version) {
   return version;
 }
 
-static int SanitizeVersionNumber(ShaderProfile target_profile,
-                                 ShaderProfile found_profile,
-                                 int version_number) {
-  if (version_number != 0 && target_profile != found_profile) {
-    if (target_profile == ShaderProfile::Core) {
-      version_number = ConvertVersionFromEsToCore(version_number);
+int ConvertShaderVersionFromCompat(int version, ShaderLanguage to) {
+  if (version == kUnspecifiedVersion) {
+    return kUnspecifiedVersion;
+  }
+  if (to == ShaderLanguage_GLSL) {
+    return ConvertShaderVersionFromEsToCore(version);
+  }
+  if (to == ShaderLanguage_GLSL_ES) {
+    // OpenGL Compat uses the same shader versions as GLSL ES. Currently 100 and
+    // 300 are the only shader version in GLSL ES.
+    if (version == 100 || version == 300) {
+      return version;
     } else {
-      version_number = ConvertVersionFromCoreToEs(version_number);
+      LOG(DFATAL) << "Unknown GLCompat version: " << version;
+      return kUnspecifiedVersion;
     }
   }
-  if (version_number == 0 && target_profile == ShaderProfile::Core) {
+  return version;
+}
+
+static int SanitizeVersionNumber(ShaderLanguage target_language,
+                                 ShaderLanguage found_language,
+                                 int version_number) {
+  if (version_number != 0 && target_language != found_language) {
+    if (target_language == ShaderLanguage_GLSL) {
+      version_number = ConvertShaderVersionFromEsToCore(version_number);
+    } else {
+      version_number = ConvertShaderVersionFromCoreToEs(version_number);
+    }
+  }
+  if (version_number == 0 && target_language == ShaderLanguage_GLSL) {
+    // This version fixing logic should only apply in the case of .fplshaders.
+    // If you're running into shader version issues here, please switch to
+    // lullshaders.  Changing these version numbers may break existing clients.
+#if defined(GL_CORE_PROFILE) || defined(PLATFORM_OSX)
+    version_number = 330;
+#else
     version_number = 120;
+#endif
   }
   return version_number;
 }
 
-static int ReadVersionNumber(const char* str, ShaderProfile* profile_out) {
+static int ReadVersionNumber(const char* str, ShaderLanguage* language_out) {
   char spec[3];
   int version = 0;
   const int num_scanned = sscanf(str, " %d %2[es]", &version, spec);
   if (num_scanned == 1) {
-    *profile_out = ShaderProfile::Core;
+    *language_out = ShaderLanguage_GLSL;
   } else if (num_scanned == 2) {
-    *profile_out = ShaderProfile::Gles;
+    *language_out = ShaderLanguage_GLSL_ES;
   } else {
     LOG(ERROR) << "Invalid version identifier: " << str;
   }
@@ -126,12 +156,13 @@ static const char* FindUnterminatedCommentInLine(const char* str, size_t len) {
   return nullptr;
 }
 
-std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
+std::string SanitizeShaderSource(string_view code, ShaderLanguage language) {
+  const std::string code_string(code);
   int if_depth = 0;
   int version_number = 0;
   bool found_precision = false;
-  const char* remaining_code = code.c_str();
-  ShaderProfile found_profile = ShaderProfile::Core;
+  const char* remaining_code = code_string.data();
+  ShaderLanguage found_language = ShaderLanguage_GLSL;
 
   std::vector<string_view> preamble;
 
@@ -139,7 +170,7 @@ std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
   // non-preprocessor line. Strip out the #version line (we'll manually add it),
   // and remember lines we've seen so they can be added before the precision
   // specifier.
-  const char* iter = code.c_str();
+  const char* iter = code_string.data();
   while (iter && *iter) {
     const char* start = SkipWhitespaceInLine(iter);
     iter = FindNextLine(start);
@@ -196,7 +227,7 @@ std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
         } else {
           const char* version_str =
               SkipWhitespaceInLine(directive + kVersionTagLength);
-          version_number = ReadVersionNumber(version_str, &found_profile);
+          version_number = ReadVersionNumber(version_str, &found_language);
         }
         remaining_code = iter;
       } else if (strncmp(directive, kIfTag, kIfTagLength) == 0) {
@@ -237,9 +268,9 @@ std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
 
   // Version number must come first.
   version_number =
-      SanitizeVersionNumber(profile, found_profile, version_number);
+      SanitizeVersionNumber(language, found_language, version_number);
   if (version_number != 0) {
-    if (profile == ShaderProfile::Core) {
+    if (language == ShaderLanguage_GLSL) {
       ss << "#version " << version_number << std::endl;
     } else {
       ss << "#version " << version_number << " es" << std::endl;
@@ -247,7 +278,7 @@ std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
   }
 
   // Add per-platform definitions.
-  if (profile == ShaderProfile::Core) {
+  if (language == ShaderLanguage_GLSL) {
     ss << "#define lowp" << std::endl;
     ss << "#define mediump" << std::endl;
     ss << "#define highp" << std::endl;
@@ -264,7 +295,7 @@ std::string SanitizeShaderSource(string_view code, ShaderProfile profile) {
   }
 
   // Add a default precision specifier if one hasn't been specified.
-  if (!found_precision && profile == ShaderProfile::Gles) {
+  if (!found_precision && language == ShaderLanguage_GLSL_ES) {
     ss << "precision highp float;" << std::endl;
   }
 

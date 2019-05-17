@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ class AndroidContext {
   AndroidContext& operator=(const AndroidContext&) = delete;
 
   // Returns the JNIEnv attached to the calling thread.
+  // TODO Deprecate and replace with JniContext.
   JNIEnv* GetJniEnv() const;
 
   // Sets the java.android.Context associated with the current running app.  It

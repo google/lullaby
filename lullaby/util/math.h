@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef LULLABY_UTIL_MATH_H_
 #define LULLABY_UTIL_MATH_H_
 
+#include <limits>
 #include <vector>
 
 #include "lullaby/util/hash.h"
@@ -32,6 +33,17 @@ using mathfu::kPi;
 using mathfu::kRadiansToDegrees;
 static constexpr float kDefaultEpsilon = 1.0e-5f;
 static constexpr float kDefaultEpsilonSqr = 1.0e-10f;
+static constexpr float kTwoPi = 2.f * kPi;
+
+// This must match motive::kInvalidBoneIdx = 255.
+static constexpr uint8_t kInvalidBoneIdx = 0xff;
+// This must match motive::kMaxNumBones = 254.
+static constexpr uint8_t kMaxNumBones = 0xfe;
+
+// Mathfu uses a large default for the determinant threshold that causes matrix
+// inverse to fail for matrices of about 1/200 scale.  Use this to support
+// matrices with 1/1000 scales.
+static constexpr float kDeterminantThreshold = 1.0e-9f;  // (1/1000)^3
 
 struct Sqt;
 struct Ray;
@@ -132,6 +144,12 @@ struct Aabb {
     array[4] = max.y;
     array[5] = max.z;
   }
+
+  bool operator==(const Aabb& other) const {
+    return this->min == other.min && this->max == other.max;
+  }
+
+  bool operator!=(const Aabb& other) const { return !(*this == other); }
 };
 
 struct Sphere {
@@ -278,6 +296,19 @@ mathfu::quat ProjectRotationToVicinity(const mathfu::quat& rot,
                                        const mathfu::quat& target,
                                        float max_offset_rad);
 
+// Creates a Ray in world space based on a point on a screen or camera texture.
+// |point| values should be in the range (-1, 1), with (-1,-1) being the bottom
+// left corner and (1,1) being top right.  (See Normalized Device Cooordinates
+// in OpenGL docs for more info)
+Ray CalculateRayFromCamera(const mathfu::vec3& camera_pos,
+                           const mathfu::mat4& inverse_view_projection_mat,
+                           const mathfu::vec2& point);
+Ray CalculateRayFromCamera(const mathfu::vec3& camera_pos,
+                           const mathfu::quat& camera_rot,
+                           const mathfu::mat4& inverse_projection_mat,
+                           const mathfu::vec2& point);
+
+
 // Transform a ray representing a locus of points.
 Ray TransformRay(const mathfu::mat4& mat, const Ray& ray);
 
@@ -346,7 +377,8 @@ mathfu::vec3 ProjectPointOntoPlane(const Plane& plane,
 
 // Compute the ray-plane collision in world space.
 bool ComputeRayPlaneCollision(const Ray& ray, const Plane& plane,
-                              mathfu::vec3* out);
+                              mathfu::vec3* out_hit,
+                              float* out_hit_distance = nullptr);
 
 // Compute the first ray-sphere collision.
 bool ComputeRaySphereCollision(const Ray& ray, const mathfu::vec3& center,
@@ -359,6 +391,71 @@ mathfu::vec3 ProjectPointOntoLine(const Line& line, const mathfu::vec3& point);
 // Returns false if the lines are parallel; true otherwise.
 bool ComputeClosestPointBetweenLines(const Line& line_a, const Line& line_b,
                                      mathfu::vec3* out_a, mathfu::vec3* out_b);
+
+// Returns the 8 corners of the box. At least one client depends on the
+// current order of the corners.
+std::vector<mathfu::vec3> GetAabbCorners(const lull::Aabb& aabb);
+
+// Scales the size of the AABB about its center.
+lull::Aabb ScaledAabb(const lull::Aabb& aabb, const mathfu::vec3& scale);
+
+inline lull::Aabb ScaledAabb(const lull::Aabb& aabb, float scale) {
+  return ScaledAabb(aabb, mathfu::vec3(scale, scale, scale));
+}
+
+// Returns true if point is inside aabb.
+bool PointInAabb(const mathfu::vec3& point, const lull::Aabb& aabb);
+
+// Returns true if the two AABBs intersect.
+bool AabbsIntersect(const lull::Aabb& aabb1, const lull::Aabb& aabb2);
+
+enum BoxFace {
+  kFaceXN,  // -X
+  kFaceXP,  // +X
+  kFaceYN,  // -Y
+  kFaceYP,  // +Y
+  kFaceZN,  // -Z
+  kFaceZP,  // +Z
+  kFaceCount
+};
+
+struct BoxPlanes {
+  mathfu::vec4 v[kFaceCount];
+};
+
+enum IntersectBoxResult {
+  kIntersectBoxHit,         // Definite intersection.
+  kIntersectBoxMiss,        // Definite non-intersection.
+  kIntersectBoxIndefinite,  // Hit is likely, but indefinite.
+};
+
+// Get the matrix transforming the unit-cube to OBB (i.e. combine AABB bounds
+// with a transform matrix).
+mathfu::mat4 GetBoxMatrix(const lull::Aabb& aabb, const mathfu::mat4& mat);
+
+// Get the set of planes for each box face.
+// * The box is described by the unit-cube transformed by box_to_world_mat. This
+//   function takes the inverse of that matrix, world_to_box_mat (which also
+//   happens to be the view-projection matrix in the case of a frustum box).
+BoxPlanes GetBoxPlanes(const mathfu::mat4& world_to_box_mat);
+
+// Check if an OBB overlaps a view frustum.
+IntersectBoxResult IsObbInFrustum(const mathfu::mat4& obb_mat,
+                                  const BoxPlanes& frustum_planes);
+
+// Returns the signed angle from v1 to v2, about the given axis.
+// Pass:
+//   v1, v2 - non-zero vectors; these do not need to be unit length.
+//   axis   - a unit length vector.
+// Returns a result in [-pi, pi].
+float GetSignedAngle(
+    const mathfu::vec3& v1,
+    const mathfu::vec3& v2,
+    const mathfu::vec3& axis);
+
+// Returns the yaw computed from the given quaternion. If the yaw is INF or NaN,
+// then 0.0 is returned;
+float GetYawFromQuat(const mathfu::quat& q);
 
 // Enum for frustum clipping planes.
 enum FrustumPlane {
@@ -428,6 +525,22 @@ bool AreNearlyEqual(const mathfu::vec3& one, const mathfu::vec3& two,
 
 // Returns true if every element of |one| is within the |epsilon| of the
 // counterpart of |two|.
+bool AreNearlyEqual(const mathfu::vec2& one, const mathfu::vec2& two,
+                    float epsilon = kDefaultEpsilon);
+
+// Returns true if every element of |one| is within the |epsilon| of the
+// counterpart of |two|.
+bool AreNearlyEqual(const mathfu::vec2_packed& one,
+                    const mathfu::vec2_packed& two,
+                    float epsilon = kDefaultEpsilon);
+
+// Returns true if every element of |one| is within the |epsilon| of the
+// counterpart of |two|.
+bool AreNearlyEqual(const mathfu::mat4& one, const mathfu::mat4& two,
+                    float epsilon = kDefaultEpsilon);
+
+// Returns true if every element of |one| is within the |epsilon| of the
+// counterpart of |two|.
 bool AreNearlyEqual(const Aabb& one, const Aabb& two,
                     float epsilon = kDefaultEpsilon);
 
@@ -457,7 +570,7 @@ Aabb TransformAabb(const mathfu::mat4& transform, const Aabb& aabb);
 Aabb MergeAabbs(const Aabb& a, const Aabb& b);
 
 // Returns the determinant of the upper left 3x3 of |m|.
-// TODO(b/27938041) move into mathfu.
+// TODO move into mathfu.
 float CalculateDeterminant3x3(const mathfu::mat4& m);
 
 // Returns the 3-d projection of a homogeneous 4-vector.
@@ -499,17 +612,59 @@ inline float RadiansToDegrees(float radians) {
   return radians * kRadiansToDegrees;
 }
 
-template<class T, int d>
+// Returns the sum of the absolute differences between |a| and |b|.
+float EulerDistance(const mathfu::vec3& a, const mathfu::vec3& b);
+
+// Returns an equivalent angle to |value| normalized to be within +/- pi of
+// |target|.
+float EulerNormalize(float target, float value);
+
+// Given two Euler angle representations of a rotation, returns a set of Euler
+// angles equivalent to |value| such that the individual X, Y, and Z components
+// are as close to |prev| as possible. This function should be called once per
+// sample when creating rotation animation curves using the previous input
+// as |prev|.
+mathfu::vec3 EulerFilter(const mathfu::vec3& value, const mathfu::vec3& prev);
+
+// Returns a TBN quaternion for |normal| and |tangent| packed into a vec4 in
+// XYZW order (for convenient memcpy'ing). Both |normal| and |tangent| are
+// assumed to be non-normalized.
+mathfu::vec4 OrientationForTbn(const mathfu::vec3& normal,
+                               const mathfu::vec3& tangent);
+
+template <class T, int d>
 inline mathfu::Vector<T, d> VectorFromSpan(const Span<uint8_t>& span) {
   CHECK(span.size() == sizeof(T) * d);
   return mathfu::Vector<T, d>(reinterpret_cast<const T*>(span.data()));
 }
 
-template<class T, int d>
+template <class T, int d>
 inline Span<uint8_t> SpanFromVector(const mathfu::Vector<T, d>& vect) {
   return Span<uint8_t>(reinterpret_cast<const uint8_t*>(&vect[0]),
                        sizeof(T) * d);
 }
+
+// Type-cast that checks for lossy integer conversions.
+// Can be used as a drop-in replacement for static_cast, like so:
+//   SmallType to = IntCast<SmallType>(some_larger_type);
+template <typename ToType, typename FromType>
+inline ToType IntCast(FromType from) {
+  constexpr FromType kMin = std::numeric_limits<ToType>::min();
+  constexpr FromType kMax = std::numeric_limits<ToType>::max();
+  static_assert(kMin >= std::numeric_limits<FromType>::min(), "");
+  static_assert(kMax <= std::numeric_limits<FromType>::max(), "");
+  DCHECK_GE(from, kMin);
+  DCHECK_LE(from, kMax);
+  return static_cast<ToType>(from);
+}
+
+// Like IntCast, except it stores to an output pointer so the output type is
+// inferred from the destination.
+template <typename ToType, typename FromType>
+inline void IntStore(FromType from, ToType* to) {
+  *to = IntCast<ToType>(from);
+}
+
 }  // namespace lull
 
 #endif  // LULLABY_UTIL_MATH_H_

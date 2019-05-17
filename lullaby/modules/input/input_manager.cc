@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ limitations under the License.
 #include "lullaby/util/time.h"
 #include "mathfu/constants.h"
 #include "mathfu/utilities.h"
+
+#include "mathfu/io.h"
 
 namespace lull {
 namespace {
@@ -65,10 +67,15 @@ const Clock::time_point InputManager::kInvalidSampleTime =
     Clock::time_point::min();
 const mathfu::vec2 InputManager::kInvalidTouchLocation(-1, -1);
 
+const InputManager::TouchpadId InputManager::kPrimaryTouchpadId = 0;
+const InputManager::TouchId InputManager::kPrimaryTouchId =
+    std::numeric_limits<InputManager::TouchId>::max();
+
 const uint8_t InputManager::kInvalidBatteryCharge = 255;
 
 InputManager::DeviceParams::DeviceParams()
     : has_position_dof(false),
+      is_position_fake(false),
       has_rotation_dof(false),
       has_touchpad(false),
       has_touch_gesture(false),
@@ -84,7 +91,7 @@ InputManager::InputManager() {}
 void InputManager::AdvanceFrame(Clock::duration delta_time) {
   std::unique_lock<std::mutex> lock(mutex_);
   for (Device& device : devices_) {
-    // TODO(b/26692955): Update connected state in a thread-safe manner.
+    // TODO: Update connected state in a thread-safe manner.
     device.Advance(delta_time);
   }
 }
@@ -96,7 +103,7 @@ void InputManager::ConnectDevice(DeviceType device,
     return;
   }
 
-  // TODO(b/26692955): Update connected state in a thread-safe manner.
+  // TODO: Update connected state in a thread-safe manner.
   std::unique_lock<std::mutex> lock(mutex_);
   devices_[device].Connect(profile);
 }
@@ -114,9 +121,13 @@ void InputManager::ConnectDevice(DeviceType device,
   profile.rotation_dof = params.has_rotation_dof
                              ? DeviceProfile::kRealDof
                              : DeviceProfile::kUnavailableDof;
-  profile.position_dof = params.has_position_dof
-                             ? DeviceProfile::kRealDof
-                             : DeviceProfile::kUnavailableDof;
+  if (params.has_position_dof) {
+    profile.position_dof = params.is_position_fake ? DeviceProfile::kFakeDof
+                                                   : DeviceProfile::kRealDof;
+  } else {
+    profile.position_dof = DeviceProfile::kUnavailableDof;
+  }
+
   if (params.has_touchpad) {
     profile.touchpads.resize(1);
     profile.touchpads[0].has_gestures = params.has_touch_gesture;
@@ -141,7 +152,7 @@ void InputManager::DisconnectDevice(DeviceType device) {
     return;
   }
 
-  // TODO(b/26692955): Update connected state in a thread-safe manner.
+  // TODO: Update connected state in a thread-safe manner.
   std::unique_lock<std::mutex> lock(mutex_);
   devices_[device].Disconnect();
 }
@@ -216,9 +227,17 @@ void InputManager::UpdateJoystick(DeviceType device, JoystickType joystick,
 
 void InputManager::UpdateTouch(DeviceType device, const mathfu::vec2& value,
                                bool valid) {
+  UpdateTouch(device, kPrimaryTouchpadId, 0, value, valid);
+}
+
+void InputManager::UpdateTouch(DeviceType device, TouchpadId touchpad_id,
+                               TouchId touch_id, const mathfu::vec2& value,
+                               bool valid) {
+  const Touch kDefaultTouch;
+
   std::unique_lock<std::mutex> lock(mutex_);
-  DeviceState* state = GetDeviceStateForWriteLocked(device);
-  if (state == nullptr) {
+  DeviceState* device_state = GetDeviceStateForWriteLocked(device);
+  if (device_state == nullptr) {
     LOG(DFATAL) << "No state for device: " << GetDeviceName(device);
     return;
   }
@@ -229,14 +248,37 @@ void InputManager::UpdateTouch(DeviceType device, const mathfu::vec2& value,
     return;
   }
 
-  if (state->touch.size() != 1) {
-    LOG(DFATAL) << "Touch not enabled for device: " << GetDeviceName(device);
+  if (touchpad_id >= device_state->touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
     return;
   }
 
-  const TouchpadState& prev = buffer->GetCurrent().touch[0];
-  TouchpadState& touch = state->touch[0];
+  TouchpadState& new_state = device_state->touchpads[touchpad_id];
+  const TouchpadState& old_state = buffer->GetCurrent().touchpads[touchpad_id];
+
   if (valid) {
+    auto new_pair = new_state.touches.find(touch_id);
+    if (new_pair == new_state.touches.end()) {
+      // New touch
+      new_state.current_touches.push_back(touch_id);
+      new_state.touches.emplace(touch_id, Touch{});
+      new_state.touches[touch_id].gesture_origin = ClampVec2(value, 0.0f, 1.0f);
+    } else if (!new_pair->second.valid) {
+      // Resuming a touch that was released.
+      new_state.current_touches.push_back(touch_id);
+    }
+    if (new_state.current_touches.size() == 1) {
+      // Only active touch, set as primary.
+      new_state.primary_touch = touch_id;
+    }
+  }
+
+  const auto old_pair = old_state.touches.find(touch_id);
+  const Touch& prev =
+      old_pair != old_state.touches.end() ? old_pair->second : kDefaultTouch;
+
+  if (valid) {
+    Touch& touch = new_state.touches[touch_id];
     touch.position = ClampVec2(value, 0.0f, 1.0f);
     touch.time = Clock::now();
     touch.valid = true;
@@ -245,7 +287,6 @@ void InputManager::UpdateTouch(DeviceType device, const mathfu::vec2& value,
       const float kCutoffHz = 10.0f;
       const float kRc = static_cast<float>(1.0 / (2.0 * M_PI * kCutoffHz));
 
-      const TouchpadState& prev = buffer->GetCurrent().touch[0];
       const float delta_sec = SecondsFromDuration(touch.time - prev.time);
       const mathfu::vec2 instantaneous_velocity =
           (touch.position - prev.position) / delta_sec;
@@ -254,52 +295,131 @@ void InputManager::UpdateTouch(DeviceType device, const mathfu::vec2& value,
                                     delta_sec / (kRc + delta_sec));
     } else {
       touch.velocity = mathfu::kZeros2f;
-      state->touch_press_times[0] = state->time_stamp;
+      touch.press_time = device_state->time_stamp;
     }
-  } else {
+  } else if (prev.valid) {
+    // If we just ended the touch, keep the velocity around for 1 more
+    // frame so we can actually use it.
+    Touch& touch = new_state.touches[touch_id];
     touch.position = kInvalidTouchLocation;
     touch.time = kInvalidSampleTime;
     touch.valid = false;
+    touch.velocity = prev.velocity;
 
-    if (prev.valid) {
-      // If we just ended the touch, keep the velocity around for 1 more
-      // frame so we can actually use it.
-      touch.velocity = prev.velocity;
-    } else {
-      touch.velocity = mathfu::kZeros2f;
+    auto& cur_touches = new_state.current_touches;
+    cur_touches.erase(
+        std::remove(cur_touches.begin(), cur_touches.end(), touch_id),
+        cur_touches.end());
+    if (new_state.primary_touch == touch_id && !cur_touches.empty()) {
+      new_state.primary_touch = cur_touches[0];
     }
   }
 }
 
-void InputManager::UpdateGesture(DeviceType device, GestureType type,
-                                 GestureDirection direction,
+void InputManager::ResetTouchGestureOrigin(DeviceType device,
+                                           TouchpadId touchpad_id,
+                                           TouchId touch_id) {
+  const Touch kDefaultTouch;
+  std::unique_lock<std::mutex> lock(mutex_);
+  DeviceState* device_state = GetDeviceStateForWriteLocked(device);
+  if (device_state == nullptr) {
+    LOG(DFATAL) << "No state for device: " << GetDeviceName(device);
+    return;
+  }
+
+  DataBuffer* buffer = GetDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return;
+  }
+
+  if (touchpad_id >= device_state->touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return;
+  }
+
+  TouchpadState& new_state = device_state->touchpads[touchpad_id];
+
+  const TouchpadState& old_state = buffer->GetCurrent().touchpads[touchpad_id];
+  const auto old_pair = old_state.touches.find(touch_id);
+  const Touch& prev =
+      old_pair != old_state.touches.end() ? old_pair->second : kDefaultTouch;
+  if (!prev.valid) {
+    return;
+  }
+
+  auto new_pair = new_state.touches.find(touch_id);
+  if (new_pair == new_state.touches.end()) {
+    return;
+  }
+
+  new_pair->second.gesture_origin = prev.position;
+}
+
+void InputManager::UpdateGesture(DeviceType device, TouchpadId touchpad_id,
+                                 GestureType type, GestureDirection direction,
                                  const mathfu::vec2& displacement,
                                  const mathfu::vec2& velocity) {
   std::unique_lock<std::mutex> lock(mutex_);
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || touchpad_id >= profile->touchpads.size() ||
+      !profile->touchpads[touchpad_id].has_gestures) {
+    LOG(DFATAL) << "Touch gestures not enabled for device: "
+                << GetDeviceName(device);
+    return;
+  }
+
   DeviceState* state = GetDeviceStateForWriteLocked(device);
   if (state == nullptr) {
     LOG(DFATAL) << "No state for device: " << GetDeviceName(device);
     return;
   }
 
-  if (state->touch_gesture.size() == 1) {
-    TouchGesture& touch_gesture = state->touch_gesture[0];
-    touch_gesture.type = type;
-    touch_gesture.direction = direction;
-    touch_gesture.displacement = displacement;
-    touch_gesture.velocity = velocity;
-    if (type == GestureType::kScrollStart) {
-      touch_gesture.initial_displacement_axis =
-          std::abs(displacement[0]) > std::abs(displacement[1])
-              ? mathfu::kAxisX2f
-              : mathfu::kAxisY2f;
-    } else if (type == GestureType::kScrollEnd || type == GestureType::kFling) {
-      touch_gesture.initial_displacement_axis = mathfu::kZeros2f;
-    }
-  } else {
-    LOG(DFATAL) << "Touch gestures not enabled for device: "
-                << GetDeviceName(device);
+  if (touchpad_id >= state->touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return;
   }
+
+  TouchpadState& touchpad = state->touchpads[touchpad_id];
+
+  TouchGesture& gesture = touchpad.gesture;
+  gesture.type = type;
+  gesture.direction = direction;
+  gesture.displacement = displacement;
+  gesture.velocity = velocity;
+  if (type == GestureType::kScrollStart) {
+    gesture.initial_displacement_axis =
+        std::abs(displacement[0]) > std::abs(displacement[1])
+            ? mathfu::kAxisX2f
+            : mathfu::kAxisY2f;
+  } else if (type == GestureType::kScrollEnd || type == GestureType::kFling) {
+    gesture.initial_displacement_axis = mathfu::kZeros2f;
+  }
+}
+
+void InputManager::UpdateTouchpadSize(DeviceType device, TouchpadId touchpad_id,
+                               const mathfu::vec2& size_cm) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  DeviceState* device_state = GetDeviceStateForWriteLocked(device);
+  if (device_state == nullptr) {
+    LOG(DFATAL) << "No state for device: " << GetDeviceName(device);
+    return;
+  }
+
+  DataBuffer* buffer = GetDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return;
+  }
+
+  if (touchpad_id >= device_state->touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return;
+  }
+
+  TouchpadState& new_state = device_state->touchpads[touchpad_id];
+
+  new_state.size_cm = size_cm;
 }
 
 void InputManager::UpdateScroll(DeviceType device, int delta) {
@@ -354,6 +474,7 @@ void InputManager::UpdateRotation(DeviceType device,
 
 void InputManager::UpdateEye(DeviceType device, EyeType eye,
                              const mathfu::mat4& eye_from_head_matrix,
+                             const mathfu::mat4& screen_from_eye_matrix,
                              const mathfu::rectf& eye_fov,
                              const mathfu::recti& eye_viewport) {
   std::unique_lock<std::mutex> lock(mutex_);
@@ -367,6 +488,13 @@ void InputManager::UpdateEye(DeviceType device, EyeType eye,
     state->eye_from_head_matrix[eye] = eye_from_head_matrix;
   } else {
     LOG(DFATAL) << "Invalid eye matrix [" << eye
+                << "] for device: " << GetDeviceName(device);
+  }
+
+  if (eye < state->screen_from_eye_matrix.size()) {
+    state->screen_from_eye_matrix[eye] = screen_from_eye_matrix;
+  } else {
+    LOG(DFATAL) << "Invalid screen from eye matrix [" << eye
                 << "] for device: " << GetDeviceName(device);
   }
 
@@ -423,9 +551,10 @@ bool InputManager::HasRotationDof(DeviceType device) const {
                  : false;
 }
 
-bool InputManager::HasTouchpad(DeviceType device) const {
+bool InputManager::HasTouchpad(DeviceType device,
+                               TouchpadId touchpad_id) const {
   const DeviceProfile* profile = GetDeviceProfile(device);
-  return profile ? !profile->touchpads.empty() : false;
+  return profile ? touchpad_id < profile->touchpads.size() : false;
 }
 
 bool InputManager::HasJoystick(DeviceType device, JoystickType joystick) const {
@@ -600,27 +729,57 @@ mathfu::vec2 InputManager::GetJoystickDelta(DeviceType device,
   return curr - prev;
 }
 
-mathfu::vec2 InputManager::GetTouchLocation(DeviceType device) const {
+mathfu::vec2 InputManager::GetTouchLocation(DeviceType device,
+                                            TouchpadId touchpad_id,
+                                            TouchId touch_id) const {
+  const Touch* touch = GetTouchPtr(device, touchpad_id, touch_id);
+  return touch == nullptr ? kInvalidTouchLocation : touch->position;
+}
+
+mathfu::vec2 InputManager::GetPreviousTouchLocation(DeviceType device,
+                                                    TouchpadId touchpad_id,
+                                                    TouchId touch_id) const {
+  const Touch* touch = GetPreviousTouchPtr(device, touchpad_id, touch_id);
+
+  if (!touch || !touch->valid) {
+    return kInvalidTouchLocation;
+  }
+
+  return touch->position;
+}
+
+mathfu::vec2 InputManager::GetTouchGestureOrigin(DeviceType device,
+                                                 TouchpadId touchpad_id,
+                                                 TouchId touch_id) const {
+  const Touch* touch = GetTouchPtr(device, touchpad_id, touch_id);
+  return touch == nullptr ? kInvalidTouchLocation : touch->gesture_origin;
+}
+
+std::vector<InputManager::TouchId> InputManager::GetTouches(
+    DeviceType device, TouchpadId touchpad_id) const {
   const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  std::vector<TouchId> result;
   if (buffer == nullptr) {
     LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
-    return kInvalidTouchLocation;
+    return result;
   }
 
-  const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty()) {
-    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
-    return kInvalidTouchLocation;
+  const DeviceState& state = buffer->GetCurrent();
+  if (touchpad_id >= state.touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return result;
   }
 
-  return buffer->GetCurrent().touch[0].position;
+  return state.touchpads[touchpad_id].current_touches;
 }
 
-bool InputManager::IsValidTouch(DeviceType device) const {
-  return CheckBit(GetTouchState(device), kPressed);
+bool InputManager::IsValidTouch(DeviceType device, TouchpadId touchpad_id,
+                                TouchId touch_id) const {
+  return CheckBit(GetTouchState(device, touchpad_id, touch_id), kPressed);
 }
 
-bool InputManager::IsTouchGestureAvailable(DeviceType device) const {
+bool InputManager::IsTouchGestureAvailable(DeviceType device,
+                                           TouchpadId touchpad_id) const {
   const DataBuffer* buffer = GetConnectedDataBuffer(device);
   if (buffer == nullptr) {
     LOG(INFO) << "Invalid buffer for device: " << GetDeviceName(device);
@@ -628,129 +787,101 @@ bool InputManager::IsTouchGestureAvailable(DeviceType device) const {
   }
 
   const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty() ||
-      !profile->touchpads[0].has_gestures) {
+  if (!profile || touchpad_id >= profile->touchpads.size() ||
+      !profile->touchpads[touchpad_id].has_gestures) {
     LOG(INFO) << "Gesture not setup for device: " << GetDeviceName(device);
     return false;
   }
 
-  const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
-  if (!touch_gesture_ptr) {
-    LOG(INFO) << "Gesture not setup for device: " << GetDeviceName(device);
-    return false;
-  }
   return true;
 }
 
-InputManager::TouchState InputManager::GetTouchState(DeviceType device) const {
-  const DataBuffer* buffer = GetConnectedDataBuffer(device);
-  if (buffer == nullptr) {
-    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
-    return false;
-  }
-
+InputManager::TouchState InputManager::GetTouchState(DeviceType device,
+                                                     TouchpadId touchpad_id,
+                                                     TouchId touch_id) const {
+  const Touch* curr_touch = GetTouchPtr(device, touchpad_id, touch_id);
+  const Touch* prev_touch = GetPreviousTouchPtr(device, touchpad_id, touch_id);
   const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty()) {
-    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
-    return false;
+
+  if (curr_touch == nullptr && prev_touch == nullptr) {
+    return kReleased;
   }
 
-  const DeviceState& curr_buffer = buffer->GetCurrent();
-  const DeviceState& prev_buffer = buffer->GetPrevious();
-
-  const bool curr_press = curr_buffer.touch[0].valid;
-  const bool prev_press = prev_buffer.touch[0].valid;
+  bool curr_press = curr_touch ? curr_touch->valid : false;
+  bool prev_press = prev_touch ? prev_touch->valid : false;
+  Clock::time_point curr_press_time =
+      curr_touch ? curr_touch->press_time : Clock::time_point();
+  Clock::time_point prev_press_time =
+      prev_touch ? prev_touch->press_time : Clock::time_point();
   const bool repeat = false;
 
-  return GetButtonState(
-      curr_press, prev_press, repeat, profile->long_press_time,
-      curr_buffer.time_stamp, prev_buffer.time_stamp,
-      curr_buffer.touch_press_times[0], prev_buffer.touch_press_times[0]);
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  const DeviceState& curr_buffer = buffer->GetCurrent();
+  const DeviceState& prev_buffer = buffer->GetPrevious();
+  const Clock::duration long_press_time =
+      profile ? profile->long_press_time : kDefaultLongPressTime;
+  return GetButtonState(curr_press, prev_press, repeat, long_press_time,
+                        curr_buffer.time_stamp, prev_buffer.time_stamp,
+                        curr_press_time, prev_press_time);
 }
 
-mathfu::vec2 InputManager::GetTouchDelta(DeviceType device) const {
-  const DataBuffer* buffer = GetConnectedDataBuffer(device);
-  if (buffer == nullptr) {
-    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
-    return mathfu::kZeros2f;
-  }
+mathfu::vec2 InputManager::GetTouchDelta(DeviceType device,
+                                         TouchpadId touchpad_id,
+                                         TouchId touch_id) const {
+  const Touch* curr_touch = GetTouchPtr(device, touchpad_id, touch_id);
+  const Touch* prev_touch = GetPreviousTouchPtr(device, touchpad_id, touch_id);
 
-  const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty()) {
-    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
-    return mathfu::kZeros2f;
-  }
-
-  if (!IsValidTouch(device)) {
-    return mathfu::kZeros2f;
-  }
-
-  if (profile->touchpads[0].has_gestures) {
-    const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
-    if (!touch_gesture_ptr) {
-      LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
-      return mathfu::kZeros2f;
+  if (touch_id == kPrimaryTouchId) {
+    const TouchGesture* gesture = GetTouchGesturePtr(device, touchpad_id);
+    if (gesture) {
+      return gesture->displacement;
     }
-    return touch_gesture_ptr->displacement;
   }
 
-  if (!buffer->GetPrevious().touch[0].valid) {
+  if (curr_touch == nullptr || prev_touch == nullptr) {
     return mathfu::kZeros2f;
   }
 
-  const mathfu::vec2& curr = buffer->GetCurrent().touch[0].position;
-  const mathfu::vec2& prev = buffer->GetPrevious().touch[0].position;
+  if (!curr_touch->valid) {
+    return mathfu::kZeros2f;
+  }
+
+  const mathfu::vec2& curr = curr_touch->position;
+  const mathfu::vec2& prev = prev_touch->position;
   return curr - prev;
 }
 
-mathfu::vec2 InputManager::GetLockedTouchDelta(DeviceType device) const {
-  return GetTouchDelta(device) * GetInitialDisplacementAxis(device);
+mathfu::vec2 InputManager::GetLockedTouchDelta(DeviceType device,
+                                               TouchpadId touchpad_id,
+                                               TouchId touch_id) const {
+  return GetTouchDelta(device, touchpad_id, touch_id) *
+         GetInitialDisplacementAxis(device, touchpad_id);
 }
 
-mathfu::vec2 InputManager::GetTouchVelocity(DeviceType device) const {
-  const DataBuffer* buffer = GetConnectedDataBuffer(device);
-  if (buffer == nullptr) {
-    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
-    return mathfu::kZeros2f;
-  }
+mathfu::vec2 InputManager::GetTouchVelocity(DeviceType device,
+                                            TouchpadId touchpad_id,
+                                            TouchId touch_id) const {
+  const Touch* curr_touch = GetTouchPtr(device, touchpad_id, touch_id);
 
-  const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty()) {
-    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
-    return mathfu::kZeros2f;
-  }
-
-  if (profile->touchpads[0].has_gestures) {
-    const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
-    if (!touch_gesture_ptr) {
-      LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
-      return mathfu::kZeros2f;
+  if (touch_id == kPrimaryTouchId) {
+    const TouchGesture* gesture = GetTouchGesturePtr(device, touchpad_id);
+    if (gesture) {
+      return gesture->velocity;
     }
-    return touch_gesture_ptr->velocity;
   }
 
-  return buffer->GetCurrent().touch[0].velocity;
+  if (curr_touch == nullptr) {
+    return mathfu::kZeros2f;
+  }
+
+  return curr_touch->velocity;
 }
 
 InputManager::GestureType InputManager::GetTouchGestureType(
-    DeviceType device) const {
-  const DataBuffer* buffer = GetConnectedDataBuffer(device);
-  if (buffer == nullptr) {
-    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
-    return GestureType::kNone;
-  }
-
-  const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty()) {
-    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
-    return GestureType::kNone;
-  }
-
-  if (profile->touchpads[0].has_gestures) {
-    const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
-    if (touch_gesture_ptr) {
-      return touch_gesture_ptr->type;
-    }
+    DeviceType device, TouchpadId touchpad_id) const {
+  const TouchGesture* gesture = GetTouchGesturePtr(device, touchpad_id);
+  if (gesture) {
+    return gesture->type;
   }
 
   LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
@@ -758,39 +889,29 @@ InputManager::GestureType InputManager::GetTouchGestureType(
 }
 
 InputManager::GestureDirection InputManager::GetTouchGestureDirection(
-    DeviceType device) const {
-  const DataBuffer* buffer = GetConnectedDataBuffer(device);
-  if (buffer == nullptr) {
-    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
-    return GestureDirection::kNone;
-  }
-
-  const DeviceProfile* profile = GetDeviceProfile(device);
-  if (!profile || profile->touchpads.empty()) {
-    LOG(DFATAL) << "Touchpad not setup for device: " << GetDeviceName(device);
-    return GestureDirection::kNone;
-  }
-
-  if (profile->touchpads[0].has_gestures) {
-    const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
-    if (!touch_gesture_ptr) {
-      LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
-      return GestureDirection::kNone;
-    } else if (touch_gesture_ptr->type == GestureType::kFling) {
-      return touch_gesture_ptr->direction;
+    DeviceType device, TouchpadId touchpad_id) const {
+  const TouchGesture* gesture = GetTouchGesturePtr(device, touchpad_id);
+  if (gesture) {
+    if (gesture->type == GestureType::kFling) {
+      return gesture->direction;
     } else {
       return GestureDirection::kNone;
     }
   }
 
-  const DeviceState& curr = buffer->GetCurrent();
-  const DeviceState& prev = buffer->GetPrevious();
-  if (curr.touch[0].valid || !prev.touch[0].valid) {
+  const Touch* curr_touch = GetTouchPtr(device, touchpad_id, kPrimaryTouchId);
+  const Touch* prev_touch =
+      GetPreviousTouchPtr(device, touchpad_id, kPrimaryTouchId);
+  if (curr_touch == nullptr || prev_touch == nullptr) {
+    return GestureDirection::kNone;
+  }
+
+  if (curr_touch->valid || !prev_touch->valid) {
     return GestureDirection::kNone;
   }
 
   const float kMinVelocitySqr = .4f * .4f;  // From UX.
-  const mathfu::vec2& velocity = curr.touch[0].velocity;
+  const mathfu::vec2& velocity = curr_touch->velocity;
   if (velocity.LengthSquared() < kMinVelocitySqr) {
     return GestureDirection::kNone;
   }
@@ -814,14 +935,40 @@ InputManager::GestureDirection InputManager::GetTouchGestureDirection(
   return GestureDirection::kLeft;
 }
 
-mathfu::vec2 InputManager::GetInitialDisplacementAxis(DeviceType device) const {
-  if (!IsTouchGestureAvailable(device)) {
+mathfu::vec2 InputManager::GetInitialDisplacementAxis(
+    DeviceType device, TouchpadId touchpad_id) const {
+  if (!IsTouchGestureAvailable(device, touchpad_id)) {
     LOG(DFATAL) << "Gesture not setup for device: " << GetDeviceName(device);
     return mathfu::kZeros2f;
   }
 
-  const TouchGesture* touch_gesture_ptr = GetTouchGesturePtr(device);
-  return touch_gesture_ptr->initial_displacement_axis;
+  const TouchGesture* gesture = GetTouchGesturePtr(device, touchpad_id);
+  return gesture->initial_displacement_axis;
+}
+
+Optional<mathfu::vec2> InputManager::GetTouchpadSize(
+    DeviceType device, TouchpadId touchpad_id) const {
+
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return NullOpt;
+  }
+
+  const DeviceState& state = buffer->GetCurrent();
+  if (touchpad_id >= state.touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return NullOpt;
+  }
+
+  const TouchpadState& touchpad = state.touchpads[touchpad_id];
+  if (touchpad.size_cm.x < 0) {
+    LOG(DFATAL) << "Touchpad Size has not been set: " << GetDeviceName(device);
+    // Size Not Set
+    return NullOpt;
+  }
+
+  return touchpad.size_cm;
 }
 
 mathfu::vec3 InputManager::GetDofPosition(DeviceType device) const {
@@ -906,7 +1053,7 @@ mathfu::mat4 InputManager::GetDofWorldFromObjectMatrix(
 
   const DeviceProfile* profile = GetDeviceProfile(device);
   if (!profile || (profile->rotation_dof == DeviceProfile::kUnavailableDof &&
-                   profile->rotation_dof == DeviceProfile::kUnavailableDof)) {
+                   profile->position_dof == DeviceProfile::kUnavailableDof)) {
     LOG(DFATAL) << "WorldFromObjectMatrix not setup for device: "
                 << GetDeviceName(device);
     return mathfu::mat4::Identity();
@@ -956,6 +1103,24 @@ mathfu::mat4 InputManager::GetEyeFromHead(DeviceType device,
   }
 
   return buffer->GetCurrent().eye_from_head_matrix[eye];
+}
+
+mathfu::mat4 InputManager::GetScreenFromEye(DeviceType device,
+                                            EyeType eye) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return mathfu::mat4::Identity();
+  }
+
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile || profile->eyes.size() <= static_cast<size_t>(eye)) {
+    LOG(DFATAL) << "Invalid eye [" << eye
+                << "] for device: " << GetDeviceName(device);
+    return mathfu::mat4::Identity();
+  }
+
+  return buffer->GetCurrent().screen_from_eye_matrix[eye];
 }
 
 mathfu::rectf InputManager::GetEyeFOV(DeviceType device, EyeType eye) const {
@@ -1050,17 +1215,92 @@ const InputManager::DataBuffer* InputManager::GetConnectedDataBuffer(
 }
 
 const InputManager::TouchGesture* InputManager::GetTouchGesturePtr(
-    DeviceType device) const {
+    DeviceType device, TouchpadId touchpad_id) const {
   const DataBuffer* buffer = GetDataBuffer(device);
   if (buffer == nullptr) {
     return nullptr;
   }
 
-  if (buffer->GetCurrent().touch_gesture.empty()) {
+  const DeviceState& state = buffer->GetCurrent();
+  if (touchpad_id >= state.touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
     return nullptr;
   }
 
-  return &(buffer->GetCurrent().touch_gesture[0]);
+  const DeviceProfile* profile = GetDeviceProfile(device);
+  if (!profile->touchpads[touchpad_id].has_gestures) {
+    return nullptr;
+  }
+
+  return &state.touchpads[touchpad_id].gesture;
+}
+
+const InputManager::Touch* InputManager::GetTouchPtr(DeviceType device,
+                                                     TouchpadId touchpad_id,
+                                                     TouchId touch_id) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return nullptr;
+  }
+
+  const DeviceState& state = buffer->GetCurrent();
+  if (touchpad_id >= state.touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return nullptr;
+  }
+
+  const TouchpadState& touchpad = state.touchpads[touchpad_id];
+
+  if (touch_id == kPrimaryTouchId) {
+    if (touchpad.primary_touch == kPrimaryTouchId) {
+      // No current touch.
+      return nullptr;
+    }
+    touch_id = touchpad.primary_touch;
+  }
+
+  const auto iter = touchpad.touches.find(touch_id);
+  if (iter == touchpad.touches.end()) {
+    // Touch has been released or never existed.  Reasonable to happen at run
+    // time for legacy apps, so no log.
+    return nullptr;
+  }
+
+  return &iter->second;
+}
+
+const InputManager::Touch* InputManager::GetPreviousTouchPtr(
+    DeviceType device, TouchpadId touchpad_id, TouchId touch_id) const {
+  const DataBuffer* buffer = GetConnectedDataBuffer(device);
+  if (buffer == nullptr) {
+    LOG(DFATAL) << "Invalid buffer for device: " << GetDeviceName(device);
+    return nullptr;
+  }
+
+  const DeviceState& state = buffer->GetPrevious();
+  if (touchpad_id >= state.touchpads.size()) {
+    LOG(DFATAL) << "Invalid touchpad id for device: " << GetDeviceName(device);
+    return nullptr;
+  }
+
+  const TouchpadState& touchpad = state.touchpads[touchpad_id];
+  if (touch_id == kPrimaryTouchId) {
+    if (touchpad.primary_touch == kPrimaryTouchId) {
+      // No current touch.
+      return nullptr;
+    }
+    touch_id = touchpad.primary_touch;
+  }
+
+  const auto iter = touchpad.touches.find(touch_id);
+  if (iter == touchpad.touches.end()) {
+    // Touch has been released or never existed.  Reasonable to happen at run
+    // time for legacy apps, so no log.
+    return nullptr;
+  }
+
+  return &iter->second;
 }
 
 const DeviceProfile* InputManager::GetDeviceProfile(DeviceType device) const {
@@ -1163,17 +1403,15 @@ void InputManager::Device::Connect(const DeviceProfile& profile) {
   state.repeat.resize(profile.buttons.size(), false);
   state.button_press_times.resize(profile.buttons.size(), Clock::time_point());
   state.joystick.resize(profile.joysticks.size(), mathfu::kZeros2f);
-  state.touch.resize(profile.touchpads.size(), TouchpadState());
-  state.touch_press_times.resize(profile.touchpads.size(), Clock::time_point());
-  state.touch_gesture.resize(
-      !profile.touchpads.empty() && profile.touchpads[0].has_gestures ? 1 : 0,
-      TouchGesture());
+  state.touchpads.resize(profile.touchpads.size(), TouchpadState());
   bool has_pos = profile.position_dof != DeviceProfile::kUnavailableDof;
   state.position.resize(has_pos ? 1 : 0, mathfu::kZeros3f);
   bool has_rot = profile.rotation_dof != DeviceProfile::kUnavailableDof;
   state.rotation.resize(has_rot ? 1 : 0, mathfu::quat::identity);
   state.eye_from_head_matrix.resize(profile.eyes.size(),
                                     mathfu::mat4::Identity());
+  state.screen_from_eye_matrix.resize(profile.eyes.size(),
+                                      mathfu::mat4::Identity());
   state.eye_viewport.resize(profile.eyes.size());
   state.eye_fov.resize(profile.eyes.size());
   state.battery_state.resize(profile.battery ? 1 : 0, BatteryState::kUnknown);
@@ -1205,12 +1443,44 @@ InputManager::DataBuffer::DataBuffer(
 }
 
 void InputManager::DataBuffer::Advance(Clock::duration delta_time) {
-  DeviceState& prev = buffer_[curr_index_];
-  prev.time_stamp += delta_time;
+  // The state that will be readable this frame.
+  DeviceState& readable_state = buffer_[curr_index_];
+  readable_state.time_stamp += delta_time;
+
+  RemoveInactiveTouches();
+
   curr_index_ = (curr_index_ + kBufferSize - 1) % kBufferSize;
-  DeviceState& state = buffer_[curr_index_];
-  state = prev;
-  state.keys.clear();
+  // The state that will be writable this frame.
+  DeviceState& writable_state = buffer_[curr_index_];
+  writable_state = readable_state;
+  writable_state.keys.clear();
+}
+
+void InputManager::DataBuffer::RemoveInactiveTouches() {
+  // The state that was readable last frame.
+  DeviceState& previous_readable_state =
+      buffer_[(curr_index_ + 1) % kBufferSize];
+  // The state that will be readable this frame.
+  DeviceState& new_readable_state = buffer_[curr_index_];
+  // Need to remove any touches that have been inactive for more than one frame.
+  for (size_t i = 0; i < new_readable_state.touchpads.size(); i++) {
+    TouchpadState& touchpad = new_readable_state.touchpads[i];
+    std::unordered_map<TouchId, Touch>& curr_touches = touchpad.touches;
+    for (auto& prev_pair : previous_readable_state.touchpads[i].touches) {
+      auto curr_pair = curr_touches.find(prev_pair.first);
+      if (curr_pair != curr_touches.end() && !prev_pair.second.valid &&
+          !curr_pair->second.valid) {
+        curr_touches.erase(prev_pair.first);
+        if (touchpad.primary_touch == prev_pair.first) {
+          if (touchpad.current_touches.empty()) {
+            touchpad.primary_touch = kPrimaryTouchId;
+          } else {
+            touchpad.primary_touch = touchpad.current_touches[0];
+          }
+        }
+      }
+    }
+  }
 }
 
 InputManager::DeviceState& InputManager::DataBuffer::GetMutable() {

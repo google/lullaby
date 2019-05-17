@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,42 +23,18 @@ limitations under the License.
 
 namespace lull {
 
+struct Color4f;
 struct Color4ub {
-  Color4ub() : r(255), g(255), b(255), a(255) {}
-  Color4ub(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
-      : r(r), g(g), b(b), a(a) {}
-  explicit Color4ub(uint32_t rgba)
-      : r(static_cast<uint8_t>((rgba >> 24) & 0xff)),
-        g(static_cast<uint8_t>((rgba >> 16) & 0xff)),
-        b(static_cast<uint8_t>((rgba >>  8) & 0xff)),
-        a(static_cast<uint8_t>( rgba        & 0xff)) {}
-  explicit Color4ub(const mathfu::vec4& v)
-      : r(static_cast<uint8_t>(v.x * 255)),
-        g(static_cast<uint8_t>(v.y * 255)),
-        b(static_cast<uint8_t>(v.z * 255)),
-        a(static_cast<uint8_t>(v.w * 255)) {}
-  bool operator==(Color4ub rhs) const {
-    return (packed == rhs.packed);
-  }
-  bool operator!=(Color4ub rhs) const {
-    return (packed != rhs.packed);
-  }
+  Color4ub();
+  Color4ub(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+  explicit Color4ub(uint32_t rgba);
+  bool operator==(Color4ub rhs) const;
+  bool operator!=(Color4ub rhs) const;
 
-  static Color4ub FromARGB(uint32_t argb) {
-    Color4ub result;
-    result.a = static_cast<uint8_t>((argb >> 24) & 0xff);
-    result.r = static_cast<uint8_t>((argb >> 16) & 0xff);
-    result.g = static_cast<uint8_t>((argb >>  8) & 0xff);
-    result.b = static_cast<uint8_t>( argb        & 0xff);
-    return result;
-  }
-
-  static mathfu::vec4 ToVec4(const Color4ub color) {
-    return mathfu::vec4(1.0f / 255.0f * static_cast<float>(color.r),
-                        1.0f / 255.0f * static_cast<float>(color.g),
-                        1.0f / 255.0f * static_cast<float>(color.b),
-                        1.0f / 255.0f * static_cast<float>(color.a));
-  }
+  static Color4ub FromARGB(uint32_t argb);
+  static Color4ub FromVec4(const mathfu::vec4& vec);
+  static Color4ub FromColor4f(const Color4f& color);
+  static mathfu::vec4 ToVec4(const Color4ub color);
 
   union {
     struct {
@@ -70,6 +46,59 @@ struct Color4ub {
     uint32_t packed;
   };
 };
+
+struct Color4f {
+  Color4f(float s = 1.0f);
+  Color4f(float r, float g, float b, float a);
+
+  static Color4f FromARGB(uint32_t argb);
+  static Color4f FromVec4(const mathfu::vec4& vec);
+  static Color4f FromColor4ub(const Color4ub& color);
+  static mathfu::vec4 ToVec4(const Color4f& color);
+
+  float& operator[](const int i);
+  float operator[](const int i) const;
+
+  static Color4f Lerp(const Color4f& lhs, const Color4f& rhs,
+                      const float percent);
+  static Color4f Max(const Color4f& lhs, const Color4f& rhs);
+  static Color4f Min(const Color4f& lhs, const Color4f& rhs);
+
+  Color4f& operator*=(const Color4f& c);
+  Color4f& operator/=(const Color4f& c);
+  Color4f& operator+=(const Color4f& c);
+  Color4f& operator-=(const Color4f& c);
+  Color4f& operator*=(float s);
+  Color4f& operator/=(float s);
+  Color4f& operator+=(float s);
+  Color4f& operator-=(float s);
+  bool operator==(const Color4f& c) const;
+  bool operator!=(const Color4f& c) const;
+
+  union {
+    struct {
+        float r;
+        float g;
+        float b;
+        float a;
+    };
+    float data[4];
+  };
+};
+
+Color4f operator-(const Color4f& c);
+Color4f operator*(const Color4f& lhs, const Color4f& rhs);
+Color4f operator/(const Color4f& lhs, const Color4f& rhs);
+Color4f operator+(const Color4f& lhs, const Color4f& rhs);
+Color4f operator-(const Color4f& lhs, const Color4f& rhs);
+Color4f operator*(const Color4f& lhs, float rhs);
+Color4f operator/(const Color4f& lhs, float rhs);
+Color4f operator+(const Color4f& lhs, float rhs);
+Color4f operator-(const Color4f& lhs, float rhs);
+Color4f operator*(float lhs, const Color4f& rhs);
+Color4f operator/(float lhs, const Color4f& rhs);
+Color4f operator+(float lhs, const Color4f& rhs);
+Color4f operator-(float lhs, const Color4f& rhs);
 
 }  // namespace lull
 

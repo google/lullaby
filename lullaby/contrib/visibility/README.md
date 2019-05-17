@@ -1,6 +1,5 @@
 # `VisibilitySystem`
 
-*   Contact: mehe
 *   Status: **Ready**
 
 Calculates the visibility of entities that have a VisibilityContentDef and are

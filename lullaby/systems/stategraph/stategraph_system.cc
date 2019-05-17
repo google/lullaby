@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/systems/stategraph/stategraph_system.h"
 
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/modules/lullscript/lull_script_engine.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/make_unique.h"
 #include "lullaby/generated/stategraph_def_generated.h"
@@ -27,7 +28,8 @@ static constexpr HashValue kStategraphDef = ConstHash("StategraphDef");
 
 StategraphSystem::StategraphSystem(Registry* registry)
     : System(registry), components_(32) {
-  RegisterDef(this, kStategraphDef);
+  RegisterDef<StategraphDefT>(this);
+  RegisterDependency<LullScriptEngine>(this);
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
@@ -73,14 +75,9 @@ void StategraphSystem::Create(Entity entity, HashValue type, const Def* def) {
         LoadStategraph(data->animation_stategraph()->c_str());
     component->current_state = data->initial_state();
   }
-  component->env = MakeUnique<ScriptEnv>();
-
-  auto* binder = registry_->Get<FunctionBinder>();
-  if (binder) {
-    component->env->SetFunctionCallHandler(
-        [binder](FunctionCall* call) { binder->Call(call); });
-    component->env->SetValue(Symbol("entity"), ScriptValue::Create(entity));
-  }
+  auto* lull_script = registry_->Get<LullScriptEngine>();
+  component->env = lull_script->MakeEnv();
+  component->env->SetValue(Symbol("entity"), ScriptValue::Create(entity));
 }
 
 void StategraphSystem::Destroy(Entity entity) { components_.Destroy(entity); }
@@ -270,7 +267,7 @@ std::shared_ptr<StategraphAsset> StategraphSystem::LoadStategraph(
   const HashValue key = Hash(filename);
   return assets_.Create(key, [this, filename]() {
     AssetLoader* asset_loader = registry_->Get<AssetLoader>();
-    return asset_loader->LoadAsync<StategraphAsset>(filename.to_string(),
+    return asset_loader->LoadAsync<StategraphAsset>(std::string(filename),
                                                     registry_);
   });
 }

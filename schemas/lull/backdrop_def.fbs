@@ -51,6 +51,9 @@ table BackdropDef {
   /// applied to only left and bottom edges. Otherwise by default |margin| is
   /// applied to all edges.
   top_right_margin: Vec2 (defaults_to_null);
+  // Same as blueprint, but a child entity with given backdrop_name is expected
+  // to exist and be used as the backdrop entity.
+  backdrop_name: string;
 }
 
 /// When a parent entity containing a BackdropDef component calculates the aabb

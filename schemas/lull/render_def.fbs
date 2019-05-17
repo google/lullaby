@@ -9,7 +9,7 @@ namespace lull;
 
 /// Render passes define the render state and high-level render order of
 /// entities. Please keep these in sync with
-/// //java/com/google/third_party/lullaby/Constants.java
+/// //java/com/google/lullaby/Constants.java
 enum RenderPass : uint {
   /// Drawn first, so behind everything.
   Pano,
@@ -51,7 +51,7 @@ enum VerticalAlignment : int {
 }
 
 /// Describes a simple quad mesh.
-/// TODO(b/38457584): NinePatches are now the recommended way of doing quads. We
+/// TODO: NinePatches are now the recommended way of doing quads. We
 /// should migrate to using those instead.
 struct QuadDef {
   /// The size in the x dimension.

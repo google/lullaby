@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,6 +55,17 @@ void CompactInfluences(const std::vector<Vertex::Influence>& influences,
                        const std::vector<uint8_t>& mesh_to_shader_bones,
                        uint8_t* indices, uint8_t* weights,
                        int number_of_influences = 4);
+
+// Computes a quaternion given a normal and a tangent.  The tangent's 4th
+// component represents handedness.  The input vectors do not have to be unit
+// length.
+mathfu::vec4 CalculateOrientation(const mathfu::vec3& normal,
+                                  const mathfu::vec4& tangent);
+
+// Computes a quaternion given a normal and a tangent. The quaternion will not
+// have w == 0 by introducing a bias to it.
+mathfu::vec4 CalculateOrientationNonZeroW(const mathfu::vec3& normal,
+                                          const mathfu::vec4& tangent);
 
 }  // namespace tool
 }  // namespace lull

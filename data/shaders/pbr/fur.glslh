@@ -1,0 +1,100 @@
+#ifndef LULLABY_DATA_SHADERS_PBR_FUR_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_FUR_GLSLH_
+
+// Computes specular reflection using a simple Kajiya specular model, based on
+// light directions at the upper and lower poles of the lighting environment,
+// plus the view vector (to capture forward scattering). Each term is masked
+// based on card normal orientation w.r.t. the light direction. The card
+// orientation should roughly match the corresponding skin orientation.
+//
+// Note: This model is physically inaccurate with respect to both energy
+// conservation and environment convolution (both are approximated crudely).
+
+#ifdef LULLABY_FUR
+
+
+uniform float fur_sheen_gain;
+uniform float fur_wrap_exp;
+uniform float fur_flare;
+
+
+float WrapMaskingCosine(float m) {
+  return m >= 0.0 ? 1.0 : pow(max(0.0, 1.0 - m * m), fur_wrap_exp);
+}
+
+vec3 FurEnvSpecular(
+    vec3 normal,      // Fur card normal (should somewhat match skin).
+    float roughness,  // Beckmann roughness for specular falloff.
+    vec3 cam_dir) {   // Unit vector from shading point to camera.
+  // Fixed lighting directions (world space).
+  const vec3 kAboveDir = vec3(0.0,  1.0, 0.0);
+  const vec3 kBelowDir = vec3(0.0, -1.0, 0.0);
+
+  // Exponent below 1.0 doesn't look good with Kajiya.
+  float ns = max(1.0, RoughnessToSpecPower(roughness));
+
+  // The following environment lookups use the wrong convolution for a fur BRDF,
+  // but it's the best approximation we have at the moment. The correct specular
+  // convolution is view-dependent, which would make it hard to even store in a
+  // single texture.
+  //
+  // TODO: These functions perform some repeated calculations, which
+  // should be factored out and reused as an optimization.
+  vec3 light_color_above = EnvSpecularColor(kAboveDir, roughness);
+  vec3 light_color_below = EnvSpecularColor(kBelowDir, roughness);
+#if LULLABY_PBR_SCREEN_SPACE_REFL
+  vec3 light_color_forward = EnvSpecularColor(-cam_dir, -cam_dir, roughness);
+#else   // LULLABY_PBR_SCREEN_SPACE_REFL
+  vec3 light_color_forward = EnvSpecularColor(-cam_dir, roughness);
+#endif  // LULLABY_PBR_SCREEN_SPACE_REFL
+
+  // This provides normal-mapped tangents for fur rendering.
+  vec3 fur_tan = cross(normal, vBinormal);
+  // The flare parameter adds some normal component to the tangent, simulating a
+  // flaring out of the fur strands relative to the shell or skin surface. When
+  // fully flared out at 1.0, the fur takes on the look of velvet.
+  fur_tan = mix(fur_tan, normal, fur_flare);
+  fur_tan = normalize(fur_tan);
+
+  // Camera vs. tangent term.
+  float cos_te = dot(fur_tan, cam_dir);
+  float sin_te = sqrt(max(0.0, 1.0 - cos_te * cos_te));
+  // Light direction from above; math simplified.
+  float masking_above = WrapMaskingCosine(normal.y);
+  float cos_tla = fur_tan.y;  // dot(fur_tan, kAboveDir).
+  float sin_tla = sqrt(max(0.0, 1.0 - cos_tla * cos_tla));
+  // Light direction from below; math simplified.
+  float masking_below = WrapMaskingCosine(-normal.y);
+  float cos_tlb = -fur_tan.y;  // dot(fur_tan, kBelowDir).
+  float sin_tlb = sin_tla;  // By symmetry.
+  // Forward-scattering light direction. No need for sine and cosine terms here,
+  // since the weight is always 1.0. However, the masking term is zero except at
+  // silhouette edges.
+  float masking_forward = WrapMaskingCosine(-dot(cam_dir, normal));
+
+  // Accumulate the masked light contributions. Note that the way the math works
+  // out, fur_tan is equivalent to -fur_tan (i.e. inverting the direction of a
+  // fur strand does not alter the shading, as well it shouldn't).
+  vec3 out_color = vec3(0.0);
+  out_color += masking_above *
+               pow(max(0.0, sin_tla * sin_te - cos_tla * cos_te), ns) *
+               light_color_above;
+  out_color += masking_below *
+               pow(max(0.0, sin_tlb * sin_te - cos_tlb * cos_te), ns) *
+               light_color_below;
+  out_color += masking_forward * light_color_forward;
+
+  // This BRDF resembles a circular cone of view-dependent size, centered about
+  // the fur tangent, with cos^n falloff, which is difficult to correctly
+  // normalize. The following term simply normalizes cos^n(theta) over the
+  // hemisphere, which, for the fur BRDF, is valid only when the light or view
+  // vector aligns with the tangent vector. Otherwise, it underestimates the
+  // BRDF integral to varying degrees (i.e. overstates the normalization value).
+  float brdf_normalization_term = ns + 1.0;
+
+  return fur_sheen_gain * brdf_normalization_term * out_color;
+}
+
+#endif  // LULLABY_FUR
+
+#endif  // LULLABY_DATA_SHADERS_PBR_FUR_GLSLH_

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ class Registry {
   // type.
   // Example usage: RegisterDependency<OtherType>(this);
   template <typename T, typename S>
-  void RegisterDependency(S* self) {
+  void RegisterDependency(S* /*self*/) {
     RegisterDependency(GetTypeId<S>(), GetTypeName<S>(), GetTypeId<T>(),
                        GetTypeName<T>());
   }

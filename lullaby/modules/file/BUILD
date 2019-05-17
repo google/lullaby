@@ -6,6 +6,17 @@ package(
 licenses(["notice"])  # Apache 2.0
 
 cc_library(
+    name = "asset",
+    hdrs = [
+        "asset.h",
+    ],
+    deps = [
+        "//lullaby/util:error",
+        "//lullaby/util:typeid",
+    ],
+)
+
+cc_library(
     name = "file",
     srcs = [
         "asset_loader.cc",
@@ -15,13 +26,43 @@ cc_library(
         "asset_loader.h",
     ],
     deps = [
+        ":asset",
         "//lullaby/util:android_context",
         "//lullaby/util:async_processor",
+        "//lullaby/util:error",
         "//lullaby/util:filename",
         "//lullaby/util:logging",
         "//lullaby/util:registry",
         "//lullaby/util:time",
         "//lullaby/util:typeid",
+    ],
+)
+
+cc_library(
+    name = "file_binder",
+    srcs = [
+        "asset_loader_binder.cc",
+    ],
+    hdrs = [
+        "asset_loader_binder.h",
+    ],
+    deps = [
+        ":file",
+        "//lullaby/modules/script",
+        "//lullaby/util:logging",
+        "//lullaby/util:registry",
+        "//lullaby/util:typeid",
+    ],
+)
+
+cc_library(
+    name = "file_jni",
+    srcs = [
+        "asset_loader_jni.cc",
+    ],
+    deps = [
+        ":file_binder",
+        "//lullaby/modules/jni:registry_jni",
     ],
 )
 
@@ -69,7 +110,7 @@ cc_library(
     ],
     deps = [
         ":tagged_file_loader",
-        "@fplbase//:fplbase",
+        "@fplbase//:utilities",
         "//lullaby/util:filename",
         "//lullaby/util:logging",
         "//lullaby/util:typeid",

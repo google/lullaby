@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +31,12 @@ void ConvertRgb888ToRgba8888(const uint8_t* rgb_ptr, const mathfu::vec2i& size,
 
 // Multiplies the RGB-components of an RGBA image with its Alpha component.
 void MultiplyRgbByAlpha(uint8_t* data, const mathfu::vec2i& size);
+
+// Returns a static ImageData containing a 2x2 white texture.
+ImageData CreateWhiteImage();
+
+// Returns a static ImageData containing an "ugly" pink and green texture.
+ImageData CreateInvalidImage();
 
 }  // namespace lull
 

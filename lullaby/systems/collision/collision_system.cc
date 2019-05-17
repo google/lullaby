@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ CollisionSystem::CollisionSystem(Registry* registry)
       interaction_flag_(TransformSystem::kInvalidFlag),
       default_interaction_flag_(TransformSystem::kInvalidFlag),
       clip_flag_(TransformSystem::kInvalidFlag) {
-  RegisterDef(this, kCollisionDefHash);
-  RegisterDef(this, kClipBoundsDefHash);
+  RegisterDef<CollisionDefT>(this);
+  RegisterDef<CollisionClipBoundsDefT>(this);
   RegisterDependency<TransformSystem>(this);
 
   auto* dispatcher = registry_->Get<Dispatcher>();
@@ -245,6 +245,18 @@ void CollisionSystem::DisableClipping(Entity entity) {
 
 void CollisionSystem::EnableClipping(Entity entity) {
   transform_system_->SetFlag(entity, clip_flag_);
+}
+
+void CollisionSystem::RegisterCollisionProvider(CollisionProvider* provider) {
+  collision_providers_.insert(provider);
+}
+
+void CollisionSystem::UnregisterCollisionProvider(CollisionProvider* provider) {
+  collision_providers_.erase(provider);
+}
+
+size_t CollisionSystem::GetNumCollisionProviders() const {
+  return collision_providers_.size();
 }
 
 Entity CollisionSystem::GetContainingBounds(Entity entity) const {

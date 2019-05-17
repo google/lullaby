@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ class MockTextSystem : public TextSystemImpl {
   MOCK_CONST_METHOD1(GetRenderedText, const std::string*(Entity));
   MOCK_METHOD2(SetText, void(Entity, const std::string& text));
   MOCK_METHOD2(SetFontSize, void(Entity, float));
+  MOCK_METHOD2(SetLineHeightScale, void(Entity, float));
   MOCK_METHOD2(SetBounds, void(Entity, const mathfu::vec2&));
   MOCK_METHOD2(SetWrapMode, void(Entity, TextWrapMode));
   MOCK_METHOD2(SetEllipsis, void(Entity, const std::string& ellipsis));

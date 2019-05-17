@@ -6,6 +6,7 @@ include "lull/vertex_attribute_def.fbs";
 namespace lull;
 
 /// Shader data types.
+
 enum ShaderDataType : uint {
   Float1,
   Float2,
@@ -25,6 +26,10 @@ enum ShaderDataType : uint {
   // Texture types.
   Sampler2D,
 }
+
+//     //java/com/google/lullaby/\
+//         RenderSystem.java
+// )
 
 /// Description of a shader uniform that is defined inside the shader program.
 table ShaderUniformDef {
@@ -52,6 +57,9 @@ table ShaderSamplerDef {
   usage: MaterialTextureUsage;
   /// The type of texture sampler (e.g. 2D, cube, etc).
   type: TextureTargetType;
+  /// For samplers with multiple usages, this array describes the usage of each
+  /// channel.
+  usage_per_channel: [MaterialTextureUsage];
 }
 
 /// Types of programmable shader stages.
@@ -81,10 +89,10 @@ enum ShaderLanguage : ushort {
 table ShaderSnippetVersionDef {
   /// Shader language defined for the snippet.
   lang: ShaderLanguage;
-  /// Minimum shading language version supported.
+  /// Minimum shading language version supported (inclusive).
   /// [0 = no minimum version].
   min_version: int;
-  /// Maximum shading language version supported.
+  /// Maximum shading language version supported up to (exclusive).
   /// [0 = no maximum version].
   max_version: int;
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,6 +44,9 @@ class BackdropSystem : public System {
 
   // Creates the backdrop component for this entity.
   void Create(Entity e, HashValue type, const Def* def) override;
+
+  void PostCreateInit(lull::Entity e, lull::HashValue type,
+                      const Def* def) override;
 
   // Destroys the backdrop component for this entity.
   void Destroy(Entity e) override;

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,8 +26,11 @@ namespace lull {
 // Key for use with GetDeviceInfo() to get a lull::Ray that stores the ray in
 // device local space that should be used as a 'forward' ray when selecting
 // entities in the scene.
+
 static constexpr HashValue kSelectionRayHash = ConstHash("SelectionRay");
 
+
+// //lullaby/modules/input/input_manager_util.cc")
 constexpr float kDaydreamControllerErgoAngleRadians = -0.26f;
 const mathfu::vec3 kDaydreamControllerRayOrigin(0.0f, -0.01f, -0.06f);
 const mathfu::vec3 kDaydreamControllerRayDirection =
@@ -52,14 +55,21 @@ constexpr uint8_t kControllerMaxTouches = 1;
 constexpr uint8_t kControllerMaxColoredButtons = 20;
 constexpr uint8_t kControllerMaxBones = 20;
 
+
+// Return a profile for a given headset model.
+// Return CardboardHeadset profile if nothing matches
+DeviceProfile GetDeviceProfileForHeadsetModel(const HashValue hash);
+
 // Daydream controller settings.
 DeviceProfile GetDaydreamControllerProfile();
+
 
 // Cardboard Headset settings.
 DeviceProfile GetCardboardHeadsetProfile();
 
 // Daydream Headset settings.
 DeviceProfile GetDaydreamHeadsetProfile();
+
 
 // Fake headset for AR.
 DeviceProfile GetARHeadsetProfile();

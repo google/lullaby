@@ -12,6 +12,12 @@ struct ModelIndexRange {
   end: uint32;
 }
 
+/// A table to hold a submesh aabb.
+table SubmeshAabb {
+  min_position: Vec3;
+  max_position: Vec3;
+}
+
 /// Matches the format of the original mesh, but potentially supplies new
 /// normals and positions for each vertex.  This is used by BlendSystem to
 /// support blend shape animation (morph target animation) in Lullaby.
@@ -56,6 +62,12 @@ table ModelInstanceDef {
 
   /// A collection of blendshapes, if they exist.
   blend_shapes: [BlendShape];
+
+  /// Describes the structure of the vertex data for the blend shapes.
+  blend_attributes: [VertexAttribute];
+
+  /// A bounding Aabb for each submesh.
+  aabbs: [SubmeshAabb];
 }
 
 /// Contains all the information stored in a lullmodel file. This information

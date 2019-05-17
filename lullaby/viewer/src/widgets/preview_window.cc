@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -101,18 +101,18 @@ void PreviewWindow::CheckInput() {
     ImGui::ResetMouseDragDelta();
 
     if (ctrl && shift) {
-      // X and Y translation.
-      const mathfu::vec3 delta_xy(static_cast<float>(delta.x),
-                                  -static_cast<float>(delta.y), 0.0f);
-      translation_ -= delta_xy * kTranslationSensitivity;
+      // Roll rotation.
+      rotation_.z += delta.y * kRotationSensitivity;
     } else if (shift) {
       // X and Z translation.
       const mathfu::vec3 delta_xz(static_cast<float>(delta.x), 0.0f,
                                   static_cast<float>(delta.y));
       translation_ -= delta_xz * kTranslationSensitivity;
     } else if (ctrl) {
-      // Roll rotation.
-      rotation_.z += delta.y * kRotationSensitivity;
+      // X and Y translation.
+      const mathfu::vec3 delta_xy(static_cast<float>(delta.x),
+                                  -static_cast<float>(delta.y), 0.0f);
+      translation_ -= delta_xy * kTranslationSensitivity;
     } else {
       // Pitch and yaw rotation.
       rotation_.y -= delta.x * kRotationSensitivity;

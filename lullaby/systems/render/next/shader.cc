@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,11 +15,58 @@ limitations under the License.
 */
 
 #include "lullaby/systems/render/next/shader.h"
+#include <vector>
 
+#include "lullaby/generated/flatbuffers/shader_def_generated.h"
 #include "lullaby/systems/render/next/detail/glplatform.h"
+#include "lullaby/systems/render/next/next_renderer.h"
+#include "lullaby/systems/render/next/texture.h"
+#include "lullaby/util/hash.h"
 #include "lullaby/util/logging.h"
+#include "lullaby/generated/material_def_generated.h"
 
 namespace lull {
+namespace {
+size_t CalculateUniformFieldSize(const ShaderUniformDefT& field) {
+  return detail::UniformData::ShaderDataTypeToBytesSize(field.type) *
+         std::max(static_cast<size_t>(field.array_size), size_t(1));
+}
+
+std::vector<uint8_t> BuildDefaultDataBuffer(const ShaderUniformDefT& parent) {
+  std::vector<uint8_t> data;
+
+  // Find the size of the buffer in bytes, including all of its fields.
+  size_t buffer_size = 0;
+  bool has_defaults = false;
+  for (const auto& field : parent.fields) {
+    buffer_size += CalculateUniformFieldSize(field);
+
+    if (!field.values.empty() || !field.values_int.empty()) {
+      has_defaults = true;
+    }
+  }
+
+  if (has_defaults) {
+    // Build the data buffer.
+    data.resize(buffer_size, 0);
+
+    uint8_t* ptr = data.data();
+    for (const auto& field : parent.fields) {
+      // Copy the data available for each field.
+      const size_t field_size = CalculateUniformFieldSize(field);
+      if (!field.values.empty()) {
+        memcpy(ptr, field.values.data(), field.values.size() * sizeof(float));
+      } else if (!field.values_int.empty()) {
+        memcpy(ptr, field.values_int.data(),
+               field.values_int.size() * sizeof(int));
+      }
+      ptr += field_size;
+    }
+  }
+
+  return data;
+}
+}  // namespace
 
 void Shader::Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs) {
   if (!program || !vs || !fs) {
@@ -51,11 +98,31 @@ void Shader::Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs) {
     uniforms_[Hash(name)] = location;
   }
 
+  if (NextRenderer::SupportsUniformBufferObjects()) {
+    GLint num_uniform_blocks = 0;
+    glGetProgramiv(*program, GL_ACTIVE_UNIFORM_BLOCKS, &num_uniform_blocks);
+    for (GLint i = 0; i < num_uniform_blocks; ++i) {
+      GLint length;
+      GLchar name[512];
+      GL_CALL(glGetActiveUniformBlockiv(*program, i,
+                                        GL_UNIFORM_BLOCK_NAME_LENGTH, &length));
+      GL_CALL(glGetActiveUniformBlockName(*program, i, sizeof(name), &length,
+                                          name));
+      name[length] = 0;
+
+      UniformHnd handle = static_cast<int>(uniform_blocks_.size());
+      const GLuint index = glGetUniformBlockIndex(*program, name);
+      GL_CALL(glUniformBlockBinding(*program_, index, *handle));
+      uniform_blocks_[Hash(name)] = handle;
+    }
+  }
+
   // Create a mapping from texture usage to texture unit index and uniform.
   for (size_t unit = 0; unit < description_.samplers.size(); ++unit) {
     const ShaderSamplerDefT& sampler = description_.samplers[unit];
-    samplers_[sampler.usage].texture_unit = static_cast<int>(unit);
-    samplers_[sampler.usage].uniform = uniforms_[Hash(sampler.name)];
+    const TextureUsageInfo info = TextureUsageInfo(sampler);
+    samplers_[info].unit = static_cast<int>(unit);
+    samplers_[info].uniform = uniforms_[Hash(sampler.name)];
   }
 
   if (description_.samplers.empty()) {
@@ -63,7 +130,7 @@ void Shader::Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs) {
     // supports all usages, mapping their integer value to the corresponding
     // texture unit index.
     for (int i = MaterialTextureUsage_MIN; i <= MaterialTextureUsage_MAX; ++i) {
-      samplers_[i].texture_unit = i;
+      samplers_[TextureUsageInfo(i)].unit = i;
 
       // For samplers with texture_unit_##### naming, automatically set uniform.
       char uniform_name[] = "texture_unit_#####";
@@ -71,7 +138,7 @@ void Shader::Init(ProgramHnd program, ShaderHnd vs, ShaderHnd fs) {
 
       auto iter = uniforms_.find(Hash(uniform_name));
       if (iter != uniforms_.end()) {
-        samplers_[i].uniform = iter->second;
+        samplers_[TextureUsageInfo(i)].uniform = iter->second;
       }
     }
   }
@@ -87,32 +154,26 @@ Shader::~Shader() {
   if (program_) {
     GL_CALL(glDeleteProgram(*program_));
   }
+  for (const auto& iter : default_ubos_) {
+    if (iter.second.Valid()) {
+      GLuint ubo = *iter.second;
+      GL_CALL(glDeleteBuffers(1, &ubo));
+    }
+  }
 }
 
-UniformHnd Shader::FindUniform(const char* name) {
-  const HashValue hashed_name = Hash(name);
-  UniformHnd handle = FindUniform(hashed_name);
-  if (handle) {
-    return handle;
-  }
-
-  if (program_) {
-    GL_CALL(glUseProgram(*program_));
-    handle = glGetUniformLocation(*program_, name);
-    uniforms_[hashed_name] = handle;
-    return handle;
-  } else {
-    return UniformHnd();
-  }
+bool Shader::IsUniformBlock(HashValue name) const {
+  return uniform_blocks_.find(name) != uniform_blocks_.end();
 }
 
 UniformHnd Shader::FindUniform(HashValue hash) const {
-  const auto iter = uniforms_.find(hash);
-  if (iter == uniforms_.end()) {
-    return UniformHnd();
-  } else {
-    return iter->second;
-  }
+  auto iter = uniforms_.find(hash);
+  return iter != uniforms_.end() ? iter->second : UniformHnd();
+}
+
+UniformHnd Shader::FindUniformBlock(HashValue hash) const {
+  auto iter = uniform_blocks_.find(hash);
+  return iter != uniform_blocks_.end() ? iter->second : UniformHnd();
 }
 
 void Shader::Bind() {
@@ -123,16 +184,7 @@ void Shader::Bind() {
 
 bool Shader::SetUniform(HashValue name, const int* data, size_t len,
                         int count) {
-  return SetUniform(FindUniform(name), data, len, count);
-}
-
-bool Shader::SetUniform(HashValue name, const float* data, size_t len,
-                        int count) {
-  return SetUniform(FindUniform(name), data, len, count);
-}
-
-bool Shader::SetUniform(UniformHnd id, const int* data, size_t len,
-                        int count) {
+  UniformHnd id = FindUniform(name);
   if (program_ && id) {
     switch (len) {
       case 1:
@@ -154,8 +206,9 @@ bool Shader::SetUniform(UniformHnd id, const int* data, size_t len,
   return false;
 }
 
-bool Shader::SetUniform(UniformHnd id, const float* data, size_t len,
+bool Shader::SetUniform(HashValue name, const float* data, size_t len,
                         int count) {
+  UniformHnd id = FindUniform(name);
   if (program_ && id) {
     switch (len) {
       case 1:
@@ -183,33 +236,22 @@ bool Shader::SetUniform(UniformHnd id, const float* data, size_t len,
   return false;
 }
 
-const Shader::Description& Shader::GetDescription() const {
-  return description_;
-}
-
-Shader::Sampler Shader::GetSampler(MaterialTextureUsage usage) const {
-  return samplers_[usage];
-}
-
-void Shader::BindUniform(UniformHnd hnd, const UniformData& uniform) {
-  const uint8_t* data = uniform.GetData<uint8_t>();
-  const size_t size = uniform.Size();
-  BindUniform(hnd, uniform.Type(), {data, size});
-}
+const ShaderDescription& Shader::GetDescription() const { return description_; }
 
 template <typename T>
 static const T* GetDataPtr(Span<uint8_t> data) {
   return reinterpret_cast<const T*>(data.data());
 }
 
-void Shader::BindUniform(UniformHnd hnd, ShaderDataType type,
+void Shader::BindUniform(HashValue name, ShaderDataType type,
                          Span<uint8_t> data) {
+  UniformHnd hnd = FindUniform(name);
   if (!hnd) {
     return;
   }
 
   const int count = static_cast<int>(
-      data.size() / UniformData::ShaderDataTypeToBytesSize(type));
+      data.size() / detail::UniformData::ShaderDataTypeToBytesSize(type));
 
   switch (type) {
     case ShaderDataType_Float1:
@@ -250,6 +292,89 @@ void Shader::BindUniform(UniformHnd hnd, ShaderDataType type,
     default:
       LOG(DFATAL) << "Unsupported type: " << type;
   }
+}
+
+void Shader::BindUniformBlock(HashValue name, UniformBufferHnd ubo) {
+  if (!ubo) {
+    return;
+  }
+  UniformHnd hnd = FindUniformBlock(name);
+  if (!hnd) {
+    return;
+  }
+  GL_CALL(glBindBufferBase(GL_UNIFORM_BUFFER, static_cast<GLuint>(*hnd), *ubo));
+}
+
+void Shader::BindSampler(TextureUsageInfo usage, const TexturePtr& texture) {
+  auto iter = samplers_.find(usage);
+  if (iter == samplers_.end()) {
+    return;
+  }
+
+  const Sampler sampler = iter->second;
+  if (sampler.unit >= NextRenderer::MaxTextureUnits()) {
+    if (texture) {
+      LOG(ERROR) << "Invalid unit for texture: " << texture->GetName();
+    }
+    return;
+  }
+
+  UniformHnd uniform_hnd = sampler.uniform;
+  TextureHnd texture_hnd = texture ? texture->GetResourceId() : TextureHnd();
+  const int target = texture ? texture->GetTarget() : GL_TEXTURE_2D;
+  BindTexture(uniform_hnd, texture_hnd, target, sampler.unit);
+}
+
+void Shader::BindShaderUniformDef(const ShaderUniformDefT& uniform) {
+  const HashValue name = Hash(uniform.name);
+  if (uniform.type == ShaderDataType_BufferObject) {
+    BindUniformBlock(name, GetDefaultUbo(uniform));
+  } else if (!uniform.values.empty()) {
+    BindUniform(name, uniform.type, ToByteSpan(uniform.values));
+  } else if (!uniform.values_int.empty()) {
+    BindUniform(name, uniform.type, ToByteSpan(uniform.values_int));
+  }
+}
+
+void Shader::BindShaderSamplerDef(const ShaderSamplerDefT& sampler) {
+  const TextureUsageInfo usage = TextureUsageInfo(sampler);
+  auto iter = samplers_.find(usage);
+  if (iter != samplers_.end()) {
+    const Sampler& sampler = iter->second;
+    BindTexture(sampler.uniform, TextureHnd(), GL_TEXTURE_2D, sampler.unit);
+  }
+}
+
+void Shader::BindTexture(UniformHnd uniform, TextureHnd texture, int type,
+                         int unit) {
+  GL_CALL(glActiveTexture(GL_TEXTURE0 + unit));
+  if (texture) {
+    GL_CALL(glBindTexture(type, *texture));
+  }
+  if (uniform) {
+    GL_CALL(glUniform1i(*uniform, unit));
+  }
+}
+
+UniformBufferHnd Shader::GetDefaultUbo(const ShaderUniformDefT& uniform) {
+  const HashValue name = Hash(uniform.name);
+  auto iter = default_ubos_.find(name);
+  if (iter != default_ubos_.end()) {
+    return iter->second;
+  }
+
+  UniformBufferHnd hnd;
+  std::vector<uint8_t> data = BuildDefaultDataBuffer(uniform);
+  if (!data.empty()) {
+    GLuint ubo = 0;
+    GL_CALL(glGenBuffers(1, &ubo));
+    GL_CALL(glBindBuffer(GL_UNIFORM_BUFFER, ubo));
+    GL_CALL(glBufferData(GL_UNIFORM_BUFFER, data.size(), data.data(),
+                         GL_STATIC_DRAW));
+    hnd = ubo;
+  }
+  default_ubos_[name] = hnd;
+  return hnd;
 }
 
 }  // namespace lull

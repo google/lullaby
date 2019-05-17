@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,16 +34,22 @@ bool BuildShadingModel(Registry* registry, const std::string& target,
   std::vector<string_view> vertex_sources, fragment_sources;
 
   if (name == "pbr") {
+    vertex_sources.push_back("vertex_skinning.jsonnet");
     vertex_sources.push_back("vertex_position.jsonnet");
     vertex_sources.push_back("normal_vertex.jsonnet");
     vertex_sources.push_back("vertex_texture.jsonnet");
+    vertex_sources.push_back("vertex_color.jsonnet");
     vertex_sources.push_back("view_direction_vertex.jsonnet");
     vertex_sources.push_back("tangent_bitangent_normal_vertex.jsonnet");
 
     fragment_sources.push_back("base_color_fragment.jsonnet");
     fragment_sources.push_back("occlusion_roughness_metallic_fragment.jsonnet");
     fragment_sources.push_back("normal_fragment.jsonnet");
+    fragment_sources.push_back(
+        "lullshaders/pbr_indirect_light_fragment.jsonnet");
     fragment_sources.push_back("pbr_fragment.jsonnet");
+    fragment_sources.push_back("lullshaders/emissive_fragment.jsonnet");
+    fragment_sources.push_back("lullshaders/apply_gamma_fragment.jsonnet");
   } else if (name == "unlit") {
     vertex_sources.push_back("vertex_position_multiview.jsonnet");
     vertex_sources.push_back("vertex_position.jsonnet");

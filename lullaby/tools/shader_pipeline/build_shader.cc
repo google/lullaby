@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -101,9 +101,27 @@ void CreateSnippetEnvironmentFlags(rapidjson::Value* snippet,
          iter != samplers.End(); ++iter) {
       const rapidjson::Value& sampler = *iter;
       if (sampler.HasMember("usage")) {
+        if (sampler.HasMember("usage_per_channel")) {
+          LOG(FATAL) << "Sampler cannot have both usage and usages_per_channel "
+                        "defined.";
+          return;
+        }
+
         const std::string usage_string =
             "Texture_" + std::string(sampler["usage"].GetString());
         AddUnique(Hash(usage_string), &environment_flags, document);
+      }
+      if (sampler.HasMember("usage_per_channel")) {
+        const auto& usage_per_channel = sampler["usage_per_channel"];
+        if (usage_per_channel.IsArray()) {
+          std::string usage_string = "Texture_";
+          for (rapidjson::Value::ConstValueIterator iter =
+                   usage_per_channel.Begin();
+               iter != usage_per_channel.End(); ++iter) {
+            usage_string += std::string(iter->GetString());
+          }
+          AddUnique(Hash(usage_string), &environment_flags, document);
+        }
       }
     }
   }
@@ -225,6 +243,11 @@ bool ValidateUniformDataType(const rapidjson::Value& uniform,
                  << " can only be a top level uniform!";
       return false;
     }
+    if (uniform.HasMember("array_size")) {
+      LOG(FATAL) << "Uniforms of type 'Struct', 'BufferObject' and "
+                    "'StorageBufferObject' cannot be an array.";
+      return false;
+    }
     if (uniform.HasMember("fields")) {
       auto& fields = uniform["fields"];
       if (!fields.IsArray()) {
@@ -317,7 +340,7 @@ void ValidateAndProcessUniforms(rapidjson::Value* snippet,
         ValidateUniformDataSize(name, type, array_size, values.Size());
       } else {
         LOG(FATAL) << "Uniform " << name
-                   << " has values_inr, but is not of int type.";
+                   << " has values_int, but is not of int type.";
       }
     }
   }
@@ -327,11 +350,12 @@ void ValidateAndProcessUniforms(rapidjson::Value* snippet,
 void ProcessSnippetCodeSection(string_view field_name,
                                rapidjson::Value* snippet,
                                rapidjson::Document* document) {
-  if (!snippet || !snippet->HasMember(field_name.c_str())) {
+  const std::string field_name_string(field_name);
+  if (!snippet || !snippet->HasMember(field_name_string.c_str())) {
     return;
   }
 
-  auto& json_string = (*snippet)[field_name.c_str()];
+  auto& json_string = (*snippet)[field_name_string.c_str()];
   std::string code_string = json_string.GetString();
   if (!ProcessShaderSource(&code_string)) {
     LOG(FATAL) << "Failed to process shader code snippet.";
@@ -420,7 +444,7 @@ bool CreateStageFromSnippetFiles(
   rapidjson::Value stage(rapidjson::kObjectType);
   stage.AddMember(
       "type",
-      rapidjson::Value().SetString(stage_name.c_str(), stage_name.size()),
+      rapidjson::Value().SetString(stage_name.data(), stage_name.size()),
       *allocator);
   stage.AddMember("snippets", snippets_jarray.Move(), *allocator);
 

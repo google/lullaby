@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,8 +16,35 @@ limitations under the License.
 
 #include "lullaby/tools/anim_pipeline/animation.h"
 
+#include <cmath>
+#include <queue>
+
+#include "lullaby/util/fixed_string.h"
+#include "lullaby/util/logging.h"
+#include "lullaby/util/math.h"
+#include "lullaby/tools/common/file_utils.h"
+
 namespace lull {
 namespace tool {
+
+namespace {
+
+// Extracts the quaternion rotation from the transform matrix `m` using `scale`
+// as the pre-computed scale component of the `m`.
+mathfu::quat ExtractQuaternion(const mathfu::mat4 m,
+                               const mathfu::vec3& scale) {
+  // The math here must undo the math in mathfu::mat4::Transform().
+  const mathfu::vec3 inv_scale = mathfu::kOnes3f / scale;
+  const mathfu::mat3 rot(
+      m(0, 0) * inv_scale.x, m(1, 0) * inv_scale.x, m(2, 0) * inv_scale.x,
+      m(0, 1) * inv_scale.y, m(1, 1) * inv_scale.y, m(2, 1) * inv_scale.y,
+      m(0, 2) * inv_scale.z, m(1, 2) * inv_scale.z, m(2, 2) * inv_scale.z);
+  return mathfu::quat::FromMatrix(rot).Normalized();
+}
+
+}  // namespace
+
+using LogString = FixedString<512>;
 
 // Use these bitfields to find situations where scale x, y, and z occur, in
 // any order, in a row.
@@ -27,8 +54,12 @@ static const uint32_t kScaleZBitfield = 1 << motive::kScaleZ;
 static const uint32_t kScaleXyzBitfield =
     kScaleXBitfield | kScaleYBitfield | kScaleZBitfield;
 
-Animation::Animation(std::string name, const Tolerances& tolerances)
-    : name_(std::move(name)), tolerances_(tolerances), cur_bone_index_(-1) {}
+Animation::Animation(std::string name, const Tolerances& tolerances,
+                     bool sqt_anims)
+    : name_(std::move(name)),
+      tolerances_(tolerances),
+      cur_bone_index_(-1),
+      sqt_anims_(sqt_anims) {}
 
 int Animation::RegisterBone(const char* bone_name, int parent_bone_index) {
   const int bone_index = static_cast<int>(bones_.size());
@@ -53,63 +84,77 @@ void Animation::AddConstant(FlatChannelId channel_id, float const_val) {
   n.emplace_back(0, const_val, 0.0f);
 }
 
-void Animation::AddCurve(FlatChannelId channel_id, int time_start, int time_end,
+void Animation::AddCurve(FlatChannelId channel_id, const AnimCurve& curve) {
+  AddCurve(channel_id, curve.times.data(), curve.values.data(),
+           curve.derivatives.data(), curve.times.size());
+}
+
+void Animation::AddCurve(FlatChannelId channel_id, const float* times,
                          const float* vals, const float* derivatives,
                          size_t count) {
-  // Create cubic that covers the entire range from time_start ~ time_end.
-  // The cubic `c` is shifted to the left, to start at 0 instead of
-  // time_start.
-  // This is to maintain floating-point precision.
-  const float time_width = static_cast<float>(time_end - time_start);
-  const motive::CubicCurve c(
-      motive::CubicInit(vals[0], derivatives[0], vals[count - 1],
-                        derivatives[count - 1], time_width));
+  // Break the curve down into segments and process them depth-first so that the
+  // resulting nodes are in chronological order.
+  std::vector<CurveSegment> segments;
+  segments.emplace_back(times, vals, derivatives, count);
 
-  // Find the worst intermediate val in for this cubic.
-  // That is, the index into `vals` where the cubic evaluation is most
-  // inaccurate.
-  const float time_inc = time_width / (count - 1);
-  float time = time_inc;
-  float worst_diff = 0.0f;
-  float worst_time = 0.0f;
-  size_t worst_idx = 0;
-  for (size_t i = 1; i < count - 1; ++i) {
-    const float cubic_val = c.Evaluate(time);
-    const float curve_val = vals[i];
-    const float diff_val = fabs(cubic_val - curve_val);
-    if (diff_val > worst_diff) {
-      worst_idx = i;
-      worst_diff = diff_val;
-      worst_time = time;
+  while (!segments.empty()) {
+    CurveSegment s = segments.back();
+    segments.pop_back();
+
+    // Create cubic that covers the entire range from time_start ~ time_end.
+    // The cubic `c` is shifted to the left, to start at 0 instead of
+    // time_start.
+    // This is to maintain floating-point precision.
+    const float time_start = s.times[0];
+    const float time_end = s.times[s.count - 1];
+    const float time_width = static_cast<float>(time_end - time_start);
+    const motive::CubicCurve c(
+        motive::CubicInit(s.vals[0], s.derivatives[0], s.vals[s.count - 1],
+                          s.derivatives[s.count - 1], time_width));
+
+    // Find the worst intermediate val in for this cubic.
+    // That is, the index into `s.vals` where the cubic evaluation is most
+    // inaccurate.
+    float worst_diff = 0.0f;
+    size_t worst_idx = 0;
+    for (size_t i = 1; i < s.count - 1; ++i) {
+      const float cubic_val = c.Evaluate(s.times[i] - time_start);
+      const float curve_val = s.vals[i];
+      const float diff_val = fabs(cubic_val - curve_val);
+      if (diff_val > worst_diff) {
+        worst_idx = i;
+        worst_diff = diff_val;
+      }
     }
-    time += time_inc;
-  }
 
-  // If the cubic is off by a lot, divide the curve into two curves at the
-  // worst time. Note that the recursion will end, at worst, when count ==> 2.
-  const float tolerance = Tolerance(channel_id);
-  if (worst_idx > 0 && worst_diff > tolerance) {
-    const int time_mid = time_start + static_cast<int>(worst_time);
-    AddCurve(channel_id, time_start, time_mid, vals, derivatives,
-             worst_idx + 1);
-    AddCurve(channel_id, time_mid, time_end, &vals[worst_idx],
-             &derivatives[worst_idx], count - worst_idx);
-    return;
-  }
+    // If the cubic is off by a lot, divide the curve into two curves at the
+    // worst time. Note that the recursion will end, at worst, when
+    // s.count ==> 2.
+    const float tolerance = Tolerance(channel_id);
+    if (worst_idx > 0 && worst_diff > tolerance) {
+      // Push the "end" segment on first so that the "start" segment is
+      // processed first, resulting in a depth-first search.
+      segments.emplace_back(&s.times[worst_idx], &s.vals[worst_idx],
+                            &s.derivatives[worst_idx], s.count - worst_idx);
+      segments.emplace_back(s.times, s.vals, s.derivatives, worst_idx + 1);
+      continue;
+    }
 
-  // Otherwise, the generated cubic is good enough, so record it.
-  const SplineNode start_node(time_start, vals[0], derivatives[0]);
-  const SplineNode end_node(time_end, vals[count - 1], derivatives[count - 1]);
+    // Otherwise, the generated cubic is good enough, so record it.
+    const SplineNode start_node(time_start, s.vals[0], s.derivatives[0]);
+    const SplineNode end_node(time_end, s.vals[s.count - 1],
+                              s.derivatives[s.count - 1]);
 
-  // Only push the start node if it differs from the previously pushed end
-  // node. Most of the time it will be the same.
-  Channels& channels = CurChannels();
-  Nodes& n = channels[channel_id].nodes;
-  const bool start_matches_prev = !n.empty() && n.back() == start_node;
-  if (!start_matches_prev) {
-    n.push_back(start_node);
+    // Only push the start node if it differs from the previously pushed end
+    // node. Most of the time it will be the same.
+    Channels& channels = CurChannels();
+    Nodes& n = channels[channel_id].nodes;
+    const bool start_matches_prev = !n.empty() && n.back() == start_node;
+    if (!start_matches_prev) {
+      n.push_back(start_node);
+    }
+    n.push_back(end_node);
   }
-  n.push_back(end_node);
 }
 
 size_t Animation::NumNodes(FlatChannelId channel_id) const {
@@ -262,12 +307,173 @@ void Animation::ExtendChannelsToTime(int end_time) {
   }
 }
 
+void Animation::BakeSqtAnimations() {
+  if (cur_bone_index_ == -1) {
+    return;
+  }
+  Channels& channels = CurChannels();
+  if (channels.empty()) {
+    return;
+  }
+
+  // Compute start and end times for this bone.
+  const int start_time = bones_[cur_bone_index_].MinAnimatedTime();
+  const int end_time = bones_[cur_bone_index_].MaxAnimatedTime();
+
+  // Determine the sample rate and required number of samples.
+  float sample_rate = 0.f;
+  int num_samples = 1;
+
+  // Length 0 animations only need a single sample.
+  if (start_time != end_time) {
+    // Otherwise, compute the duration and determine the number of samples
+    // required at 120hz.
+    const float duration = static_cast<float>(end_time - start_time);
+    const float ideal_sample_rate = 1000.f / 120.f;
+    num_samples = std::ceil(duration / ideal_sample_rate);
+
+    // Ensure the actual sample rate will place the last node exactly on
+    // `end_time`. Increment the number of samples so `end_time` is included.
+    sample_rate = duration / num_samples;
+    ++num_samples;
+  }
+
+  // Store over-sampled translation, rotation, and scale curves.
+  AnimCurve curves[10] = {AnimCurve(motive::kTranslateX, num_samples),
+                          AnimCurve(motive::kTranslateY, num_samples),
+                          AnimCurve(motive::kTranslateZ, num_samples),
+                          AnimCurve(motive::kQuaternionW, num_samples),
+                          AnimCurve(motive::kQuaternionX, num_samples),
+                          AnimCurve(motive::kQuaternionY, num_samples),
+                          AnimCurve(motive::kQuaternionZ, num_samples),
+                          AnimCurve(motive::kScaleX, num_samples),
+                          AnimCurve(motive::kScaleY, num_samples),
+                          AnimCurve(motive::kScaleZ, num_samples)};
+
+  // Track the previous quaternion used to that neighboring quaternions lie in
+  // the same 4-dimensional hemisphere since both q and -q represent the same
+  // orientation.
+  mathfu::quat last_rotation = mathfu::quat::identity;
+
+  // Take the designated number of curve samples.
+  float time = start_time;
+  for (int i = 0; i < num_samples; ++i) {
+    // Get a list of matrix operations to apply at this time.
+    std::vector<motive::MatrixOperation> ops;
+    for (auto ch = channels.begin(); ch != channels.end(); ++ch) {
+      // If the time is outside the curve, insert an operation with the first
+      // or last value.
+      const SplineNode& front = ch->nodes.front();
+      if (time <= static_cast<float>(front.time)) {
+        ops.emplace_back(motive::MatrixOperationInit(ch->id, ch->op, front.val),
+                         nullptr);
+        continue;
+      }
+      const SplineNode& back = ch->nodes.back();
+      if (time >= static_cast<float>(back.time)) {
+        ops.emplace_back(motive::MatrixOperationInit(ch->id, ch->op, back.val),
+                         nullptr);
+        continue;
+      }
+
+      // Otherwise find where the time is within the curve.
+      for (int j = 0; j < ch->nodes.size() - 1; ++j) {
+        const SplineNode& start_node = ch->nodes[j];
+        // Insert nearly-exact matches.
+        if (AreNearlyEqual(start_node.time, time, 1e-5f)) {
+          ops.emplace_back(
+              motive::MatrixOperationInit(ch->id, ch->op, start_node.val),
+              nullptr);
+          break;
+        } else if (static_cast<float>(start_node.time) < time) {
+          // Ensure that `start_node` is the closest node before `time`.
+          const SplineNode& end_node = ch->nodes[j + 1];
+          if (static_cast<float>(end_node.time) < time) {
+            continue;
+          }
+          // Create a cubic that covers the range between `start_node` and
+          // `end_node`. The cubic `c` is shifted to the left, to start at 0
+          // instead of `start_node.time`, to maintain floating-point
+          // precision.
+          const float time_width =
+              static_cast<float>(end_node.time - start_node.time);
+          const motive::CubicCurve c(
+              motive::CubicInit(start_node.val, start_node.derivative,
+                                end_node.val, end_node.derivative, time_width));
+
+          // Shift the time of this sample into the cubic above, but cast it to
+          // an integer since curve samples aren't floating point values and we
+          // want the samples to be as accurate as possible
+          const int shifted_time = time - static_cast<float>(start_node.time);
+          ops.emplace_back(motive::MatrixOperationInit(
+                               ch->id, ch->op, c.Evaluate(shifted_time)),
+                           nullptr);
+          break;
+        }
+      }
+    }
+
+    // Evaluate the transform matrix using Motive's function to maintain
+    // consistency with how this frame *would* be computed at runtime.
+    mathfu::vec3 scale;
+    const mathfu::mat4 value = motive::MatrixOperation::CalculateResultMatrix(
+        ops.data(), ops.size(), &scale);
+    const mathfu::vec3 translation = value.TranslationVector3D();
+    mathfu::quat rotation = ExtractQuaternion(value, scale);
+
+    // Flip the quaternion if it lies in the opposite 4-dimensional hemisphere
+    // as the previous quaternion to avoid huge changes in the individual
+    // in subsequent component nodes.
+    float dotprod = mathfu::quat::DotProduct(last_rotation, rotation);
+    if (dotprod < 0.f) {
+      rotation.set_scalar(-rotation.scalar());
+      rotation.set_vector(-rotation.vector());
+    }
+    last_rotation = rotation;
+
+    // Add new nodes to the sampled curves.
+    curves[0].AddNode(time, translation.x);
+    curves[1].AddNode(time, translation.y);
+    curves[2].AddNode(time, translation.z);
+
+    const mathfu::vec3 rotation_vector = rotation.vector();
+    curves[3].AddNode(time, rotation.scalar());
+    curves[4].AddNode(time, rotation_vector[0]);
+    curves[5].AddNode(time, rotation_vector[1]);
+    curves[6].AddNode(time, rotation_vector[2]);
+
+    curves[7].AddNode(time, scale.x);
+    curves[8].AddNode(time, scale.y);
+    curves[9].AddNode(time, scale.z);
+
+    // Update the sample time. If on the last sample, use exactly the end time.
+    time += sample_rate;
+    if (i == num_samples - 1) {
+      time = end_time;
+    }
+  }
+
+  // Re-allocate channels now that all the new curve data is prepared.
+  channels.clear();
+  for (int i = 0; i < 10; ++i) {
+    curves[i].GenerateDerivatives();
+    FlatChannelId id = AllocChannel(cur_bone_index_, curves[i].type, i);
+    AddCurve(id, curves[i]);
+    PruneNodes(id);
+  }
+}
+
 float Animation::ToleranceForOp(motive::MatrixOperationType op) const {
-  return motive::RotateOp(op)
-             ? tolerances_.rotate
-             : motive::TranslateOp(op)
-                   ? tolerances_.translate
-                   : motive::ScaleOp(op) ? tolerances_.scale : 0.1f;
+  if (motive::RotateOp(op)) {
+    return tolerances_.rotate;
+  } else if (motive::TranslateOp(op)) {
+    return tolerances_.translate;
+  } else if (motive::ScaleOp(op)) {
+    return tolerances_.scale;
+  } else if (motive::QuaternionOp(op)) {
+    return tolerances_.quaternion;
+  }
+  return 0.1f;
 }
 
 bool Animation::IsDefaultValue(motive::MatrixOperationType op,
@@ -485,7 +691,7 @@ void Animation::SumChannels(Channels& channels, FlatChannelId ch_a,
   const Nodes& nodes_b = channels[ch_b].nodes;
   Nodes sum;
 
-  // TODO(b/66226797): The following assumes that the key on constant channels
+  // TODO: The following assumes that the key on constant channels
   // is not significant to its evaluation. With pre/post infinities, single
   // key curves might not necessarily be "constant" curves. We should validate
   // if elsewhere that assumption is also made.
@@ -568,41 +774,45 @@ bool Animation::IntermediateNodesRedundant(const SplineNode* n, size_t len,
 
 bool Animation::EqualNodes(const SplineNode& a, const SplineNode& b,
                            float tolerance, float derivative_tolerance) {
-  return a.time == b.time && fabs(a.val - a.val) < tolerance &&
+  return a.time == b.time && fabs(a.val - b.val) < tolerance &&
          fabs(DerivativeAngle(a.derivative - b.derivative)) <
              derivative_tolerance;
 }
 
 float Animation::DefaultOpValue(motive::MatrixOperationType op) {
-  // Translate and rotate operations are 0 by default.
-  // Scale operations are 1 by default.
-  return motive::ScaleOp(op) ? 1.0f : 0.0f;
+  return motive::OperationDefaultValue(op);
 }
 
 void Animation::LogChannel(FlatChannelId channel_id) const {
-  /*
   const Channels& channels = CurChannels();
   const Nodes& n = channels[channel_id].nodes;
   for (size_t i = 0; i < n.size(); ++i) {
     const SplineNode& node = n[i];
-    log_.Log(fplutil::kLogVerbose, "    flat, %d, %d, %f, %f\n", i, node.time,
-             node.val, node.derivative);
+    LOG(INFO) << "    flat, " << i << ", " << node.time << ", " << node.val
+              << ", " << node.derivative;
   }
-  */
 }
 
 void Animation::LogAllChannels() const {
-  /*
-  log_.Log(fplutil::kLogInfo, "  %30s %16s  %9s   %s\n", "bone name",
-           "operation", "time range", "values");
-  for (BoneIndex bone_idx = 0; bone_idx < bones_.size(); ++bone_idx) {
-    const Bone& bone = bones_[bone_idx];
+  LogString log;
+  log.format("  %30s %16s  %9s   %s\n", "bone name", "operation", "time range",
+             "values");
+  LOG(INFO) << log;
+
+  for (motive::BoneIndex bone_idx = 0; bone_idx < bones_.size(); ++bone_idx) {
+    const AnimBone& bone = bones_[bone_idx];
     const Channels& channels = bone.channels;
-    if (channels.size() == 0) continue;
+    if (channels.empty()) {
+      continue;
+    }
 
     for (auto c = channels.begin(); c != channels.end(); ++c) {
-      log_.Log(fplutil::kLogInfo, "  %30s %16s   ", BoneBaseName(bone.name),
-               MatrixOpName(c->op));
+      LogString tmp;
+      log.clear();
+
+      tmp.format("  %30s %16s   ", bone.name.c_str(), MatrixOpName(c->op));
+      log.append(tmp);
+
       const char* format = motive::RotateOp(c->op)
                                ? "%.0f "
                                : motive::TranslateOp(c->op) ? "%.1f " : "%.2f ";
@@ -611,19 +821,81 @@ void Animation::LogAllChannels() const {
 
       const Nodes& n = c->nodes;
       if (n.size() <= 1) {
-        log_.Log(fplutil::kLogInfo, " constant   ");
+        tmp.format(" constant   ");
       } else {
-        log_.Log(fplutil::kLogInfo, "%4d~%4d   ", n[0].time,
-                 n[n.size() - 1].time);
+        tmp.format("%4d~%4d   ", n[0].time, n[n.size() - 1].time);
       }
+      log.append(tmp);
 
       for (size_t i = 0; i < n.size(); ++i) {
-        log_.Log(fplutil::kLogInfo, format, factor * n[i].val);
+        tmp.format(format, factor * n[i].val);
+        log.append(tmp);
       }
-      log_.Log(fplutil::kLogInfo, "\n");
+      LOG(INFO) << log;
     }
   }
-  */
+}
+
+bool Animation::GnuplotAllChannels(const std::string& gplot_dir) const {
+  if (!CreateFolder(gplot_dir.c_str())) {
+    return false;
+  }
+
+  for (motive::BoneIndex bone_idx = 0; bone_idx < NumBones(); ++bone_idx) {
+    // Loop through bones; save data file for each, in turn.
+    const AnimBone& bone = GetBone(bone_idx);
+    const Channels& channels = bone.channels;
+    if (channels.empty()) {
+      continue;
+    }
+    std::string out_fullpath = gplot_dir + "/" + bone.name + ".dat";
+
+    std::ostringstream os;
+    std::string bone_name = bone.name;
+    std::replace(bone_name.begin(), bone_name.end(), '_', '-');
+    os << "# Run shell cmd below to visualize this file:\n#\n"
+       << "# gnuplot -persist -e \""
+       << "d = '" << out_fullpath.c_str() << "'; "
+       << "set title '" << bone_name << "' "
+       << "font '14' textcolor rgbcolor 'royalblue'; "
+       << "set linetype 1; set pointsize 1; "
+       << "plot ";
+
+    std::set<int> key_times;
+    for (auto it = channels.begin(); it != channels.end(); ++it) {
+      // Build union set of all keytimes over all channels
+      std::string c_name = MatrixOpName(it->op);
+      std::replace(c_name.begin(), c_name.end(), ' ', '-');
+      os << "d using 1:" << 2 + static_cast<int>(it - channels.begin()) << " "
+         << "title '" << c_name << "' "
+         << "with linespoints pointtype 7 pointsize .7, ";
+      const Nodes& n = it->nodes;
+      for (size_t i = 0; i < n.size(); ++i) {
+        key_times.emplace(n[i].time);
+      }
+    }
+    os << "\"\n#\n";
+
+    for (auto it = key_times.begin(); it != key_times.end(); ++it) {
+      // Each row of data is keytime + values for all channels
+      int key_time = *it;
+      float value, deriv;
+      os << key_time << " ";
+      for (auto c = channels.begin(); c != channels.end(); ++c) {
+        const float factor =
+            motive::RotateOp(c->op) ? motive::kRadiansToDegrees : 1.0f;
+        value = EvaluateNodes(c->nodes, key_time, &deriv);
+        os << factor * value << " ";
+      }
+      os << "\n";
+    }
+
+    const std::string& data = os.str();
+    if (!SaveFile(data.c_str(), data.size(), out_fullpath.c_str(), false)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace tool

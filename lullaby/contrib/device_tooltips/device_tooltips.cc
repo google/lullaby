@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,9 @@ limitations under the License.
 #include "lullaby/events/input_events.h"
 #include "lullaby/events/layout_events.h"
 #include "lullaby/modules/dispatcher/dispatcher.h"
+#include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
-#include "lullaby/systems/layout/layout_box_system.h"
+#include "lullaby/contrib/layout/layout_box_system.h"
 #include "lullaby/systems/text/text_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 
@@ -126,7 +127,7 @@ void DeviceTooltips::ShowTooltip(InputManager::DeviceType device,
   auto* text_system = registry_->Get<TextSystem>();
   text_system->SetText(tooltip.text, hint_text);
 
-  if (!profile) {
+  if (!profile || !input_manager->IsConnected(device)) {
     // Device isn't setup yet, so just store that the tooltip should be
     // showing.
     return;
@@ -156,8 +157,13 @@ void DeviceTooltips::CreateTooltip(const DeviceButtonPair& pair) {
   const Entity device_entity = devices_[pair.first];
 
   auto& tooltip = tooltips_[pair];
-  tooltip.line =
-      transform_system->CreateChild(device_entity, tooltip_line_blueprint_);
+  if (device_entity != kNullEntity) {
+    tooltip.line =
+        transform_system->CreateChild(device_entity, tooltip_line_blueprint_);
+  } else {
+    auto* entity_factory = registry_->Get<EntityFactory>();
+    tooltip.line = entity_factory->Create(tooltip_line_blueprint_);
+  }
   tooltip.text =
       transform_system->CreateChild(tooltip.line, tooltip_text_blueprint_);
 }
@@ -202,7 +208,8 @@ void DeviceTooltips::UpdateTooltip(const DeviceButtonPair& pair,
   const mathfu::quat text_rot =
       mathfu::quat::FromAngleAxis(angle, mathfu::kAxisZ3f);
 
-  if (devices_[pair.first] != transform_system->GetParent(line_entity)) {
+  if (devices_[pair.first] != kNullEntity &&
+      devices_[pair.first] != transform_system->GetParent(line_entity)) {
     transform_system->AddChild(devices_[pair.first], line_entity);
   }
   transform_system->SetSqt(line_entity,
@@ -225,7 +232,10 @@ void DeviceTooltips::ConditionallyShowTooltip(const DeviceButtonPair& pair,
                                               const DeviceProfile* profile,
                                               bool is_new) {
   auto* dispatcher_system = registry_->Get<DispatcherSystem>();
-  if (!profile || pair.second >= profile->buttons.size()) {
+  auto* input_manager = registry_->Get<InputManager>();
+  if (!profile || pair.second >= profile->buttons.size() ||
+      devices_[pair.first] == kNullEntity ||
+      !input_manager->IsConnected(pair.first)) {
     dispatcher_system->Send(tooltip.line, EventWrapper(kHideNowEventHash));
   } else if (tooltip.should_show) {
     if (is_new) {

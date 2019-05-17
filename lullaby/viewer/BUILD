@@ -5,7 +5,10 @@ load(
 
 licenses(["notice"])  # Apache 2.0
 
-exports_files(["LICENSE"])
+exports_files([
+    "LICENSE",
+    "fontawesome-webfont.ttf",
+])
 
 generate_entity_schema(
     src = "entity.fbs",
@@ -35,18 +38,43 @@ Fileset(
             ],
         ),
         FilesetEntry(
-            srcdir = "//third_party/lullaby/data:BUILD",
+            srcdir = "//data:BUILD",
             files = [
-                "//third_party/lullaby/data:jsonnet_srcs",
-                "//third_party/lullaby/data:shader_srcs",
+                "//data:jsonnet_srcs",
+                "//data:shader_srcs",
             ],
         ),
         FilesetEntry(
-            srcdir = "//third_party/lullaby:BUILD",
+            srcdir = "//:BUILD",
             files = [
-                "//third_party/lullaby:schema_srcs",
+                "//:schema_srcs",
             ],
         ),
+    ],
+)
+
+cc_library(
+    name = "imgui_bridge",
+    srcs = [
+        "src/imgui_bridge.cc",
+    ],
+    hdrs = [
+        "src/imgui_bridge.h",
+    ],
+    copts = [
+        "-Ithird_party/GL/gl/include/",
+        "-UNOGDI",
+    ],
+    defines = select({
+        "//:target_os_windows": [],
+        "//conditions:default": ["GL_GLEXT_PROTOTYPES"],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@sdl2//:sdl2",
+        "//third_party/dear_imgui",
+        "@fplbase//:glplatform",
+        "//lullaby/util:logging",
     ],
 )
 
@@ -97,10 +125,11 @@ cc_library(
     ],
     deps = [
         ":entity_library",
+        ":imgui_bridge",
         "//ion/base:ionbase",
         "@sdl2//:sdl2",
         "//third_party/dear_imgui",
-        "//third_party/flatbuffers",
+        "@flatbuffers//:flatbuffers",
         "@flatbuffers//:flatc_library",
         "@fplbase//:fplbase",
         "@fplbase//:glplatform",
@@ -141,6 +170,7 @@ cc_library(
         "//lullaby/util:string_view",
         "//lullaby/util:variant",
         "//lullaby/tools/common:file_utils",
+        "//lullaby/tools/common:jsonnet_utils",
         "//lullaby/tools/model_pipeline:import_asset",
         "//lullaby/tools/model_pipeline:import_fbx",
         "//lullaby/tools/model_pipeline:model_pipeline_lib",
@@ -161,7 +191,7 @@ cc_binary(
     ],
     deps = [
         ":lib",
-        "//third_party/flatbuffers",
+        "@flatbuffers//:flatbuffers",
         "//lullaby/util:arg_parser",
     ],
 )

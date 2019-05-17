@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,58 +21,59 @@ limitations under the License.
 
 namespace lull {
 
-AnimationChannel::AnimationChannel(Registry* registry, int num_dimensions,
-                                   size_t pool_size)
-    : registry_(registry), anims_(pool_size), dimensions_(num_dimensions) {
-      if (static_cast<size_t>(num_dimensions) > kMaxDimensions) {
-        LOG(DFATAL) << "Cannot exceed max number of dimensions.";
-      }
-}
+const size_t AnimationChannel::kDynamicDimensions = 0;
 
-void AnimationChannel::Init(Entity entity, motive::MotiveEngine* engine,
-                            const void* init_data) {
-  DoInitialize(entity, engine, init_data);
-}
+AnimationChannel::AnimationChannel(Registry* registry, size_t num_dimensions,
+                                   size_t pool_size)
+    : registry_(registry), anims_(pool_size), dimensions_(num_dimensions) {}
 
 AnimationChannel::Animation* AnimationChannel::DoInitialize(
-    Entity entity, motive::MotiveEngine* engine, const void* init_data) {
+    Entity entity, motive::MotiveEngine* engine, size_t dimensions,
+    const void* context) {
   auto anim = anims_.Get(entity);
   if (anim) {
     return anim;
   }
 
-  if (IsRigChannel()) {
-    const motive::RigAnim* rig_anim =
-        reinterpret_cast<const motive::RigAnim*>(init_data);
-    const motive::RigInit init(*rig_anim, rig_anim->bone_parents(),
-                               rig_anim->NumBones());
-    anim = anims_.Emplace(entity);
-    anim->rig_motivator.Initialize(init, engine);
+  anim = anims_.Emplace(entity);
+  anim->scratch.resize(dimensions, 0.f);
+
+  // Get the current values for the channel.
+  if (!UsesAnimationContext()) {
+    Get(entity, anim->scratch.data(), dimensions);
+  } else if (context != nullptr) {
+    Get(entity, anim->scratch.data(), dimensions, context);
   } else {
-    // Get the current values for the channel.
-    float target_values[kMaxDimensions] = {0.f};
-    Get(entity, target_values, dimensions_);
-
-    // Set the motive targets to the current values.
-    motive::MotiveTarget1f targets[kMaxDimensions];
-    for (int i = 0; i < dimensions_; ++i) {
-      targets[i] = motive::Current1f(target_values[i]);
-    }
-
-    // Initialize the motivator with the current values.
-    anim = anims_.Emplace(entity);
-    const motive::SplineInit init;
-    anim->motivator.InitializeWithTargets(init, engine, dimensions_, targets);
+    LOG(DFATAL) << "Cannot initialize with a null context.";
+    return anim;
   }
+
+  // Set the motive targets to the current values.
+  std::vector<motive::MotiveTarget1f> targets(dimensions);
+  for (int i = 0; i < dimensions; ++i) {
+    targets[i] = motive::Current1f(anim->scratch[i]);
+  }
+
+  // Initialize the motivator with the current values.
+  const motive::SplineInit init;
+  anim->motivator.InitializeWithTargets(
+      init, engine, static_cast<int>(dimensions), targets.data());
   return anim;
 }
 
-bool AnimationChannel::Get(Entity entity, float* values, size_t len) const {
-  LOG(DFATAL) << "This channel does not support getting the data.";
-  for (size_t i = 0; i < len; ++i) {
-    values[i] = 0.f;
+AnimationChannel::Animation* AnimationChannel::DoInitialize(
+    Entity entity, motive::MotiveEngine* engine,
+    const motive::RigAnim* rig_anim) {
+  auto anim = anims_.Get(entity);
+  if (anim) {
+    return anim;
   }
-  return false;
+
+  const motive::RigInit init(*rig_anim, rig_anim->bone_parents(),
+                             rig_anim->NumBones());
+  anim = anims_.Emplace(entity);
+  anim->rig_motivator.Initialize(init, engine);
+  return anim;
 }
 
 void AnimationChannel::Update(std::vector<AnimationId>* completed) {
@@ -86,15 +87,28 @@ void AnimationChannel::Update(std::vector<AnimationId>* completed) {
     if (anim.rig_motivator.Valid()) {
       // Update the Component data to match the motivator's transforms.
       const int num_bones = anim.rig_motivator.DefiningAnim()->NumBones();
-      SetRig(entity, anim.rig_motivator.GlobalTransforms(), num_bones);
+      if (!UsesAnimationContext()) {
+        SetRig(entity, anim.rig_motivator.GlobalTransforms(), num_bones);
+      } else {
+        SetRig(entity, anim.rig_motivator.GlobalTransforms(), num_bones,
+               anim.context);
+      }
     } else if (anim.motivator.Valid()) {
       // Update the Component data to match the motivator's current values.
-      float values[kMaxDimensions];
+      const size_t dimensions = anim.motivator.Dimensions();
+      const size_t num_offsets = anim.base_offset.size();
+      const size_t num_multiplier = anim.multiplier.size();
       const float* anim_values = anim.motivator.Values();
-      for (int i = 0; i < dimensions_; ++i) {
-        values[i] = anim.base_offset[i] + (anim_values[i] * anim.multiplier[i]);
+      for (int i = 0; i < dimensions; ++i) {
+        anim.scratch[i] =
+            (i < num_offsets ? anim.base_offset[i] : 0.f) +
+            (anim_values[i] * (i < num_multiplier ? anim.multiplier[i] : 1.f));
       }
-      Set(entity, values, dimensions_);
+      if (!UsesAnimationContext()) {
+        Set(entity, anim.scratch.data(), dimensions);
+      } else {
+        Set(entity, anim.scratch.data(), dimensions, anim.context);
+      }
     } else {
       LOG(ERROR) << "Invalid motivator detected during playback!";
       anim.total_time = 0;
@@ -125,12 +139,17 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
                                    AnimationId id, const float* target_values,
                                    size_t length, Clock::duration time,
                                    Clock::duration delay) {
-  if (length != static_cast<size_t>(dimensions_)) {
-    LOG(DFATAL) << "Dimensions do not match!";
+  if (!IsDimensionSupported(length)) {
+    LOG(DFATAL) << "Channel does not support enough dimensions.";
     return kNullAnimation;
   }
 
-  auto anim = DoInitialize(entity, engine, nullptr);
+  if (UsesAnimationContext()) {
+    LOG(DFATAL) << "Cannot set targets for a context-dependent channel.";
+    return kNullAnimation;
+  }
+
+  auto anim = DoInitialize(entity, engine, length, nullptr);
   if (!anim->motivator.Valid()) {
     LOG(DFATAL) << "Invalid motivator!";
     return kNullAnimation;
@@ -155,22 +174,19 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
   }
   anim->total_time = anim_time + delay_time;
 
-  float current_values[kMaxDimensions] = {0.f};
-  Get(entity, current_values, length);
-  motive::MotiveTarget1f targets[kMaxDimensions];
-  for (int i = 0; i < dimensions_; ++i) {
-    anim->base_offset[i] = 0.f;
-    anim->multiplier[i] = 1.f;
+  Get(entity, anim->scratch.data(), length);
+  std::vector<motive::MotiveTarget1f> targets(length);
+  for (int i = 0; i < length; ++i) {
     if (delay_time > 0) {
       targets[i] =
-          motive::TargetToTarget1f(current_values[i], 0.f, delay_time,
+          motive::TargetToTarget1f(anim->scratch[i], 0.f, delay_time,
                                    target_values[i], 0.f, anim->total_time);
     } else {
       targets[i] = motive::Target1f(target_values[i], 0.f, anim->total_time);
     }
   }
 
-  anim->motivator.SetTargets(targets);
+  anim->motivator.SetTargets(targets.data());
   return UpdateId(anim, id);
 }
 
@@ -191,13 +207,19 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
                                    const motive::CompactSpline* const* splines,
                                    const float* constants, size_t length,
                                    const PlaybackParameters& params,
-                                   const SplineModifiers& modifiers) {
-  if (length != static_cast<size_t>(dimensions_)) {
-    LOG(DFATAL) << "Wrong size of constants and splines array.";
+                                   const SplineModifiers& modifiers,
+                                   const void* context) {
+  if (!IsDimensionSupported(length)) {
+    LOG(DFATAL) << "Channel does not support enough dimensions.";
     return kNullAnimation;
   }
 
-  auto anim = DoInitialize(entity, engine, nullptr);
+  if (UsesAnimationContext() && context == nullptr) {
+    LOG(DFATAL) << "Channel requires an animation context.";
+    return kNullAnimation;
+  }
+
+  auto anim = DoInitialize(entity, engine, length, context);
   if (!anim->motivator.Valid()) {
     LOG(DFATAL) << "Invalid motivator!";
     return kNullAnimation;
@@ -208,19 +230,21 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
 
   // Initialize targets for any dimensions that are constant
   // (i.e. don't have splines).
-  motive::MotiveTarget1f targets[kMaxDimensions];
-  for (size_t i = 0; i < static_cast<size_t>(dimensions_); ++i) {
+  std::vector<motive::MotiveTarget1f> targets(length);
+  for (size_t i = 0; i < length; ++i) {
     if (splines[i] == nullptr) {
       targets[i] = motive::Target1f(constants[i], 0.0f, blend_time);
     }
   }
 
-  // Initialize the overall curve offset and multiplier.
-  for (size_t i = 0; i < static_cast<size_t>(dimensions_); ++i) {
-    anim->base_offset[i] =
-        (i < modifiers.num_offsets) ? modifiers.offsets[i] : 0.f;
-    anim->multiplier[i] =
-        (i < modifiers.num_multipliers) ? modifiers.multipliers[i] : 1.f;
+  // Initialize the overall curve offsets and multipliers.
+  anim->base_offset.resize(modifiers.num_offsets, 0.f);
+  for (size_t i = 0; i < static_cast<size_t>(modifiers.num_offsets); ++i) {
+    anim->base_offset[i] = modifiers.offsets[i];
+  }
+  anim->multiplier.resize(modifiers.num_multipliers, 1.f);
+  for (size_t i = 0; i < static_cast<size_t>(modifiers.num_multipliers); ++i) {
+    anim->multiplier[i] = modifiers.multipliers[i];
   }
 
   // Blend motivator to the new splines and constant values.
@@ -230,22 +254,29 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
   playback.blend_x = static_cast<float>(blend_time);
   playback.start_x = -static_cast<float>(
       AnimationSystem::GetMotiveTimeFromSeconds(params.start_delay_s));
+  playback.y_offset = params.y_offset;
+  playback.y_scale = params.y_scale;
 
   anim->total_time = params.looping
                          ? motive::kMotiveTimeEndless
                          : std::max(blend_time, MaxSplineTime(splines, length));
-
-  anim->motivator.SetSplinesAndTargets(splines, playback, targets);
+  anim->motivator.SetSplinesAndTargets(splines, playback, targets.data());
+  anim->context = context;
   return UpdateId(anim, id);
 }
 
 AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
                                    AnimationId id,
                                    const motive::RigAnim* rig_anim,
-                                   const PlaybackParameters& params) {
+                                   const PlaybackParameters& params,
+                                   const void* context) {
   auto anim = DoInitialize(entity, engine, rig_anim);
   if (!anim->rig_motivator.Valid()) {
     LOG(DFATAL) << "Invalid motivator!";
+    return kNullAnimation;
+  }
+  if (UsesAnimationContext() && context == nullptr) {
+    LOG(DFATAL) << "Channel requires an animation context.";
     return kNullAnimation;
   }
 
@@ -256,11 +287,14 @@ AnimationId AnimationChannel::Play(Entity entity, motive::MotiveEngine* engine,
       AnimationSystem::GetMotiveTimeFromSeconds(params.blend_time_s));
   playback.start_x = -static_cast<float>(
       AnimationSystem::GetMotiveTimeFromSeconds(params.start_delay_s));
+  playback.y_offset = params.y_offset;
+  playback.y_scale = params.y_scale;
 
   anim->total_time =
       params.looping ? motive::kMotiveTimeEndless : rig_anim->end_time();
 
   anim->rig_motivator.BlendToAnim(*rig_anim, playback);
+  anim->context = context;
   return UpdateId(anim, id);
 }
 
@@ -274,6 +308,19 @@ void AnimationChannel::SetPlaybackRate(Entity entity, float rate) {
     anim->rig_motivator.SetPlaybackRate(rate);
   } else {
     anim->motivator.SetSplinePlaybackRate(rate);
+  }
+}
+
+void AnimationChannel::SetLooping(Entity entity, bool looping) {
+  Animation* anim = anims_.Get(entity);
+  if (!anim) {
+    return;
+  }
+
+  if (IsRigChannel()) {
+    anim->rig_motivator.SetRepeating(looping);
+  } else {
+    anim->motivator.SetSplineRepeating(looping);
   }
 }
 
@@ -318,10 +365,38 @@ const motive::RigAnim* AnimationChannel::CurrentRigAnim(Entity entity) const {
   return anim->rig_motivator.CurrentAnim();
 }
 
+bool AnimationChannel::Get(Entity entity, float* values, size_t len) const {
+  LOG(DFATAL) << "This channel does not support getting data.";
+  for (size_t i = 0; i < len; ++i) {
+    values[i] = 0.f;
+  }
+  return false;
+}
+
+bool AnimationChannel::Get(Entity entity, float* values, size_t len,
+                           const void* context) const {
+  LOG(DFATAL) << "This channel does not support getting data (with context).";
+  for (size_t i = 0; i < len; ++i) {
+    values[i] = 0.f;
+  }
+  return false;
+}
+
+void AnimationChannel::Set(Entity entity, const float* values, size_t len,
+                           const void* context) {
+  LOG(DFATAL) << "Set (with context) called on an unsupported channel.";
+}
+
 void AnimationChannel::SetRig(Entity entity,
                               const mathfu::AffineTransform* values,
                               size_t len) {
   LOG(DFATAL) << "SetRig called on unsupported channel.";
+}
+
+void AnimationChannel::SetRig(Entity entity,
+                              const mathfu::AffineTransform* values, size_t len,
+                              const void* context) {
+  LOG(DFATAL) << "SetRig (with context) called on unsupported channel.";
 }
 
 }  // namespace lull

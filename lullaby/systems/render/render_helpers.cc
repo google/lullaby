@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -70,6 +70,57 @@ HashValue FixRenderPass(HashValue pass) {
   }
 
   return pass;
+}
+
+ShaderDataType FloatDimensionsToUniformType(int dimensions) {
+  switch (dimensions) {
+    case 1:
+      return ShaderDataType_Float1;
+    case 2:
+      return ShaderDataType_Float2;
+    case 3:
+      return ShaderDataType_Float3;
+    case 4:
+      return ShaderDataType_Float4;
+    case 9:
+      return ShaderDataType_Float3x3;
+    case 16:
+      return ShaderDataType_Float4x4;
+    default:
+      LOG(DFATAL) << "Failed to convert dimensions to uniform type.";
+      return ShaderDataType_Float1;
+  }
+}
+
+ShaderDataType IntDimensionsToUniformType(int dimensions) {
+  switch (dimensions) {
+    case 1:
+      return ShaderDataType_Int1;
+    case 2:
+      return ShaderDataType_Int2;
+    case 3:
+      return ShaderDataType_Int3;
+    case 4:
+      return ShaderDataType_Int4;
+    default:
+      LOG(DFATAL) << "Failed to convert dimensions to uniform type.";
+      return ShaderDataType_Int1;
+  }
+}
+
+void ClearBoneTransforms(RenderSystem* render_system, Entity entity,
+                         int bone_count) {
+  constexpr const char* kBoneTransformsUniform = "bone_transforms";
+  constexpr int kDimension = 4;
+  constexpr int kNumVec4sInAffineTransform = 3;
+  static const mathfu::AffineTransform identity =
+      mathfu::mat4::ToAffineTransform(mathfu::mat4::Identity());
+  static std::vector<mathfu::AffineTransform> bones(kMaxNumBones, identity);
+
+  const int count = kNumVec4sInAffineTransform * bone_count;
+  const float* data = &(bones[0][0]);
+  render_system->SetUniform(entity, kBoneTransformsUniform, data,
+                            kDimension, count);
 }
 
 }  // namespace lull

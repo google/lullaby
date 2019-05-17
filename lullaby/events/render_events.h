@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -157,6 +157,26 @@ struct MeshChangedEvent {
   HashValue pass = 0;
 };
 
+/// Sets the native window for the RenderSystem. As of 8/2018, only
+/// Filament uses this, which is required to initialize its GL context. Also, it
+/// needs to be resent every time a new window is created, for example on
+/// Android when Activities are stopped and restarted. The type of native_window
+/// depends on the platform:
+///   Platform | native_window type
+///   :--------|:----------------------------:
+///   Android  | ANativeWindow*
+///   OSX      | NSView*
+///   IOS      | CAEAGLLayer*
+///   X11      | Window
+///   Windows  | HWND
+/// Note: This event is currently not Serializable.
+struct SetNativeWindowEvent {
+  SetNativeWindowEvent() {}
+  SetNativeWindowEvent(void* native_window) : native_window(native_window) {}
+
+  void* native_window = nullptr;
+};
+
 }  // namespace lull
 
 LULLABY_SETUP_TYPEID(lull::ReadyToRenderEvent);
@@ -168,5 +188,6 @@ LULLABY_SETUP_TYPEID(lull::ShowEvent);
 LULLABY_SETUP_TYPEID(lull::SetRenderGroupIdEvent);
 LULLABY_SETUP_TYPEID(lull::SetRenderGroupParamsEvent);
 LULLABY_SETUP_TYPEID(lull::MeshChangedEvent);
+LULLABY_SETUP_TYPEID(lull::SetNativeWindowEvent);
 
 #endif  // LULLABY_EVENTS_RENDER_EVENTS_H_

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -59,7 +59,8 @@ class Model {
 
   // Internally binds the drawable with the associated material.  A Drawable
   // must be bound before vertices can be added to the model.
-  void BindDrawable(const Material& material);
+  void BindDrawable(const Material& material,
+                    bool combine_same_materials = true);
 
   // Specifies that the given vertex attribute is valid for all vertices added
   // to the model.
@@ -69,13 +70,12 @@ class Model {
   // Adds a vertex to the mesh in the model.  The vertex is automatically
   // associated with the drawable that was most recently "bound" by calling
   // BindDrawable.
-  int AddVertex(const Vertex& vertex);
-
-  // Adds a vertex to the mesh in the model under a named blend shape.
-  int AddVertexToBlendShape(const std::string& name, const Vertex& vertex);
+  void AddVertex(const Vertex& vertex);
 
   // Returns the material with the given name.
   Material* GetMutableMaterial(const std::string& name);
+  // Returns the material with the given index.
+  Material* GetMutableMaterial(int index);
 
   // Accessors used during the export process.
   int GetLodLevel() const { return lod_level_; }
@@ -86,10 +86,6 @@ class Model {
   const std::vector<Bone>& GetBones() const { return bones_; }
   const std::vector<Vertex>& GetVertices() const { return vertices_; }
   const std::vector<Drawable>& GetDrawables() const { return drawables_; }
-  const std::unordered_map<std::string, std::vector<Vertex>>& GetBlends()
-      const {
-    return blends_;
-  }
   Vertex::Attrib GetAttributes() const { return vertex_attributes_; }
   bool CheckUsage(Bits usage) const { return CheckBit(usage_flags_, usage); }
   bool CheckAttrib(Vertex::Attrib attrib) const {
@@ -103,12 +99,19 @@ class Model {
   }
   void Recenter();
 
+  // Uses positions, normals, and tex coords to compute tangents and bitangents.
+  void ComputeTangentSpacesFromNormalsAndUvs();
+  // Uses normals and tangents to compute orientation quaternions. If
+  // ensure_w_nonzero is true, and the computed orientation quaternion results
+  // in w == 0, w will be set to a small value such that its sign can be used to
+  // determine bitangent direction using the glsl method sign().
+  void ComputeOrientationsFromTangentSpaces(bool ensure_w_not_zero = false);
+
  protected:
   size_t AddOrGetVertex(const Vertex& vertex);
 
   std::vector<Bone> bones_;
   std::vector<Vertex> vertices_;
-  std::unordered_map<std::string, std::vector<Vertex>> blends_;
   std::vector<Drawable> drawables_;
   std::vector<std::string> imported_file_paths_;
   ModelPipelineImportDefT import_def_;
@@ -124,8 +127,6 @@ class Model {
   Usage usage_flags_ = 0;
   size_t current_drawable_ = 0;
   Vertex::Attrib vertex_attributes_ = 0;
-
-  bool enable_vertex_deduplication_ = true;
 };
 
 }  // namespace tool

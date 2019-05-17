@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,22 +32,29 @@ ClipSystem::ClipSystem(Registry* registry)
       targets_(16),
       next_stencil_value_(kDefaultAutomaticStencilStartValue),
       auto_stencil_start_value_(kDefaultAutomaticStencilStartValue) {
-  RegisterDef(this, kClipDefHash);
+  RegisterDef<ClipDefT>(this);
 
+  RegisterDependency<Dispatcher>(this);
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
-
-  // Attach to the immediate parent changed event since this has render
-  // implications which don't want to be delayed a frame.
-  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
-  dispatcher->Connect(this, [this](const ParentChangedImmediateEvent& event) {
-    OnParentChanged(event);
-  });
 }
 
 ClipSystem::~ClipSystem() {
-  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
-  dispatcher->Disconnect<ParentChangedImmediateEvent>(this);
+  // The Dispatcher might be destroyed before the ClipSystem, so we need to
+  // check the pointer first before using it.
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->Disconnect<ParentChangedImmediateEvent>(this);
+  }
+}
+
+void ClipSystem::Initialize() {
+  // Attach to the immediate parent changed event since this has render
+  // implications which don't want to be delayed a frame.
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  dispatcher->Connect(this, [this](const ParentChangedImmediateEvent& event) {
+    OnParentChanged(event);
+  });
 }
 
 void ClipSystem::Create(Entity e, HashValue type, const Def* def) {
@@ -254,7 +261,7 @@ void ClipSystem::RemoveTarget(Entity e) {
   }
 }
 
-// TODO(b/26964362) cull in AdvanceFrame
+// TODO cull in AdvanceFrame
 
 Entity ClipSystem::GetRegion(Entity e) const {
   const ClipRegion* region = regions_.Get(e);

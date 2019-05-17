@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ limitations under the License.
 #ifndef LULLABY_VIEWER_SRC_BUILDERS_JSONNET_H_
 #define LULLABY_VIEWER_SRC_BUILDERS_JSONNET_H_
 
+#include <functional>
+#include <map>
 #include <string>
 
 namespace lull {
 namespace tool {
 
-// Converst a jsonnet string into a json string.
+// Converts a jsonnet string into a json string.
 std::string ConvertJsonnetToJson(const std::string& jsonnet,
                                  const std::string& filename = "");
 

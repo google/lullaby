@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_RENDER_RENDER_TYPES_H_
 #define LULLABY_SYSTEMS_RENDER_RENDER_TYPES_H_
 
-#include "lullaby/modules/render/mesh_util.h"
+#include "lullaby/modules/render/quad_util.h"
 #include "lullaby/systems/render/detail/sort_order_types.h"
 #include "lullaby/util/bits.h"
 #include "lullaby/generated/render_def_generated.h"

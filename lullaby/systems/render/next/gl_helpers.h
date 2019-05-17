@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,28 @@ limitations under the License.
 
 namespace lull {
 
+class MeshHelper {
+ public:
+
+  MeshHelper();
+  MeshHelper(const MeshHelper&) = delete;
+  ~MeshHelper();
+
+  void operator=(const MeshHelper&) = delete;
+
+  /// Draws mesh data.
+  void DrawMeshData(const MeshData& mesh_data);
+  /// Draws a quad.
+  void DrawQuad(const mathfu::vec3& bottom_left, const mathfu::vec3& top_right,
+                const mathfu::vec2& tex_bottom_left,
+                const mathfu::vec2& tex_top_right);
+
+ private:
+  GLuint vao_ = 0;
+  GLuint vbo_ = 0;
+  GLuint ibo_ = 0;
+};
+
 GLenum GetGlInternalFormat(DepthStencilFormat format);
 GLenum GetGlInternalFormat(TextureFormat format);
 GLenum GetGlFormat(TextureFormat format);
@@ -48,7 +70,7 @@ GLuint GetGlCullFace(fplbase::CullState::CullFace face);
 GLuint GetGlFrontFace(fplbase::CullState::FrontFace front_face);
 GLuint GetGlStencilOp(fplbase::StencilOperation::StencilOperations op);
 
-ShaderProfile GetShaderProfile();
+ShaderLanguage GetShaderLanguage();
 
 bool GlSupportsVertexArrays();
 bool GlSupportsTextureNpot();
@@ -62,13 +84,6 @@ void SetVertexAttributes(const VertexFormat& vertex_format,
 void UnsetVertexAttributes(const VertexFormat& vertex_format);
 /// Unsets the default attributes.
 void UnsetDefaultAttributes();
-
-/// Draws mesh data.
-void DrawMeshData(const MeshData& mesh_data);
-/// Draws a quad.
-void DrawQuad(const mathfu::vec3& bottom_left, const mathfu::vec3& top_right,
-              const mathfu::vec2& tex_bottom_left,
-              const mathfu::vec2& tex_top_right);
 
 // Returns the default vertex attributes used by Lullaby.
 Span<std::pair<const char*, int>> GetDefaultVertexAttributes();

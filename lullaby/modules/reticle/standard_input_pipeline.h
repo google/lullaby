@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +35,22 @@ namespace lull {
 /// input handling method.
 class StandardInputPipeline {
  public:
+  /// Describes which device the ray should be forced to originate from
+  /// (if any).
+  enum ForceRayFromOriginMode {
+    // By default, the ray will come from the controller for 6DoF controllers
+    // and from the HMD for 3DoF controllers. See MaybeMakeRayComeFromHmd for
+    // more details.
+    kDefault,
+    kAlwaysFromHmd,
+    kAlwaysFromController,
+  };
+
   explicit StandardInputPipeline(Registry* registry);
+  ~StandardInputPipeline();
+
+  /// Create and register a new StandardInputPipeline in the Registry.
+  static StandardInputPipeline* Create(Registry* registry);
 
   /// Executes the entire standard input update for the current main device.
   void AdvanceFrame(const Clock::duration& delta_time);
@@ -65,8 +80,15 @@ class StandardInputPipeline {
   void SetDevicePreference(Span<InputManager::DeviceType> devices);
 
   /// Recalculates the collision ray so that it comes from the hmd, but points
-  /// towards the pre-collision cursor position.
-  void MakeRayComeFromHmd(InputFocus* focus) const;
+  /// towards the pre-collision cursor position. This will not apply to real
+  /// 6DoF controllers by default to avoid collision corner cases where the
+  /// controller has visibility of an entity that the HMD does not. This can be
+  /// forced on/off using SetForceRayFromOriginMode.
+  void MaybeMakeRayComeFromHmd(InputFocus* focus) const;
+
+  /// Sets where the ray should be forced to come from (or if the
+  /// pipeline should decide).
+  void SetForceRayFromOriginMode(ForceRayFromOriginMode mode);
 
   /// Applies standard systems that modify the focused entity.  i.e. collision
   /// detection, focus locking, input behavior, etc.
@@ -85,11 +107,23 @@ class StandardInputPipeline {
   Ray GetDeviceSelectionRay(InputManager::DeviceType device,
                             Entity parent) const;
 
+  /// Set up the collision ray, origin, and cursor position.  This is based only
+  /// on the controller state, and is before any collision or other logic.
+  /// Returns false if it failed to setup the focus.
+  bool InitFocusForController(InputFocus* focus) const;
+
+  /// Set up the collision ray, origin, and cursor position.  This is based only
+  /// on touch and touchscreen state, and is before any collision or other
+  /// logic.  Returns false if it failed to setup the focus.
+  bool InitFocusForTouchScreen(InputFocus* focus) const;
+
  private:
   Registry* registry_;
   std::vector<InputManager::DeviceType> device_preference_;
   Optional<CollisionSystem::CollisionResult> manual_collision_ =
       Optional<CollisionSystem::CollisionResult>();
+  ForceRayFromOriginMode forced_ray_from_origin_mode_ =
+      ForceRayFromOriginMode::kDefault;
 };
 
 }  // namespace lull

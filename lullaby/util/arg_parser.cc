@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ limitations under the License.
 
 #include "lullaby/util/arg_parser.h"
 
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 #include "lullaby/util/logging.h"
 
 namespace lull {
@@ -60,7 +60,7 @@ bool ArgParser::Parse(int argc, const char** argv) {
           ss << "No such flag: " << argstr[0];
           errors_.emplace_back(ss.str());
           continue;
-        } else if (arg->GetNumArgs() != 0) {
+        } else if (arg->HasAssociatedArgs()) {
           std::stringstream ss;
           ss << "Expected value following argument: " << argstr[0];
           errors_.emplace_back(ss.str());
@@ -82,15 +82,31 @@ bool ArgParser::Parse(int argc, const char** argv) {
 
     if (arg == nullptr) {
       std::stringstream ss;
-      ss << "Invalid argument: " << argstr.to_string();
+      ss << "Invalid argument: " << argstr;
       errors_.emplace_back(ss.str());
-    } else if (arg->GetNumArgs() != 0 && arg->GetDefaultValue().empty() &&
+    } else if (arg->HasAssociatedArgs() && arg->GetDefaultValue().empty() &&
                i == argc - 1) {
       std::stringstream ss;
-      ss << "Expected value following argument: " << argstr.to_string();
+      ss << "Expected value following argument: " << argstr;
       errors_.emplace_back(ss.str());
-    } else if (arg->GetNumArgs() == 0) {
+    } else if (!arg->HasAssociatedArgs()) {
       AddValue(arg->GetName(), "");
+    } else if (arg->IsVariableNumArgs()) {
+      int n = 0;
+      while (true) {
+        const int index = n + i + 1;
+        if (index >= argc) {
+          break;
+        }
+        string_view value = argv[index];
+        if (value[0] == '-') {
+          break;
+        }
+        AddValue(arg->GetName(), value);
+        ++n;
+      }
+      // Consume the found number of arguments.
+      i += n;
     } else {
       for (int n = 0; n < arg->GetNumArgs(); ++n) {
         const int index = n + i + 1;
@@ -110,7 +126,7 @@ bool ArgParser::Parse(int argc, const char** argv) {
     if (iter == values_.end()) {
       if (arg.IsRequired()) {
         std::stringstream ss;
-        ss << "Missing required argument: " << arg.GetName().to_string();
+        ss << "Missing required argument: " << arg.GetName();
         errors_.emplace_back(ss.str());
       } else if (!arg.GetDefaultValue().empty()) {
         AddValue(arg.GetName(), arg.GetDefaultValue());
@@ -217,10 +233,20 @@ std::string ArgParser::GetUsage() const {
     }
     return ss.str();
   };
+  int max_length = 0;
   for (auto& arg : args_) {
-    ss << std::setw(20) << std::left << GetArgNames(arg);
-    ss << arg.GetDescription().data();
-    ss << std::endl;
+    if (!arg.IsDeprecated()) {
+      max_length =
+          std::max(max_length, static_cast<int>(GetArgNames(arg).size()));
+    }
+  }
+  max_length++;
+  for (auto& arg : args_) {
+    if (!arg.IsDeprecated()) {
+      ss << std::setw(max_length) << std::left << GetArgNames(arg);
+      ss << arg.GetDescription().data();
+      ss << std::endl;
+    }
   }
   return ss.str();
 }

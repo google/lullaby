@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "lullaby/modules/render/image_util.h"
 
+#include "lullaby/util/color.h"
 #include "lullaby/util/logging.h"
 
 namespace lull {
@@ -51,4 +52,35 @@ void ConvertRgb888ToRgba8888(const uint8_t* rgb_ptr, const mathfu::vec2i& size,
   }
 }
 
+ImageData CreateWhiteImage() {
+  constexpr int kTextureSize = 2;
+  static const Color4ub data[kTextureSize * kTextureSize];
+  const mathfu::vec2i size(kTextureSize, kTextureSize);
+  ImageData image(ImageData::kRgba8888, size,
+                  DataContainer::WrapDataAsReadOnly(data, sizeof(data)));
+  return image;
+}
+
+ImageData CreateInvalidImage() {
+  constexpr int kTextureSize = 64;
+  const Color4ub kUglyGreen(0, 255, 0, 255);
+  const Color4ub kUglyPink(255, 0, 128, 255);
+
+  static Color4ub data[kTextureSize * kTextureSize];
+  static bool initialized = [&]() {
+    Color4ub* ptr = data;
+    for (int y = 0; y < kTextureSize; ++y) {
+      for (int x = 0; x < kTextureSize; ++x) {
+        *ptr = ((x / 8 + y / 8) % 2 == 0) ? kUglyGreen : kUglyPink;
+        ++ptr;
+      }
+    }
+    return true;
+  }();
+  (void)initialized;
+
+  const mathfu::vec2i size(kTextureSize, kTextureSize);
+  return ImageData(ImageData::kRgba8888, size,
+                   DataContainer::WrapDataAsReadOnly(data, sizeof(data)));
+}
 }  // namespace lull

@@ -1,4 +1,4 @@
-#include "third_party/lullaby/data/shaders/common.glslh"
+#include "lullaby/data/shaders/common.glslh"
 
 // Define our default float precision for GL ES.
 #ifdef GL_ES

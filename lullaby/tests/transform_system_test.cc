@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include <deque>
+#include <unordered_set>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -810,14 +811,14 @@ TEST_F(TransformSystemTest, GetParentGetRoot) {
   transform_system->AddChild(1, 2);
   transform_system->AddChild(2, 3);
 
-  EXPECT_THAT(transform_system->GetParent(3), Eq(2ul));
-  EXPECT_THAT(transform_system->GetParent(2), Eq(1ul));
+  EXPECT_THAT(transform_system->GetParent(3), Eq(2u));
+  EXPECT_THAT(transform_system->GetParent(2), Eq(1u));
   EXPECT_THAT(transform_system->GetParent(1), Eq(kNullEntity));
   EXPECT_THAT(transform_system->GetParent(kNullEntity), Eq(kNullEntity));
 
-  EXPECT_THAT(transform_system->GetRoot(3), Eq(1ul));
-  EXPECT_THAT(transform_system->GetRoot(2), Eq(1ul));
-  EXPECT_THAT(transform_system->GetRoot(1), Eq(1ul));
+  EXPECT_THAT(transform_system->GetRoot(3), Eq(1u));
+  EXPECT_THAT(transform_system->GetRoot(2), Eq(1u));
+  EXPECT_THAT(transform_system->GetRoot(1), Eq(1u));
   EXPECT_THAT(transform_system->GetRoot(kNullEntity), Eq(kNullEntity));
   EXPECT_THAT(transform_system->GetRoot(4), Eq(kNullEntity));
 }
@@ -950,17 +951,18 @@ TEST_F(TransformSystemTest, ForAll) {
   CreateDefaultTransform(2);
   CreateDefaultTransform(3);
 
-  int count = 0;
+  std::unordered_set<Entity> seen;
   auto fn = [&](Entity entity, const mathfu::mat4& matrix, const Aabb& aabb,
-                uint32_t flags) { count += static_cast<int>(entity); };
+                uint32_t flags) { seen.emplace(entity); };
 
   auto* transform_system = registry_.Get<TransformSystem>();
   transform_system->ForAll(fn);
-  EXPECT_THAT(count, Eq(6));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 2, 3}));
+  seen.clear();
 
   transform_system->Destroy(2);
   transform_system->ForAll(fn);
-  EXPECT_THAT(count, Eq(10));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 3}));
 }
 
 TEST_F(TransformSystemTest, ForEach) {
@@ -968,18 +970,19 @@ TEST_F(TransformSystemTest, ForEach) {
   CreateDefaultTransform(2);
   CreateDefaultTransform(3);
 
-  int count = 0;
+  std::unordered_set<Entity> seen;
   auto fn = [&](Entity entity, const mathfu::mat4& matrix, const Aabb& aabb) {
-    count += static_cast<int>(entity);
+    seen.emplace(entity);
   };
 
   auto* transform_system = registry_.Get<TransformSystem>();
   transform_system->ForEach(TransformSystem::kAllFlags, fn);
-  EXPECT_THAT(count, Eq(6));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 2, 3}));
+  seen.clear();
 
   transform_system->Destroy(2);
   transform_system->ForEach(TransformSystem::kAllFlags, fn);
-  EXPECT_THAT(count, Eq(10));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 3}));
 }
 
 TEST_F(TransformSystemTest, ForEachFiltered) {
@@ -987,9 +990,9 @@ TEST_F(TransformSystemTest, ForEachFiltered) {
   CreateDefaultTransform(2);
   CreateDefaultTransform(3);
 
-  int count = 0;
+  std::unordered_set<Entity> seen;
   auto fn = [&](Entity entity, const mathfu::mat4& matrix, const Aabb& aabb) {
-    count += static_cast<int>(entity);
+    seen.emplace(entity);
   };
 
   auto* transform_system = registry_.Get<TransformSystem>();
@@ -998,11 +1001,12 @@ TEST_F(TransformSystemTest, ForEachFiltered) {
   transform_system->SetFlag(2, flag);
 
   transform_system->ForEach(flag, fn);
-  EXPECT_THAT(count, Eq(3));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 2}));
+  seen.clear();
 
   transform_system->Destroy(2);
   transform_system->ForEach(flag, fn);
-  EXPECT_THAT(count, Eq(4));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1}));
 }
 
 TEST_F(TransformSystemTest, ForAllDescendants) {
@@ -1012,8 +1016,8 @@ TEST_F(TransformSystemTest, ForAllDescendants) {
   CreateDefaultTransform(4);
   CreateDefaultTransform(5);
 
-  int count = 0;
-  auto fn = [&](Entity entity) { count += static_cast<int>(entity); };
+  std::unordered_set<Entity> seen;
+  auto fn = [&](Entity entity) { seen.emplace(entity); };
 
   auto* transform_system = registry_.Get<TransformSystem>();
   transform_system->AddChild(1, 2);
@@ -1022,14 +1026,16 @@ TEST_F(TransformSystemTest, ForAllDescendants) {
   transform_system->AddChild(4, 5);
 
   transform_system->ForAllDescendants(1, fn);
-  EXPECT_THAT(count, Eq(15));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 2, 3, 4, 5}));
+  seen.clear();
 
   transform_system->ForAllDescendants(2, fn);
-  EXPECT_THAT(count, Eq(29));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{2, 3, 4, 5}));
+  seen.clear();
 
   transform_system->Destroy(4);
   transform_system->ForAllDescendants(1, fn);
-  EXPECT_THAT(count, Eq(35));
+  EXPECT_THAT(seen, Eq(std::unordered_set<Entity>{1, 2, 3}));
 }
 
 TEST_F(TransformSystemTest, Parenting) {

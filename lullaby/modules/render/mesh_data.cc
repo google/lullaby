@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -220,6 +220,27 @@ MeshData MeshData::CreateHeapCopy() const {
   copy.aabb_is_dirty_ = aabb_is_dirty_;
   copy.aabb_ = aabb_;
   return copy;
+}
+
+size_t MeshData::GetNumPrimitives(PrimitiveType type, IndexRange range) {
+  return GetNumPrimitives(type, range.end - range.start);
+}
+
+size_t MeshData::GetNumPrimitives(PrimitiveType type, size_t num_indices) {
+  switch (type) {
+    case MeshData::kPoints:
+      return num_indices;
+    case MeshData::kLines:
+      return num_indices / 2;
+    case MeshData::kTriangles:
+      return num_indices / 3;
+    case MeshData::kTriangleFan:
+      return num_indices - 2;
+    case MeshData::kTriangleStrip:
+      return num_indices - 2;
+    default:
+      return num_indices;
+  }
 }
 
 size_t MeshData::GetIndexSize(IndexType index_type) {

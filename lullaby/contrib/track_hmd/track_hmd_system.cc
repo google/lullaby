@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ limitations under the License.
 
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/transform/transform_system.h"
-#include "lullaby/util/math.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
 #include "lullaby/util/trace.h"
 #include "lullaby/generated/track_hmd_def_generated.h"
@@ -30,7 +29,7 @@ static const HashValue kTrackHmdDef = ConstHash("TrackHmdDef");
 
 TrackHmdSystem::TrackHmdSystem(Registry* registry)
     : System(registry), trackers_(4) {
-  RegisterDef(this, kTrackHmdDef);
+  RegisterDef<TrackHmdDefT>(this);
   RegisterDependency<TransformSystem>(this);
 }
 
@@ -47,6 +46,7 @@ void TrackHmdSystem::Create(Entity entity, HashValue type, const Def* def) {
     tracker->convergence_max_rot_rad =
         data->convergence_max_rot_deg() * kDegreesToRadians;
     tracker->convergence_max_trans = data->convergence_max_trans();
+    tracker->hmd_extra_transform_fn = {};
   } else {
     LOG(DFATAL) << "Invalid type passed to Create. Expecting TrackHmdDef!";
   }
@@ -60,8 +60,22 @@ void TrackHmdSystem::AdvanceFrame(const Clock::duration& delta_time) {
   const mathfu::mat4 world_from_head =
       input_manager->GetDofWorldFromObjectMatrix(InputManager::kHmd);
   trackers_.ForEach([&](Tracker& tracker) {
+    if (!tracker.resumed) {
+      return;
+    }
     UpdateTracker(delta_time, world_from_head, tracker);
   });
+}
+
+void TrackHmdSystem::SetExtraHmdTransformFn(
+    Entity entity,
+    const std::function<mathfu::mat4()>& hmd_extra_transform_fn) {
+  Tracker* tracker = trackers_.Get(entity);
+  if (!tracker) {
+    LOG(DFATAL) << "SetExtraHmdTransformFn: Tracker is not found";
+    return;
+  }
+  tracker->hmd_extra_transform_fn = hmd_extra_transform_fn;
 }
 
 void TrackHmdSystem::UpdateTracker(const Clock::duration& delta_time,
@@ -70,10 +84,14 @@ void TrackHmdSystem::UpdateTracker(const Clock::duration& delta_time,
   auto transform_system = registry_->Get<TransformSystem>();
   const Entity entity = tracker.GetEntity();
   Sqt old_sqt = *transform_system->GetSqt(entity);
-  const mathfu::mat4* p_world_from_head = &world_from_head;
+  const mathfu::mat4 world_from_head_with_extra =
+      tracker.hmd_extra_transform_fn
+          ? tracker.hmd_extra_transform_fn() * world_from_head
+          : world_from_head;
+  const mathfu::mat4* p_world_from_head = &world_from_head_with_extra;
   mathfu::mat4 mirrored_world_from_head;
   if (tracker.mirror || tracker.euler_scale != mathfu::kOnes3f) {
-    Sqt sqt = CalculateSqtFromMatrix(world_from_head);
+    Sqt sqt = CalculateSqtFromMatrix(world_from_head_with_extra);
     mathfu::vec3 euler = sqt.rotation.ToEulerAngles();
     if (tracker.mirror) {
       euler.y = -euler.y;
@@ -131,6 +149,20 @@ void TrackHmdSystem::UpdateTracker(const Clock::duration& delta_time,
   }
 
   transform_system->SetSqt(entity, sqt);
+}
+
+void TrackHmdSystem::PauseTracker(Entity entity) {
+  Tracker* tracker = trackers_.Get(entity);
+  if (tracker != nullptr && tracker->resumed) {
+    tracker->resumed = false;
+  }
+}
+
+void TrackHmdSystem::ResumeTracker(Entity entity) {
+  Tracker* tracker = trackers_.Get(entity);
+  if (tracker != nullptr && !tracker->resumed) {
+    tracker->resumed = true;
+  }
 }
 
 }  // namespace lull

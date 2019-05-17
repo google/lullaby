@@ -1,6 +1,5 @@
 # `SlideshowSystem`
 
-*   Contact: chour
 *   Status: **Draft**
 
 A slideshow entity shows one child at a time among its children, and can

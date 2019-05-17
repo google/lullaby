@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 #include "lullaby/modules/lullscript/script_frame.h"
 #include "lullaby/modules/lullscript/script_types.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/entity.h"
 
 // This file implements the following script functions:
 //
@@ -74,6 +75,19 @@ namespace {
 template <typename T>
 struct IsDuration {
   static constexpr bool value = std::is_same<T, Clock::duration>::value;
+};
+
+template <typename T>
+struct IsEntity {
+  static constexpr bool value = std::is_same<T, Entity>::value;
+};
+
+template <typename T>
+struct IsEntityCastable {
+  static constexpr bool value =
+      std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
+      std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
+      IsEntity<T>::value;
 };
 
 template <typename T>
@@ -153,15 +167,21 @@ struct EnableAddSub {
       IsLargeNum<T>::value && IsMathfu<U>::value;
   static constexpr bool kIsMathfuAndLargeNum =
       IsMathfu<T>::value && IsLargeNum<U>::value;
-  // Addition and subtraction involving a double/[u]int[32/64]_t and a
-  // vec2/vec3/vec4/quat causes a precision loss warning because the number is
-  // implicitly cast to a float, so disable that case. Also, SFINAE seems to
-  // fail for Clock::duration vs mathfu on msvc and it causes a build error
-  // rather than just defaulting to the null implementation, so explicitly
-  // disable this case as well.
-  static constexpr bool value = !kIsDurationAndMathfu &&
-                                !kIsMathfuAndDuration &&
-                                !kIsLargeNumAndMathfu && !kIsMathfuAndLargeNum;
+  static constexpr bool kIsEntityAndNotEntityCastable =
+      IsEntity<T>::value && !IsEntityCastable<U>::value;
+  static constexpr bool kIsNotEntityCastableAndEntity =
+      !IsEntityCastable<T>::value && IsEntity<U>::value;
+  // * Addition and subtraction involving a double/[u]int[32/64]_t and a
+  //   vec2/vec3/vec4/quat causes a precision loss warning because the number is
+  //   implicitly cast to a float, so disable that case.
+  // * SFINAE seems to fail for Clock::duration vs mathfu on msvc and it
+  //   causes a build error rather than just defaulting to the null
+  //   implementation, so explicitly disable this case as well.
+  // * Disable if one type is Entity and the other is not castable to Entity.
+  static constexpr bool value =
+      !kIsDurationAndMathfu && !kIsMathfuAndDuration && !kIsLargeNumAndMathfu &&
+      !kIsMathfuAndLargeNum && !kIsEntityAndNotEntityCastable &&
+      !kIsNotEntityCastableAndEntity;
 };
 
 template <typename T, typename U>
@@ -203,6 +223,7 @@ struct EnableComp {
   OPERABLE_TYPE(mathfu::vec3i) \
   OPERABLE_TYPE(mathfu::vec4i) \
   OPERABLE_TYPE(mathfu::quat)  \
+  OPERABLE_TYPE(Entity)        \
   OPERABLE_TYPE(Clock::duration)
 
 // The ExpandOperandsAndApply function takes two Variants and converts them

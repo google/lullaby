@@ -4,9 +4,18 @@ namespace lull;
 
 /// Specifies the parameters of a generated sphere mesh for an entity
 table SphereDef {
+  /// The radius of the sphere.
   radius: float;
+
+  /// The number of horizontal mesh divisions to generate.
   num_parallels: int;
+
+  /// The number of vertical mesh divisions to generate.
   num_meridians: int;
+
+  /// The render pass to use for rendering the model.  A value of 0 uses the
+  /// default render pass.
+  pass: uint = 0 (hashvalue);
 }
 
 // Specifies the parameter of a generated rectangular mesh for an entity.
@@ -18,10 +27,10 @@ table RectMeshDef {
   size_y: float;
 
   /// Number of mesh vertices to generate in the x direction (default = 2).
-  verts_x: int;
+  verts_x: int = 2;
 
   /// Number of mesh vertices to generate in the y direction (default = 2).
-  verts_y: int;
+  verts_y: int = 2;
 
   /// Radius of rounded corners to create on the mesh (default = 0).
   corner_radius: float;
@@ -29,4 +38,8 @@ table RectMeshDef {
   /// Number of vertices in the triangle fan created at corners to produce the
   /// corner radius (default = 0).
   corner_verts: int;
+
+  /// The render pass to use for rendering the model.  A value of 0 uses the
+  /// default render pass.
+  pass: uint = 0 (hashvalue);
 }

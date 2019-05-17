@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@ limitations under the License.
 */
 
 #include "lullaby/tools/model_pipeline/model.h"
+
+#include "lullaby/modules/render/tangent_generation.h"
+#include "lullaby/tools/model_pipeline/util.h"
 
 namespace lull {
 namespace tool {
@@ -78,6 +81,15 @@ static size_t VertexHash(const Vertex& vertex) {
   return static_cast<size_t>(hash);
 }
 
+// Generates a unit vector (+ handedness) orthogonal to the given normal.
+static mathfu::vec4 GenerateTangent(const mathfu::vec3& normal) {
+  const mathfu::vec3 axis =
+      (std::fabs(mathfu::dot(normal, mathfu::kAxisX3f)) < 0.99f)
+          ? mathfu::kAxisX3f
+          : mathfu::kAxisY3f;
+  return mathfu::vec4(mathfu::normalize(mathfu::cross(normal, axis)), 1.f);
+}
+
 Model::Model(const ModelPipelineImportDefT& import_def)
     : import_def_(import_def),
       min_position_(std::numeric_limits<float>::max()),
@@ -108,10 +120,11 @@ void Model::SetInverseBindTransform(int bone, const mathfu::mat4& inverse) {
   }
 }
 
-void Model::BindDrawable(const Material& material) {
+void Model::BindDrawable(const Material& material,
+                         bool combine_same_materials) {
   const size_t key = MaterialHash(material);
   auto iter = drawable_map_.find(key);
-  if (iter != drawable_map_.end()) {
+  if (iter != drawable_map_.end() && combine_same_materials) {
     current_drawable_ = iter->second;
   } else {
     current_drawable_ = drawables_.size();
@@ -131,6 +144,10 @@ Material* Model::GetMutableMaterial(const std::string& name) {
   return nullptr;
 }
 
+Material* Model::GetMutableMaterial(int index) {
+  return &drawables_[index].material;
+}
+
 void Model::EnableAttribute(Vertex::Attrib attribute) {
   vertex_attributes_ = SetBit(vertex_attributes_, attribute);
 }
@@ -139,55 +156,129 @@ void Model::DisableAttribute(Vertex::Attrib attribute) {
   vertex_attributes_ = ClearBit(vertex_attributes_, attribute);
 }
 
-int Model::AddVertex(const Vertex& vertex) {
+void Model::AddVertex(const Vertex& vertex) {
   if (current_drawable_ >= drawables_.size()) {
-    return -1;
+    return;
   }
-  const size_t vertex_index = AddOrGetVertex(vertex);
-  drawables_[current_drawable_].indices.push_back(vertex_index);
-  return static_cast<int>(vertex_index);
-}
+  if (!vertices_.empty()) {
+    const Vertex& first_vertex = vertices_[0];
+    if (first_vertex.blends.size() != vertex.blends.size()) {
+      return;
+    }
+    for (size_t i = 0; i < first_vertex.blends.size(); ++i) {
+      if (first_vertex.blends[i].name != vertex.blends[i].name) {
+        return;
+      }
+    }
+  }
 
-int Model::AddVertexToBlendShape(const std::string& name,
-                                 const Vertex& vertex) {
-  enable_vertex_deduplication_ = false;
-  auto& vertices = blends_[name];
-  vertices.push_back(vertex);
-  return vertices.size() - 1;
+  const size_t vertex_index = AddOrGetVertex(vertex);
+
+  Drawable& drawable = drawables_[current_drawable_];
+  drawable.indices.push_back(vertex_index);
+
+  drawable.min_position_ =
+      mathfu::vec3::Min(drawable.min_position_, vertex.position);
+  drawable.max_position_ =
+      mathfu::vec3::Max(drawable.max_position_, vertex.position);
 }
 
 size_t Model::AddOrGetVertex(const Vertex& vertex) {
   const size_t key = VertexHash(vertex);
 
-  if (enable_vertex_deduplication_) {
-    auto range = vertex_map_.equal_range(key);
-    for (auto iter = range.first; iter != range.second; ++iter) {
-      const size_t index = iter->second;
-      if (vertices_[index] == vertex) {
-        return index;
-      }
+  auto range = vertex_map_.equal_range(key);
+  for (auto iter = range.first; iter != range.second; ++iter) {
+    const size_t index = iter->second;
+    if (vertices_[index] == vertex) {
+      return index;
     }
   }
 
   const size_t new_index = vertices_.size();
   vertices_.push_back(vertex);
 
-  const mathfu::vec3 pos(vertex.position.x, vertex.position.y,
-                         vertex.position.z);
-  min_position_ = mathfu::vec3::Min(min_position_, pos);
-  max_position_ = mathfu::vec3::Max(max_position_, pos);
+  min_position_ = mathfu::vec3::Min(min_position_, vertex.position);
+  max_position_ = mathfu::vec3::Max(max_position_, vertex.position);
   vertex_map_.emplace(key, new_index);
   return new_index;
 }
 
 void Model::Recenter() {
-  // TODO(b/78512674): Remove this placeholder method and move to
+  // TODO: Remove this placeholder method and move to
   // aiProcess_PreTransformVertices
   const mathfu::vec3 center = 0.5f * (max_position_ + min_position_);
   std::for_each(vertices_.begin(), vertices_.end(),
                 [center](Vertex& vertex) { vertex.position -= center; });
   min_position_ -= center;
   max_position_ -= center;
+}
+
+void Model::ComputeTangentSpacesFromNormalsAndUvs() {
+  if (!CheckAttrib(Vertex::kAttribBit_Position) ||
+      !CheckAttrib(Vertex::kAttribBit_Normal) ||
+      !CheckAttrib(Vertex::kAttribBit_Uv0)) {
+    return;
+  }
+
+  if (!CheckAttrib(Vertex::kAttribBit_Tangent) ||
+      !CheckAttrib(Vertex::kAttribBit_Bitangent)) {
+    for (const Drawable& drawable : drawables_) {
+      ComputeTangentsWithIndexedTriangles(
+          reinterpret_cast<const uint8_t*>(&vertices_[0].position),
+          sizeof(vertices_[0]),
+          reinterpret_cast<const uint8_t*>(&vertices_[0].normal),
+          sizeof(vertices_[0]),
+          reinterpret_cast<const uint8_t*>(&vertices_[0].uv0),
+          sizeof(vertices_[0]), vertices_.size(),
+          reinterpret_cast<const uint8_t*>(drawable.indices.data()),
+          sizeof(drawable.indices[0]), drawable.indices.size() / 3,
+          reinterpret_cast<uint8_t*>(&vertices_[0].tangent),
+          sizeof(vertices_[0]),
+          reinterpret_cast<uint8_t*>(&vertices_[0].bitangent),
+          sizeof(vertices_[0]));
+    }
+
+    EnableAttribute(Vertex::kAttribBit_Tangent);
+    EnableAttribute(Vertex::kAttribBit_Bitangent);
+  }
+}
+
+void Model::ComputeOrientationsFromTangentSpaces(bool ensure_w_not_zero) {
+  if (CheckAttrib(Vertex::kAttribBit_Orientation)) {
+    return;
+  }
+  if (!CheckAttrib(Vertex::kAttribBit_Normal)) {
+    return;
+  }
+
+  if (ensure_w_not_zero) {
+    if (CheckAttrib(Vertex::kAttribBit_Tangent)) {
+      for (Vertex& vertex : vertices_) {
+        vertex.orientation =
+            CalculateOrientationNonZeroW(vertex.normal, vertex.tangent);
+      }
+    } else {
+      for (Vertex& vertex : vertices_) {
+        mathfu::vec4 tangent = GenerateTangent(vertex.normal);
+        vertex.orientation =
+            CalculateOrientationNonZeroW(vertex.normal, tangent);
+      }
+    }
+  } else {
+    if (CheckAttrib(Vertex::kAttribBit_Tangent)) {
+      for (Vertex& vertex : vertices_) {
+        vertex.orientation =
+            CalculateOrientation(vertex.normal, vertex.tangent);
+      }
+    } else {
+      for (Vertex& vertex : vertices_) {
+        mathfu::vec4 tangent = GenerateTangent(vertex.normal);
+        vertex.orientation = CalculateOrientation(vertex.normal, tangent);
+      }
+    }
+  }
+
+  EnableAttribute(Vertex::kAttribBit_Orientation);
 }
 
 }  // namespace tool

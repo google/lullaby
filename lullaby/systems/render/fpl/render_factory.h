@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -64,6 +64,14 @@ class RenderFactory {
   // Loads the shader with the given |filename|. The shader is automatically
   // cached.
   ShaderPtr LoadShader(const std::string& filename);
+
+  // Returns the shader string.
+  std::string GetShaderString(const std::string& filename,
+                              ShaderStageType stage);
+
+  // Compiles a shader from vertex and fragment code.
+  ShaderPtr CompileShaderFromStrings(const std::string& vertex,
+                                     const std::string& fragment);
 
   // Loads the texture with the given |filename| and optionally creates mips.
   // The texture is automatically cached.

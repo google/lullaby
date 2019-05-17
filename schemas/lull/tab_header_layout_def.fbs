@@ -1,0 +1,69 @@
+include "lull/common.fbs";
+
+namespace lull;
+
+// Defines the positioning of the active tab indicator.
+enum IndicatorLocation : int {
+  Underline,  // Beneath the tab entities.
+  Behind,     // Behind the tab entities.
+}
+
+// Creates a set of tab headers that the user can switch between.
+// This is similar to Android's TabLayout control.
+// The entity containing this does *not* manage the actual view pages, it only
+// contains the header buttons and the animation behavior when the user
+// interacts with them.
+table TabHeaderLayoutDef {
+  // The text of the tabs to show.
+  tabs: [string];
+
+  // The name of an EntityDef that provides a template for constructing each
+  // tab. This allows configuring the font of the tab text.
+  // The TabLayoutSystem will call SetText on each tab with the tab text.
+  tab_blueprint: string;
+
+  // The color to set on the entity when it is chosen by the user.
+  selected_tab_color: Color (native_default: "{1, 1, 1, 1}");
+
+  // The color to set on the entity when it is not chosen by the user.
+  deselected_tab_color: Color (native_default: "{1, 1, 1, 1}");
+
+  // The name of the template to use for constructing the entity that will
+  // contain the tabs.
+  tab_container: string;
+
+  // The name of the template to use for constructing the indicator bar under
+  // the selected tab.
+  tab_indicator_blueprint: string;
+
+  // The height of the bar used to indicate the selected tab (applies if
+  // indicator_location = Underline).
+  tab_indicator_height: float;
+
+  // The amount of space between the bottom of the tab text and the indicator
+  // (applies if indicatior_location = Underline).
+  tab_indicator_leading: float;
+
+  // The amount of extra hit target space to add to the top and bottom of each
+  // tab to make it easier to click.
+  hit_padding: Vec2;
+
+  // The name of the template to use for constructing the hit target (which
+  // is larger than the text entity to make it simpler to click).
+  hit_target_blueprint: string;
+
+  // Duration of the animation in milliseconds
+  anim_time_ms: int;
+
+  // Style of active tab indicator.
+  indicator_location: IndicatorLocation = Underline;
+
+  // If specified, a rounded corner lull::Quad will be set on the tab bar
+  // based on the final layout size.
+  add_background_quad: bool = false;
+
+  // If add_background_quad is specified, this controls how much padding to
+  // add around the tabs horizontally (vertical padding can be achieved with
+  // hit_padding).
+  background_padding: float = 0;
+}

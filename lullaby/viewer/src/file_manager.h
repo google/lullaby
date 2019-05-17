@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ namespace tool {
 //
 // Internally, the FileManager uses mainly just the filename and discards the
 // actual path of the file, so collisions are possible.
-// TODO(b/72642539): Properly support directory structure.
+// TODO: Properly support directory structure.
 class FileManager {
  public:
   explicit FileManager(Registry* registry);

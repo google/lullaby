@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,10 +32,6 @@ using namespace flatbuffers;
 
 namespace lull {
 namespace tool {
-
-bool operator==(const Aabb& lhs, const Aabb& rhs) {
-  return lhs.min == rhs.min && lhs.max == rhs.max;
-}
 
 bool operator==(const mathfu::quat& lhs, const mathfu::quat& rhs) {
   return lhs.scalar() == rhs.scalar() && lhs.vector() == rhs.vector();
@@ -161,7 +157,7 @@ void Input(const char* name, const char* tip, mathfu::vec4* data) {
 }
 
 void Input(const char* name, const char* tip, mathfu::quat* data) {
-  ImGui::InputFloat4(name, &data->scalar());
+  ImGui::InputFloat4(name, reinterpret_cast<float*>(data));
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("%s", tip);
   }
@@ -180,7 +176,7 @@ void Input(const char* name, const char* tip, Color4ub* data) {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("%s", tip);
   }
-  *data = Color4ub(vec);
+  *data = Color4ub::FromVec4(vec);
 }
 
 void Input(const char* name, const char* tip, Aabb* data) {

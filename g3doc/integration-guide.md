@@ -58,10 +58,10 @@ You can create the [Registry](base-tech.md#registry) quite simply:
 
 The [Entity Factory](ecs.md#entity-factory) is responsible for the creation of
 [Entities](ecs.md#entity) and, as such, is a critical component of any Lullaby
-integration.
+integration. Save a pointer to it so that it can be initialized later.
 
 ```c++
-  registry.Create<lull::EntityFactory>(&registry);
+  auto entity_factory = registry.Create<lull::EntityFactory>(&registry);
 ```
 
 ### Create the Dispatcher
@@ -82,13 +82,13 @@ can send a "ClickEvent" without having to know what other
 
 ### Create the Asset Loader
 
-The [Asset Loader](base-tech.md#asset-loader) is used to load all assets (eg.
+The [Asset Loader](base-tech.md#assetloader) is used to load all assets (eg.
 textures, shaders, audio files, [Blueprints](ecs.md#blueprint), etc.) in the
 runtime. It supports both synchronous and asynchronous loading.
 
-The [Asset Loader](base-tech.md#asset-loader) is optional if you do not require
+The [Asset Loader](base-tech.md#assetloader) is optional if you do not require
 any assets (though that seems unlikely as even the most basic rendering requires
-loading a shader at the very least.)
+loading a shader at the very least).
 
 ```c++
   registry.Create<lull::AssetLoader>();
@@ -96,11 +96,12 @@ loading a shader at the very least.)
 
 ### Create the Input Manager
 
-The [Input Manager](base-tech.md#input-manager) provides Lullaby libraries a way
-to query input device (eg. head-mounted display, 3dof controller, etc.) state
-with having to be aware of the actual specifics of the underlying hardware APIs.
+The [Input Manager](base-tech.md#inputmanager) provides Lullaby libraries a way
+to query input device state (eg. for a head-mounted display, 3dof controller,
+etc.) without having to be aware of the actual specifics of the underlying hardware
+APIs.
 
-The [Input Manager](base-tech.md#input-manager) is optional if you are not going
+The [Input Manager](base-tech.md#inputmanager) is optional if you are not going
 to use any Systems that process input, but for any type of interactive
 application, you will need it.
 
@@ -117,13 +118,6 @@ further below.
 
 ```c++
   entity_factory->Initialize();
-```
-
-Remember that you can get a pointer to an object when you call
-`Registry::Create()`.
-
-```c++
-  auto entity_factory = registry.Create<lull::EntityFactory>(&registry);
 ```
 
 ## Advanced Setup
@@ -156,9 +150,11 @@ You can then explicitly process the queued Events by calling:
 ### Load Function
 
 You can provide your own function that performs the actual loading done by the
-[Asset Loader](base-tech.md#asset-loader).
+[Asset Loader](base-tech.md#assetloader).
 
 ### Input Devices
+
+TO-DO: Add documentation.
 
 ## Adding Systems
 
@@ -178,11 +174,11 @@ Factory](ecs.md#entity-factory) like so:
   entity_factory->Create<lull::TransformSystem>(&registry);
 ```
 
-Internally, the [Entity Factory] will instantiate the [System](ecs.md#system)
-using the `Registry::Create()` function. It will also store a pointer to the
-created [System](ecs.md#system) for its own use.
+Internally, the [Entity Factory](ecs.md#entity-factory) will instantiate the
+[System](ecs.md#system) using the `Registry::Create()` function. It will also
+store a pointer to the created [System](ecs.md#system) for its own use.
 
-You must create all [Systems](ecs.md#system) before calling
+You must create all [Systems](ecs.md#system) before the call to
 `EntityFactory::Initialize()`.
 
 Finally, keep in mind that different [Systems](ecs.md#system) have specific
@@ -203,7 +199,8 @@ this functionality.
 You first need to write a [FlatBuffers](https://google.github.io/flatbuffers)
 [Schema
 File](https://google.github.io/flatbuffers/flatbuffers_guide_writing_schema.html)
-that defines the structure of the [Blueprints](ecs.md#blueprints)
+that defines the structure of the [Blueprints](ecs.md#blueprint). Start with
+the following:
 
 ```
 union ComponentDefType {
@@ -216,11 +213,12 @@ union ComponentDefType {
 
 This file is specific to your application. In the same way that you decide which
 [Systems](ecs.md#systems) you want to have in your runtime, you also decide
-which [ComponentDefs](ecs.md#entity-def) you want to allow in your
-[Blueprints](ecs.md#blueprint). Generally speaking, you want your
-[ComponentDefs](ecs.md#entity-def) to match your [Systems](ecs.md#system).
+which [ComponentDefs](ecs.md#entitydefs-and-componentdefs) you want to allow in
+your [Blueprints](ecs.md#blueprint). Generally speaking, you want your
+[ComponentDefs](ecs.md#entitydefs-and-componentdefs) to match your
+[Systems](ecs.md#system).
 
-Then, simple add the following "boiler-plate" to the rest of your schema file.
+Then, simply add the following "boiler-plate" to the rest of your schema file.
 
 ```
 table ComponentDef {
@@ -234,9 +232,9 @@ root_type EntityDef;
 
 ### EntityFactory::Initialize
 
-Because the [EntityDef](ecs.md#entity-def) is specific to your application, you
-need to provide the [Entity Factory](ecs.md#entity-factory) with the necesssary
-information to create [Entities](ecs.md#entity) from your
+Because the [EntityDef](ecs.md#entitydefs-and-componentdefs) is specific to your
+application, you need to provide the [Entity Factory](ecs.md#entity-factory)
+with the necessary information to create [Entities](ecs.md#entity) from your
 [Blueprints](ecs.md#blueprint). You do this by calling
 `EntityFactory::Initialize()` in a slightly different way:
 
@@ -256,7 +254,7 @@ There are 2 template arguments and 2 function arguments:
     an array of names that corresponds to the ComponentDefType union.
 
 With this information, the [Entity Factory](ecs.md#entity-factory) is able to
-load convert a raw binary asset into a [Blueprint](ecs.md#blueprint) in order to
+convert a raw binary asset into a [Blueprint](ecs.md#blueprint) in order to
 create an [Entity](ecs.md#entity).
 
 ## Updating Lullaby
@@ -287,7 +285,7 @@ information in your main loop.
 
 ### Update Input Manager
 
-To update the [Input Manager](base-tech.md#input-manager), you first need to
+To update the [Input Manager](base-tech.md#inputmanager), you first need to
 read your hardware state (using whatever SDKs you want) and "update" the
 corresponding device state in the input manager. For example:
 

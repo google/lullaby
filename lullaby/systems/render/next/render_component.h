@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,8 +39,6 @@ struct RenderComponent : Component {
 
   RenderSortOrder sort_order = 0;
   mathfu::vec4 default_color = {1, 1, 1, 1};
-  bool hidden = false;
-  RenderQuad quad = {};
 
   // Material properties that are set across the component, or before materials
   // have been added, are collected in a default material.

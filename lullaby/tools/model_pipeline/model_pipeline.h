@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -95,8 +95,11 @@ class ModelPipeline {
  private:
   bool Validate(const ExportOptions& options);
   bool Build(ExportOptions options);
+  void LookForUnlinkedTextures(const ModelPipelineDef* config);
   void GatherTextures(const ModelPipelineDef* config);
   void SetUsage(const std::string& name, Model::Usage usage);
+  std::string TryFindTexturePath(const ModelPipelineDef* config,
+                                 const std::string& name);
 
   ByteArray lull_model_;
   std::string schema_;

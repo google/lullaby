@@ -5,7 +5,8 @@ namespace lull;
 /// Translate the grabbed entity with a device, with a fixed distance from
 /// entity's origin to the grabbing sphere center.
 table SphericalGrabInputDef {
-  /// The grabbing sphere center in world space.
+  /// The grabbing sphere center in world space. This value will be overridden 
+  /// by actual HMD position if |move_with_hmd| is set true.
   sphere_center: Vec3 (native_default:"{0.f, 0.f, 0.f}");
 
   /// Indicates whether to keep the grabbing offset. If it is false, an entity
@@ -13,6 +14,12 @@ table SphericalGrabInputDef {
   /// cursor position when the grabbing is started.
   keep_grab_offset: bool = true;
 
+  /// Indicates whether the grab sphere moves with HMD.
+  move_with_hmd: bool = false;
+
   /// Indicates whether to hide cursor during grabbing.
-  hide_cursor: bool = true;
+  hide_cursor: bool = false;
+
+  /// Indicates whether to hide laser during grabbing.
+  hide_laser: bool = false;
 }

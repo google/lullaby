@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -84,6 +84,10 @@ MeshData BuildMeshFromNinePatchVerticesAndIndices(
                   MeshData::kIndexU16, std::move(index_data));
 }
 
+// Parameterized fixture to repeat tests with different original sizes.
+class NinePatchOriginalSizesTest
+    : public ::testing::TestWithParam<mathfu::vec2> {};
+
 TEST(NinePatch, CheckCounts) {
   NinePatch nine_patch;
 
@@ -108,6 +112,153 @@ TEST(NinePatch, CheckCounts) {
                                             (nine_patch.subdivisions.y + 2) *
                                             2 * 3);
 }
+
+TEST(NinePatch, CheckZeroOriginalSize) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(1, 1);
+  nine_patch.original_size = mathfu::kZeros2f;
+  nine_patch.left_slice = .25f;
+  nine_patch.right_slice = .25f;
+  nine_patch.bottom_slice = .25f;
+  nine_patch.top_slice = .25f;
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -.5f, -.5f, 0, -.5f, -.5f, 0, .5f, -.5f, 0, .5f, -.5f, 0,
+      -.5f, -.5f, 0, -.5f, -.5f, 0, .5f, -.5f, 0, .5f, -.5f, 0,
+      -.5f, .5f,  0, -.5f, .5f,  0, .5f, .5f,  0, .5f, .5f,  0,
+      -.5f, .5f,  0, -.5f, .5f,  0, .5f, .5f,  0, .5f, .5f,  0};
+
+  float expected_uvs[] = {0, 1,    .25f, 1,    .75f, 1,    1, 1,
+                          0, .75f, .25f, .75f, .75f, .75f, 1, .75f,
+                          0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
+                          0, 0,    .25f, 0,    .75f, 0,    1, 0};
+
+  float expected_uv1s[] = {0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1,
+                           0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+// These parameterized tests try different original_sizes, which shouldn't
+// change the result.
+TEST_P(NinePatchOriginalSizesTest, CheckZeroSlices) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(1, 1);
+  nine_patch.original_size = GetParam();
+  nine_patch.left_slice = 0;
+  nine_patch.right_slice = 0;
+  nine_patch.bottom_slice = 0;
+  nine_patch.top_slice = 0;
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(
+      &nine_patch_vertices, &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -.5f, -.5f, 0, -.5f, -.5f, 0, .5f, -.5f, 0, .5f, -.5f, 0,
+      -.5f, -.5f, 0, -.5f, -.5f, 0, .5f, -.5f, 0, .5f, -.5f, 0,
+      -.5f, .5f,  0, -.5f, .5f,  0, .5f, .5f,  0, .5f, .5f,  0,
+      -.5f, .5f,  0, -.5f, .5f,  0, .5f, .5f,  0, .5f, .5f,  0};
+
+  float expected_uvs[] = {0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1,
+                          0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0};
+
+  float expected_uv1s[] = {0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1,
+                           0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices,
+                            expected_positions, expected_uvs, expected_uv1s);
+}
+
+TEST_P(NinePatchOriginalSizesTest, CheckZeroSize) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::kZeros2f;
+  nine_patch.original_size = GetParam();
+  nine_patch.left_slice = .25f;
+  nine_patch.right_slice = .25f;
+  nine_patch.bottom_slice = .25f;
+  nine_patch.top_slice = .25f;
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  float expected_uvs[] = {0, 1,    .25f, 1,    .75f, 1,    1, 1,
+                          0, .75f, .25f, .75f, .75f, .75f, 1, .75f,
+                          0, .25f, .25f, .25f, .75f, .25f, 1, .25f,
+                          0, 0,    .25f, 0,    .75f, 0,    1, 0};
+  // uv1 are calculated as (start + offset / size), and since size are all 0,
+  // all of these are just start unmodified. Also, uv1 y direction is
+  // opposite from world space y direction, so start v = 1, not 0).
+  float expected_uv1s[] = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                           0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+TEST_P(NinePatchOriginalSizesTest, CheckZeroSizeAndSlices) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::kZeros2f;
+  nine_patch.original_size = GetParam();
+  nine_patch.left_slice = 0;
+  nine_patch.right_slice = 0;
+  nine_patch.bottom_slice = 0;
+  nine_patch.top_slice = 0;
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  float expected_uvs[] = {0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1,
+                          0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0};
+  // uv1 are calculated as (start + offset / size), and since size are all 0,
+  // all of these are just start unmodified. Also, uv1 y direction is
+  // opposite from world space y direction, so start v = 1, not 0).
+  float expected_uv1s[] = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                           0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+INSTANTIATE_TEST_SUITE_P(CheckDifferentOriginalSizes,
+                         NinePatchOriginalSizesTest,
+                         ::testing::Values(mathfu::kZeros2f,
+                                           mathfu::vec2(1, 1)));
 
 TEST(NinePatch, CheckUnstretchedVertices) {
   NinePatch nine_patch;
@@ -620,6 +771,82 @@ TEST(NinePatch, CheckThinUnsymmetricalSliceVertices) {
   float expected_uv1s[] = {0,   1,   .8f, 1, .8f, 1, 1,   1,   0,   .8f, .8f,
                            .8f, .8f, .8f, 1, .8f, 0, .8f, .8f, .8f, .8f, .8f,
                            1,   .8f, 0,   0, .8f, 0, .8f, 0,   1,   0};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+TEST(NinePatch, CheckFullWidthLeftBottomSlices) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(.5f, .5f);
+  nine_patch.original_size = mathfu::vec2(1, 1);
+  nine_patch.left_slice = .5f;
+  nine_patch.right_slice = 0;
+  nine_patch.bottom_slice = .5f;
+  nine_patch.top_slice = 0;
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -.25f, -.25f, 0, .25f, -.25f, 0, .25f, -.25f, 0, .25f, -.25f, 0,
+      -.25f, .25f,  0, .25f, .25f,  0, .25f, .25f,  0, .25f, .25f,  0,
+      -.25f, .25f,  0, .25f, .25f,  0, .25f, .25f,  0, .25f, .25f,  0,
+      -.25f, .25f,  0, .25f, .25f,  0, .25f, .25f,  0, .25f, .25f,  0};
+
+  float expected_uvs[] = {0, 1,   .5f, 1,   1, 1,   1, 1,
+                          0, .5f, .5f, .5f, 1, .5f, 1, .5f,
+                          0, 0,   .5f, 0,   1, 0,   1, 0,
+                          0, 0,   .5f, 0,   1, 0,   1, 0};
+
+  float expected_uv1s[] = {0, 1, 1, 1, 1, 1, 1, 1,
+                           0, 0, 1, 0, 1, 0, 1, 0,
+                           0, 0, 1, 0, 1, 0, 1, 0,
+                           0, 0, 1, 0, 1, 0, 1, 0};
+
+  AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
+                            expected_uvs, expected_uv1s);
+}
+
+TEST(NinePatch, CheckFullWidthRightTopSlices) {
+  NinePatch nine_patch;
+
+  nine_patch.size = mathfu::vec2(.5f, .5f);
+  nine_patch.original_size = mathfu::vec2(1, 1);
+  nine_patch.left_slice = 0;
+  nine_patch.right_slice = .5f;
+  nine_patch.bottom_slice = 0;
+  nine_patch.top_slice = .5f;
+
+  std::vector<lull::VertexPTT> nine_patch_vertices(nine_patch.GetVertexCount());
+  std::vector<uint16_t> nine_patch_indices(nine_patch.GetIndexCount());
+
+  MeshData mesh = BuildMeshFromNinePatchVerticesAndIndices(&nine_patch_vertices,
+                                                           &nine_patch_indices);
+
+  GenerateNinePatchMesh(nine_patch, &mesh);
+
+  float expected_positions[] = {
+      -.25f, -.25f, 0, -.25f, -.25f, 0, -.25f, -.25f, 0, .25f, -.25f, 0,
+      -.25f, -.25f, 0, -.25f, -.25f, 0, -.25f, -.25f, 0, .25f, -.25f, 0,
+      -.25f, -.25f, 0, -.25f, -.25f, 0, -.25f, -.25f, 0, .25f, -.25f, 0,
+      -.25f, .25f,  0, -.25f, .25f,  0, -.25f, .25f,  0, .25f, .25f,  0};
+
+  float expected_uvs[] = {0, 1,   0, 1,   .5f, 1,   1, 1,
+                          0, 1,   0, 1,   .5f, 1,   1, 1,
+                          0, .5f, 0, .5f, .5f, .5f, 1, .5f,
+                          0, 0,   0, 0,   .5f, 0,   1, 0};
+
+  float expected_uv1s[] = {0, 1, 0, 1, 0, 1, 1, 1,
+                           0, 1, 0, 1, 0, 1, 1, 1,
+                           0, 1, 0, 1, 0, 1, 1, 1,
+                           0, 0, 0, 0, 0, 0, 1, 0};
 
   AssertCorrectTranslations(nine_patch, nine_patch_vertices, expected_positions,
                             expected_uvs, expected_uv1s);

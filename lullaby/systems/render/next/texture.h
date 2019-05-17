@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,9 +39,6 @@ class Texture {
 
   Texture(const Texture& rhs) = delete;
   Texture& operator=(const Texture& rhs) = delete;
-
-  // Binds the texture to the specified texture unit for rendering.
-  void Bind(int unit);
 
   // Returns True if this texture has been loaded into OpenGL.
   bool IsLoaded() const;

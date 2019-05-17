@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,12 +40,15 @@ class DispatcherSystem : public System {
   /// A function to allow event dispatches to be tracked and logged.
   using EntityEventHandler = std::function<void(const EntityEvent&)>;
 
-  static void EnableQueuedDispatch();
-  static void DisableQueuedDispatch();
-
+  /// Note: EnableQueuedDispatch() is now deprecated.  Instead, DispatcherSystem
+  /// will use the same behavior as the global Dispatcher in the Registry.
+  /// DispatcherSystem uses the global Dispatcher so that it can ensure that
+  /// order will be preserved when interleaving Events between the global
+  /// Dispatcher and itself.
   explicit DispatcherSystem(Registry* registry);
 
   ~DispatcherSystem() override;
+  void Initialize() override;
 
   /// Associates EventResponses with the Entity based on the |def|.
   void Create(Entity entity, HashValue type, const Def* def) override;
@@ -68,8 +71,8 @@ class DispatcherSystem : public System {
     SendImpl(entity, event_wrapper);
   }
 
-  /// As Send, but will always send immediately regardless of QueuedDispatch
-  /// setting.
+  /// As Send, but will always send immediately regardless of global Dispatcher
+  /// behavior.
   template <typename Event>
   void SendImmediately(Entity entity, const Event& event) {
     SendImmediatelyImpl(entity, EventWrapper(event));
@@ -78,9 +81,6 @@ class DispatcherSystem : public System {
   void SendImmediately(Entity entity, const EventWrapper& event_wrapper) {
     SendImmediatelyImpl(entity, event_wrapper);
   }
-
-  /// Dispatches all events currently queued in the DispatcherSystem.
-  void Dispatch();
 
   /// Connects an event handler to the Dispatcher associated with |entity|.
   /// This function is a simple wrapper around the various Dispatcher::Connect
@@ -126,29 +126,36 @@ class DispatcherSystem : public System {
   /// information.
   void Disconnect(Entity entity, TypeId type, const void* owner);
 
+  /// Disconnects an event handler identified by the |id| from the Dispatcher
+  /// associated with |entity|.  See Dispatcher::Disconnect for more
+  /// information.
+  void Disconnect(Entity entity, TypeId type, Dispatcher::ConnectionId id);
+
   /// Returns the number of functions listening for an event of |type|.
   size_t GetHandlerCount(Entity entity, TypeId type) const;
 
   /// Returns the number of functions listening for all events.
   size_t GetUniversalHandlerCount() const;
 
+  /// DEPRECATED
+  void Dispatch() {}
+  static void EnableQueuedDispatch() {}
+
  private:
-  using EventQueue = ThreadSafeQueue<EntityEvent>;
   using EntityDispatcherMap = std::unordered_map<Entity, Dispatcher>;
   using EntityConnections =
       std::unordered_map<Entity, std::vector<Dispatcher::ScopedConnection>>;
 
   void SendImpl(Entity entity, const EventWrapper& event);
   void SendImmediatelyImpl(Entity entity, const EventWrapper& event);
+  void SendImmediatelyImpl(const EntityEvent& entity_event);
 
   Dispatcher* GetDispatcher(Entity entity);
 
   void DestroyQueued();
 
-  EventQueue queue_;
   EntityConnections connections_;
   EntityDispatcherMap dispatchers_;
-  static bool enable_queued_dispatch_;
   int dispatch_count_ = 0;
 
   /// Destroying dispatchers will invalidate any iterators in the dispatchers_

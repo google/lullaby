@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ PhysicsSystem::PhysicsSystem(Registry* registry, const InitParams& params)
                                                     bt_broadphase_.get(),
                                                     bt_solver_.get(),
                                                     bt_config_.get())) {
-  RegisterDef(this, kRigidBodyDef);
+  RegisterDef<RigidBodyDefT>(this);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<TransformSystem>(this);
 
@@ -192,8 +192,7 @@ void PhysicsSystem::InitRigidBody(Entity entity, const RigidBodyDef* data) {
   SetupBtFlags(body);
 
   // Give the rigid body a pointer to the Lullaby entity.
-  body->bt_body->setUserPointer(
-      reinterpret_cast<void*>(static_cast<intptr_t>(entity)));
+  body->bt_body->setUserIndex(entity.AsUint32());
 
   // Enable the entity, putting it into the physics world.
   if (data->enable_on_create()) {
@@ -355,12 +354,10 @@ void PhysicsSystem::PostSimulationTick() {
     }
 
     const btCollisionObject* obj1 = contact_manifold->getBody0();
-    const Entity entity1 =
-        static_cast<Entity>(reinterpret_cast<uint64_t>(obj1->getUserPointer()));
+    const Entity entity1 = obj1->getUserIndex();
 
     const btCollisionObject* obj2 = contact_manifold->getBody1();
-    const Entity entity2 =
-        static_cast<Entity>(reinterpret_cast<uint64_t>(obj2->getUserPointer()));
+    const Entity entity2 = obj2->getUserIndex();
 
     // If both rigid bodies exist, check if there is already contact between the
     // two. If the contact is new, send events to both Entities. Contacts are

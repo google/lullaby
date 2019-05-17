@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,17 +16,15 @@ limitations under the License.
 
 #include "lullaby/modules/lullscript/lull_script_engine.h"
 
-namespace lull {
+#include "absl/memory/memory.h"
 
-void LullScriptEngine::SetFunctionCallHandler(FunctionCall::Handler handler) {
-  handler_ = std::move(handler);
-}
+namespace lull {
 
 uint64_t LullScriptEngine::LoadScript(const std::string& code,
                                       const std::string& debug_name) {
   const uint64_t id = ++next_script_id_;
-  Script& script = scripts_[id];
-  script.env.SetFunctionCallHandler(handler_);
+  CHECK_NE(id, 0) << "Overflow on script id generation.";
+  Script& script = scripts_.emplace(id, Script(base_env_)).first->second;
   script.debug_name = debug_name;
   script.script = script.env.Read(code);
   return id;
@@ -48,6 +46,51 @@ void LullScriptEngine::RunScript(uint64_t id) {
 
 void LullScriptEngine::UnloadScript(uint64_t id) { scripts_.erase(id); }
 
+void LullScriptEngine::RegisterFunction(const std::string& name,
+                                        ScriptableFn fn) {
+  base_env_.Register(name, fn);
+}
+
+void LullScriptEngine::UnregisterFunction(const std::string& name) {
+  // Because of the way lullscript symbol tables are implemented, it's not
+  // practical to unregister a function.  Instead, we re-bind the symbol to
+  // a no-op function that always indicates an error.
+  RegisterFunction(name, [](IContext*) { return -1; });
+}
+
+void LullScriptEngine::SetValue(uint64_t id, const std::string& name,
+                                const Variant& value) {
+  auto iter = scripts_.find(id);
+  if (iter != scripts_.end()) {
+    ScriptValue script_value = ScriptValue::CreateFromVariant(value);
+
+    ScriptEnv& env = iter->second.env;
+    env.SetValue(Symbol(name), std::move(script_value));
+  }
+}
+
+bool LullScriptEngine::GetValue(uint64_t id, const std::string& name,
+                                Variant* value) {
+  auto iter = scripts_.find(id);
+  if (iter == scripts_.end()) {
+    return false;
+  }
+
+  ScriptEnv& env = iter->second.env;
+  const ScriptValue script_value = env.GetValue(Symbol(name));
+  const Variant* var = script_value.GetVariant();
+  if (var) {
+    *value = *var;
+    return true;
+  } else {
+    return false;
+  }
+}
+
 size_t LullScriptEngine::GetTotalScripts() const { return scripts_.size(); }
+
+std::unique_ptr<ScriptEnv> LullScriptEngine::MakeEnv() const {
+  return absl::make_unique<ScriptEnv>(base_env_);
+}
 
 }  // namespace lull

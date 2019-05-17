@@ -1,5 +1,5 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
 
 /// Performs conversions between linear and gamma space on scalars and colors.
 ///
@@ -40,4 +40,4 @@ vec4 RemoveGamma(vec4 gamma_applied_color) {
   return pow(gamma_applied_color, vec4(kScreenGamma));
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_GAMMA_GLSLH_

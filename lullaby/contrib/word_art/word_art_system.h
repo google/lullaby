@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,7 +40,20 @@ namespace lull {
 /// character entities for displaying user-entered text strings.
 class WordArtSystem : public System {
  public:
-  explicit WordArtSystem(Registry* registry);
+  // Defines how the character mesh filenames are formatted.
+  enum CharacterMeshFilenameFormat {
+    // The mesh filenames use lower-case letter suffixes, e.g:
+    // "simple_a.lullmodel" for the letter "a".
+    kLowerCaseSuffixes,
+
+    // The mesh filenames use upper-case letter suffixes, e.g:
+    // "simple_A.lullmodel" for the letter "a".
+    kUpperCaseSuffixes
+  };
+
+  WordArtSystem(Registry* registry,
+                CharacterMeshFilenameFormat character_mesh_filename_format =
+                    kLowerCaseSuffixes);
   ~WordArtSystem() override;
 
   void CreateComponent(Entity entity, const Blueprint& blueprint) override;
@@ -55,6 +68,18 @@ class WordArtSystem : public System {
   // WordArtComponent.
   std::vector<Entity> SetText(Entity entity, const std::string& text);
 
+  // Triggers the color_change_behavior.color_select with the given named color.
+  void SetColor(Entity entity, const mathfu::vec4& color,
+                const std::string& color_name, bool animate);
+
+  // Returns the vertical and horizontal dimensions of the currently rendered
+  // text.
+  mathfu::vec2 GetTextBounds(Entity entity) const;
+
+  // Returns an offset that should be applied to the selection bounding box for
+  // this word art entity.
+  mathfu::vec3 GetSelectionBoundingBoxOffset(Entity entity) const;
+
  private:
   struct WordArtComponent : public Component {
     explicit WordArtComponent(Entity entity) : Component(entity) {}
@@ -65,11 +90,15 @@ class WordArtSystem : public System {
     std::string mesh_extension;
     float line_height;
     float character_pad;
+    float max_width;
+    mathfu::vec3 selection_bounding_box_offset;
     WordArtBehaviorDefT place_behavior;
     WordArtBehaviorDefT tap_behavior;
     WordArtBehaviorDefT idle_behavior;
+    WordArtBehaviorDefT color_select_behavior;
     HashValue channel;
     bool sync_idle;
+    CharacterMeshFilenameFormat character_mesh_filename_format;
 
     // Track color change animation progress.
     struct ColorFade {
@@ -97,16 +126,16 @@ class WordArtSystem : public System {
       // The color this character should be if no animations are active.
       mathfu::vec4 char_color = mathfu::vec4(0.0f, 0.0f, 0.0f, 1.0f);
       // The last color that was set in Lullaby for this character.
-      mathfu::vec4 last_color = mathfu::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+      mathfu::vec4 last_color = mathfu::vec4(-1.0f);
 
       ColorFade color_fade;
       ColorScale color_scale;
     };
 
-    std::string GetCharacterMeshFile(char character);
-    float GetStringWidth(absl::string_view str);
-    float GetCharacterWidth(char character);
-    float GetSpaceWidth();
+    std::string GetCharacterMeshFile(char character) const;
+    float GetStringWidth(absl::string_view str) const;
+    float GetCharacterWidth(char character) const;
+    float GetSpaceWidth() const;
 
     std::vector<Character> characters;
     std::string text;
@@ -116,6 +145,7 @@ class WordArtSystem : public System {
     mathfu::vec4 color = mathfu::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     bool has_been_placed = false;
     bool is_paused = true;
+    mathfu::vec2 text_bounds;
 
     // Only the first looping sound for the component is played.
     bool has_looping_audio = false;
@@ -163,11 +193,21 @@ class WordArtSystem : public System {
   mathfu::vec4 GetCharacterColor(const WordArtComponent& component,
                                  Entity entity);
 
+  // Returns a list of strings representing the lines of text to render. Line
+  // breaks are inserted at literal '\n' chars, and if the component's
+  // |max_width| attribute is defined additional line breaks are inserted to
+  // fit within the bounds. Also adds an ellipsis to the last line if the text
+  // would exceed the maximum number of lines.
+  std::vector<std::string> GetWrappedLines(const WordArtComponent& component,
+                                           Entity entity);
+
   ComponentPool<WordArtComponent> components_;
   ScheduledProcessor scheduled_processor_;
 
   // A cache mapping character mesh file path to bbox width (size in x).
   std::unordered_map<std::string, float> character_width_;
+
+  CharacterMeshFilenameFormat character_mesh_filename_format_;
 };
 
 }  // namespace lull

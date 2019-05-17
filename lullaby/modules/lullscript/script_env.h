@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ limitations under the License.
 #include "lullaby/modules/lullscript/script_scoped_symbol_table.h"
 #include "lullaby/modules/lullscript/script_types.h"
 #include "lullaby/modules/lullscript/script_value.h"
+#include "lullaby/modules/script/script_engine.h"
 #include "lullaby/util/span.h"
 #include "lullaby/util/string_view.h"
 #include "lullaby/util/variant.h"
@@ -47,10 +48,6 @@ class ScriptEnv {
   using PrintFn = std::function<void(std::string)>;
 
   ScriptEnv();
-
-  // Sets the handler which allows scripts to call functions registered
-  // externally via a FunctionCall object.
-  void SetFunctionCallHandler(FunctionCall::Handler handler);
 
   // Sets the function to use for print commands.
   void SetPrintFunction(PrintFn fn);
@@ -89,6 +86,9 @@ class ScriptEnv {
 
   // Registers a NativeFunction.
   void Register(string_view id, NativeFunction fn);
+
+  // Registers a bound function.
+  void Register(string_view id, const IScriptEngine::ScriptableFn&);
 
   // Calls a function defined in a script (eg. def or macro) function with the
   // given args.
@@ -143,10 +143,6 @@ class ScriptEnv {
 
   ScriptScopedSymbolTable table_;
   PrintFn print_fn_ = nullptr;
-  FunctionCall::Handler call_handler_ = nullptr;
-
-  ScriptEnv(const ScriptEnv& rhs);
-  ScriptEnv& operator=(const ScriptEnv& rhs);
 };
 
 template <typename... Args>

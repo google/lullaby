@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,13 +18,12 @@ limitations under the License.
 
 #include "lullaby/modules/render/mesh_util.h"
 #include "lullaby/systems/render/render_system.h"
-#include "lullaby/generated/shape_def_generated.h"
 
 namespace lull {
 
 ShapeSystem::ShapeSystem(Registry* registry) : System(registry) {
-  RegisterDef(this, ConstHash("SphereDef"));
-  RegisterDef(this, ConstHash("RectMeshDef"));
+  RegisterDef<SphereDefT>(this);
+  RegisterDef<RectMeshDefT>(this);
   RegisterDependency<RenderSystem>(this);
 }
 
@@ -33,23 +32,36 @@ void ShapeSystem::PostCreateComponent(Entity entity,
   if (blueprint.Is<SphereDefT>()) {
     SphereDefT sphere;
     blueprint.Read(&sphere);
-    MeshData mesh = CreateLatLonSphere(sphere.radius, sphere.num_parallels,
-                                       sphere.num_meridians);
-
-    auto* render_system = registry_->Get<RenderSystem>();
-    render_system->SetMesh(entity, mesh);
+    CreateSphere(entity, sphere);
   } else if (blueprint.Is<RectMeshDefT>()) {
     RectMeshDefT quad;
     blueprint.Read(&quad);
-    MeshData mesh = CreateQuadMesh<VertexPT>(
-        quad.size_x, quad.size_y, quad.verts_x, quad.verts_y,
-        quad.corner_radius, quad.corner_verts);
-
-    auto* render_system = registry_->Get<RenderSystem>();
-    render_system->SetMesh(entity, mesh);
+    CreateRect(entity, quad);
   } else {
     LOG(DFATAL) << "Unsupported shape.";
   }
+}
+
+void ShapeSystem::CreateRect(Entity entity, const RectMeshDefT& rect) {
+  MeshData mesh = CreateQuadMesh<VertexPT>(
+      rect.size_x, rect.size_y, rect.verts_x, rect.verts_y, rect.corner_radius,
+      rect.corner_verts);
+  CreateShape(entity, rect.pass, std::move(mesh));
+}
+
+void ShapeSystem::CreateSphere(Entity entity, const SphereDefT& sphere) {
+  MeshData mesh = CreateLatLonSphere(sphere.radius, sphere.num_parallels,
+                                     sphere.num_meridians);
+  CreateShape(entity, sphere.pass, std::move(mesh));
+}
+
+void ShapeSystem::CreateShape(Entity entity, HashValue pass,
+                              MeshData mesh_data) {
+  auto* render_system = registry_->Get<RenderSystem>();
+  if (pass == 0) {
+    pass = render_system->GetDefaultRenderPass();
+  }
+  render_system->SetMesh({entity, pass}, mesh_data);
 }
 
 }  // namespace lull

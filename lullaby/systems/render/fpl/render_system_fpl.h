@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +48,6 @@ class RenderSystemFpl : public System {
   using FrontFace = RenderFrontFace;
   using StencilMode = RenderStencilMode;
   using Deformation = RenderSystem::DeformationFn;
-  using CalculateClipFromModelMatrixFunc = RenderSystem::ClipFromModelMatrixFn;
   using PrimitiveType = MeshData::PrimitiveType;
   using Quad = RenderQuad;
   using SortOrder = RenderSortOrder;
@@ -151,6 +150,7 @@ class RenderSystemFpl : public System {
   void SetQuad(Entity e, const Quad& quad);
 
   void SetMesh(Entity e, const MeshData& mesh);
+  void SetMesh(Entity e, HashValue pass, const MeshData& mesh);
   void SetAndDeformMesh(Entity entity, const MeshData& mesh);
 
   void SetMesh(Entity e, const std::string& file);
@@ -164,6 +164,15 @@ class RenderSystemFpl : public System {
 
   void SetMaterial(Entity e, Optional<HashValue> pass,
                    Optional<int> submesh_index, const MaterialInfo& material);
+  bool IsShaderFeatureRequested(Entity entity, Optional<HashValue> pass,
+                                Optional<int> submesh_index,
+                                HashValue feature) const;
+  void RequestShaderFeature(Entity entity, Optional<HashValue> pass,
+                            Optional<int> submesh_index, HashValue feature);
+  void ClearShaderFeatures(Entity entity, Optional<HashValue> pass,
+                           Optional<int> submesh_index);
+  void ClearShaderFeature(Entity entity, Optional<HashValue> pass,
+                          Optional<int> submesh_index, HashValue feature);
 
   SortOrder GetSortOrder(Entity e) const;
   SortOrderOffset GetSortOrderOffset(Entity e) const;
@@ -171,6 +180,7 @@ class RenderSystemFpl : public System {
   void SetSortOrderOffset(Entity e, HashValue pass, SortOrderOffset offset);
 
   void SetStencilMode(Entity e, StencilMode mode, int value);
+  void SetStencilMode(Entity e, HashValue pass, StencilMode mode, int value);
 
   bool IsTextureSet(Entity e, int unit) const;
 
@@ -185,11 +195,18 @@ class RenderSystemFpl : public System {
   }
 
   bool IsHidden(Entity e) const;
+  bool IsHidden(Entity entity, Optional<HashValue> pass,
+                Optional<int> submesh_index) const;
 
   void SetDeformationFunction(Entity e, const Deformation& deform);
 
   void Hide(Entity e);
+  void Hide(Entity entity, Optional<HashValue> pass,
+            Optional<int> submesh_index);
+
   void Show(Entity e);
+  void Show(Entity entity, Optional<HashValue> pass,
+            Optional<int> submesh_index);
 
   void SetRenderPass(Entity e, HashValue pass);
 
@@ -215,12 +232,6 @@ class RenderSystemFpl : public System {
 
   void SetViewport(const View& view);
 
-  // Sets the model_view_projection uniform.  Doesn't take effect until the next
-  // call to BindShader.
-  void SetClipFromModelMatrix(const mathfu::mat4& mvp);
-  void SetClipFromModelMatrixFunction(
-      const CalculateClipFromModelMatrixFunc& func);
-
   mathfu::vec4 GetClearColor() const;
   void SetClearColor(float r, float g, float b, float a);
 
@@ -229,9 +240,6 @@ class RenderSystemFpl : public System {
 
   void Render(const View* views, size_t num_views);
   void Render(const View* views, size_t num_views, HashValue pass);
-
-  void SetDefaultRenderPass(HashValue pass);
-  HashValue GetDefaultRenderPass() const;
 
   // Resets the GL state to default.  It's not necessary to call this for any
   // predefined render passes, but this can be useful for any custom ones.
@@ -253,7 +261,7 @@ class RenderSystemFpl : public System {
 
   void BindUniform(const char* name, const float* data, int dimension);
 
-  void DrawMesh(const MeshData& mesh);
+  void DrawMesh(const MeshData& mesh, Optional<mathfu::mat4> clip_from_model);
 
   /// Returns the render state cached by the FPL renderer.
   const fplbase::RenderState& GetCachedRenderState() const;
@@ -271,6 +279,10 @@ class RenderSystemFpl : public System {
   const RenderSystem::GroupParams* GetGroupParams(HashValue group_id) const;
   void SetGroupParams(HashValue group_id,
                       const RenderSystem::GroupParams& group_params);
+  std::string GetShaderString(Entity entity, HashValue pass, int submesh_index,
+                              ShaderStageType stage) const;
+  ShaderPtr CompileShaderString(const std::string& vertex_string,
+                                const std::string& fragment_string);
 
  protected:
   using RenderComponent = detail::RenderComponent;
@@ -336,7 +348,7 @@ class RenderSystemFpl : public System {
 
   std::vector<mathfu::AffineTransform> shader_transforms_;
 
-  mathfu::vec4 clear_color_ = mathfu::kZeros4f;
+  ClearParams clear_params_;
 
   // Stores sort order offsets and calculates sort orders.
   detail::SortOrderManager sort_order_manager_;
@@ -353,10 +365,6 @@ class RenderSystemFpl : public System {
   bool multiview_enabled_ = false;
 
   ShaderPtr shader_ = nullptr;
-
-  // The function used to calculate the clip_from_model_matrix just before
-  // setting the associated uniform.
-  CalculateClipFromModelMatrixFunc clip_from_model_matrix_func_;
 
   // The winding order / GL front face to use by default.
   FrontFace default_front_face_ = FrontFace::kCounterClockwise;

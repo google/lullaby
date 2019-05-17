@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,54 +31,59 @@ ScriptFunctionEntry::ScriptFunctionEntry(ScriptFunction fn, string_view name)
 }
 
 ScriptEnv::ScriptEnv() {
-  auto eval_fn = [this](ScriptFrame* frame) {
-    frame->Return(Eval(frame->GetArgs()));
+  auto eval_fn = [](ScriptFrame* frame) {
+    frame->Return(frame->GetEnv()->Eval(frame->GetArgs()));
   };
-  auto let_fn = [this](ScriptFrame* frame) {
-    frame->Return(SetImpl(frame->GetArgs(), kPrimitive));
+  auto let_fn = [](ScriptFrame* frame) {
+    frame->Return(frame->GetEnv()->SetImpl(frame->GetArgs(), kPrimitive));
   };
-  auto set_fn = [this](ScriptFrame* frame) {
-    frame->Return(SetImpl(frame->GetArgs(), kPrimitive, false));
+  auto set_fn = [](ScriptFrame* frame) {
+    frame->Return(
+        frame->GetEnv()->SetImpl(frame->GetArgs(), kPrimitive, false));
   };
-  auto def_fn = [this](ScriptFrame* frame) {
-    frame->Return(SetImpl(frame->GetArgs(), kFunction));
+  auto def_fn = [](ScriptFrame* frame) {
+    frame->Return(frame->GetEnv()->SetImpl(frame->GetArgs(), kFunction));
   };
-  auto mac_fn = [this](ScriptFrame* frame) {
-    frame->Return(SetImpl(frame->GetArgs(), kMacro));
+  auto mac_fn = [](ScriptFrame* frame) {
+    frame->Return(frame->GetEnv()->SetImpl(frame->GetArgs(), kMacro));
   };
-  auto ret_fn = [this](ScriptFrame* frame) {
-    frame->Return(Create(DefReturn(frame->EvalNext())));
+  auto ret_fn = [](ScriptFrame* frame) {
+    frame->Return(ScriptValue::Create(
+        DefReturn(frame->HasNext() ? frame->EvalNext() : ScriptValue())));
   };
-  auto do_fn = [this](ScriptFrame* frame) {
-    frame->Return(DoImpl(frame->Next()));
+  auto do_fn = [](ScriptFrame* frame) {
+    frame->Return(frame->GetEnv()->DoImpl(frame->Next()));
   };
-  auto lambda_fn = [this](ScriptFrame* frame) {
+  auto lambda_fn = [](ScriptFrame* frame) {
     const AstNode* node = frame->GetArgs().Get<AstNode>();
     if (!node) {
-      Error("Invalid lambda definition.", frame->GetArgs());
+      frame->GetEnv()->Error("Invalid lambda definition.", frame->GetArgs());
       frame->Return(ScriptValue());
       return;
     }
     if (node->first.Is<AstNode>() == false) {
-      Error("Expected arguments.", node->first);
+      frame->GetEnv()->Error("Expected arguments.", node->first);
       frame->Return(ScriptValue());
       return;
     } else if (node->rest.Is<AstNode>() == false) {
-      Error("Expected expression.", node->rest);
+      frame->GetEnv()->Error("Expected expression.", node->rest);
       frame->Return(ScriptValue());
       return;
     }
 
-    frame->Return(Create(Lambda(node->first, node->rest)));
+    frame->Return(ScriptValue::Create(Lambda(node->first, node->rest)));
   };
-  auto print_fn = [this](ScriptFrame* frame) {
+  auto print_fn = [](ScriptFrame* frame) {
     std::stringstream ss;
     while (frame->HasNext()) {
-      ss << Stringify(frame->EvalNext()) << " ";
+      ss << Stringify(frame->EvalNext());
+      if (frame->HasNext()) {
+        ss << " ";
+      }
     }
     const std::string str = ss.str();
-    if (print_fn_) {
-      print_fn_(str);
+    if (frame->GetEnv()->print_fn_) {
+      frame->GetEnv()->print_fn_(str);
     } else {
       LOG(INFO) << str;
     }
@@ -99,16 +104,37 @@ ScriptEnv::ScriptEnv() {
   }
 }
 
-void ScriptEnv::SetFunctionCallHandler(FunctionCall::Handler handler) {
-  call_handler_ = std::move(handler);
-}
-
 void ScriptEnv::SetPrintFunction(PrintFn fn) {
   print_fn_ = std::move(fn);
 }
 
 void ScriptEnv::Register(string_view id, NativeFunction fn) {
   SetValue(Symbol(id), Create(fn));
+}
+
+void ScriptEnv::Register(string_view id,
+                         const IScriptEngine::ScriptableFn& fn) {
+  std::string name = id.to_string();
+  NativeFunction native([name, fn](ScriptFrame* frame) {
+    ContextAdaptor<FunctionCall> call(name);
+
+    ScriptArgList arg_list(frame->GetEnv(), frame->GetArgs());
+    while (arg_list.HasNext()) {
+      ScriptValue value = arg_list.EvalNext();
+      if (!value.IsNil()) {
+        call.AddArg(*value.GetVariant());
+      } else {
+        call.AddArg(Variant());
+      }
+    }
+
+    if (fn(&call) > 0) {
+      auto result = ScriptValue::Create(0);
+      result.SetFromVariant(call.GetReturnValue());
+      frame->Return(result);
+    }
+  });
+  Register(id, native);
 }
 
 void ScriptEnv::Error(const char* msg, const ScriptValue& context) {
@@ -209,34 +235,8 @@ ScriptValue ScriptEnv::CallInternal(ScriptValue fn, const ScriptValue& args) {
     if (AssignArgs(macro->params, args, false)) {
       result = DoImpl(macro->body);
     }
-  } else if (const Symbol* symbol = fn.Get<Symbol>()) {
-    result = InvokeFunctionCall(*symbol, args);
   } else {
     Error("Expected callable type.", fn);
-  }
-  return result;
-}
-
-ScriptValue ScriptEnv::InvokeFunctionCall(const Symbol& id,
-                                          const ScriptValue& args) {
-  ScriptValue result;
-  if (call_handler_) {
-    FunctionCall call(id.name);
-
-    ScriptArgList arg_list(this, args);
-    while (arg_list.HasNext()) {
-      ScriptValue value = arg_list.EvalNext();
-      if (!value.IsNil()) {
-        call.AddArg(*value.GetVariant());
-      } else {
-        call.AddArg(Variant());
-      }
-    }
-
-    call_handler_(&call);
-
-    result = ScriptValue::Create(0);
-    result.SetFromVariant(call.GetReturnValue());
   }
   return result;
 }

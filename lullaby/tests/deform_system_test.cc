@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ limitations under the License.
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
-#include "lullaby/systems/deform/deform_system.h"
+#include "lullaby/contrib/deform/deform_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/render/testing/mock_render_system_impl.h"
 #include "lullaby/systems/transform/transform_system.h"

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ limitations under the License.
 
 #include "fplbase/glplatform.h"
 #include "lullaby/events/render_events.h"
-#include "lullaby/systems/render/next/mesh.h"
-#include "lullaby/systems/render/next/texture.h"
+#include "lullaby/systems/render/mesh.h"
+#include "lullaby/systems/render/texture.h"
 #include "lullaby/systems/render/render_system.h"
 #include "mathfu/quaternion.h"
 #include "mathfu/vector.h"
@@ -96,11 +96,7 @@ void CustomRenderPassManager::CreateCustomRenderPass(
   pass.view.world_from_eye_matrix = mathfu::mat4::Identity();
   pass.view.clip_from_world_matrix = mathfu::mat4::Identity();
 
-  const float half_width  = setup.view_width_world  * 0.5f;
-  const float half_height = setup.view_height_world * 0.5f;
-  pass.view.clip_from_eye_matrix =
-      mathfu::mat4::Ortho(-half_width, half_width, -half_height, half_height,
-                          setup.depth_min_world, setup.depth_max_world, 1.0f);
+  SetPassRanges(setup.ranges, &pass);
   pass.enabled = true;
   pass.build_mipmap = setup.build_mipmap;
 
@@ -111,33 +107,43 @@ void CustomRenderPassManager::CreateCustomRenderPass(
 
 const TexturePtr CustomRenderPassManager::GetRenderTarget(
     HashValue pass_id) const {
-  // Verify that the pass exists and get the index.
-  const auto pass_iter = pass_dict_.find(pass_id);
-  if (pass_iter == pass_dict_.end()) {
-    return nullptr;
-  }
-  const CustomRenderPass& pass = render_passes_[pass_iter->second];
-  return render_system()->GetTexture(pass.texture_id);
+  const CustomRenderPass* const pass = FindPass(pass_id);
+  return pass ? render_system()->GetTexture(pass->texture_id) : nullptr;
 }
 
-const mathfu::mat4& CustomRenderPassManager::GetPassClipToWorldPtr(
+const mathfu::mat4& CustomRenderPassManager::GetPassClipFromWorld(
     HashValue pass_id) const {
-  // Verify that the pass exists and get the index.
-  const auto pass_iter = pass_dict_.find(pass_id);
-  if (pass_iter == pass_dict_.end()) {
-    return kIdentityMatrix;
+  const CustomRenderPass* const pass = FindPass(pass_id);
+  return pass ? pass->view.clip_from_world_matrix : kIdentityMatrix;
+}
+
+const mathfu::mat4& CustomRenderPassManager::GetPassClipFromEye(
+    HashValue pass_id) const {
+  const CustomRenderPass* const pass = FindPass(pass_id);
+  return pass ? pass->view.clip_from_eye_matrix : kIdentityMatrix;
+}
+
+void CustomRenderPassManager::SetPassRanges(
+    HashValue pass_id, const CustomRenderPassRanges& ranges) {
+  CustomRenderPass* const pass = FindPass(pass_id);
+  if (pass) {
+    SetPassRanges(ranges, pass);
   }
-  const CustomRenderPass& pass = render_passes_[pass_iter->second];
-  return pass.view.clip_from_world_matrix;
 }
 
 void CustomRenderPassManager::AddEntityToCustomPass(Entity entity,
                                                     HashValue pass_id) {
-  // We assume that everything appearing in a custom render pass is normally in
-  // the Opaque pass. This avoids the need to use pass 0, which causes Lullaby
-  // to search through various passes and triggers deprecation warnings per
-  // TODO(b/65262474) .
-  constexpr HashValue kSourcePass = ConstHash("Opaque");
+  AddEntityToCustomPass(entity, pass_id, nullptr);
+}
+
+void CustomRenderPassManager::AddEntityToCustomPass(
+    Entity entity, HashValue pass_id, const ShaderPtr& shader,
+    uint64_t hide_submeshes_mask) {
+  const std::vector<HashValue>& render_passes =
+      render_system()->GetRenderPasses(entity);
+  const HashValue source_pass = render_passes.empty()
+                                    ? render_system()->GetDefaultRenderPass()
+                                    : render_passes[0];
 
   // Verify that the pass exists and get the index.
   const auto pass_iter = pass_dict_.find(pass_id);
@@ -147,15 +153,39 @@ void CustomRenderPassManager::AddEntityToCustomPass(Entity entity,
   }
   const CustomRenderPass& pass = render_passes_[pass_iter->second];
   auto setup = [=]() {
-    auto mesh = render_system()->GetMesh(entity, kSourcePass);
-    if (mesh) {
-      const bool is_rigid = !mesh->GetVertexFormat().GetAttributeWithUsage(
-          VertexAttributeUsage_BoneIndices);
+    auto mesh = render_system()->GetMesh({entity, source_pass});
+    if (!mesh) {
+      return;
+    }
+
+    render_system()->Create(entity, pass_id);
+    if (shader != nullptr) {
+      render_system()->SetShader(entity, pass_id, shader);
+    } else {
+      bool is_rigid = true;
+      const size_t count = GetNumSubmeshes(mesh);
+      for (size_t i = 0; i < count; ++i) {
+        const VertexFormat format = GetVertexFormat(mesh, i);
+        if (format.GetAttributeWithUsage(VertexAttributeUsage_BoneIndices)) {
+          is_rigid = false;
+          break;
+        }
+      }
       const ShaderPtr mesh_shader =
           pass.rigid_shader && is_rigid ? pass.rigid_shader : pass.shader;
-      render_system()->Create(entity, pass_id);
       render_system()->SetShader(entity, pass_id, mesh_shader);
-      render_system()->SetMesh(entity, pass_id, mesh);
+    }
+    render_system()->SetMesh({entity, pass_id}, mesh);
+
+    // Hide the appropriate submeshes.
+    int hide_submesh = 0;
+    uint64_t mutable_mask = hide_submeshes_mask;
+    while (mutable_mask > 0) {
+      if (mutable_mask & 1) {
+        render_system()->Hide({entity, pass_id, hide_submesh});
+      }
+      ++hide_submesh;
+      mutable_mask >>= 1;
     }
   };
 
@@ -163,14 +193,15 @@ void CustomRenderPassManager::AddEntityToCustomPass(Entity entity,
   dispatcher_system()->Connect(
       entity, this,
       [=](const MeshChangedEvent& event) {
-        if (event.pass == kSourcePass) {
+        if (event.pass == source_pass) {
           setup();
         }
       });
   setup();
 }
 
-void CustomRenderPassManager::EnableOrDisable(HashValue pass_id, bool enable) {
+void CustomRenderPassManager::EnableOrDisablePass(HashValue pass_id,
+                                                  bool enable) {
   const auto found = pass_dict_.find(pass_id);
   if (found == pass_dict_.end()) {
     LOG(DFATAL) << "Unknown render pass: " << pass_id;
@@ -188,23 +219,19 @@ void CustomRenderPassManager::RemoveEntityFromCustomPass(Entity entity,
   dispatcher_system()->Disconnect<MeshChangedEvent>(entity, this);
 }
 
+void CustomRenderPassManager::SetPassRanges(
+    const CustomRenderPassRanges& ranges, CustomRenderPass* pass) {
+  const float half_width = ranges.view_width_world * 0.5f;
+  const float half_height = ranges.view_height_world * 0.5f;
+  pass->view.clip_from_eye_matrix =
+      mathfu::mat4::Ortho(-half_width, half_width, -half_height, half_height,
+                          ranges.depth_min_world, ranges.depth_max_world, 1.0f);
+}
+
 void CustomRenderPassManager::UpdateCameras() {
   for (auto& custom_pass : render_passes_) {
     UpdateCamera(&custom_pass);
   }
-}
-
-void CustomRenderPassManager::AdvanceFrame() {
-  UpdateCameras();
-  render_system()->BeginRendering();
-  const size_t kNumViews = 1;
-  for (auto& custom_pass : render_passes_) {
-    if (custom_pass.enabled) {
-      render_system()->Render(&custom_pass.view, kNumViews,
-                              static_cast<RenderPass>(custom_pass.id));
-    }
-  }
-  render_system()->EndRendering();
 }
 
 void CustomRenderPassManager::UpdateCamera(CustomRenderPass* custom_pass) {

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +17,17 @@ limitations under the License.
 #ifndef LULLABY_SYSTEMS_ANIMATION_ANIMATION_ASSET_H_
 #define LULLABY_SYSTEMS_ANIMATION_ANIMATION_ASSET_H_
 
+#include <functional>
+#include <vector>
+
+#include "lullaby/events/animation_events.h"
+#include "lullaby/modules/file/asset.h"
+#include "lullaby/util/data_container.h"
 #include "motive/anim_generated.h"
 #include "motive/anim_table.h"
 #include "motive/math/compact_spline.h"
 #include "motive/rig_anim.h"
 #include "motive/spline_anim_generated.h"
-#include "lullaby/modules/file/asset.h"
 
 namespace lull {
 
@@ -30,16 +35,36 @@ namespace lull {
 //
 // The raw data is converted into runtime motive::CompactSplines,
 // motive::RigAnim, or motive::AnimTable for use by the AnimationSystem.
+// Animations can have an additional opaque context object to be used by channel
+// implementations to interpret the data.
 class AnimationAsset : public Asset {
  public:
+  using FinalizeCallback = std::function<void(ErrorCode)>;
+
   explicit AnimationAsset();
+  AnimationAsset(DataContainer splines, size_t num_splines,
+                 std::shared_ptr<void> context);
+  AnimationAsset(std::unique_ptr<motive::RigAnim> anim,
+                 std::shared_ptr<void> context);
 
   // Converts and stores |data| as either a RigAnim or a vector of
   // CompactSplines.
+  ErrorCode OnLoadWithError(const std::string& filename,
+                            std::string* data) override;
+
+  // Calls any registered callbacks indicating that there was a successful load.
   void OnFinalize(const std::string& filename, std::string* data) override;
 
+  // Calls any registered callbacks indicating that there was an unsuccessful
+  // load.
+  void OnError(const std::string& filename, ErrorCode error) override;
+
+  // Add a finalization callback for when the asset finished loading. If the
+  // asset is already finalized than this will be called immediately.
+  void AddFinalizedCallback(FinalizeCallback finalize_callback);
+
   // Returns the number of CompactSplines in the data.
-  int GetNumCompactSplines() const;
+  size_t GetNumCompactSplines() const;
 
   // Returns the number of RigAnims in the data.
   int GetNumRigAnims() const;
@@ -51,6 +76,10 @@ class AnimationAsset : public Asset {
   // Gets the RigAnim data at |idx|, or NULL if the data is a vector of
   // CompactSplines.
   const motive::RigAnim* GetRigAnim(int idx) const;
+
+  // Get the opaque context associate with the animation. Some animation
+  // channels indicate a specific context type required to process animations.
+  const void* GetContext() const { return context_.get(); }
 
   // Gets the values that are used to drive an animation.
   // |ops| is an optional array of length |dimensions| that specifies the
@@ -74,10 +103,19 @@ class AnimationAsset : public Asset {
   motive::CompactSpline* CreateCompactSpline(
       const motive::CompactSplineFloatFb* src, uint8_t* buffer);
 
-  std::unique_ptr<motive::RigAnim> rig_anim_;  // Rig animation data.
+  void CallAndRemoveFinalizers();
+
+  bool is_finalized_;
+  ErrorCode error_;
+  std::vector<FinalizeCallback> finalize_callbacks_;
+  // An opaque context pointer. While this is a shared_ptr, it should only ever
+  // have one reference count. It is shared instead of unique to avoid writing
+  // a custom Deleter function in every location assets with contexts are made.
+  std::shared_ptr<void> context_;
+  std::unique_ptr<motive::RigAnim> rig_anim_;      // Rig animation data.
   std::unique_ptr<motive::AnimTable> anim_table_;  // Anim table data.
-  std::vector<uint8_t> spline_buffer_;         // Buffer containing spline data.
-  int num_splines_;  // Number of compact splines in the buffer.
+  DataContainer spline_buffer_;  // Buffer containing spline data.
+  size_t num_splines_;  // Number of compact splines in the buffer.
 };
 
 typedef std::shared_ptr<AnimationAsset> AnimationAssetPtr;

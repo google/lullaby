@@ -1,19 +1,22 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_ENV_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_ENV_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_ENV_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_ENV_GLSLH_
 
 /// A port of Unity's Standard PBR surface shader, limited to environment
 /// lights.
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
-#include "third_party/lullaby/data/shaders/pbr/env_map.glslh"
-#include "third_party/lullaby/data/shaders/pbr/gamma.glslh"
-#include "third_party/lullaby/data/shaders/pbr/pbr_surface_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
+#include "lullaby/data/shaders/pbr/env_map.glslh"
+#include "lullaby/data/shaders/pbr/fur.glslh"
+#include "lullaby/data/shaders/pbr/gamma.glslh"
+#include "lullaby/data/shaders/pbr/pbr_surface_common.glslh"
+#include "lullaby/data/shaders/pbr/specular_conversions.glslh"
 
-#if LULLABY_PBR_TRANSPARENCY_SUPPORTED
+#if defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION) || defined(LULLABY_TRANSPARENCY)
 // Controls blending of refracted or alpha-multiplied image.
 uniform float surface_opacity;
+#endif  // defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION) || defined(LULLABY_TRANSPARENCY)
+
 #ifdef LULLABY_PBR_SCREEN_SPACE_REFRACTION
 // To support transparency or refractive effects.
 //
@@ -22,57 +25,132 @@ uniform float refraction_eta;
 // How much albedo tints the refraction.
 uniform float refraction_color_transfer;
 #endif  // LULLABY_PBR_SCREEN_SPACE_REFRACTION
-#endif  // LULLABY_PBR_TRANSPARENCY_SUPPORTED
 
 /// A modified form of the Surface shader that computes diffuse and specular
 /// lighting using an environment map as the only light source.
+///
+/// If LULLABY_PBR_CLEARCOAT is defined, additional parameters are accepted for
+/// a secondary specular highlight representing a dielectric clearcoat surface.
+/// The clearcoat-related values are consistently prefixed with cc_.
 vec3 EnvironmentShader(
-    vec3 normal,            // Unit surface normal.
-    vec3 cam_dir,           // Unit vector from shading point to camera.
-    float smoothness,       // Unity's perceptual smoothness, in [0.0, 1.0].
-    float reflectivity,     // Surface reflectivity, based on metallic + more.
+    vec3 normal,         // Unit surface normal.
+    vec3 cam_dir,        // Unit vector from shading point to camera.
+    float smoothness,    // Unity's perceptual smoothness, in [0.0, 1.0].
+    float reflectivity,  // Surface reflectivity, based on metallic + more.
+#if defined(LULLABY_PBR_CLEARCOAT) || defined(LULLABY_FUR)
+    float shader_ramp,   // Ramps between base and clearcoat/fur.
+#endif  // defined(LULLABY_PBR_CLEARCOAT) || defined(LULLABY_FUR)
+#ifdef LULLABY_PBR_CLEARCOAT
+    vec3 cc_normal,       // Unit normal of clearcoat layer.
+    float cc_smoothness,  // Unity's perceptual smoothness of clearcoat.
+#endif  // LULLABY_PBR_CLEARCOAT
     vec3 diffuse_color,     // Surface diffuse color, based on albedo + more.
     vec3 specular_color) {  // Surface specular color, based on albedo + more.
+#ifdef LULLABY_PBR_CLEARCOAT
+  // These clearcoat parameters are based on the clearcoat material being 100%
+  // dielectric.
+  vec3 cc_specular_color = vec3(kDielectricSpecular);
+  float cc_reflectivity = kDielectricSpecular;
+#endif  // LULLABY_PBR_CLEARCOAT
+
   vec3 refl_light_dir = reflect(-cam_dir, normal);
+#ifdef LULLABY_PBR_CLEARCOAT
+  vec3 cc_refl_light_dir = reflect(-cam_dir, cc_normal);
+#endif  // LULLABY_PBR_CLEARCOAT
 
   // We have a perfect reflection since we computed refl_light_dir as an
   // explicit reflection of cam_dir about the normal. This simplifies the
   // n_dot_v and l_dot_h to n_dot_l, so we use n_dot_lv for all three.
   float n_dot_lv = clamp(dot(normal, refl_light_dir), 0.0, 1.0);
+#ifdef LULLABY_PBR_CLEARCOAT
+  float cc_n_dot_lv = clamp(dot(cc_normal, cc_refl_light_dir), 0.0, 1.0);
+#endif  // LULLABY_PBR_CLEARCOAT
 
   float perceptual_roughness = SmoothnessToPerceptualRoughness(smoothness);
+#ifdef LULLABY_PBR_CLEARCOAT
+  float cc_perceptual_roughness =
+      SmoothnessToPerceptualRoughness(cc_smoothness);
+#endif  // LULLABY_PBR_CLEARCOAT
 
   // We omit the n_dot_l term here because it's relative to the specular
   // reflection. The diffuse reflection is free to choose L = N, so the only
-  // darkening component is the DisneyDiffuseTerm.
-  float diffuse_term =
-      DisneyDiffuseTerm(n_dot_lv, n_dot_lv, n_dot_lv, perceptual_roughness);
+  // darkening component is the DisneyDiffuseIblTerm.
+#ifdef LULLABY_PBR_CLEARCOAT
+  // Note: This is a crude approximation since the clearcoat specular is applied
+  // additively with base specular, and the way that this combination should
+  // affect diffuse is not easily expressed. Broadly speaking, the clearcoat
+  // roughness will be lower and should dominate the combined effect on diffuse.
+  // Also, to omit two DisneyDiffuseIblTerm() calls, we just use the base dot
+  // products here.
+  float diffuse_term = DisneyDiffuseIblTerm(
+      n_dot_lv,
+      mix(perceptual_roughness, cc_perceptual_roughness, shader_ramp));
+#else  // LULLABY_PBR_CLEARCOAT
+  float diffuse_term = DisneyDiffuseIblTerm(n_dot_lv, perceptual_roughness);
+#endif  // LULLABY_PBR_CLEARCOAT
 
   float roughness = PerceptualRoughnessToRoughness(perceptual_roughness);
+#ifdef LULLABY_PBR_CLEARCOAT
+  float cc_roughness = PerceptualRoughnessToRoughness(cc_perceptual_roughness);
+#endif  // LULLABY_PBR_CLEARCOAT
+
+  // Note: this term makes this shader non-energy-preserving, causing
+  // darkening at high roughness values. This matches behavior in Unity.
+  // For details, see: b/111414580.
   float surface_reduction = 1.0 / (roughness * roughness + 1.0);
+#ifdef LULLABY_PBR_CLEARCOAT
+  float cc_surface_reduction = 1.0 / (cc_roughness * cc_roughness + 1.0);
+#endif  // LULLABY_PBR_CLEARCOAT
+
   float grazing_term = clamp(smoothness + reflectivity, 0.0, 1.0);
+#ifdef LULLABY_PBR_CLEARCOAT
+  float cc_grazing_term = clamp(cc_smoothness + cc_reflectivity, 0.0, 1.0);
+#endif  // LULLABY_PBR_CLEARCOAT
 
   // See env_map.glslh regarding Env*Color().
   vec3 diffuse_part = diffuse_term * diffuse_color * EnvDiffuseColor(normal);
+
   vec3 fresnel_term = FresnelLerp(specular_color, vec3(grazing_term), n_dot_lv);
-#if LULLABY_PBR_SCREEN_SPACE_REFL
+#ifdef LULLABY_PBR_CLEARCOAT
+  vec3 cc_fresnel_term =
+      FresnelLerp(cc_specular_color, vec3(cc_grazing_term), cc_n_dot_lv);
+#endif  // LULLABY_PBR_CLEARCOAT
+
+#if defined(LULLABY_FUR)
+  vec3 fur_specular = FurEnvSpecular(normal, roughness, cam_dir);
+  vec3 base_specular = EnvSpecularColor(refl_light_dir, -cam_dir, roughness);
+  vec3 env_specular = mix(base_specular, fur_specular, shader_ramp);
+#elif LULLABY_PBR_SCREEN_SPACE_REFL  // TODO: Always on; remove branch.
   vec3 env_specular = EnvSpecularColor(refl_light_dir, -cam_dir, roughness);
+#ifdef LULLABY_PBR_CLEARCOAT
+  vec3 cc_env_specular =
+      EnvSpecularColor(cc_refl_light_dir, -cam_dir, cc_roughness);
+#endif  // LULLABY_PBR_CLEARCOAT
 #else  // LULLABY_PBR_SCREEN_SPACE_REFL
   vec3 env_specular = EnvSpecularColor(refl_light_dir, roughness);
+#ifdef LULLABY_PBR_CLEARCOAT
+  vec3 cc_env_specular = EnvSpecularColor(cc_refl_light_dir, cc_roughness);
+#endif  // LULLABY_PBR_CLEARCOAT
 #endif  // LULLABY_PBR_SCREEN_SPACE_REFL
-  vec3 specular_part =
-      specular_scale * surface_reduction * fresnel_term * env_specular;
+
+  vec3 specular_part = surface_reduction * fresnel_term * env_specular;
+#ifdef LULLABY_PBR_CLEARCOAT
+  specular_part +=
+      cc_surface_reduction * cc_fresnel_term * cc_env_specular * shader_ramp;
+#endif  // LULLABY_PBR_CLEARCOAT
+  specular_part *= specular_scale;
+
   vec3 opaque_result = diffuse_part + specular_part;
 
-#if LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+#if defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
   vec3 refr_light_dir = refract(-cam_dir, normal, refraction_eta);
   vec3 refr_result =
       ScreenSpaceRefraction(normal, -cam_dir, refraction_eta, roughness);
   refr_result *= mix(vec3(1.0), diffuse_color, refraction_color_transfer);
   return mix(refr_result, opaque_result, surface_opacity);
-#else   // LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+#else   // defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
   return opaque_result;
-#endif  // LULLABY_PBR_TRANSPARENCY_SUPPORTED && defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
+#endif  // defined(LULLABY_PBR_SCREEN_SPACE_REFRACTION)
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_ENV_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_ENV_GLSLH_

@@ -1,5 +1,5 @@
 #define MAX_TOUCHES 1
-#include "third_party/lullaby/data/shaders/uber_fragment_common.glslh"
+#include "lullaby/data/shaders/uber_fragment_common.glslh"
 
 STAGE_INPUT lowp vec4 vColor;
 

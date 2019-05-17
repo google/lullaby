@@ -1,6 +1,5 @@
 # `ControllerSystem`
 
-*   Contact: ksam
 *   Status: **Ready**
 
 Handles the visual representation of the controller, tracking the controller's

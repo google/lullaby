@@ -87,6 +87,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "mipmap_generator",
+    srcs = [
+        "mipmap_generator.cc",
+    ],
+    hdrs = [
+        "mipmap_generator.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lullaby/modules/render",
+        "//lullaby/util:common_types",
+        "//lullaby/util:logging",
+    ],
+)
+
 
 cc_binary(
     name = "texture_pipeline",
@@ -100,6 +116,7 @@ cc_binary(
         ":encode_ktx",
         ":encode_png",
         ":encode_webp",
+        ":mipmap_generator",
         "//lullaby/modules/render",
         "//lullaby/util:arg_parser",
         "//lullaby/util:common_types",

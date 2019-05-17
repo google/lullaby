@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ namespace lull {
 // Allocates a block of memory of the given size and alignment.  This memory
 // must be freed by calling lull::AlignedFree.
 inline void* AlignedAlloc(size_t size, size_t align) {
-  const size_t min_align = std::max(align, sizeof(max_align_t));
+  const size_t min_align = std::max(align, sizeof(std::max_align_t));
 #ifdef _MSC_VER
   return _aligned_malloc(size, min_align);
 #else

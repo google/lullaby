@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ int main(int argc, const char* argv[]) {
   std::map<std::string, float> glyph_widths;
   const auto& filenames = args.GetPositionalArgs();
   for (int i = 0; i < filenames.size(); ++i) {
-    const auto& arg = filenames[i];
+    const std::string arg(filenames[i]);
     std::string data;
     if (!lull::tool::LoadFile(arg.c_str(), true, &data)) {
       std::cout << "Error: failed to load " << arg << std::endl;
@@ -49,7 +49,7 @@ int main(int argc, const char* argv[]) {
       std::cout << "Error: model " << arg << " has no bounding box.";
       return -1;
     }
-    glyph_widths[lull::GetBasenameFromFilename(arg.to_string())] =
+    glyph_widths[lull::GetBasenameFromFilename(arg)] =
         aabb->max().x() - aabb->min().x();
   }
 

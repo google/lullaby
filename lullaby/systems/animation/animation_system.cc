@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ limitations under the License.
 #include "motive/matrix_init.h"
 #include "motive/rig_init.h"
 #include "motive/spline_init.h"
+#include "motive/sqt_init.h"
 #include "motive/spline_anim_generated.h"
 
 namespace lull {
@@ -48,10 +49,11 @@ using MotiveTimeUnit = std::chrono::duration<motive::MotiveTime, std::milli>;
 
 AnimationSystem::AnimationSystem(Registry* registry)
     : System(registry), current_id_(kNullAnimation) {
-  RegisterDef(this, kAnimationDef);
-  RegisterDef(this, kAnimationResponseDef);
+  RegisterDef<AnimationDefT>(this);
+  RegisterDef<AnimationResponseDefT>(this);
 
   motive::RigInit::Register();
+  motive::SqtInit::Register();
   motive::MatrixInit::Register();
   motive::SplineInit::Register();
 
@@ -72,6 +74,8 @@ AnimationSystem::AnimationSystem(Registry* registry)
     binder->RegisterFunction("lull.Animation.SetTarget",
                              std::move(set_target_fn));
     binder->RegisterFunction("lull.Animation.Play", std::move(play_anim_fn));
+    binder->RegisterMethod("lull.Animation.AdvanceFrame",
+                           &lull::AnimationSystem::AdvanceFrame);
   }
 
   auto* dispatcher = registry_->Get<Dispatcher>();
@@ -87,6 +91,7 @@ AnimationSystem::~AnimationSystem() {
   if (binder) {
     binder->UnregisterFunction("lull.Animation.SetTarget");
     binder->UnregisterFunction("lull.Animation.Play");
+    binder->UnregisterFunction("lull.Animation.AdvanceFrame");
   }
   auto* dispatcher = registry_->Get<Dispatcher>();
   if (dispatcher) {
@@ -110,12 +115,7 @@ void AnimationSystem::Create(Entity entity, HashValue type, const Def* def) {
   } else if (type == kAnimationDef) {
     const AnimationDef* data = ConvertDef<AnimationDef>(def);
     if (data->defining_animation()) {
-      auto def_anim = data->defining_animation();
-      if (def_anim->channel() && def_anim->filename()) {
-        DefiningAnimation& animation = defining_animations_[entity];
-        animation.channel = FindChannel(def_anim->channel()->c_str());
-        animation.asset = LoadAnimation(def_anim->filename()->str());
-      }
+      LOG(INFO) << "Defining animations are no longer supported or necessary.";
     }
   }
 }
@@ -129,7 +129,6 @@ void AnimationSystem::PostCreateInit(Entity e, HashValue type, const Def* def) {
 
 void AnimationSystem::Destroy(Entity entity) {
   CancelAllAnimations(entity);
-  defining_animations_.erase(entity);
 }
 
 void AnimationSystem::CancelAllAnimations(Entity entity) {
@@ -151,9 +150,48 @@ AnimationAssetPtr AnimationSystem::LoadAnimation(const std::string& filename) {
   });
 }
 
+AnimationAssetPtr AnimationSystem::LoadAnimationAsync(
+    const std::string& filename) {
+  const HashValue key = Hash(filename.c_str());
+  return assets_.Create(key, [&]() {
+    AssetLoader* asset_loader = registry_->Get<AssetLoader>();
+    return asset_loader->LoadAsync<AnimationAsset>(filename);
+  });
+}
+
+AnimationAssetPtr AnimationSystem::CreateAnimation(
+    HashValue key, DataContainer splines, size_t num_splines,
+    std::shared_ptr<void> context) {
+  return assets_.Create(key, [&]() {
+    return std::make_shared<AnimationAsset>(std::move(splines), num_splines,
+                                            std::move(context));
+  });
+}
+
+AnimationAssetPtr AnimationSystem::CreateAnimation(
+    HashValue key, std::unique_ptr<motive::RigAnim> anim,
+    std::shared_ptr<void> context) {
+  return assets_.Create(key, [&]() {
+    return std::make_shared<AnimationAsset>(std::move(anim),
+                                            std::move(context));
+  });
+}
+
+AnimationAssetPtr AnimationSystem::GetAnimation(HashValue key) {
+  return assets_.Find(key);
+}
+
+void AnimationSystem::UnloadAnimation(const std::string& filename) {
+  assets_.Release(Hash(filename));
+}
+
+void AnimationSystem::UnloadAllAnimations() { assets_.Reset(); }
+
 void AnimationSystem::AdvanceFrame(Clock::duration delta_time) {
-  LULLABY_CPU_TRACE_CALL();
-  const motive::MotiveTime timestep = GetMotiveTimeFromDuration(delta_time);
+  LULLABY_CPU_TRACE("AnimAdvance");
+  const motive::MotiveTime timestep =
+      GetMotiveTimeFromDuration(delta_time + accumulated_time_error_);
+  accumulated_time_error_ += (delta_time - GetDurationFromMotiveTime(timestep));
   engine_.AdvanceFrame(timestep);
 
   std::vector<AnimationId> completed;
@@ -281,8 +319,7 @@ AnimationId AnimationSystem::PlayAnimation(Entity e, HashValue channel,
   if (channel_ptr->IsRigChannel()) {
     id = PlayRigAnimationInternal(e, channel_ptr, anim, params);
   } else {
-    // TODO(b/64588043): Add support for spline animations.
-    LOG(DFATAL) << "Only rig animations supported for now.";
+    id = PlaySplineAnimationInternal(e, channel_ptr, anim, params);
   }
 
   if (id == kNullAnimation) {
@@ -324,16 +361,19 @@ AnimationId AnimationSystem::PlayRigAnimation(Entity e,
 AnimationId AnimationSystem::PlaySplineAnimation(Entity e,
                                                  AnimationChannel* channel,
                                                  const AnimInstanceDef* anim) {
-  float constants[AnimationChannel::kMaxDimensions] = {0.0f};
-  const motive::CompactSpline* splines[AnimationChannel::kMaxDimensions] = {
-      nullptr};
-
-  const int dimensions = static_cast<int>(channel->GetDimensions());
-  const int num_filenames = static_cast<int>(anim->filenames()->size());
-  if (num_filenames > dimensions) {
+  const size_t num_filenames = anim->filenames()->size();
+  if (!channel->IsDimensionSupported(num_filenames)) {
     LOG(DFATAL) << "Cannot have more filenames than channel dimensions!";
     return kNullAnimation;
   }
+
+  // Some spline animations actually extract the splines from rig animations. We
+  // assume that the dimensions of the channel are the dimensions desired for
+  // the animation (rather than basing the number of channels on the number of
+  // files).
+  const size_t dimensions = channel->GetDimensions();
+  std::vector<float> constants(dimensions, 0.f);
+  std::vector<const motive::CompactSpline*> splines(dimensions, nullptr);
 
   for (int i = 0; i < num_filenames; ++i) {
     AnimationAssetPtr asset;
@@ -347,13 +387,14 @@ AnimationId AnimationSystem::PlaySplineAnimation(Entity e,
       }
     }
     if (asset) {
-      // TODO(b/30696097): Correctly merge multiple animation assets so that we
+      // TODO: Correctly merge multiple animation assets so that we
       // don't overwrite assets with multiple splines here. Here we allow the
       // ith spline to populate dimensions - i channels. Subsequent files will
       // overwrite all but the first spline in each file.
-      asset->GetSplinesAndConstants(list_index, dimensions - i,
-                                    channel->GetOperations(), splines + i,
-                                    constants + i);
+      asset->GetSplinesAndConstants(list_index,
+                                    static_cast<int>(dimensions - i),
+                                    channel->GetOperations(), &splines[i],
+                                    &constants[i]);
     }
   }
 
@@ -361,8 +402,43 @@ AnimationId AnimationSystem::PlaySplineAnimation(Entity e,
   const PlaybackParameters params = GetPlaybackParameters(anim);
   const SplineModifiers modifiers = GetSplineModifiers(anim);
   const AnimationId prev_id =
-      channel->Play(e, &engine_, id, splines, constants,
-                    channel->GetDimensions(), params, modifiers);
+      channel->Play(e, &engine_, id, splines.data(), constants.data(),
+                    dimensions, params, modifiers, nullptr);
+  UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
+  return id;
+}
+
+AnimationId AnimationSystem::PlaySplineAnimationInternal(
+    Entity e, AnimationChannel* channel, const AnimationAssetPtr& anim,
+    const PlaybackParameters& params) {
+  if (channel == nullptr || channel->IsRigChannel()) {
+    LOG(DFATAL) << "Invalid channel.";
+    return kNullAnimation;
+  } else if (anim == nullptr) {
+    LOG(DFATAL) << "No animation specified!";
+    return kNullAnimation;
+  } else if (!channel->IsDimensionSupported(anim->GetNumCompactSplines())) {
+    LOG(DFATAL) << "Cannot have more splines than channel dimensions!";
+    return kNullAnimation;
+  }
+
+  // Animate as many dimensions as the channel allows. If it is a dynamic
+  // dimension channel, animate as many compact splines as the asset has.
+  size_t dimensions = channel->GetDimensions();
+  if (dimensions == AnimationChannel::kDynamicDimensions) {
+    dimensions = anim->GetNumCompactSplines();
+  }
+  std::vector<float> constants(dimensions, 0.f);
+  std::vector<const motive::CompactSpline*> splines(dimensions, nullptr);
+
+  anim->GetSplinesAndConstants(0, static_cast<int>(dimensions),
+                               channel->GetOperations(), splines.data(),
+                               constants.data());
+
+  const AnimationId id = GenerateAnimationId();
+  const AnimationId prev_id =
+      channel->Play(e, &engine_, id, splines.data(), constants.data(),
+                    dimensions, params, SplineModifiers(), anim->GetContext());
   UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
   return id;
 }
@@ -384,10 +460,9 @@ AnimationId AnimationSystem::PlayRigAnimationInternal(
     return kNullAnimation;
   }
 
-  PrepareDefiningAnimation(e, channel);
-
   const AnimationId id = GenerateAnimationId();
-  const AnimationId prev_id = channel->Play(e, &engine_, id, rig_anim, params);
+  const AnimationId prev_id =
+      channel->Play(e, &engine_, id, rig_anim, params, anim->GetContext());
   UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
   return id;
 }
@@ -397,7 +472,7 @@ AnimationId AnimationSystem::SetTargetInternal(Entity e,
                                                const float* data, size_t len,
                                                Clock::duration time,
                                                Clock::duration delay) {
-  if (channel->GetDimensions() != len) {
+  if (!channel->IsDimensionSupported(len)) {
     LOG(DFATAL) << "Target data size does not match channel dimensions.  "
                    "Skipping playback.";
     return kNullAnimation;
@@ -408,28 +483,6 @@ AnimationId AnimationSystem::SetTargetInternal(Entity e,
       channel->Play(e, &engine_, id, data, len, time, delay);
   UntrackAnimation(prev_id, AnimationCompletionReason::kInterrupted);
   return id;
-}
-
-void AnimationSystem::PrepareDefiningAnimation(Entity e,
-                                               AnimationChannel* channel) {
-  auto iter = defining_animations_.find(e);
-  if (iter == defining_animations_.end()) {
-    return;
-  }
-  if (iter->second.channel != channel) {
-    return;
-  }
-  if (iter->second.channel == nullptr) {
-    return;
-  }
-  if (iter->second.asset == nullptr) {
-    return;
-  }
-  const motive::RigAnim* defining_anim = iter->second.asset->GetRigAnim(0);
-  if (defining_anim == nullptr) {
-    return;
-  }
-  channel->Init(e, &engine_, defining_anim);
 }
 
 AnimationId AnimationSystem::GenerateAnimationId() {
@@ -561,6 +614,34 @@ void AnimationSystem::SetPlaybackRate(Entity entity, HashValue channel,
   }
 
   iter->second->SetPlaybackRate(entity, rate);
+}
+
+void AnimationSystem::SetLooping(Entity e, HashValue channel, bool loop) {
+  auto iter = channels_.find(channel);
+  if (iter == channels_.end()) {
+    LOG(WARNING) << "Could not find channel " << channel;
+    return;
+  }
+
+  iter->second->SetLooping(e, loop);
+}
+
+void AnimationSystem::SetSkeleton(Entity entity, Skeleton skeleton) {
+  auto res = skeletons_.emplace(entity, SkeletonComponent());
+  if (!res.second) {
+    LOG(ERROR) << "Cannot replace an Entity's skeleton.";
+    return;
+  }
+
+  res.first->second.entities.assign(skeleton.begin(), skeleton.end());
+}
+
+AnimationSystem::Skeleton AnimationSystem::GetSkeleton(Entity entity) {
+  auto iter = skeletons_.find(entity);
+  if (iter != skeletons_.end()) {
+    return iter->second.entities;
+  }
+  return {};
 }
 
 void AnimationSystem::SplitListFilenameAndIndex(std::string* filename,

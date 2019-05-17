@@ -92,4 +92,8 @@ table TextureDef {
 
   // The type of texture (eg. 2D, CubeMap).
   target_type: TextureTargetType = Standard2d;
+
+  // Indicates that the texture is storing HDR image data where the multiplier
+  // to be applied to the RGB data is encoded into the alpha channel.
+  is_rgbm: bool = false;
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -444,7 +444,7 @@ TEST(CreateLatLonSphereTest, GeneratesPositionsThatHaveRadiusLength) {
   MeshData mesh = CreateLatLonSphere(radius, /* num_parallels = */ 3,
                                      /* num_meridians = */ 5);
   for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
-    const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
+    const VertexPTN& v = mesh.GetVertexData<VertexPTN>()[i];
     EXPECT_NEAR(GetPosition(v).Length(), radius, kDefaultEpsilon);
   }
 
@@ -452,7 +452,7 @@ TEST(CreateLatLonSphereTest, GeneratesPositionsThatHaveRadiusLength) {
   mesh = CreateLatLonSphere(radius, /* num_parallels = */ 4,
                             /* num_meridians = */ 4);
   for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
-    const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
+    const VertexPTN& v = mesh.GetVertexData<VertexPTN>()[i];
     EXPECT_NEAR(GetPosition(v).Length(), radius, kDefaultEpsilon);
   }
 }
@@ -465,7 +465,7 @@ TEST(CreateLatLonSphereTest,
   const auto* indices = mesh.GetIndexData<uint32_t>();
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
   for (size_t i = 0; i < mesh.GetNumIndices(); i += 3) {
-    const VertexPT* vertices = mesh.GetVertexData<VertexPT>();
+    const VertexPTN* vertices = mesh.GetVertexData<VertexPTN>();
     const mathfu::vec3 p0 = GetPosition(vertices[indices[i + 0]]);
     const mathfu::vec3 p1 = GetPosition(vertices[indices[i + 1]]);
     const mathfu::vec3 p2 = GetPosition(vertices[indices[i + 2]]);
@@ -487,7 +487,7 @@ TEST(CreateLatLonSphereTest,
   const auto* indices = mesh.GetIndexData<uint32_t>();
   EXPECT_EQ(mesh.GetPrimitiveType(), MeshData::kTriangles);
   for (size_t i = 0; i < mesh.GetNumIndices(); i += 3) {
-    const VertexPT* vertices = mesh.GetVertexData<VertexPT>();
+    const VertexPTN* vertices = mesh.GetVertexData<VertexPTN>();
     const mathfu::vec3 p0 = GetPosition(vertices[indices[i + 0]]);
     const mathfu::vec3 p1 = GetPosition(vertices[indices[i + 1]]);
     const mathfu::vec3 p2 = GetPosition(vertices[indices[i + 2]]);
@@ -508,10 +508,10 @@ TEST(CreateLatLonSphereTest, GeneratesUniqueVerticesExceptForWhenUWraps) {
   float min_wrap_v = 1.0f;
   float max_wrap_v = 0.0f;
   for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
-    const VertexPT& v1 = mesh.GetVertexData<VertexPT>()[i];
+    const VertexPTN& v1 = mesh.GetVertexData<VertexPTN>()[i];
 
     for (size_t k = i + 1; k < mesh.GetNumVertices(); ++k) {
-      const VertexPT& v2 = mesh.GetVertexData<VertexPT>()[k];
+      const VertexPTN& v2 = mesh.GetVertexData<VertexPTN>()[k];
       const mathfu::vec3 pos_delta = GetPosition(v1) - GetPosition(v2);
       if (pos_delta.Length() < kDefaultEpsilon) {
         EXPECT_EQ(v1.v0, v2.v0);
@@ -530,7 +530,7 @@ TEST(CreateLatLonSphereTest, GeneratesUniqueVerticesExceptForWhenUWraps) {
 
 static void TestThatMeshUvsFollowLatLon(const MeshData& mesh) {
   for (size_t i = 0; i < mesh.GetNumVertices(); ++i) {
-    const VertexPT& v = mesh.GetVertexData<VertexPT>()[i];
+    const VertexPTN& v = mesh.GetVertexData<VertexPTN>()[i];
     const mathfu::vec3 pos = GetPosition(v);
     const mathfu::vec2 uv = GetUv0(v);
     const float lat = std::acos(pos.y / pos.Length());

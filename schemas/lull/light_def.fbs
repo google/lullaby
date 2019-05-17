@@ -50,6 +50,8 @@ table DirectionalLightDef {
   color: Color (native_default: "{0, 0, 0, 0}");
 
   /// The intensity of the directional light specular width.
+  /// This field is deprecated and should not be used. If you need an exponent,
+  /// set it as a uniform or property in the ModelAssetDef.
   exponent: float;
 
   /// Shadow implementation detail. Default is null (no shadow).
@@ -68,14 +70,46 @@ table PointLightDef {
   color: Color (native_default: "{0, 0, 0, 0}");
 
   /// The intensity of the point light.
-  intensity: float;
+  intensity: float = 1.0;
 
   /// The intensity of the point light specular width.
+  /// This field is deprecated and should not be used. If you need an exponent,
+  /// set it as a uniform or property in the ModelAssetDef.
   exponent: float;
 
   // DO NOT SET. FOR INTERNAL USE ONLY.
   position: Vec3;
 }
+
+/// Defines a spot light source.
+table SpotLightDef {
+  /// The group of lights to which this light belongs.
+  group: uint = 0 (hashvalue);
+
+  /// The color of the light.
+  color: Color (native_default: "{0, 0, 0, 0}");
+
+  /// The intensity of the light.
+  intensity: float = 1.0;
+
+  /// Maximum angle of light dispersion from its direction whose upper bound is
+  /// 90. This value is given in degrees.
+  angle: float = 45.0;
+
+  /// Percent of the spotlight cone that is attenuated due to penumbra. Takes
+  /// values between zero and 1.
+  penumbra: float = 0.05;
+
+  /// The amount the light dims along the distance of the light.
+  decay: float = 2.0;
+
+  // DO NOT SET. FOR INTERNAL USE ONLY.
+  position: Vec3;
+
+  // DO NOT SET. FOR INTERNAL USE ONLY.
+  rotation: Quat;
+}
+
 
 /// Defines an environmental light source.
 table EnvironmentLightDef {
@@ -88,9 +122,15 @@ table EnvironmentLightDef {
   /// The texture to use for the specular environment map.
   specular: TextureDef;
 
-  /// The bidirectional reflectance distribution function (BRDF) look-up table 
+  /// The bidirectional reflectance distribution function (BRDF) look-up table
   /// used to compute environment lighting.
   brdf_lookup: TextureDef;
+
+  /// The color factor of the envionment map light.
+  color: Color (native_default: "{1.0, 1.0, 1.0, 1.0}");
+
+  // Number of mips in the specular map.
+  specular_mips: int = 0;
 }
 
 /// Enum reflecting the interaction an object has with shadows. This may be

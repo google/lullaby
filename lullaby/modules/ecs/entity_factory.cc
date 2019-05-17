@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,17 +19,59 @@ limitations under the License.
 #include <memory>
 #include <utility>
 
+#include "lullaby/modules/ecs/blueprint_builder.h"
+#include "lullaby/modules/ecs/blueprint_reader.h"
+#include "lullaby/modules/ecs/blueprint_writer.h"
+#include "lullaby/modules/ecs/system.h"
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/modules/script/function_binder.h"
 #include "lullaby/util/filename.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/make_unique.h"
 
 namespace lull {
 
-const char* const EntityFactory::kDefaultFileIdentifier = "ENTS";
+const char* const EntityFactory::kLegacyFileIdentifier = "ENTS";
 
 EntityFactory::EntityFactory(Registry* registry)
-    : registry_(registry), entity_generator_(0) {}
+    : registry_(registry), entity_generator_(0) {
+  FunctionBinder* binder = registry->Get<FunctionBinder>();
+  if (binder) {
+    void (EntityFactory::*initialize)() =
+        &lull::EntityFactory::Initialize;
+    Entity (EntityFactory::*create)() =
+        &lull::EntityFactory::Create;
+    Entity (EntityFactory::*create_from_name)(const std::string&) =
+        &lull::EntityFactory::Create;
+    binder->RegisterMethod("lull.EntityFactory.InitializeSystems",
+                           initialize);
+    binder->RegisterMethod("lull.EntityFactory.CreateEntity", create);
+    binder->RegisterMethod("lull.EntityFactory.CreateEntityFromName",
+                           create_from_name);
+    binder->RegisterMethod("lull.EntityFactory.DestroyEntity",
+                           &lull::EntityFactory::Destroy);
+    binder->RegisterMethod("lull.EntityFactory.QueueForDestruction",
+                           &lull::EntityFactory::QueueForDestruction);
+    binder->RegisterMethod("lull.EntityFactory.DestroyQueuedEntities",
+                           &lull::EntityFactory::DestroyQueuedEntities);
+  }
+}
+
+EntityFactory::~EntityFactory() {
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.EntityFactory.InitializeSystems");
+    binder->UnregisterFunction("lull.EntityFactory.CreateEntity");
+    binder->UnregisterFunction("lull.EntityFactory.CreateEntityFromName");
+    binder->UnregisterFunction("lull.EntityFactory.DestroyEntity");
+    binder->UnregisterFunction("lull.EntityFactory.QueueForDestruction");
+    binder->UnregisterFunction("lull.EntityFactory.DestroyQueuedEntities");
+  }
+}
+
+EntityFactory* EntityFactory::Create(Registry* registry) {
+  return registry->Create<lull::EntityFactory>(registry);
+}
 
 void EntityFactory::Initialize() {
   if (systems_.empty()) {
@@ -38,9 +80,26 @@ void EntityFactory::Initialize() {
 
   InitializeSystems();
   registry_->CheckAllDependencies();
+  InitializeBlueprintConverter();
 }
 
-void EntityFactory::RegisterDef(TypeId system_type, HashValue def_type) {
+void EntityFactory::InitializeBlueprintConverter() {
+  FlatbufferConverter* converter = CreateFlatbufferConverter(
+      detail::BlueprintBuilder::kBlueprintFileIdentifier);
+  converter->load = [this](const void* data,
+                           size_t len) -> Optional<BlueprintTree> {
+    return BlueprintReader(&component_handlers_)
+        .ReadFlatbuffer({reinterpret_cast<const uint8_t*>(data), len});
+  };
+  converter->finalize = [](FlatbufferWriter* writer,
+                           Blueprint* blueprint) -> size_t {
+    LOG(DFATAL) << "Not implemented.";
+    return 0;
+  };
+}
+
+void EntityFactory::RegisterDef(TypeId system_type,
+                                Blueprint::DefType def_type) {
   type_map_[def_type] = system_type;
 }
 
@@ -64,14 +123,14 @@ void EntityFactory::CreateTypeList(const char* const* names,
                                    FlatbufferConverter* converter) {
   converter->types.reserve(type_map_.size());
   while (*names) {
-    const System::DefType type = Hash(*names);
+    const Blueprint::DefType type = Hash(*names);
     converter->types.emplace_back(type);
     ++names;
   }
 }
 
 size_t EntityFactory::PerformReverseTypeLookup(
-    HashValue name, const FlatbufferConverter* converter) const {
+    Blueprint::DefType name, const FlatbufferConverter* converter) const {
   for (size_t i = 0; i < converter->types.size(); ++i) {
     if (converter->types[i] == name) {
       return i;
@@ -82,8 +141,9 @@ size_t EntityFactory::PerformReverseTypeLookup(
 
 Entity EntityFactory::Create() {
   Lock lock(mutex_);
-  const Entity entity = ++entity_generator_;
+  const Entity entity(++entity_generator_);
   CHECK_NE(entity, kNullEntity) << "Overflow on Entity generation.";
+  entity_to_blueprint_map_[entity] = "";
   return entity;
 }
 
@@ -134,16 +194,17 @@ Entity EntityFactory::Create(Entity entity, BlueprintTree* blueprint) {
   return entity;
 }
 
-Span<uint8_t> EntityFactory::Finalize(Blueprint* blueprint) {
+Span<uint8_t> EntityFactory::Finalize(Blueprint* blueprint,
+                                      string_view identifier) {
   Span<uint8_t> data;
   // This should properly return the schema if only one has been set, but fail
   // when multiple or no schemas have been set.
-  FlatbufferConverter* converter = GetFlatbufferConverter("");
+  FlatbufferConverter* converter = GetFlatbufferConverter(identifier);
   if (converter) {
     data = blueprint->Finalize(converter->finalize);
   } else {
-    // TODO(b/62545422)
-    LOG(DFATAL) << "Saving when using multiple schemas is not yet implemented.";
+    LOG(DFATAL) << "Unknown file identifier for finalizing blueprint: "
+                << identifier;
   }
   return data;
 }
@@ -288,8 +349,25 @@ Optional<BlueprintTree> EntityFactory::CreateBlueprintFromData(
     }
     return NullOpt;
   }
+  Optional<BlueprintTree> result = converter->load(data, size);
+  if (!result) {
+      LOG(WARNING) << "Entity Blueprint conversion failed: " << name;
+  }
+  return result;
+}
 
-  return converter->load(data, size);
+flatbuffers::DetachedBuffer EntityFactory::Finalize(
+    BlueprintTree* blueprint_tree) {
+  BlueprintWriter writer(&component_handlers_);
+  return writer.WriteBlueprintTree(blueprint_tree);
+}
+
+void EntityFactory::ForgetCachedBlueprint(const std::string& name) {
+  std::string filename = name;
+  if (!EndsWith(filename, ".json")) {
+    filename += ".bin";
+  }
+  blueprints_.Erase(Hash(filename));
 }
 
 void EntityFactory::Destroy(Entity entity) {
@@ -342,32 +420,19 @@ EntityFactory::FlatbufferConverter* EntityFactory::CreateFlatbufferConverter(
 
 EntityFactory::FlatbufferConverter* EntityFactory::GetFlatbufferConverter(
     string_view identifier) {
-  FlatbufferConverter* converter = nullptr;
-  if (converters_.size() == 1) {
-    // For compatibility reasons, if we only have a single converter we should
-    // just use it.
-    converter = converters_[0].get();
-  } else {
-    // If we have multiple schemas, use the one associated with the file type.
-    for (auto& schema : converters_) {
-      if (identifier == schema->identifier) {
-        converter = schema.get();
-        break;
-      }
+  for (auto& schema : converters_) {
+    if (identifier == schema->identifier) {
+      return schema.get();
     }
   }
-
-  if (converter == nullptr) {
-    LOG(DFATAL) << "Unknown file identifier: " << identifier
-                << ".  Please make sure you've called "
-                   "EntityFactory::RegisterFlatbufferConverter with every "
-                   "schema you are using.";
-  }
-
-  return converter;
+  LOG(DFATAL) << "Unknown file identifier: " << identifier
+              << ".  Please make sure you've called "
+                 "EntityFactory::RegisterFlatbufferConverter with every "
+                 "schema you are using.";
+  return nullptr;
 }
 
-System* EntityFactory::GetSystem(const System::DefType def_type) {
+System* EntityFactory::GetSystem(const Blueprint::DefType def_type) {
   // Don't pollute the type and systems maps with null values.
   const auto type_id = type_map_.find(def_type);
   if (type_id == type_map_.end()) {

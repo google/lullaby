@@ -1,6 +1,6 @@
 #version 300 es
 #extension GL_OES_EGL_image_external_essl3 : require
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 STAGE_INPUT mediump vec2 vTexCoord;
 uniform samplerExternalOES texture_unit_0;

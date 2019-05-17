@@ -1,9 +1,33 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_MATH_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_MATH_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_MATH_GLSLH_
+#define LULLABY_DATA_SHADERS_MATH_GLSLH_
 
 /// General-purpose math constants and functions.
 
 /// A partial value of Pi.
 const float kPi = 3.14159265;
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_MATH_GLSLH_
+mat3 Mat3FromQuaternion(vec4 q) {
+  mat3 dest;
+  vec3 two_v = 2. * q.xyz;
+  vec3 two_v_sq = two_v * q.xyz;
+  float two_x_y = two_v.x * q.y;
+  float two_x_z = two_v.x * q.z;
+  float two_y_z = two_v.y * q.z;
+  vec3 two_v_w = two_v * q.w;
+
+  dest[0][0] = 1. - two_v_sq.y - two_v_sq.z;
+  dest[1][0] = two_x_y - two_v_w.z;
+  dest[2][0] = two_x_z + two_v_w.y;
+
+  dest[0][1] = two_x_y + two_v_w.z;
+  dest[1][1] = 1. - two_v_sq.x - two_v_sq.z;
+  dest[2][1] = two_y_z - two_v_w.x;
+
+  dest[0][2] = two_x_z - two_v_w.y;
+  dest[1][2] = two_y_z + two_v_w.x;
+  dest[2][2] = 1. - two_v_sq.x - two_v_sq.y;
+
+  return dest;
+}
+
+#endif  // LULLABY_DATA_SHADERS_MATH_GLSLH_

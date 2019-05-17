@@ -1,5 +1,5 @@
 #extension GL_OES_EGL_image_external : require
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 STAGE_INPUT mediump vec2 vTexCoord;
 uniform samplerExternalOES texture_unit_0;

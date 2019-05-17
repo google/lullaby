@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ namespace lull {
 
 class DebugRenderImpl : public debug::DebugRenderDrawInterface {
  public:
-  explicit DebugRenderImpl(Registry* registry);
+  explicit DebugRenderImpl(Registry* registry, const std::string& prefix = "");
 
   ~DebugRenderImpl() override;
 
@@ -51,7 +51,7 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
       const mathfu::vec4& color,
       const mathfu::vec2& pixel_pos0, const mathfu::vec2& uv0,
       const mathfu::vec2& pixel_pos1, const mathfu::vec2& uv1,
-      const TexturePtr& texture) const override;
+      const TexturePtr& texture) override;
 
  private:
   Registry* registry_;
@@ -63,12 +63,25 @@ class DebugRenderImpl : public debug::DebugRenderDrawInterface {
   TexturePtr font_texture_;
   ShaderPtr texture_shader_;
   ShaderPtr texture_2d_shader_;
+  ShaderPtr texture_2d_external_oes_shader_;
   ShaderPtr shape_shader_;
   MeshData quad_mesh_;
   std::vector<VertexPC> verts_;
+  std::string asset_prefix_;
+  bool is_initialized_;
 
   DebugRenderImpl(const DebugRenderImpl&) = delete;
   DebugRenderImpl& operator=(const DebugRenderImpl&) = delete;
+
+  void Initialize();
+
+  enum State {
+    kState2D,
+    kState3DTransparent,
+    kState3DOpaque,
+  };
+  void SetState(State state) const;
+  static State Choose3DState(Color4ub color);
 
   void SubmitQuad2D(
       const mathfu::vec4& color,

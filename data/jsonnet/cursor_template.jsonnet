@@ -1,5 +1,5 @@
 local colors = import "colors.jsonnet";
-local utils = import "third_party/lullaby/data/jsonnet/utils.jsonnet";
+local utils = import "lullaby/data/jsonnet/utils.jsonnet";
 
 {
   cursor(args)::
@@ -47,7 +47,7 @@ local utils = import "third_party/lullaby/data/jsonnet/utils.jsonnet";
         "corner_verts": 0
       },
     "shader": "shaders/reticle.fplshader",
-    "pass": "OverDraw"
+    "pass": utils.select("OverDraw", args, "render_pass"),
     }
     }, {
     "def_type": "CursorDef",

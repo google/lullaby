@@ -48,7 +48,7 @@ struct Recti (native_type: "mathfu::recti") {
   h: int;
 }
 
-struct Color (native_type: "lull::Color4ub") {
+struct Color (native_type: "lull::Color4f") {
   r: float;
   g: float;
   b: float;
@@ -141,8 +141,7 @@ enum LayoutVerticalAlignment : int {
   Bottom,
 }
 
-/// Potential Input Devices (matches enum in
-/// vr/internal/lullaby/src/base/input_manager.h)
+/// Potential Input Devices (matches enum in input_manager.h)
 enum DeviceType : int {
   Hmd,
   Mouse,

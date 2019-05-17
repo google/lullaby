@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,27 @@ struct AstcHeader {
 const unsigned int kAstcMagicNumber = 0x5CA1AB13;
 
 ByteArray EncodeAstc(const ImageData& src) {
+  AstcEncodeOptions default_options;
+
+  return EncodeAstc(src, default_options);
+}
+
+astc_encoder::CompressionSpeed ConvertLullAstcSpeed(AstcEncodeSpeed speed) {
+  switch (speed) {
+    case AstcEncodeSpeed::kVeryFast:
+      return astc_encoder::CompressionSpeed::kVeryFast;
+    case AstcEncodeSpeed::kFast:
+      return astc_encoder::CompressionSpeed::kFast;
+    case AstcEncodeSpeed::kMedium:
+      return astc_encoder::CompressionSpeed::kMedium;
+    case AstcEncodeSpeed::kThorough:
+      return astc_encoder::CompressionSpeed::kThorough;
+    case AstcEncodeSpeed::kExhaustive:
+      return astc_encoder::CompressionSpeed::kExhaustive;
+  }
+}
+
+ByteArray EncodeAstc(const ImageData& src, const AstcEncodeOptions& options) {
   std::vector<uint8_t> astc_img;
 
 

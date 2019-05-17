@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -192,13 +192,13 @@ TEST(FixedStringTest, ToString) {
 
 TEST(FixedStringTest, SubStr) {
   FixedString<11> str;
-  EXPECT_EQ("", str.substr(1, 3).to_string());
+  EXPECT_EQ("", str.substr(1, 3));
   str = "Hello World";
   string_view substr = str.substr(6, 5);
-  EXPECT_EQ("World", substr.to_string());
+  EXPECT_EQ("World", substr);
   EXPECT_EQ(5u, substr.size());
   str = "hi lullaby";
-  EXPECT_EQ("lullaby", str.substr(3).to_string());
+  EXPECT_EQ("lullaby", str.substr(3));
 }
 
 TEST(FixedStringTest, CompareFstrings) {

@@ -60,17 +60,20 @@ table LayoutDef {
   ignore_mode: LayoutIgnoreMode = None;
 }
 
-/// This component is attached to a child of LayoutDef if the child wishes to be
-/// resizable.  This only works on child elements that have a Def for a System
-/// that supports DesiredSizeChangedEvent.  As of 4/2017 these are supported:
-///   LayoutDef
-///   TextDef (flatui)
-///   NinePatchDef
-///
-/// If the sum of all the sizes of non-weighted elements is greater than the
-/// available canvas_size, then the weighted elements in that direction will be
-/// hidden, including when canvas_size.y = 0 or canvas_size.x = 0.
+/// This component is attached to children of LayoutDef to give them optional
+/// parameters controlling how they are affected.
 table LayoutElementDef {
+  /// The weight parameters are used if the child wishes to be resizable.  This
+  /// only works on child elements that have a Def for a System that supports
+  /// DesiredSizeChangedEvent.  As of 4/2017 these are supported:
+  ///   LayoutDef
+  ///   TextDef (flatui)
+  ///   NinePatchDef
+  ///
+  /// If the sum of all the sizes of non-weighted elements is greater than the
+  /// available canvas_size, then the weighted elements in that direction will
+  /// be hidden, including when canvas_size.y = 0 or canvas_size.x = 0.
+
   /// If horizontal_weight is non-zero, then this element will fill up available
   /// space proportional to the total weight of all other weighted elements
   /// horizontally up to canvas_size.x if non-zero.
@@ -84,6 +87,10 @@ table LayoutElementDef {
   /// Duration to animate this element to its new position in milliseconds.
   /// A non-zero duration requires the AnimationSystem and the PositionChannel.
   duration_ms: float = 0;
+
+  /// If true, this element will not be considered or modified by LayoutSystem
+  /// at all.
+  ignored: bool = false;
 }
 // Example of Layout (A) forcing Layout (B) to resize:
 //   A (LayoutDef) -> B (LayoutElementDef)(LayoutDef) -> C (LayoutElementDef)

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ limitations under the License.
 #include "lullaby/modules/input/input_manager.h"
 #include "lullaby/systems/animation/animation_system.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
-#include "lullaby/systems/scroll/scroll_system.h"
+#include "lullaby/contrib/scroll/scroll_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/math.h"
 #include "lullaby/generated/scroll_def_generated.h"
@@ -33,7 +33,7 @@ limitations under the License.
 namespace lull {
 namespace {
 
-// TODO(aaronbdwyer) - figure out why this epsilon is needed when checking
+// TODO - figure out why this epsilon is needed when checking
 // scroll offset.  After an animated scroll, why doesn't it hit the target
 // exactly?
 static const float kEpsilon = 1e-4f;

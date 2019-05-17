@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,13 +46,16 @@ class MeshFactory {
   /// the mesh exist, then it will be destroyed.
   virtual void ReleaseMesh(HashValue name) = 0;
 
-  /// Creates a mesh using the |mesh_data| data.
+  /// Creates a mesh using one or more |mesh_data|.
   virtual MeshPtr CreateMesh(MeshData mesh_data) = 0;
+  virtual MeshPtr CreateMesh(MeshData* mesh_datas, size_t len) = 0;
 
-  /// Creates a "named" mesh using the |mesh_data| data. Subsequent calls to
+  /// Creates a "named" mesh using one or more |mesh_data|. Subsequent calls to
   /// this function with the same mesh |name| will return the original mesh as
   /// long as any references to that mesh are still valid.
   virtual MeshPtr CreateMesh(HashValue name, MeshData mesh_data) = 0;
+  virtual MeshPtr CreateMesh(HashValue name, MeshData* mesh_datas,
+                             size_t len) = 0;
 
   /// Returns an empty mesh.  Intended for use as a placeholder for some other
   /// mesh.  The returned mesh will never be 'loaded' so ReadyToRender checks

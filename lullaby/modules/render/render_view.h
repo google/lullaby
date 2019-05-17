@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,6 +45,17 @@ struct RenderView {
   InputManager::EyeType eye = 1;
 };
 
+// Populates a single RenderView with the data provided.
+void PopulateRenderView(RenderView* view, const mathfu::recti& viewport,
+                        const mathfu::mat4& world_from_eye_matrix,
+                        const mathfu::rectf& fov, float near_clip_plane,
+                        float far_clip_plane, InputManager::EyeType eye);
+// Populates a single RenderView with the data provided.
+void PopulateRenderView(RenderView* view, const mathfu::recti& viewport,
+                        const mathfu::mat4& world_from_eye_matrix,
+                        const mathfu::mat4& clip_from_eye_matrix,
+                        const mathfu::rectf& fov, InputManager::EyeType eye);
+
 // Populates the RenderView arrays using information from the InputManager.
 void PopulateRenderViews(Registry* registry, RenderView* views, size_t num,
                          float near_clip_plane, float far_clip_plane);
@@ -69,6 +80,10 @@ inline void PopulateRenderViews(Registry* registry, RenderView* views,
   PopulateRenderViews(registry, views, num, RenderView::kDefaultNearClipPlane,
                       RenderView::kDefaultFarClipPlane, render_target_size);
 }
+
+/// Populates the RenderView arrays using the projection matrix in InputManager.
+void PopulateRenderViewsFromInputManager(Registry* registry, RenderView* views,
+                                         size_t num);
 
 /// Copies |views| to |eye_centered_views| but modifies the transform matrices
 /// so that eye_from_world translation is zeroed.  This is useful for rendering

@@ -6,7 +6,7 @@ licenses(["notice"])  # Apache 2.0
 build_entity_bin(
     name = "entities",
     srcs = glob(["*.jsonnet"]),
-    jsonnet_deps = ["//third_party/lullaby/data:jsonnet"],
+    jsonnet_deps = ["//data:jsonnet"],
     schema = "//lullaby/examples/hello_model:entity_schema",
 )
 
@@ -32,9 +32,9 @@ Fileset(
             strip_prefix = "",
         ),
         FilesetEntry(
-            srcdir = "//third_party/lullaby/data:BUILD",
+            srcdir = "//data:BUILD",
             files = [
-                "//third_party/lullaby/data:unlit_shader",
+                "//data:pbr_shading_model",
             ],
             strip_prefix = "",
         ),

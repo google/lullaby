@@ -1,4 +1,4 @@
-local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
+local utils = import 'lullaby/data/jsonnet/utils.jsonnet';
 {
   components: [
     {
@@ -22,7 +22,7 @@ local utils = import 'third_party/lullaby/data/jsonnet/utils.jsonnet';
         pass: utils.hash('Opaque'),
         filename: 'crabby.lullmodel',
         materials: [{
-          shading_model: 'unlit',
+          shading_model: 'pbr',
         }],
       },
     },

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,16 +16,18 @@ limitations under the License.
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "mathfu/io.h"
 #include "lullaby/util/math.h"
+#include "lullaby/util/random_number_generator.h"
 #include "lullaby/tests/mathfu_matchers.h"
 #include "lullaby/tests/portable_test_macros.h"
+#include "mathfu/constants.h"
+#include "mathfu/io.h"
 
 namespace lull {
 namespace {
 
-using testing::NearMathfuVec3;
 using testing::NearMathfu;
+using testing::NearMathfuVec3;
 
 const float kEpsilon = kDefaultEpsilon;
 const float M_PI_float = static_cast<float>(M_PI);
@@ -655,7 +657,7 @@ TEST(ComputeRaySphereCollision, TooFarFromRay) {
 
 TEST(ComputeRaySphereCollision, RayInsideSphereFront) {
   mathfu::vec3 center(0.0f, 0.25f, 0.25f);
-  float radius = std::sqrt(0.25f*0.25f + 0.75f*0.75f);
+  float radius = std::sqrt(0.25f * 0.25f + 0.75f * 0.75f);
   Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
   mathfu::vec3 out;
   EXPECT_TRUE(ComputeRaySphereCollision(r, center, radius, &out));
@@ -666,7 +668,7 @@ TEST(ComputeRaySphereCollision, RayInsideSphereFront) {
 
 TEST(ComputeRaySphereCollision, RayInsideSphereBack) {
   mathfu::vec3 center(0.0f, 0.25f, -0.25f);
-  float radius = std::sqrt(0.25f*0.25f + 0.75f*0.75f);
+  float radius = std::sqrt(0.25f * 0.25f + 0.75f * 0.75f);
   Ray r(mathfu::vec3(0.0f, 0.0f, 0.0f), mathfu::vec3(0.0f, 0.0f, -1.0f));
   mathfu::vec3 out;
   EXPECT_TRUE(ComputeRaySphereCollision(r, center, radius, &out));
@@ -694,6 +696,24 @@ TEST(ComputeRaySphereCollision, RayIntersectsTwice) {
   EXPECT_NEAR(out.x, 0.0f, kEpsilon);
   EXPECT_NEAR(out.y, 0.0f, kEpsilon);
   EXPECT_NEAR(out.z, -0.5f, kEpsilon);
+}
+
+TEST(AabbsIntersect, PartiallyIntersect) {
+  Aabb aabb1(mathfu::kZeros3f, mathfu::kOnes3f);
+  Aabb aabb2(mathfu::vec3(-0.5, 0.5, 0.9), mathfu::vec3(0.5, 1.5, 1.1));
+  EXPECT_TRUE(AabbsIntersect(aabb1, aabb2));
+}
+
+TEST(AabbsIntersect, FullyContained) {
+  Aabb aabb1(mathfu::kZeros3f, mathfu::kOnes3f);
+  Aabb aabb2(mathfu::vec3(0.1, 0.5, 0.9), mathfu::vec3(0.9, 0.6, 0.99));
+  EXPECT_TRUE(AabbsIntersect(aabb1, aabb2));
+}
+
+TEST(AabbsIntersect, NoIntersection) {
+  Aabb aabb1(mathfu::kZeros3f, mathfu::kOnes3f);
+  Aabb aabb2(mathfu::vec3(0.5f, 0.5f, 1.5f), mathfu::vec3(0.6f, 0.6f, 1.6f));
+  EXPECT_FALSE(AabbsIntersect(aabb1, aabb2));
 }
 
 TEST(ProjectPointOntoLine, OnLine) {
@@ -1504,6 +1524,64 @@ TEST(ProjectRotationToVicinity, ZeroOffset) {
   EXPECT_EQ(res[3], target[3]);
 }
 
+TEST(CalculateRayFromCamera, Simple) {
+  const mathfu::mat4 perspective_matrix =
+      lull::CalculatePerspectiveMatrixFromView(90.f * kDegreesToRadians, 1.f,
+                                               0.01f, 100.f);
+  const mathfu::mat4 inv_persp = perspective_matrix.Inverse();
+
+  mathfu::vec2 screen_point = mathfu::kZeros2f;
+  mathfu::vec3 camera_pos = mathfu::kZeros3f;
+  mathfu::quat camera_rot = mathfu::quat::identity;
+  Ray result =
+      CalculateRayFromCamera(camera_pos, camera_rot, inv_persp, screen_point);
+
+  mathfu::vec3 desired_dir = mathfu::vec3(0.0f, 0.0f, -1.0f).Normalized();
+  EXPECT_THAT(result.origin, NearMathfuVec3(camera_pos, kEpsilon));
+  EXPECT_THAT(result.direction, NearMathfuVec3(desired_dir, kEpsilon));
+
+  screen_point = mathfu::vec2(1.0f, 0.f);
+  desired_dir = mathfu::vec3(1.0f, 0.0f, -1.0f).Normalized();
+  result =
+      CalculateRayFromCamera(camera_pos, camera_rot, inv_persp, screen_point);
+  EXPECT_THAT(result.origin, NearMathfuVec3(camera_pos, kEpsilon));
+  EXPECT_THAT(result.direction, NearMathfuVec3(desired_dir, kEpsilon));
+
+  screen_point = mathfu::vec2(-0.5f, -1.0f);
+  desired_dir = mathfu::vec3(-0.5f, -1.0f, -1.0f).Normalized();
+  result =
+      CalculateRayFromCamera(camera_pos, camera_rot, inv_persp, screen_point);
+  EXPECT_THAT(result.origin, NearMathfuVec3(camera_pos, kEpsilon));
+  EXPECT_THAT(result.direction, NearMathfuVec3(desired_dir, kEpsilon));
+}
+
+TEST(CalculateRayFromCamera, CameraPoses) {
+  const mathfu::mat4 perspective_matrix =
+      lull::CalculatePerspectiveMatrixFromView(90.f * kDegreesToRadians, 1.f,
+                                               0.01f, 100.f);
+  const mathfu::mat4 inv_persp = perspective_matrix.Inverse();
+
+  mathfu::vec2 screen_point = mathfu::kZeros2f;
+  mathfu::vec3 camera_pos = mathfu::vec3(3.0f, 4.0f, 5.0f);
+  mathfu::quat camera_rot = mathfu::quat::identity;
+  mathfu::vec3 desired_dir = mathfu::vec3(0.0f, 0.0f, -1.0f).Normalized();
+  Ray result =
+      CalculateRayFromCamera(camera_pos, camera_rot, inv_persp, screen_point);
+  EXPECT_THAT(result.origin, NearMathfuVec3(camera_pos, kEpsilon));
+  EXPECT_THAT(result.direction, NearMathfuVec3(desired_dir, kEpsilon));
+
+  camera_rot = mathfu::quat::identity;
+  camera_rot =
+      mathfu::quat::FromAngleAxis(-45.f * kDegreesToRadians, mathfu::kAxisY3f);
+  screen_point = mathfu::vec2(1.0f, 0.f);
+  desired_dir =
+      camera_rot.ToMatrix() * mathfu::vec3(1.0f, 0.0f, -1.0f).Normalized();
+  result =
+      CalculateRayFromCamera(camera_pos, camera_rot, inv_persp, screen_point);
+  EXPECT_THAT(result.origin, NearMathfuVec3(camera_pos, kEpsilon));
+  EXPECT_THAT(result.direction, NearMathfuVec3(desired_dir, kEpsilon));
+}
+
 TEST(DampedDriveEase, Simple) {
   EXPECT_EQ(0, DampedDriveEase(-0.1f));
   EXPECT_EQ(1, DampedDriveEase(1.1f));
@@ -1578,6 +1656,14 @@ TEST(Streams, Simple) {
     EXPECT_EQ("Ray: dir(4, 5, 6) orig(1, 2, 3)", buffer.str());
   }
 
+#if !defined(__NDK_MAJOR__) || __NDK_MAJOR__ < 16
+  {
+    std::stringbuf buffer;
+    std::ostream os(&buffer);
+    os << atan2(-0.0, 1.0);
+    EXPECT_EQ("-0", buffer.str());
+  }
+
   {
     std::stringbuf buffer;
     std::ostream os(&buffer);
@@ -1585,6 +1671,7 @@ TEST(Streams, Simple) {
               mathfu::vec3(4, 5, 6));
     EXPECT_EQ("Sqt: S(4, 5, 6) Q(0, -0, 0) T(1, 2, 3)", buffer.str());
   }
+#endif
 
   {
     std::stringbuf buffer;
@@ -2041,6 +2128,152 @@ TEST(CalculateCameraDirection, LookAt) {
       mathfu::kAxisY3f, 1.0f);
   EXPECT_THAT(CalculateCameraDirection(mat_eye_0),
               NearMathfu(mathfu::vec3(-0.707107f, 0.0f, 0.707107f), kEpsilon));
+}
+
+mathfu::vec3 RandomUnitVec3(RandomNumberGenerator* rng) {
+  const mathfu::vec3 non_unit{rng->GenerateUniform(-1.f, 1.f),
+                              rng->GenerateUniform(-1.f, 1.f),
+                              rng->GenerateUniform(-1.f, 1.f)};
+  return non_unit.Normalized();
+}
+
+// Returns the projection of v onto the plane with the given normal.
+mathfu::vec3 Project(mathfu::vec3 v, mathfu::vec3 plane_normal) {
+  return v - mathfu::vec3::DotProduct(v, plane_normal) * plane_normal;
+}
+
+void ExpectVec3NearlyEqual(mathfu::vec3 v1, mathfu::vec3 v2,
+                           float epsilon = 1e-5f) {
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(v1[i], v2[i], kEpsilon);
+  }
+}
+
+// This test verifies that GetSignedAngle operates roughly correctly.
+TEST(GetSignedAngle, BasicOperation) {
+  const float one_eighth = lull::kPi / 4;
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, mathfu::kAxisX3f, mathfu::kAxisZ3f),
+      0 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, mathfu::kAxisX3f + mathfu::kAxisY3f,
+                     mathfu::kAxisZ3f),
+      1 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, mathfu::kAxisY3f, mathfu::kAxisZ3f),
+      2 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, -mathfu::kAxisX3f + mathfu::kAxisY3f,
+                     mathfu::kAxisZ3f),
+      3 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, -mathfu::kAxisX3f, mathfu::kAxisZ3f),
+      4 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, -mathfu::kAxisX3f + -mathfu::kAxisY3f,
+                     mathfu::kAxisZ3f),
+      -3 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, -mathfu::kAxisY3f, mathfu::kAxisZ3f),
+      -2 * one_eighth, kEpsilon);
+
+  EXPECT_NEAR(
+      GetSignedAngle(mathfu::kAxisX3f, mathfu::kAxisX3f + -mathfu::kAxisY3f,
+                     mathfu::kAxisZ3f),
+      -1 * one_eighth, kEpsilon);
+}
+
+// This test checks that the result doesn't depend on the lengths of v1 and v2.
+TEST(GetSignedAngle, LengthInvariance) {
+  const mathfu::vec3 v1{1, 0, 0};
+  const mathfu::vec3 v2{-1, 1, 0};
+  const mathfu::vec3 axis{0, 0, 1};
+  const float test_value = 3 * lull::kPi / 4;
+  EXPECT_NEAR(GetSignedAngle(1.f * v1, 3.f * v2, axis), test_value, kEpsilon);
+  EXPECT_NEAR(GetSignedAngle(4.f * v1, 1.f * v2, axis), test_value, kEpsilon);
+  EXPECT_NEAR(GetSignedAngle(2.f * v1, 5.f * v2, axis), test_value, kEpsilon);
+}
+
+// This test feeds in random input values, and checks that the result satisfies
+// the main invariant -- that the resulting axis-angle rotates v1 onto v2.
+//
+// This is not a stability or precision test.
+TEST(GetSignedAngle, RandomInput) {
+  RandomNumberGenerator rand(::testing::UnitTest::GetInstance()->random_seed());
+  for (int i = 0; i < 100; ++i) {
+    const mathfu::vec3 axis = RandomUnitVec3(&rand);
+    const mathfu::vec3 v1 = RandomUnitVec3(&rand);
+    const mathfu::vec3 v2 = RandomUnitVec3(&rand);
+
+    // Ignore unstable region to keep this test from being flaky
+    if (std::fabs(mathfu::vec3::DotProduct(v1, v2)) < .2f ||
+        std::fabs(mathfu::vec3::DotProduct(axis, v1)) < .2f ||
+        std::fabs(mathfu::vec3::DotProduct(axis, v2)) < .2f) {
+      continue;
+    }
+
+    const float angle = GetSignedAngle(v1, v2, axis);
+    const mathfu::quat q = mathfu::quat::FromAngleAxis(angle, axis);
+    // Invariant: q should rotate the projection of v1 into the projection of v2
+    const mathfu::vec3 projected_rotated_v1 =
+        Project(q * v1, axis).Normalized();
+    const mathfu::vec3 projected_v2 = Project(v2, axis).Normalized();
+    // This test isn't checking accuracy, thus the large epsilon.
+    ExpectVec3NearlyEqual(projected_rotated_v1, projected_v2, 1e-4f);
+  }
+}
+
+TEST(EulerDistance, Simple) {
+  const mathfu::vec3 one(1.f, 2.f, 3.f);
+  EXPECT_NEAR(EulerDistance(one, one), 0.f, kEpsilon);
+
+  const mathfu::vec3 two(6.f, 4.f, 2.f);
+  EXPECT_NEAR(EulerDistance(two, two), 0.f, kEpsilon);
+
+  EXPECT_NEAR(EulerDistance(one, two), 8.f, kEpsilon);
+  EXPECT_NEAR(EulerDistance(two, one), 8.f, kEpsilon);
+}
+
+TEST(EulerNormalize, Simple) {
+  EXPECT_NEAR(EulerNormalize(0.f, 0.f), 0.f, kEpsilon);
+
+  // Values within pi of the target don't change.
+  const float half_pi = kPi * 0.5f;
+  EXPECT_NEAR(EulerNormalize(0.f, half_pi), half_pi, kEpsilon);
+  EXPECT_NEAR(EulerNormalize(0.f, -half_pi), -half_pi, kEpsilon);
+
+  // An epsilon helps avoid infinite loops.
+  EXPECT_NEAR(EulerNormalize(0.f, kPi), kPi, kEpsilon);
+  EXPECT_NEAR(EulerNormalize(0.f, -kPi), -kPi, kEpsilon);
+
+  // Values more than pi away are changed.
+  const float three_halves_pi = kPi * 1.5f;
+  EXPECT_NEAR(EulerNormalize(0.f, three_halves_pi), -half_pi, kEpsilon);
+  EXPECT_NEAR(EulerNormalize(0.f, -three_halves_pi), half_pi, kEpsilon);
+}
+
+TEST(EulerFilter, Simple) {
+  EXPECT_THAT(EulerFilter(mathfu::kZeros3f, mathfu::kZeros3f),
+              NearMathfuVec3(mathfu::kZeros3f, kEpsilon));
+
+  // The function performs Euler normalization.
+  EXPECT_THAT(EulerFilter(mathfu::kOnes3f * kTwoPi, mathfu::kZeros3f),
+              NearMathfuVec3(mathfu::kZeros3f, kEpsilon));
+
+  // The function also performs actual Euler filtering by finding an equivalent
+  // set of Euler angles.
+  const float half_pi = kPi * 0.5f;
+  const float three_halves_pi = kPi * 1.5f;
+  EXPECT_THAT(EulerFilter(mathfu::vec3(-three_halves_pi, kPi, -three_halves_pi),
+                          mathfu::kZeros3f),
+              NearMathfu(mathfu::vec3(-half_pi, 0.f, -half_pi), kEpsilon));
 }
 
 }  // namespace

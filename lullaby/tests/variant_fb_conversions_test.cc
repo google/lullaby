@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -197,6 +197,62 @@ TEST(VariantFbConversions, Map) {
   EXPECT_EQ(123, *map[1].Get<int>());
   EXPECT_EQ(456.f, *map[2].Get<float>());
   EXPECT_EQ("hello", *map[3].Get<std::string>());
+}
+
+TEST(VariantFbConversions, VariantArray) {
+  flatbuffers::FlatBufferBuilder fbb;
+
+  std::vector<flatbuffers::Offset<VariantArrayDefImpl>> values;
+  values.push_back(CreateVariantArrayDefImpl(fbb, VariantDef_DataInt,
+                                             CreateDataInt(fbb, 123).Union()));
+  values.push_back(CreateVariantArrayDefImpl(
+      fbb, VariantDef_DataFloat, CreateDataFloat(fbb, 456.f).Union()));
+  values.push_back(
+      CreateVariantArrayDefImpl(fbb, VariantDef_DataString,
+                                CreateDataStringDirect(fbb, "hello").Union()));
+  fbb.Finish(CreateVariantArrayDefDirect(fbb, &values));
+  auto ptr = flatbuffers::GetRoot<VariantArrayDef>(fbb.GetBufferPointer());
+
+  Variant var;
+  const bool res = VariantFromFbVariant(VariantDef_VariantArrayDef, ptr, &var);
+
+  EXPECT_TRUE(res);
+  auto* arr = var.Get<VariantArray>();
+
+  ASSERT_NE(arr, nullptr);
+  EXPECT_EQ(arr->size(), size_t(3));
+  EXPECT_EQ(123, *arr->at(0).Get<int>());
+  EXPECT_EQ(456.f, *arr->at(1).Get<float>());
+  EXPECT_EQ("hello", *arr->at(2).Get<std::string>());
+}
+
+TEST(VariantFbConversions, VariantMap) {
+  flatbuffers::FlatBufferBuilder fbb;
+
+  std::vector<flatbuffers::Offset<KeyVariantPairDef>> values;
+  values.push_back(CreateKeyVariantPairDefDirect(
+      fbb, nullptr, 1, VariantDef_DataInt, CreateDataInt(fbb, 123).Union()));
+  values.push_back(
+      CreateKeyVariantPairDefDirect(fbb, nullptr, 2, VariantDef_DataFloat,
+                                    CreateDataFloat(fbb, 456.f).Union()));
+  values.push_back(CreateKeyVariantPairDefDirect(
+      fbb, nullptr, 3, VariantDef_DataString,
+      CreateDataStringDirect(fbb, "hello").Union()));
+
+  fbb.Finish(CreateVariantMapDefDirect(fbb, &values));
+  auto ptr = flatbuffers::GetRoot<VariantMapDef>(fbb.GetBufferPointer());
+
+  Variant var;
+  const bool res = VariantFromFbVariant(VariantDef_VariantMapDef, ptr, &var);
+
+  EXPECT_TRUE(res);
+  auto* map = var.Get<VariantMap>();
+
+  ASSERT_NE(map, nullptr);
+  EXPECT_EQ(map->size(), size_t(3));
+  EXPECT_EQ(123, *map->at(1).Get<int>());
+  EXPECT_EQ(456.f, *map->at(2).Get<float>());
+  EXPECT_EQ("hello", *map->at(3).Get<std::string>());
 }
 
 }  // namespace

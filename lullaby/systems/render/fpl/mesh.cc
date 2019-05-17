@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "lullaby/systems/render/fpl/mesh.h"
+#include "lullaby/systems/render/mesh.h"
 
 #include <vector>
 
@@ -48,7 +49,7 @@ Mesh::Mesh(const MeshData& mesh) {
   fplbase::Attribute attributes[kMaxFplAttributeArraySize];
   GetFplAttributes(mesh.GetVertexFormat(), attributes);
   impl_ = CreateMesh(mesh, attributes);
-  // TODO(b/62088621): Fix this calculation for different primitive types.
+  // TODO: Fix this calculation for different primitive types.
   num_triangles_ = static_cast<int>(mesh.GetNumIndices() / 3);
 }
 
@@ -130,7 +131,7 @@ void Mesh::Render(fplbase::Renderer* renderer, fplbase::BlendMode blend_mode) {
   renderer->Render(impl_.get(), ignore_material);
 }
 
-// TODO(b/30033982) cache fpl attributes for vertex formats.
+// TODO cache fpl attributes for vertex formats.
 void Mesh::GetFplAttributes(
     const VertexFormat& format,
     fplbase::Attribute attributes[kMaxFplAttributeArraySize]) {
@@ -240,6 +241,29 @@ fplbase::Mesh::Primitive Mesh::GetFplPrimitiveType(
       LOG(ERROR) << "Invalid primitive type; falling back on triangles.";
       return fplbase::Mesh::kTriangles;
   }
+}
+
+VertexFormat GetVertexFormat(const MeshPtr& mesh, size_t submesh_index) {
+  LOG(ERROR) << "GetVertexFormat() is unsupported.";
+  return VertexFormat();
+}
+
+bool IsMeshLoaded(const MeshPtr& mesh) {
+  return mesh ? mesh->GetNumTriangles() > 0 : false;
+}
+
+size_t GetNumSubmeshes(const MeshPtr& mesh) {
+  return mesh ? 1 : 0;
+}
+
+void SetGpuBuffers(const MeshPtr& mesh, uint32_t vbo, uint32_t vao,
+                   uint32_t ibo) {
+  LOG(ERROR) << "SetGpuBuffers() is unsupported.";
+}
+
+void ReplaceSubmesh(MeshPtr mesh, size_t submesh_index,
+                    const MeshData& mesh_data) {
+  LOG(ERROR) << "ReplaceSubmesh() is unsupported.";
 }
 
 }  // namespace lull

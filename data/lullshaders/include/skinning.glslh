@@ -1,17 +1,17 @@
 /// This header contains helper macros and functions to perform skinning.
 ///
-/// Before including this header, make sure that you have bone_transforms
+/// Before including this header, make sure that you have bone_transforms_array
 /// uniform array of type Vec4f.
 
-// Helper function to convert from 3x vec4 from 'bone_transforms' to a mat4.
-// Since we store elements in the 'bone_transforms' as a vec4 array, which
-// represent a mat3x4, this function combines them into a single mat4 with
+// Helper function to convert from 3x vec4 from 'bone_transforms_array' to a
+// mat4. Since we store elements in the 'bone_transforms_array' as a vec4 array,
+// which represent a mat3x4, this function combines them into a single mat4 with
 // a 'w' row set to (0, 0, 0, 1).
 // Note: This function returns the transpose of the bone affine transform.
 mat4 BoneTransformMatrixTranspose(int i) {
-  return mat4(bone_transforms[i * 3 + 0],
-              bone_transforms[i * 3 + 1],
-              bone_transforms[i * 3 + 2],
+  return mat4(UNIFORM(bone_transforms_array)[i * 3 + 0],
+              UNIFORM(bone_transforms_array)[i * 3 + 1],
+              UNIFORM(bone_transforms_array)[i * 3 + 2],
               vec4(0, 0, 0, 1));
 }
 

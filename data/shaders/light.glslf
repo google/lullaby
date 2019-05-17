@@ -1,5 +1,5 @@
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
-#include "third_party/lullaby/data/shaders/light.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/light.glslh"
 
 STAGE_INPUT mediump vec3 vNormal;
 STAGE_INPUT mediump vec3 vVertPos;

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,9 +55,11 @@ namespace lull {
 // the "GetLegacy" prefix.
 class Blueprint {
  public:
+  // The Hash of the legacy flatbuffer table name.
+  using DefType = BlueprintType::DefType;
   // Associates a name with a flatbuffer table so that the table can be cast
   // to the correct type.
-  using TypedFlatbuffer = std::pair<HashValue, const flatbuffers::Table*>;
+  using TypedFlatbuffer = std::pair<DefType, const flatbuffers::Table*>;
 
   // Creates an empty Blueprint.  Objects should first be added to the Blueprint
   // (by calling Write) after which they can be read (by calling ForEach/Read).
@@ -105,11 +107,11 @@ class Blueprint {
   void ForEachComponent(const Fn& fn);
 
   // These functions are provided for legacy Systems as they operate directly
-  // on flatbuffers::Table+HashValue defs.  If the Blueprint is storing a raw
+  // on HashValue+flatbuffers::Table defs.  If the Blueprint is storing a raw
   // pointer to a native object internally, this function will serialize the
   // object into a flatbuffer.
   const flatbuffers::Table* GetLegacyDefData() const;
-  HashValue GetLegacyDefType() const;
+  DefType GetLegacyDefType() const;
 
  private:
   enum { kDefaultBufferSize = 256 };
@@ -223,10 +225,10 @@ bool Blueprint::Read(T* ptr) const {
 template <typename Fn>
 Span<uint8_t> Blueprint::Finalize(const Fn& fn) {
   if (count_ == 0) {
-    return Span<>();
+    return Span<uint8_t>();
   }
 
-  if (!buffer_) {
+  if (current_.flatbuffer == nullptr && current_.native_object != nullptr) {
     WriteCurrentObjectToBuffer();
   }
   FinishWriting();
@@ -236,7 +238,7 @@ Span<uint8_t> Blueprint::Finalize(const Fn& fn) {
 
   const size_t size = buffer_->BackSize();
   const uint8_t* data = static_cast<const uint8_t*>(buffer_->BackAt(size));
-  return Span<>(data, size);
+  return Span<uint8_t>(data, size);
 }
 
 template <typename Fn>

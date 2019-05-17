@@ -1,6 +1,5 @@
 # `PlanarGrabSystem`
 
-*   Contact: browning
 
 Allows entities to be grabbed and moved by the controller.
 

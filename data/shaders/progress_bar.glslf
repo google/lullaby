@@ -1,6 +1,6 @@
 #extension GL_OES_standard_derivatives : enable
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
 
 STAGE_INPUT mediump vec2 vTexCoord;
 uniform lowp vec4 color;

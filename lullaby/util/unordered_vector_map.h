@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ class UnorderedVectorMap {
 
   // Default implementation of move constructor.  The MSVC12 toolchain does not
   // support =default for move constructors, so define it explicitly.
-  // TODO(b/28276908) Remove after switch to MSVC 2015.
+  // TODO Remove after switch to MSVC 2015.
   UnorderedVectorMap(UnorderedVectorMap&& rhs)
       : objects_(std::move(rhs.objects_)),
         lookup_table_(std::move(rhs.lookup_table_)),
@@ -70,7 +70,7 @@ class UnorderedVectorMap {
 
   // Default implementation of move assignment.  The MSVC12 toolchain does not
   // support =default for move assignment, so define it explicitly.
-  // TODO(b/28276908) Remove after switch to MSVC 2015.
+  // TODO Remove after switch to MSVC 2015.
   UnorderedVectorMap& operator=(UnorderedVectorMap&& rhs) {
     if (this != &rhs) {
       objects_ = std::move(rhs.objects_);

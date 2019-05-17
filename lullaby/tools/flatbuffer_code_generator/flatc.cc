@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -420,7 +420,7 @@ void CodeGenerator::GenerateEnumDecl(const flatbuffers::EnumDef& def) {
   code_ += "  template <typename T>";
   code_ += "  using Store = std::aligned_storage<sizeof(T), alignof(T)>;";
   code_ += "  union Buffer {";
-  for (const auto& value : def.vals.vec) {
+  for (const auto& value : def.Vals()) {
     if (value->name != "NONE") {
       code_.SetValue("KEY_TYPE", NativeFullName(*value->union_type.struct_def));
       code_.SetValue("KEY", value->name);
@@ -441,7 +441,7 @@ void CodeGenerator::GenerateEnumFunctions(const flatbuffers::EnumDef& def) {
   code_.SetValue("DEF_NAME", NativeName(def.name));
   code_ += "inline void {{DEF_NAME}}::reset() {";
   code_ += "  switch (type_) {";
-  for (const auto& value : def.vals.vec) {
+  for (const auto& value : def.Vals()) {
     if (value->name != "NONE") {
       code_.SetValue("KEY_TYPE", NativeFullName(*value->union_type.struct_def));
       code_.SetValue("KEY", value->name);
@@ -460,7 +460,7 @@ void CodeGenerator::GenerateEnumFunctions(const flatbuffers::EnumDef& def) {
   code_ += "inline void {{DEF_NAME}}::assign(const {{DEF_NAME}}& rhs) {";
   code_ += "  reset();";
   code_ += "  switch (rhs.type_) {";
-  for (const auto& value : def.vals.vec) {
+  for (const auto& value : def.Vals()) {
     if (value->name != "NONE") {
       code_.SetValue("KEY_TYPE", NativeFullName(*value->union_type.struct_def));
       code_.SetValue("KEY", value->name);
@@ -485,7 +485,7 @@ void CodeGenerator::GenerateEnumFunctions(const flatbuffers::EnumDef& def) {
   code_ += "  return nullptr;";
   code_ += "}";
   code_ += "";
-  for (const auto& value : def.vals.vec) {
+  for (const auto& value : def.Vals()) {
     if (value->name != "NONE") {
       code_.SetValue("KEY_TYPE", NativeFullName(*value->union_type.struct_def));
       code_.SetValue("KEY", value->name);
@@ -500,7 +500,7 @@ void CodeGenerator::GenerateEnumFunctions(const flatbuffers::EnumDef& def) {
   code_ += "template <typename Archive>";
   code_ += "void {{DEF_NAME}}::SerializeFlatbuffer(FlatBufferType type, Archive archive) {";
   code_ += "  switch (type) {";
-  for (const auto& value : def.vals.vec) {
+  for (const auto& value : def.Vals()) {
     if (value->name != "NONE") {
       code_.SetValue("KEY_TYPE", NativeFullName(*value->union_type.struct_def));
       code_.SetValue("KEY", value->name);

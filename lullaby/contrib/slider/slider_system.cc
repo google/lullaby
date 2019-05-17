@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ const HashValue kSliderDefHash = ConstHash("SliderDef");
 
 SliderSystem::SliderSystem(Registry* registry)
     : System(registry), components_(8) {
-  RegisterDef(this, kSliderDefHash);
+  RegisterDef<SliderDefT>(this);
   RegisterDependency<DispatcherSystem>(this);
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
@@ -115,7 +115,6 @@ void SliderSystem::AdvanceFrame(const Clock::duration& delta_time) {
   if (active_entity_ != kNullEntity) {
     // While pressed, move the slider to the closest point on the line.
     UpdateActiveEntity(active_entity_);
-    // TODO(b/38435371): Get dragging working on youtube. Youtube lacks release.
     active_entity_ = kNullEntity;
   }
 }

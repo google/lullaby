@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -85,6 +85,7 @@ TEST(InputManagerDeathTest, InvalidDevice_Get) {
   PORT_EXPECT_DEBUG_DEATH(input.GetDofWorldFromObjectMatrix(device), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetScrollDelta(device), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFromHead(device, 0), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetScreenFromEye(device, 0), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFOV(device, 0), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetKeyState(device, ""), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetButtonState(device, 0), "");
@@ -108,6 +109,7 @@ TEST(InputManagerDeathTest, InvalidProfile_Get) {
   PORT_EXPECT_DEBUG_DEATH(input.GetTouchVelocity(device), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetTouchGestureDirection(device), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFromHead(device, 2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetScreenFromEye(device, 2), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFOV(device, 2), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetDofPosition(device), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetDofDelta(device), "");
@@ -129,18 +131,22 @@ TEST(InputManagerDeathTest, InvalidDevice_Update) {
       input.UpdateJoystick(device, InputManager::kLeftJoystick,
                            mathfu::kZeros2f),
       "");
-  PORT_EXPECT_DEBUG_DEATH(input.UpdateTouch(device, mathfu::kZeros2f, true),
-                          "");
   PORT_EXPECT_DEBUG_DEATH(
-      input.UpdateGesture(device, InputManager::GestureType::kNone,
+      input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                        mathfu::kZeros2f, true),
+      "");
+  PORT_EXPECT_DEBUG_DEATH(
+      input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                          InputManager::GestureType::kNone,
                           InputManager::GestureDirection::kNone,
                           mathfu::kZeros2f, mathfu::kZeros2f),
       "");
   PORT_EXPECT_DEBUG_DEATH(input.UpdateScroll(device, 0), "");
   PORT_EXPECT_DEBUG_DEATH(input.UpdatePosition(device, mathfu::kZeros3f), "");
   PORT_EXPECT_DEBUG_DEATH(input.UpdateRotation(device, mathfu::quat()), "");
-  PORT_EXPECT_DEBUG_DEATH(
-      input.UpdateEye(device, 0, mathfu::mat4(), mathfu::rectf()), "");
+  PORT_EXPECT_DEBUG_DEATH(input.UpdateEye(device, 0, mathfu::mat4(),
+                                          mathfu::mat4(), mathfu::rectf()),
+                          "");
   PORT_EXPECT_DEBUG_DEATH(
       input.UpdateBattery(device, InputManager::BatteryState::kUnknown, 0), "");
 }
@@ -157,18 +163,22 @@ TEST(InputManagerDeathTest, InvalidProfile_Update) {
       input.UpdateJoystick(device, InputManager::kLeftJoystick,
                            mathfu::kZeros2f),
       "");
-  PORT_EXPECT_DEBUG_DEATH(input.UpdateTouch(device, mathfu::kZeros2f, true),
-                          "");
   PORT_EXPECT_DEBUG_DEATH(
-      input.UpdateGesture(device, InputManager::GestureType::kNone,
+      input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                        mathfu::kZeros2f, true),
+      "");
+  PORT_EXPECT_DEBUG_DEATH(
+      input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                          InputManager::GestureType::kNone,
                           InputManager::GestureDirection::kNone,
                           mathfu::kZeros2f, mathfu::kZeros2f),
       "");
   PORT_EXPECT_DEBUG_DEATH(input.UpdateScroll(device, 0), "");
   PORT_EXPECT_DEBUG_DEATH(input.UpdatePosition(device, mathfu::kZeros3f), "");
   PORT_EXPECT_DEBUG_DEATH(input.UpdateRotation(device, mathfu::quat()), "");
-  PORT_EXPECT_DEBUG_DEATH(
-      input.UpdateEye(device, 0, mathfu::mat4(), mathfu::rectf()), "");
+  PORT_EXPECT_DEBUG_DEATH(input.UpdateEye(device, 0, mathfu::mat4(),
+                                          mathfu::mat4(), mathfu::rectf()),
+                          "");
   PORT_EXPECT_DEBUG_DEATH(
       input.UpdateBattery(device, InputManager::BatteryState::kUnknown, 0), "");
 }
@@ -615,14 +625,20 @@ TEST(InputManagerDeathTest, Eye) {
       mathfu::mat4::FromTranslationVector(mathfu::vec3(1, 0, 0));
   const mathfu::mat4 right_eye_from_head =
       mathfu::mat4::FromTranslationVector(mathfu::vec3(-1, 0, 0));
+  const mathfu::mat4 left_screen_from_eye =
+      mathfu::mat4::FromTranslationVector(mathfu::vec3(2, 0, 0));
+  const mathfu::mat4 right_screen_from_eye =
+      mathfu::mat4::FromTranslationVector(mathfu::vec3(-2, 0, 0));
   const mathfu::rectf left_fov(1, 0, 0, 0);
   const mathfu::rectf right_fov(0, 1, 0, 0);
 
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFromHead(device, left_eye), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetScreenFromEye(device, left_eye), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFOV(device, left_eye), "");
 
-  PORT_EXPECT_DEBUG_DEATH(
-      input.UpdateEye(device, left_eye, left_eye_from_head, left_fov), "");
+  PORT_EXPECT_DEBUG_DEATH(input.UpdateEye(device, left_eye, left_eye_from_head,
+                                          left_screen_from_eye, left_fov),
+                          "");
 
   DeviceProfile profile;
   profile.eyes.resize(2);
@@ -633,19 +649,25 @@ TEST(InputManagerDeathTest, Eye) {
 
   // Checking to make sure the above UpdateEye didn't write anything
   EXPECT_NEAR(input.GetEyeFromHead(device, left_eye)(0, 3), 0, 0.00001f);
+  EXPECT_NEAR(input.GetScreenFromEye(device, left_eye)(0, 3), 0, 0.00001f);
 
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFromHead(device, num_eyes), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetScreenFromEye(device, num_eyes), "");
   PORT_EXPECT_DEBUG_DEATH(input.GetEyeFOV(device, num_eyes), "");
   PORT_EXPECT_DEBUG_DEATH(
-      input.UpdateEye(device, num_eyes, left_eye_from_head, left_fov), "");
+      input.UpdateEye(device, num_eyes, left_eye_from_head, left_screen_from_eye, left_fov), "");
 
-  input.UpdateEye(device, left_eye, left_eye_from_head, left_fov);
-  input.UpdateEye(device, right_eye, right_eye_from_head, right_fov);
+  input.UpdateEye(device, left_eye, left_eye_from_head, left_screen_from_eye,
+                  left_fov);
+  input.UpdateEye(device, right_eye, right_eye_from_head, right_screen_from_eye,
+                  right_fov);
 
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetEyeFromHead(device, left_eye)(0, 3), 1);
   EXPECT_EQ(input.GetEyeFromHead(device, right_eye)(0, 3), -1);
+  EXPECT_EQ(input.GetScreenFromEye(device, left_eye)(0, 3), 2);
+  EXPECT_EQ(input.GetScreenFromEye(device, right_eye)(0, 3), -2);
   EXPECT_EQ(input.GetEyeFOV(device, left_eye).pos.x, left_fov.pos.x);
   EXPECT_EQ(input.GetEyeFOV(device, left_eye).pos.y, left_fov.pos.y);
   EXPECT_EQ(input.GetEyeFOV(device, right_eye).pos.x, right_fov.pos.x);
@@ -722,6 +744,7 @@ TEST(InputManagerDeathTest, Joystick) {
 
 TEST(InputManagerDeathTest, Touch) {
   InputManager input;
+  InputManager::TouchpadId pad = InputManager::kPrimaryTouchpadId;
   const auto device = InputManager::kController;
   const float kInvalidTouchLocation = -1;
 
@@ -729,7 +752,8 @@ TEST(InputManagerDeathTest, Touch) {
   PORT_EXPECT_DEBUG_DEATH(input.GetTouchDelta(device), "");
   PORT_EXPECT_DEBUG_DEATH(input.IsValidTouch(device), "");
 
-  PORT_EXPECT_DEBUG_DEATH(input.UpdateTouch(device, mathfu::kOnes2f, true), "");
+  PORT_EXPECT_DEBUG_DEATH(
+      input.UpdateTouch(device, pad, 0, mathfu::kOnes2f, true), "");
 
   DeviceProfile profile;
   input.ConnectDevice(device, profile);
@@ -759,7 +783,7 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
   EXPECT_NE(input.GetTouchState(device) & InputManager::kReleased, 0);
 
-  input.UpdateTouch(device, mathfu::kOnes2f, true);
+  input.UpdateTouch(device, pad, 0, mathfu::kOnes2f, true);
 
   input.AdvanceFrame(kDeltaTime);
 
@@ -774,7 +798,7 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kReleased, 0);
 
-  input.UpdateTouch(device, mathfu::kZeros2f, true);
+  input.UpdateTouch(device, pad, 0, mathfu::kZeros2f, true);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchLocation(device)[0], 0);
@@ -788,7 +812,7 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
   EXPECT_EQ(input.GetTouchState(device) & InputManager::kReleased, 0);
 
-  input.UpdateTouch(device, mathfu::kOnes2f, false);
+  input.UpdateTouch(device, pad, 0, mathfu::kOnes2f, false);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchLocation(device)[0], kInvalidTouchLocation);
@@ -799,7 +823,7 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_NE(input.GetTouchState(device) & InputManager::kJustReleased, 0);
   EXPECT_NE(input.GetTouchState(device) & InputManager::kReleased, 0);
 
-  input.UpdateTouch(device, mathfu::kOnes2f, false);
+  input.UpdateTouch(device, pad, 0, mathfu::kOnes2f, false);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchLocation(device)[0], kInvalidTouchLocation);
@@ -811,25 +835,263 @@ TEST(InputManagerDeathTest, Touch) {
   EXPECT_NE(input.GetTouchState(device) & InputManager::kReleased, 0);
 
   // Check that we are clamping values at (-1.0, 1.0).
-  input.UpdateTouch(device, mathfu::vec2(-0.001f, 0), true);
+  input.UpdateTouch(device, pad, 0, mathfu::vec2(-0.001f, 0), true);
   input.AdvanceFrame(kDeltaTime);
   EXPECT_THAT(input.GetTouchLocation(device),
               NearMathfu(mathfu::vec2(0.0f, 0.0f), kEpsilon));
 
-  input.UpdateTouch(device, mathfu::vec2(1.001f, 0), true);
+  input.UpdateTouch(device, pad, 0, mathfu::vec2(1.001f, 0), true);
   input.AdvanceFrame(kDeltaTime);
   EXPECT_THAT(input.GetTouchLocation(device),
               NearMathfu(mathfu::vec2(1.0f, 0.0f), kEpsilon));
 
-  input.UpdateTouch(device, mathfu::vec2(0, -0.001f), true);
+  input.UpdateTouch(device, pad, 0, mathfu::vec2(0, -0.001f), true);
   input.AdvanceFrame(kDeltaTime);
   EXPECT_THAT(input.GetTouchLocation(device),
               NearMathfu(mathfu::vec2(0.0f, 0.0f), kEpsilon));
 
-  input.UpdateTouch(device, mathfu::vec2(0, 1.001f), true);
+  input.UpdateTouch(device, pad, 0, mathfu::vec2(0, 1.001f), true);
   input.AdvanceFrame(kDeltaTime);
   EXPECT_THAT(input.GetTouchLocation(device),
               NearMathfu(mathfu::vec2(0.0f, 1.0f), kEpsilon));
+
+  input.DisconnectDevice(device);
+  EXPECT_TRUE(!input.IsConnected(device));
+}
+
+TEST(InputManagerDeathTest, Touchpads) {
+  InputManager input;
+  InputManager::TouchpadId pad1 = 0;
+  InputManager::TouchpadId pad2 = 1;
+  const auto device = InputManager::kController;
+  const float kInvalidTouchLocation = -1;
+
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchLocation(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchDelta(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.IsValidTouch(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchLocation(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchDelta(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.IsValidTouch(device, pad1), "");
+
+  PORT_EXPECT_DEBUG_DEATH(
+      input.UpdateTouch(device, pad1, 0, mathfu::kOnes2f, true), "");
+  PORT_EXPECT_DEBUG_DEATH(
+      input.UpdateTouch(device, pad2, 0, mathfu::kOnes2f, true), "");
+
+  DeviceProfile profile;
+  input.ConnectDevice(device, profile);
+  EXPECT_TRUE(input.IsConnected(device));
+
+  PORT_EXPECT_DEBUG_DEATH(input.IsValidTouch(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchLocation(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchDelta(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchVelocity(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchGestureDirection(device, pad1), "");
+  PORT_EXPECT_DEBUG_DEATH(input.IsValidTouch(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchLocation(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchDelta(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchVelocity(device, pad2), "");
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouchGestureDirection(device, pad2), "");
+
+  input.DisconnectDevice(device);
+  EXPECT_TRUE(!input.IsConnected(device));
+
+  profile.touchpads.resize(2);
+  input.ConnectDevice(device, profile);
+  EXPECT_TRUE(input.IsConnected(device));
+
+  input.AdvanceFrame(kDeltaTime);
+
+  // Checking to make sure the above UpdateTouch didn't write anything
+  EXPECT_EQ(input.GetTouchLocation(device, pad1)[0], kInvalidTouchLocation);
+  EXPECT_EQ(input.GetTouchDelta(device, pad1)[0], 0);
+  EXPECT_TRUE(!input.IsValidTouch(device, pad1));
+  EXPECT_EQ(input.GetTouchState(device, pad1) & InputManager::kJustPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad1) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad1) & InputManager::kJustReleased, 0);
+  EXPECT_NE(input.GetTouchState(device, pad1) & InputManager::kReleased, 0);
+  EXPECT_EQ(input.GetTouchLocation(device, pad2)[0], kInvalidTouchLocation);
+  EXPECT_EQ(input.GetTouchDelta(device, pad2)[0], 0);
+  EXPECT_TRUE(!input.IsValidTouch(device, pad2));
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustReleased, 0);
+  EXPECT_NE(input.GetTouchState(device, pad2) & InputManager::kReleased, 0);
+
+  input.UpdateTouch(device, pad1, 0, mathfu::kOnes2f, true);
+  input.UpdateTouch(device, pad2, 0, mathfu::kZeros2f, false);
+
+  input.AdvanceFrame(kDeltaTime);
+
+  // Touch on pad 1 was handled correctly
+  EXPECT_EQ(input.GetTouchLocation(device)[0], 1);
+  EXPECT_EQ(input.GetTouchDelta(device)[0], 0);  // Delta == 0 on first frame.
+  EXPECT_EQ(input.GetTouchVelocity(device)[0], 0);  // Same for velocity.
+  EXPECT_EQ(input.GetTouchGestureDirection(device),
+            InputManager::GestureDirection::kNone);
+  EXPECT_TRUE(input.IsValidTouch(device));
+  EXPECT_NE(input.GetTouchState(device) & InputManager::kJustPressed, 0);
+  EXPECT_NE(input.GetTouchState(device) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kReleased, 0);
+
+  // Explicitly asking for pad 1 touch 0 should also work
+  EXPECT_EQ(input.GetTouchLocation(device, pad1, 0)[0], 1);
+  EXPECT_EQ(input.GetTouchDelta(device, pad1, 0)[0],
+            0);  // Delta == 0 on first frame.
+  EXPECT_EQ(input.GetTouchVelocity(device, pad1, 0)[0],
+            0);  // Same for velocity.
+  EXPECT_EQ(input.GetTouchGestureDirection(device, pad1),
+            InputManager::GestureDirection::kNone);
+  EXPECT_TRUE(input.IsValidTouch(device, pad1, 0));
+  EXPECT_NE(input.GetTouchState(device, pad1, 0) & InputManager::kJustPressed,
+            0);
+  EXPECT_NE(input.GetTouchState(device, pad1, 0) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad1, 0) & InputManager::kJustReleased,
+            0);
+  EXPECT_EQ(input.GetTouchState(device, pad1, 0) & InputManager::kReleased, 0);
+
+  // pad 2 should have no touch
+  EXPECT_EQ(input.GetTouchLocation(device, pad2)[0], kInvalidTouchLocation);
+  EXPECT_EQ(input.GetTouchDelta(device, pad2)[0], 0);
+  EXPECT_TRUE(!input.IsValidTouch(device, pad2));
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustReleased, 0);
+  EXPECT_NE(input.GetTouchState(device, pad2) & InputManager::kReleased, 0);
+
+  // Touching both touchpads should show correct deltas for both.
+  input.UpdateTouch(device, pad1, 0, mathfu::kZeros2f, true);
+  input.UpdateTouch(device, pad2, 0, mathfu::kOnes2f / 2.0f, true);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouchLocation(device)[0], 0);
+  EXPECT_EQ(input.GetTouchDelta(device)[0], -1);
+  EXPECT_LT(input.GetTouchVelocity(device)[0], 0);
+  EXPECT_EQ(input.GetTouchGestureDirection(device),
+            InputManager::GestureDirection::kNone);
+  EXPECT_TRUE(input.IsValidTouch(device));
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustPressed, 0);
+  EXPECT_NE(input.GetTouchState(device) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustReleased, 0);
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kReleased, 0);
+
+  EXPECT_EQ(input.GetTouchLocation(device, pad2)[0], 0.5f);
+  EXPECT_EQ(input.GetTouchDelta(device, pad2)[0], 0);
+  EXPECT_EQ(input.GetTouchVelocity(device, pad2)[0], 0);
+  EXPECT_EQ(input.GetTouchGestureDirection(device, pad2),
+            InputManager::GestureDirection::kNone);
+  EXPECT_TRUE(input.IsValidTouch(device, pad2));
+  EXPECT_NE(input.GetTouchState(device, pad2) & InputManager::kJustPressed, 0);
+  EXPECT_NE(input.GetTouchState(device, pad2) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustReleased, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kReleased, 0);
+
+  input.UpdateTouch(device, pad1, 0, mathfu::kZeros2f, false);
+  input.UpdateTouch(device, pad2, 0, mathfu::kOnes2f, true);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouchLocation(device)[0], -1);
+  EXPECT_EQ(input.GetTouchDelta(device)[0], 0);
+  EXPECT_LT(input.GetTouchVelocity(device)[0], -1);
+  EXPECT_TRUE(!input.IsValidTouch(device));
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kJustPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device) & InputManager::kPressed, 0);
+  EXPECT_NE(input.GetTouchState(device) & InputManager::kJustReleased, 0);
+  EXPECT_NE(input.GetTouchState(device) & InputManager::kReleased, 0);
+
+  EXPECT_EQ(input.GetTouchLocation(device, pad2)[0], 1);
+  EXPECT_EQ(input.GetTouchDelta(device, pad2)[0], 0.5f);
+  EXPECT_GT(input.GetTouchVelocity(device, pad2)[0], 1);
+  EXPECT_EQ(input.GetTouchGestureDirection(device, pad2),
+            InputManager::GestureDirection::kNone);
+  EXPECT_TRUE(input.IsValidTouch(device, pad2));
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustPressed, 0);
+  EXPECT_NE(input.GetTouchState(device, pad2) & InputManager::kPressed, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kJustReleased, 0);
+  EXPECT_EQ(input.GetTouchState(device, pad2) & InputManager::kReleased, 0);
+
+  input.DisconnectDevice(device);
+  EXPECT_TRUE(!input.IsConnected(device));
+}
+
+TEST(InputManagerDeathTest, Multitouch) {
+  InputManager input;
+  const InputManager::TouchpadId pad = 0;
+  const InputManager::TouchId touch1 = 0;
+  const InputManager::TouchId touch2 = 34512;
+  const InputManager::TouchId touch3 = 1;
+
+  const auto device = InputManager::kController;
+
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouches(device, pad), "");
+
+  DeviceProfile profile;
+  input.ConnectDevice(device, profile);
+  EXPECT_TRUE(input.IsConnected(device));
+
+  PORT_EXPECT_DEBUG_DEATH(input.GetTouches(device, pad), "");
+
+  input.DisconnectDevice(device);
+  EXPECT_TRUE(!input.IsConnected(device));
+
+  profile.touchpads.resize(1);
+  input.ConnectDevice(device, profile);
+  EXPECT_TRUE(input.IsConnected(device));
+
+  input.AdvanceFrame(kDeltaTime);
+
+  // Updating a touch that has never actually been pressed shouldn't do
+  // anything.
+  input.UpdateTouch(device, pad, touch1, mathfu::kOnes2f, false);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouches(device, pad).size(), 0);
+
+  // A single valid touch
+  input.UpdateTouch(device, pad, touch1, mathfu::kOnes2f, true);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouches(device, pad).size(), 1);
+  EXPECT_EQ(input.GetTouches(device, pad)[0], touch1);
+
+  input.UpdateTouch(device, pad, touch1, mathfu::kOnes2f * 0.5f, true);
+  input.UpdateTouch(device, pad, touch2, mathfu::kZeros2f, true);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouches(device, pad).size(), 2);
+  EXPECT_EQ(input.GetTouches(device, pad)[0], touch1);
+  EXPECT_EQ(input.GetTouches(device, pad)[1], touch2);
+  EXPECT_EQ(input.GetTouchLocation(device, pad, touch1)[0], 0.5f);
+  EXPECT_EQ(input.GetTouchLocation(device, pad, touch2)[0], 0);
+
+  input.UpdateTouch(device, pad, touch1, mathfu::kOnes2f * 0.5f, false);
+  input.UpdateTouch(device, pad, touch2, mathfu::kZeros2f, true);
+  input.UpdateTouch(device, pad, touch3, mathfu::kOnes2f, true);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouches(device, pad).size(), 2);
+  EXPECT_EQ(input.GetTouches(device, pad)[0], touch2);
+  EXPECT_EQ(input.GetTouches(device, pad)[1], touch3);
+  EXPECT_EQ(input.GetTouchLocation(device, pad, touch2)[0], 0);
+  EXPECT_EQ(input.GetTouchLocation(device, pad, touch3)[0], 1);
+
+  // Check that there's still data for the released touch1:
+  EXPECT_LT(input.GetTouchVelocity(device, pad, touch1)[0], -1);
+  auto touch_state = input.GetTouchState(device, pad, touch1);
+  EXPECT_EQ(touch_state & InputManager::kJustPressed, 0);
+  EXPECT_EQ(touch_state & InputManager::kPressed, 0);
+  EXPECT_NE(touch_state & InputManager::kJustReleased, 0);
+  EXPECT_NE(touch_state & InputManager::kReleased, 0);
+
+  input.UpdateTouch(device, pad, touch2, mathfu::kZeros2f, false);
+  input.UpdateTouch(device, pad, touch3, mathfu::kOnes2f, false);
+  input.AdvanceFrame(kDeltaTime);
+
+  EXPECT_EQ(input.GetTouches(device, pad).size(), 0);
+
+  // Released for more than 1 frame, so data should be cleaned up:
+  EXPECT_EQ(input.GetTouchVelocity(device, pad, touch1)[0], 0);
 
   input.DisconnectDevice(device);
   EXPECT_TRUE(!input.IsConnected(device));
@@ -847,52 +1109,64 @@ TEST(InputManager, TouchGesture_Implicit) {
   input.AdvanceFrame(kDeltaTime);
 
   // Test left fling.
-  input.UpdateTouch(device, mathfu::vec2(1, 0), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(1, 0), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::kZeros2f, false);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::kZeros2f, false);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchGestureDirection(device),
             InputManager::GestureDirection::kLeft);
 
   // Test right fling.
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(1, 0), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(1, 0), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::kZeros2f, false);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::kZeros2f, false);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchGestureDirection(device),
             InputManager::GestureDirection::kRight);
 
   // Test up fling.
-  input.UpdateTouch(device, mathfu::vec2(0, 1), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 1), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::kZeros2f, false);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::kZeros2f, false);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchGestureDirection(device),
             InputManager::GestureDirection::kUp);
 
   // Test down fling.
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 1), true);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 1), true);
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::kZeros2f, false);
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::kZeros2f, false);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetTouchGestureDirection(device),
@@ -910,14 +1184,18 @@ TEST(InputManager, TouchGesture_Explicit) {
 
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input.UpdateGesture(device, InputManager::GestureType::kNone,
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                      InputManager::GestureType::kNone,
                       InputManager::GestureDirection::kNone, mathfu::vec2(0, 0),
                       mathfu::vec2(0, 0));
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input.UpdateGesture(device, InputManager::GestureType::kScrollStart,
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                      InputManager::GestureType::kScrollStart,
                       InputManager::GestureDirection::kNone, mathfu::vec2(0, 0),
                       mathfu::vec2(0, 0));
   input.AdvanceFrame(kDeltaTime);
@@ -931,8 +1209,10 @@ TEST(InputManager, TouchGesture_Explicit) {
   EXPECT_EQ(input.GetTouchGestureType(device),
             InputManager::GestureType::kScrollStart);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input.UpdateGesture(device, InputManager::GestureType::kFling,
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                      InputManager::GestureType::kFling,
                       InputManager::GestureDirection::kUp, mathfu::vec2(1, 2),
                       mathfu::vec2(3, 4));
   input.AdvanceFrame(kDeltaTime);
@@ -959,14 +1239,18 @@ TEST(InputManager, TouchGesture_InitialDirection) {
 
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input.UpdateGesture(device, InputManager::GestureType::kNone,
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                      InputManager::GestureType::kNone,
                       InputManager::GestureDirection::kNone, mathfu::vec2(0, 0),
                       mathfu::vec2(1, 3));
   input.AdvanceFrame(kDeltaTime);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input.UpdateGesture(device, InputManager::GestureType::kScrollStart,
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                      InputManager::GestureType::kScrollStart,
                       InputManager::GestureDirection::kNone,
                       mathfu::vec2(0.3f, 0.5f), mathfu::vec2(0, 0));
   input.AdvanceFrame(kDeltaTime);
@@ -978,8 +1262,10 @@ TEST(InputManager, TouchGesture_InitialDirection) {
   EXPECT_EQ(input.GetTouchGestureDirection(device),
             InputManager::GestureDirection::kNone);
 
-  input.UpdateTouch(device, mathfu::vec2(0, 0), true);
-  input.UpdateGesture(device, InputManager::GestureType::kFling,
+  input.UpdateTouch(device, InputManager::kPrimaryTouchpadId, 0,
+                    mathfu::vec2(0, 0), true);
+  input.UpdateGesture(device, InputManager::kPrimaryTouchpadId,
+                      InputManager::GestureType::kFling,
                       InputManager::GestureDirection::kUp, mathfu::vec2(1, 2),
                       mathfu::vec2(3, 4));
   input.AdvanceFrame(kDeltaTime);
@@ -1059,12 +1345,12 @@ TEST(InputManagerDeathTest, Battery) {
   EXPECT_EQ(input.GetBatteryState(device),
             InputManager::BatteryState::kUnknown);
 
-  input.UpdateBattery(device, InputManager::BatteryState::kDraining, 50);
+  input.UpdateBattery(device, InputManager::BatteryState::kDischarging, 50);
   input.AdvanceFrame(kDeltaTime);
 
   EXPECT_EQ(input.GetBatteryCharge(device), 50);
   EXPECT_EQ(input.GetBatteryState(device),
-            InputManager::BatteryState::kDraining);
+            InputManager::BatteryState::kDischarging);
 
   input.DisconnectDevice(device);
   EXPECT_TRUE(!input.IsConnected(device));

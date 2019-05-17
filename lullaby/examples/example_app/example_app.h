@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,10 +44,10 @@ class ExampleApp {
   // by the underlying platform to create and manage the window and devices.
   struct Config {
     std::string title = "";
-    bool stereo = true;
+    bool stereo = false;
     size_t width = 1280;
     size_t height = 640;
-    float near_clip_plane = 0.2f;
+    float near_clip_plane = 0.01f;
     float far_clip_plane = 100.f;
     bool enable_hmd = true;
     bool enable_controller = true;

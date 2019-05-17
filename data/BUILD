@@ -62,71 +62,6 @@ Fileset(
     ],
 )
 
-fpl_mesh_assets(
-    name = "controller_meshes",
-    expected_fplmats = [],
-    fbx_srcs = [
-        "meshes/daydream_controller.fbx",
-    ],
-    png_srcs = [],
-    strip_prefix = "",
-)
-
-fpl_png_assets(
-    name = "controller_textures",
-    srcs = [
-        "textures/daydream_controller.png",
-        "textures/laser_3x.png",
-    ],
-    strip_prefix = "",
-)
-
-build_shader(
-    name = "controller_shader",
-    srcs = {
-        "vertex": "shaders/controller.glslv",
-        "fragment": "shaders/controller.glslf",
-    },
-    out = "shaders/controller.fplshader",
-    build_multiview = True,
-    defines = [
-        "TEX_COORD",
-        "UV_BOUNDS",
-    ],
-    include_deps = [":shader_includes"],
-)
-
-build_shader(
-    name = "laser_shader",
-    srcs = {
-        "vertex": "shaders/laser.glslv",
-        "fragment": "shaders/laser.glslf",
-    },
-    out = "shaders/laser.fplshader",
-    build_multiview = True,
-    include_deps = [":shader_includes"],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "controller_assets",
-    srcs = [
-        ":controller_meshes",
-        ":controller_shader",
-        ":controller_textures",
-        ":laser_shader",
-    ],
-)
-
-filegroup(
-    name = "controller_assets_with_multiview",
-    srcs = [
-        ":controller_meshes",
-        ":controller_shader_with_multiview",
-        ":controller_textures",
-        ":laser_shader_with_multiview",
-    ],
-)
 
 fpl_png_assets(
     name = "debug_font_texture",
@@ -144,7 +79,10 @@ filegroup(
 
 filegroup(
     name = "shader_pbr_includes",
-    srcs = glob(["shaders/pbr/*.glslh"]),
+    srcs = glob([
+        "shaders/pbr/*.glslh",
+        "shaders/pbr/*.h",
+    ]),
 )
 
 filegroup(
@@ -269,6 +207,21 @@ build_shader(
         "fragment": "shaders/color.glslf",
     },
     out = "shaders/nine_patch_aa_color.fplshader",
+    build_multiview = True,
+    defines = [
+        "NINE_PATCH_TEX_COORD_ALT",
+        "SDF_DIST_AA",
+    ],
+    include_deps = [":shader_includes"],
+)
+
+build_shader(
+    name = "nine_patch_aa_color_border_shader",
+    srcs = {
+        "vertex": "shaders/uber.glslv",
+        "fragment": "shaders/color_border.glslf",
+    },
+    out = "shaders/nine_patch_aa_color_border.fplshader",
     build_multiview = True,
     defines = [
         "NINE_PATCH_TEX_COORD_ALT",
@@ -453,6 +406,7 @@ build_shader(
     build_multiview = True,
     defines = ["TEX_COORD"],
     include_deps = [":shader_includes"],
+    version = "300 es",
 )
 
 build_shader(
@@ -625,6 +579,20 @@ build_shader(
 )
 
 build_shader(
+    name = "texture_2d_external_oes_shader",
+    srcs = {
+        "vertex": "shaders/texture_2d.glslv",
+        "fragment": "shaders/texture_external_oes.glslf",
+    },
+    out = "shaders/texture_2d_external_oes.fplshader",
+    defines = [
+        "TEX_COORD",
+        "UV_BOUNDS",
+    ],
+    include_deps = [":shader_includes"],
+)
+
+build_shader(
     name = "pbr_shader",
     srcs = {
         "vertex": "shaders/pbr.glslv",
@@ -668,6 +636,22 @@ build_shader(
     build_multiview = True,
     defines = [
         "TEX_COORD",
+        "UV_BOUNDS",
+        "SDF_DIST_AA",
+    ],
+    include_deps = [":shader_includes"],
+)
+
+build_shader(
+    name = "aa_texture_with_alt_shader",
+    srcs = {
+        "vertex": "shaders/uber.glslv",
+        "fragment": "shaders/texture.glslf",
+    },
+    out = "shaders/aa_texture_with_alt.fplshader",
+    build_multiview = True,
+    defines = [
+        "TEX_COORD_ALT",
         "UV_BOUNDS",
         "SDF_DIST_AA",
     ],
@@ -721,6 +705,24 @@ build_shader(
         "UV_BOUNDS",
         "NINE_PATCH_TEX_COORD_ALT",
         "SDF_DIST_AA",
+    ],
+    include_deps = [":shader_includes"],
+)
+
+build_shader(
+    name = "nine_patch_aa_texture_multisample_shader",
+    srcs = {
+        "vertex": "shaders/uber.glslv",
+        "fragment": "shaders/texture.glslf",
+    },
+    out = "shaders/nine_patch_aa_texture_multisample.fplshader",
+    build_multiview = True,
+    defines = [
+        "TEX_COORD",
+        "UV_BOUNDS",
+        "NINE_PATCH_TEX_COORD_ALT",
+        "SDF_DIST_AA",
+        "MULTISAMPLE",
     ],
     include_deps = [":shader_includes"],
 )
@@ -870,6 +872,22 @@ build_shader(
     include_deps = [":shader_includes"],
 )
 
+build_shader(
+    name = "nine_patch_aa_vertical_gradient_texture_shader",
+    srcs = {
+        "vertex": "shaders/uber.glslv",
+        "fragment": "shaders/vertical_gradient_texture.glslf",
+    },
+    out = "shaders/nine_patch_aa_vertical_gradient_texture.fplshader",
+    build_multiview = True,
+    defines = [
+        "TEX_COORD_ALT",
+        "UV_BOUNDS",
+        "SDF_DIST_AA",
+    ],
+    include_deps = [":shader_includes"],
+)
+
 build_lullaby_shader(
     name = "unlit_shader",
     out = "shaders/unlit.lullshader",
@@ -888,6 +906,29 @@ build_lullaby_shader(
         "lullshaders/vertex_position.jsonnet",
         "lullshaders/vertex_color.jsonnet",
         "lullshaders/vertex_texture.jsonnet",
+    ],
+)
+
+build_lullaby_shader(
+    name = "cubemap_shader",
+    out = "shaders/cubemap.lullshader",
+    include_deps = [
+        ":shader_includes",
+        ":shader_pbr_includes",
+    ],
+    srcs_fragment = [
+        "lullshaders/fragment_white.jsonnet",
+        "lullshaders/fragment_color.jsonnet",
+        "lullshaders/fragment_cubemap.jsonnet",
+        "lullshaders/fragment_uniform_color.jsonnet",
+        "lullshaders/fragment_tonemap_reinhard.jsonnet",
+        "lullshaders/apply_gamma_fragment.jsonnet",
+    ],
+    srcs_vertex = [
+        "lullshaders/vertex_position_multiview.jsonnet",
+        "lullshaders/vertex_position.jsonnet",
+        "lullshaders/vertex_color.jsonnet",
+        "lullshaders/vertex_cubemap.jsonnet",
     ],
 )
 
@@ -918,14 +959,16 @@ build_lullaby_shader(
         "lullshaders/fragment_texture.jsonnet",
         "lullshaders/fragment_uniform_color.jsonnet",
         "lullshaders/fragment_phong.jsonnet",
+        "lullshaders/fragment_tonemap_reinhard.jsonnet",
     ],
     srcs_vertex = [
         "lullshaders/vertex_skinning.jsonnet",
         "lullshaders/vertex_position_multiview.jsonnet",
         "lullshaders/vertex_position.jsonnet",
+        "lullshaders/view_direction_vertex.jsonnet",
         "lullshaders/vertex_color.jsonnet",
         "lullshaders/vertex_texture.jsonnet",
-        "lullshaders/vertex_normal.jsonnet",
+        "lullshaders/normal_vertex.jsonnet",
     ],
 )
 
@@ -938,14 +981,25 @@ build_lullaby_shader(
     ],
     srcs_fragment = [
         "lullshaders/base_color_fragment.jsonnet",
+        "lullshaders/base_color_alpha_mask_fragment.jsonnet",
         "lullshaders/occlusion_roughness_metallic_fragment.jsonnet",
         "lullshaders/normal_fragment.jsonnet",
+        "lullshaders/pbr_indirect_light_fragment.jsonnet",
+        "lullshaders/pbr_light_setup_fragment.jsonnet",
         "lullshaders/pbr_fragment.jsonnet",
+        "lullshaders/pbr_light_integration_fragment.jsonnet",
+        "lullshaders/emissive_fragment.jsonnet",
+        "lullshaders/fragment_tonemap_reinhard.jsonnet",
+        "lullshaders/apply_gamma_fragment.jsonnet",
+        "lullshaders/apply_color_correction.jsonnet",
+        "lullshaders/fragment_dither.jsonnet",
     ],
     srcs_vertex = [
+        "lullshaders/vertex_skinning.jsonnet",
         "lullshaders/vertex_position.jsonnet",
-        "lullshaders/vertex_texture.jsonnet",
         "lullshaders/view_direction_vertex.jsonnet",
+        "lullshaders/vertex_texture.jsonnet",
+        "lullshaders/vertex_color.jsonnet",
         "lullshaders/normal_vertex.jsonnet",
         "lullshaders/tangent_bitangent_normal_vertex.jsonnet",
     ],
@@ -963,6 +1017,7 @@ filegroup(
     name = "debug_renderer_all_assets",
     srcs = [
         ":simple_font_all_assets",
+        ":texture_2d_external_oes_shader",
         ":texture_2d_shader",
         ":vertex_color_shader",
     ],
@@ -992,4 +1047,11 @@ jsonnet_library(
     srcs = [
         ":jsonnet_files",
     ],
+)
+
+cc_library(
+    name = "shader_pbr_headers",
+    hdrs = glob([
+        "shaders/pbr/*.h",
+    ]),
 )

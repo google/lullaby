@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,31 @@ limitations under the License.
 #include "lullaby/modules/lullscript/script_types.h"
 
 namespace lull {
+
+// Forward-declaration of Stringify so it can be used from helpers.
+std::string Stringify(const ScriptValue& value);
+
+std::string StringifyVariant(const Variant& variant) {
+  return Stringify(ScriptValue::CreateFromVariant(variant));
+}
+
+std::string StringifyVariantArray(const VariantArray& array) {
+  std::stringstream ss;
+  for (const auto& variant : array) {
+    ss << "(" << StringifyVariant(variant) << ")";
+  }
+  return ss.str();
+}
+
+std::string StringifyVariantMap(const VariantMap& map) {
+  std::stringstream ss;
+  for (const auto& kvp : map) {
+    ss << "(" << StringifyVariant(kvp.first) << ": "
+       << StringifyVariant(kvp.second) << ")";
+  }
+
+  return ss.str();
+}
 
 std::string Stringify(const ScriptValue& value) {
   if (value.IsNil()) {
@@ -69,12 +94,15 @@ std::string Stringify(const ScriptValue& value) {
   } else if (auto val = value.Get<mathfu::vec4i>()) {
     return std::to_string(val->x) + ", " + std::to_string(val->y) + ", " +
            std::to_string(val->z) + ", " + std::to_string(val->w);
+  } else if (auto val = value.Get<Entity>()) {
+    return "[Entity " + to_string(*val) + "]";
   } else if (auto val = value.Get<VariantArray>()) {
-    return "[array]";
+    return "[array " + StringifyVariantArray(*val) + "]";
   } else if (auto val = value.Get<VariantMap>()) {
-    return "[map]";
+    return "[map " + StringifyVariantMap(*val) + "]";
   } else if (auto val = value.Get<EventWrapper>()) {
-    return "[event]";
+    return "[event " + StringifyVariant(val->GetTypeId()) + " " +
+           StringifyVariantMap(*val->GetValues()) + "]";
   } else if (auto val = value.Get<Lambda>()) {
     return "[lambda]";
   } else if (auto val = value.Get<Macro>()) {

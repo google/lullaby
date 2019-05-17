@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +19,11 @@ limitations under the License.
 #include "lullaby/contrib/backdrop/backdrop_channels.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
+#include "lullaby/modules/render/mesh_util.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/systems/animation/animation_system.h"
-#include "lullaby/systems/layout/layout_box_system.h"
+#include "lullaby/contrib/layout/layout_box_system.h"
+#include "lullaby/systems/name/name_system.h"
 #include "lullaby/systems/nine_patch/nine_patch_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
@@ -35,12 +37,35 @@ const HashValue kBackdropExclusionDefHash = ConstHash("BackdropExclusionDef");
 
 BackdropSystem::BackdropSystem(Registry* registry)
     : System(registry), backdrops_(kBackdropPoolPageSize), exclusions_() {
-  RegisterDef(this, kBackdropDefHash);
-  RegisterDef(this, kBackdropExclusionDefHash);
+  RegisterDef<BackdropDefT>(this);
+  RegisterDef<BackdropExclusionDefT>(this);
 
+  // We also need NameSystem if using the backdrop_name in BackdropDef.
   RegisterDependency<RenderSystem>(this);
   RegisterDependency<TransformSystem>(this);
+  RegisterDependency<Dispatcher>(this);
+}
 
+BackdropSystem::~BackdropSystem() {
+  // The Dispatcher might have been destroyed before this system, so we need
+  // to check the pointer before using it.
+  auto* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    registry_->Get<Dispatcher>()->DisconnectAll(this);
+  }
+
+  auto* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.Backdrop.HasBackdrop");
+    binder->UnregisterFunction("lull.Backdrop.GetBackdropRenderableEntity");
+    binder->UnregisterFunction(
+        "lull.Backdrop.GetBackdropAabbAnimationDuration");
+    binder->UnregisterFunction(
+        "lull.Backdrop.SetBackdropAabbAnimationDuration");
+  }
+}
+
+void BackdropSystem::Initialize() {
   auto* dispatcher = registry_->Get<Dispatcher>();
   dispatcher->Connect(this, [this](const ParentChangedEvent& event) {
     OnParentChanged(event);
@@ -58,7 +83,7 @@ BackdropSystem::BackdropSystem(Registry* registry)
     OnDesiredSizeChanged(event);
   });
 
-  FunctionBinder* binder = registry->Get<FunctionBinder>();
+  auto* binder = registry_->Get<FunctionBinder>();
   if (binder) {
     binder->RegisterMethod("lull.Backdrop.HasBackdrop",
                            &lull::BackdropSystem::HasBackdrop);
@@ -71,23 +96,7 @@ BackdropSystem::BackdropSystem(Registry* registry)
         "lull.Backdrop.SetBackdropAabbAnimationDuration",
         &lull::BackdropSystem::SetBackdropAabbAnimationDuration);
   }
-}
 
-BackdropSystem::~BackdropSystem() {
-  registry_->Get<Dispatcher>()->DisconnectAll(this);
-
-  FunctionBinder* binder = registry_->Get<FunctionBinder>();
-  if (binder) {
-    binder->UnregisterFunction("lull.Backdrop.HasBackdrop");
-    binder->UnregisterFunction("lull.Backdrop.GetBackdropRenderableEntity");
-    binder->UnregisterFunction(
-        "lull.Backdrop.GetBackdropAabbAnimationDuration");
-    binder->UnregisterFunction(
-        "lull.Backdrop.SetBackdropAabbAnimationDuration");
-  }
-}
-
-void BackdropSystem::Initialize() {
   if (registry_->Get<AnimationSystem>()) {
     BackdropAabbChannel::Setup(registry_, 8);
   }
@@ -138,22 +147,62 @@ void BackdropSystem::Create(Entity e, HashValue type, const Def* def) {
     }
   }
 
-  // When calling transform system's CreateChildWithEntity() or AddChild(), it
-  // triggers ParentChangedEvent, and BackdropSystem will respond with
-  // UpdateBackdrop() before that transform system function returns. So, create
-  // and save the entity to the component first. This should only be an issue
-  // with non-queued Dispatcher, such as in tests.
-  backdrop->renderable = registry_->Get<EntityFactory>()->Create();
-  // TODO(b/30098068): Ideally we would fail if the def did not contain a
-  // valid child blueprint, but we cannot do that because then we would be
-  // unable to test this call.
   if (data.blueprint() && data.blueprint()->size() > 0) {
+    // When calling transform system's CreateChildWithEntity() or AddChild(), it
+    // triggers ParentChangedEvent, and BackdropSystem will respond with
+    // UpdateBackdrop() before that transform system function returns. So,
+    // create and save the entity to the component first. This should only be an
+    // issue with non-queued Dispatcher, such as in tests.
+    backdrop->renderable = registry_->Get<EntityFactory>()->Create();
     registry_->Get<TransformSystem>()->CreateChildWithEntity(
         backdrop->GetEntity(), backdrop->renderable, data.blueprint()->str());
-  } else {
-    LOG(WARNING) << "BackdropDef missing required field blueprint";
+  }
+  // If we don't find blueprint, we will try to use backdrop_name instead.
+}
 
-    auto& transform_system = *registry_->Get<TransformSystem>();
+void BackdropSystem::PostCreateInit(lull::Entity e, lull::HashValue type,
+                                    const Def* def) {
+  if (type == kBackdropExclusionDefHash) {
+    return;
+  }
+  if (type != kBackdropDefHash) {
+    LOG(DFATAL)
+        << "Invalid type passed to PostCreateInit. Expecting BackdropDef!";
+    return;
+  }
+  const auto& data = *ConvertDef<BackdropDef>(def);
+  Backdrop* backdrop = backdrops_.Get(e);
+  if (!backdrop) {
+    LOG(DFATAL) << "PostCreateInit called for entity without backdrop: " << e;
+    return;
+  }
+
+  auto& transform_system = *registry_->Get<TransformSystem>();
+  // We check backdrop_name in PostCreateInit because we'd like to make sure the
+  // corresponding entity is created and can be found in NameSystem.
+  if (backdrop->renderable == kNullEntity && data.backdrop_name() &&
+      data.backdrop_name()->size() > 0) {
+    const auto* name_system = registry_->Get<NameSystem>();
+    if (name_system) {
+      Entity backdrop_entity = name_system->FindDescendant(
+          backdrop->GetEntity(), data.backdrop_name()->str());
+      if (backdrop_entity != kNullEntity) {
+        backdrop->renderable = backdrop_entity;
+      } else {
+        LOG(DFATAL)
+            << "BackdropSystem: Backdrop entity with given name not found.";
+      }
+    } else {
+      LOG(DFATAL) << "BackdropSystem: Missing dependency NameSystem.";
+    }
+  }
+  if (backdrop->renderable == kNullEntity) {
+    // TODO: Ideally we would fail if the a backdrop entity cannot
+    // be acquired and remove the component if in non-dev build. That'll need
+    // a refactoring of unit tests to use the backdrop_name def so they no
+    // longer rely on the logic below.
+    LOG(WARNING) << "BackdropDef missing required backdrop entity";
+    backdrop->renderable = registry_->Get<EntityFactory>()->Create();
     transform_system.Create(backdrop->renderable, Sqt());
     transform_system.AddChild(backdrop->GetEntity(), backdrop->renderable);
   }
@@ -234,7 +283,21 @@ void BackdropSystem::SetBackdropAabb(Entity entity, const Aabb& aabb) {
   transform_system->SetSqt(backdrop->renderable, sqt);
   switch (backdrop->renderable_type) {
     case RenderableType::kQuad:
-      render_system->SetQuad(backdrop->renderable, backdrop->quad);
+      if (backdrop->quad.has_uv) {
+        render_system->SetMesh(
+            backdrop->renderable,
+            CreateQuadMesh<VertexPT>(
+                backdrop->quad.size.x, backdrop->quad.size.y,
+                backdrop->quad.verts.x, backdrop->quad.verts.y,
+                backdrop->quad.corner_radius, backdrop->quad.corner_verts));
+      } else {
+        render_system->SetMesh(
+            backdrop->renderable,
+            CreateQuadMesh<VertexP>(
+                backdrop->quad.size.x, backdrop->quad.size.y,
+                backdrop->quad.verts.x, backdrop->quad.verts.y,
+                backdrop->quad.corner_radius, backdrop->quad.corner_verts));
+      }
       break;
     case RenderableType::kNinePatch:
       nine_patch_system->SetSize(backdrop->renderable, backdrop->quad.size);
@@ -373,8 +436,8 @@ void BackdropSystem::UpdateBackdrop(Backdrop* backdrop) {
     float target[6];
     final_aabb.ToArray(target);
     animation_system->SetTarget(backdrop->GetEntity(),
-                                BackdropAabbChannel::kChannelName,
-                                target, 6, backdrop->animate_aabb_duration);
+                                BackdropAabbChannel::kChannelName, target, 6,
+                                backdrop->animate_aabb_duration);
   }
 }
 
@@ -396,7 +459,7 @@ void BackdropSystem::OnEntityChanged(Entity entity) {
     UpdateBackdrop(parent_backdrop);
   }
 
-  // TODO(b/70281412): Remove the following once sort order is properly
+  // TODO: Remove the following once sort order is properly
   // refreshed.
   Backdrop* backdrop = backdrops_.Get(entity);
   if (backdrop && backdrop->renderable) {

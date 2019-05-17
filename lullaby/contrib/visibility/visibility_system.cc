@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ const HashValue kContentDefHashValue = ConstHash("VisibilityContentDef");
 
 VisibilitySystem::VisibilitySystem(Registry* registry)
     : System(registry), groups_(2), contents_(16) {
-  RegisterDef(this, kWindowGroupDefHashValue);
-  RegisterDef(this, kContentDefHashValue);
+  RegisterDef<VisibilityWindowGroupDefT>(this);
+  RegisterDef<VisibilityContentDefT>(this);
 
   RegisterDependency<TransformSystem>(this);
 
@@ -43,8 +43,12 @@ VisibilitySystem::VisibilitySystem(Registry* registry)
 }
 
 VisibilitySystem::~VisibilitySystem() {
+  // The Dispatcher might be destroyed before the VisibilitySystem, so we need
+  // to check the pointer before using it.
   auto* dispatcher = registry_->Get<Dispatcher>();
-  dispatcher->DisconnectAll(this);
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
+  }
 }
 
 void VisibilitySystem::Create(Entity entity, HashValue type, const Def* def) {
@@ -59,6 +63,10 @@ void VisibilitySystem::Create(Entity entity, HashValue type, const Def* def) {
       Window window;
       window.on_enter_events = window_def->on_enter_events();
       window.on_exit_events = window_def->on_exit_events();
+      window.on_exit_top_events = window_def->on_exit_top_events();
+      window.on_exit_bottom_events = window_def->on_exit_bottom_events();
+      window.on_exit_left_events = window_def->on_exit_left_events();
+      window.on_exit_right_events = window_def->on_exit_right_events();
       AabbFromFbAabb(window_def->bounds(), &window.bounds);
       window.collision_axes = window_def->collision_axes();
       group->windows.emplace_back(window);
@@ -217,6 +225,16 @@ void VisibilitySystem::UpdateContentState(Window* window, Entity target,
         SendEventDefs(registry_, target, content->on_enter_events);
       } else {
         SendEventDefs(registry_, target, window->on_exit_events);
+        if (position.y > window->bounds.max.y) {
+          SendEventDefs(registry_, target, window->on_exit_top_events);
+        } else if (position.y < window->bounds.min.y) {
+          SendEventDefs(registry_, target, window->on_exit_bottom_events);
+        }
+        if (position.x < window->bounds.min.x) {
+          SendEventDefs(registry_, target, window->on_exit_left_events);
+        } else if (position.x > window->bounds.max.x) {
+          SendEventDefs(registry_, target, window->on_exit_right_events);
+        }
         SendEventDefs(registry_, target, content->on_exit_events);
       }
     } else {

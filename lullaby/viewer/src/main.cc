@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,11 +43,11 @@ static int RunViewer(int argc, const char** argv) {
   viewer.Initialize(params);
 
   // Use any command line args.
-  const std::string import_dir = args.GetString("importdir").to_string();
+  const std::string import_dir(args.GetString("importdir"));
   if (!import_dir.empty()) {
     viewer.ImportDirectory(import_dir);
   }
-  const std::string json = args.GetString("json").to_string();
+  const std::string json(args.GetString("json"));
   if (!json.empty()) {
     viewer.CreateEntity(json);
   }

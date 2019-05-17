@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ static void PrepareParser(flatbuffers::Parser* parser,
   }
   parser->Parse(text.c_str());
   if (!parser->SetRootType("lull.ModelPipelineDef")) {
-     LOG(FATAL) << "Failed to resolve root type lull.ModelPipelineDef";
+    LOG(FATAL) << "Failed to resolve root type lull.ModelPipelineDef";
   }
 }
 
@@ -49,8 +49,7 @@ static ByteArray ToFlatbuffer(ModelPipelineDefT* def) {
   return ByteArray(data, data + length);
 }
 
-static std::string ToString(ModelPipelineDefT* def,
-                          const std::string& schema) {
+static std::string ToString(ModelPipelineDefT* def, const std::string& schema) {
   InwardBuffer buffer(4096);
   WriteFlatbuffer(def, &buffer);
 
@@ -63,7 +62,7 @@ static std::string ToString(ModelPipelineDefT* def,
 }
 
 static flatbuffers::DetachedBuffer FromString(const std::string& json,
-                          const std::string& schema) {
+                                              const std::string& schema) {
   flatbuffers::Parser parser;
   PrepareParser(&parser, schema);
   parser.Parse(json.c_str());
@@ -121,41 +120,50 @@ static void ApplyDef(Material* material, const MaterialTextureDef* def) {
   }
 }
 
-static void ApplyDef(Material* material, const MaterialDef* def) {
-  if (def->properties() && def->properties()->values()) {
-    const auto* properties = def->properties()->values();
-    for (const KeyVariantPairDef* pair : *properties) {
-      if (!pair->key()) {
-        continue;
-      }
-      const std::string key = pair->key()->str();
+static void ApplyDef(Material* material, const ModelPipelineMaterialDef* def) {
+  if (def->name_override() && def->name_override()->Length()) {
+    material->name = def->name_override()->str();
+  }
+  if (const MaterialDef* material_def = def->material()) {
+    if (material_def->properties() && material_def->properties()->values()) {
+      const auto* properties = material_def->properties()->values();
+      for (const KeyVariantPairDef* pair : *properties) {
+        if (!pair->key()) {
+          continue;
+        }
+        const std::string key = pair->key()->str();
 
-      Variant var;
-      if (VariantFromFbVariant(pair->value_type(), pair->value(), &var)) {
-        material->properties.emplace(key, std::move(var));
-      } else {
-        material->properties.erase(key);
+        Variant var;
+        if (VariantFromFbVariant(pair->value_type(), pair->value(), &var)) {
+          material->properties.emplace(key, std::move(var));
+        } else {
+          material->properties.erase(key);
+        }
       }
     }
-  }
-  if (def->textures()) {
-    for (const auto texture : *def->textures()) {
-      ApplyDef(material, texture);
+    if (material_def->textures()) {
+      for (const auto texture : *material_def->textures()) {
+        ApplyDef(material, texture);
+      }
     }
   }
 }
 
 static void ApplyDef(Model* model, const ModelPipelineRenderableDef* def) {
   if (def->materials()) {
-    for (const MaterialDef* material_def : *def->materials()) {
-      if (!material_def->name()) {
-        continue;
-      }
+    for (const ModelPipelineMaterialDef* pipeline_material_def :
+         *def->materials()) {
+      if (const lull::MaterialDef* material_def =
+              pipeline_material_def->material()) {
+        if (!material_def->name()) {
+          continue;
+        }
 
-      const std::string name = material_def->name()->str();
-      Material* material = model->GetMutableMaterial(name);
-      if (material) {
-        ApplyDef(material, material_def);
+        const std::string name = material_def->name()->str();
+        Material* material = model->GetMutableMaterial(name);
+        if (material) {
+          ApplyDef(material, pipeline_material_def);
+        }
       }
     }
   }
@@ -169,11 +177,12 @@ static void ApplyDef(Model* model, const ModelPipelineRenderableDef* def) {
           requested = SetBit(requested, Vertex::kAttribBit_Position);
           break;
         case VertexAttributeUsage_Color:
-          requested = SetBit(requested, Vertex::kAttribBit_Color0 + color_count);
+          requested =
+              SetBit(requested, Vertex::kAttribBit_Color0 << color_count);
           ++color_count;
           break;
         case VertexAttributeUsage_TexCoord:
-          requested = SetBit(requested, Vertex::kAttribBit_Uv0 + uv_count);
+          requested = SetBit(requested, Vertex::kAttribBit_Uv0 << uv_count);
           ++uv_count;
           break;
         case VertexAttributeUsage_Normal:
@@ -203,22 +212,8 @@ static void ApplyDef(Model* model, const ModelPipelineRenderableDef* def) {
   }
 }
 
-static std::string FindTexture(const ModelPipelineDef* config,
-                               const std::string& name) {
-  if (config->textures()) {
-    for (const auto* texture : *config->textures()) {
-      if (texture->name() && texture->name()->str() == name) {
-        if (texture->file()) {
-          return texture->file()->str();
-        }
-      }
-    }
-  }
-  return "";
-}
-
 void ModelPipeline::RegisterImporter(ImportFn importer, string_view extension) {
-  importers_[extension.to_string()] = std::move(importer);
+  importers_[std::string(extension)] = std::move(importer);
 }
 
 void ModelPipeline::RegisterTexture(const std::string& texture) {
@@ -238,10 +233,9 @@ void ModelPipeline::SetModelDefSchema(const std::string& filepath) {
   schema_ = filepath;
 }
 
-bool ModelPipeline::ImportFile(
-    const std::string& source,
-    const std::vector<VertexAttributeUsage>& attribs,
-    const ExportOptions options) {
+bool ModelPipeline::ImportFile(const std::string& source,
+                               const std::vector<VertexAttributeUsage>& attribs,
+                               const ExportOptions options) {
   ModelPipelineDefT config;
 
   ModelPipelineImportDefT import_def;
@@ -257,8 +251,7 @@ bool ModelPipeline::ImportFile(
   config.skeleton.source = import_def.name;
 
   const ByteArray buffer = ToFlatbuffer(&config);
-  return Import(flatbuffers::GetRoot<ModelPipelineDef>(buffer.data()),
-                options);
+  return Import(flatbuffers::GetRoot<ModelPipelineDef>(buffer.data()), options);
 }
 
 bool ModelPipeline::ImportUsingConfig(const std::string& json) {
@@ -273,7 +266,10 @@ bool ModelPipeline::Import(const ModelPipelineDef* config,
       ModelPipelineImportDefT import;
       ReadFlatbuffer(&import, source);
 
-      const std::string extension = GetExtensionFromFilename(import.file);
+      std::string extension = GetExtensionFromFilename(import.file);
+      // Convert extension to lower case (e.g. .FBX -> .fbx).
+      std::transform(extension.begin(), extension.end(), extension.begin(),
+                     [](unsigned char c) { return tolower(c); });
       auto iter = importers_.find(extension);
       if (iter != importers_.end()) {
         imported_models_.emplace(import.name, iter->second(import));
@@ -302,6 +298,9 @@ bool ModelPipeline::Import(const ModelPipelineDef* config,
     }
   }
 
+  if (options.look_for_unlinked_textures) {
+    LookForUnlinkedTextures(config);
+  }
   GatherTextures(config);
 
   if (config->textures()) {
@@ -343,22 +342,26 @@ bool ModelPipeline::Validate(const ExportOptions& options) {
 }
 
 bool ModelPipeline::Build(const ExportOptions options) {
-  lull_model_ = ExportModel(imported_models_, imported_textures_, options,
-                            &config_);
+  lull_model_ =
+      ExportModel(imported_models_, imported_textures_, options, &config_);
   for (const auto& pair : imported_models_) {
     const auto& imported_paths = pair.second.GetImportedPaths();
     opened_file_paths_.insert(opened_file_paths_.end(), imported_paths.begin(),
                               imported_paths.end());
   }
-  for (const auto& pair: imported_textures_) {
-    opened_file_paths_.insert(opened_file_paths_.end(), pair.second.abs_path);
+
+  // Only adds non-empty texture paths. A texture path will be empty if it is
+  // embedded.
+  for (const auto& pair : imported_textures_) {
+    if (!pair.second.abs_path.empty()) {
+      opened_file_paths_.insert(opened_file_paths_.end(), pair.second.abs_path);
+    }
   }
+
   return true;
 }
 
-std::string ModelPipeline::GetConfig() {
-  return ToString(&config_, schema_);
-}
+std::string ModelPipeline::GetConfig() { return ToString(&config_, schema_); }
 
 void ModelPipeline::SetUsage(const std::string& name, Model::Usage usage) {
   auto iter = imported_models_.find(name);
@@ -366,6 +369,54 @@ void ModelPipeline::SetUsage(const std::string& name, Model::Usage usage) {
     iter->second.SetUsage(usage);
   } else {
     LOG(ERROR) << "No such asset: " << name;
+  }
+}
+
+std::string ModelPipeline::TryFindTexturePath(const ModelPipelineDef* config,
+                                              const std::string& name_in) {
+  // Allow the config to specify texture paths; we fall back to
+  // texture locator if the config doesn't specify
+  std::string name = LocalizePath(name_in);
+  if (config->textures()) {
+    for (const auto* texture : *config->textures()) {
+      if (texture->name() && texture->name()->str() == name) {
+        if (texture->file()) {
+          return texture->file()->str();
+        }
+      }
+    }
+  }
+  return locator_.FindTexture(name);
+}
+
+void ModelPipeline::LookForUnlinkedTextures(const ModelPipelineDef* config) {
+  for (auto& iter : imported_models_) {
+    Model& model = iter.second;
+    const auto drawables = model.GetDrawables();
+    for (int drawable_index = 0; drawable_index < drawables.size();
+         drawable_index++) {
+      const Drawable& drawable = drawables[drawable_index];
+      if (drawable.material.textures.empty()) {
+        // Saving throw for untextured materials: see if the pipeline knows
+        // about a texture with the same basename as the material. The
+        // extension we add doesn't limit our search space to that file type;
+        // we add it because callee expects a relative path to an image file.
+        // This only works for the base map.
+        const std::string texture_name = drawable.material.name + ".png";
+        const std::string texture_path =
+            TryFindTexturePath(config, texture_name);
+        if (!texture_path.empty()) {
+          const std::string basename = GetBasenameFromFilename(texture_path);
+          TextureInfo info;
+          info.basename = basename;
+          info.abs_path = texture_path;
+          info.generate_mipmaps = true;
+          auto* material = model.GetMutableMaterial(drawable_index);
+          material->textures.insert({basename, info});
+          material->properties["DiffuseColor"] = mathfu::vec3(1.f, 1.f, 1.f);
+        }
+      }
+    }
   }
 }
 
@@ -387,12 +438,14 @@ void ModelPipeline::GatherTextures(const ModelPipelineDef* config) {
           continue;
         }
 
-        // Allow the config to specify texture paths; we fall back to
-        // texture locator if the config doesn't specify
-        std::string texture_path = FindTexture(config, texture.first);
-        if (texture_path.empty()) {
-          texture_path = locator_.FindTexture(texture.first);
+        // Allows textures with embedded data to be designated as imported.
+        if (texture.second.data && !texture.second.data->empty()) {
+          texture.second.basename = texture.first;
+          imported_textures_.emplace(texture.first, texture.second);
+          continue;
         }
+
+        std::string texture_path = TryFindTexturePath(config, texture.first);
         if (!texture_path.empty()) {
           texture.second.basename = GetBasenameFromFilename(texture_path);
           texture.second.abs_path = texture_path;

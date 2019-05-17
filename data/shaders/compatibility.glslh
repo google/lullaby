@@ -1,27 +1,15 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_COMPATIBILITY_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_COMPATIBILITY_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_COMPATIBILITY_GLSLH_
+#define LULLABY_DATA_SHADERS_COMPATIBILITY_GLSLH_
 
-/// These macros allow the old-style texture syntax to be used in GL ES 3.0.  We
-/// need this because GL ES 3.0 won't work on Mac, so we can't have everything
-/// at that version.
+/// These macros allow the old-style texture syntax to be used in GL ES 3.0.
 
-#include "third_party/lullaby/data/shaders/common.glslh"
-
-// Needed because fragment_common.glslh remaps texture2D to texture, which fails
-// with GL_OES_EGL_image_external. (Can be addressed by using
-// GL_OES_EGL_image_external_essl3, but that is not as widely supported.)
-#define texture2DExternal(_sampler, _uv) texture2D(_sampler, _uv)
+#include "lullaby/data/shaders/common.glslh"
 
 #if __VERSION__ >= GLES_ELSE(300, 330)
 // Binds old syntax to new ES 3.0 syntax.
 #define texture2DLod(_sampler, _uv, _lod) textureLod(_sampler, _uv, _lod)
 #define textureCubeLod(_sampler, _uv, _lod) textureLod(_sampler, _uv, _lod)
-#else  // VERSION below ES 3.0
-#ifdef GL_ARB_shader_texture_lod
-// This extension does not exist on Android, but it isn't necessary when running
-// on ES 3.0. Fortunately, it does exist on Mac, otherwise we'd be stuck.
-#extension GL_ARB_shader_texture_lod : require
-#endif  // GL_ARB_shader_texture_lod
+#define texture2DExternal(_sampler, _uv) texture(_sampler, _uv)
 #endif  // __VERSION__ >= GLES_ELSE(300, 330)
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_COMPATIBILITY_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_COMPATIBILITY_GLSLH_

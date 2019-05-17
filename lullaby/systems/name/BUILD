@@ -17,5 +17,6 @@ cc_library(
         "//lullaby/systems/transform",
         "//lullaby/util:hash",
         "//lullaby/util:logging",
+        "//lullaby/util:string_view",
     ],
 )

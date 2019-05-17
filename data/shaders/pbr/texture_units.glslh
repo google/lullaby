@@ -1,7 +1,7 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
 
-// TODO(b/74979497): Switch to MaterialTextureUsage enums for these once all
+// TODO: Switch to MaterialTextureUsage enums for these once all
 // required types are available.
 
 // List of texture units that may be referenced by the PBR shader, #defined to
@@ -14,7 +14,7 @@
 // Albedo in RGB.
 #define kAlbedoMapUnit texture_unit_0
 // Smoothness in R, Metallic in G, Ambient Occlusion in B.
-#define kSmoothnessMetallicAoMapUnit texture_unit_1
+#define kGlossMapUnit texture_unit_1
 
 // The next texture unit depends on whether there's a normal map.
 #ifdef LULLABY_PBR_NORMAL_MAP
@@ -27,7 +27,14 @@
 #define kEmissiveMapUnit texture_unit_2
 #endif  // LULLABY_PBR_NORMAL_MAP
 
-// The following units are set up in C++ and must match the code there.
+// The following units are meant to be set up in C++. They must match the
+// corresponding glsl code in texture_units.glslh, hence the LINT.IfChange
+// block below.
+//
+// Note: Not all pbr-based shaders support all units below so this is a superset
+// (e.g. some shaders, like the one in hello_pbr, lack a camera feed).
+
+
 
 // Environment cube map convolved for specular reflection in RGB.
 #define kSpecEnvMapUnit texture_unit_4
@@ -37,11 +44,14 @@
 #define kDiffEnvMapUnit texture_unit_6
 // Filtered camera feed in RGB linear space; supports mipmaps.
 #define kCameraFeedMapUnit texture_unit_7
+// Unfiltered source camera feed.  It contains the full camera preview
+// resolution in sRGB space (call RemoveGamma to convert to linear), without
+// mipmaps.  On Android, this is an external texture and must be sampled with
+// samplerExternalOES.
+#define kInputCameraFeedMapUnit texture_unit_8
+// Motion Stereo depth map from camera.
+#define kCameraDepthMapUnit texture_unit_9
 
-// The following units are used by screen quad shaders for copying camera feed
-// or ARA photo.
 
-// Source for camera feed. May be external texture on Android.
-#define kInputCameraFeedMapUnit texture_unit_0
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_
+#endif  // LULLABY_DATA_SHADERS_PBR_TEXTURE_UNITS_GLSLH_

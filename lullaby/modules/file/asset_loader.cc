@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ limitations under the License.
 #ifdef __ANDROID__
 #include "lullaby/util/android_context.h"
 #endif
+#include "lullaby/util/error.h"
 #include "lullaby/util/logging.h"
 #include "lullaby/util/time.h"
 
@@ -87,17 +88,21 @@ static bool LoadFileAndroid(Registry* registry, const std::string& filename,
     android_asset_manager = android_context->GetAndroidAssetManager();
   }
   if (android_asset_manager && !filename.empty() && filename[0] != '\\') {
-    return LoadFileUsingAAssetManager(android_asset_manager, filename, dest);
-  } else {
-    return LoadFileDirect(filename, dest);
+    const bool loaded =
+        LoadFileUsingAAssetManager(android_asset_manager, filename, dest);
+    if (loaded) {
+      return loaded;
+    }
   }
+
+  return LoadFileDirect(filename, dest);
 }
 
 #endif  // __ANDROID__
 
 AssetLoader::LoadRequest::LoadRequest(const std::string& filename,
                                       const AssetPtr& asset)
-    : asset(asset), filename(filename) {
+    : asset(asset), filename(filename), error(kErrorCode_Ok) {
   asset->SetFilename(filename);
 }
 
@@ -151,7 +156,7 @@ void AssetLoader::DoLoad(LoadRequest* req, LoadMode mode) const {
   Timer load_timer;
 #endif
   // Actually load the data using the provided load function.
-  load_fn_(req->filename.c_str(), &req->data);
+  const bool success = load_fn_(req->filename.c_str(), &req->data);
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   {
     const auto dt = MillisecondsFromDuration(load_timer.GetElapsedTime());
@@ -159,11 +164,18 @@ void AssetLoader::DoLoad(LoadRequest* req, LoadMode mode) const {
   }
 #endif
 
+  if (success == false) {
+    // TODO: Change the LoadFileFn signature to allow for arbitrary
+    // error codes.
+    req->error = kErrorCode_NotFound;
+    return;
+  }
+
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   Timer on_load_timer;
 #endif
   // Notify the Asset of the loaded data.
-  req->asset->OnLoad(req->filename, &req->data);
+  req->error = req->asset->OnLoadWithError(req->filename, &req->data);
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   {
     const auto dt = MillisecondsFromDuration(on_load_timer.GetElapsedTime());
@@ -176,12 +188,23 @@ void AssetLoader::DoFinalize(LoadRequest* req, LoadMode mode) const {
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   Timer timer;
 #endif
+
   // Notify the Asset to finalize the data on the finalizer thread.
-  req->asset->OnFinalize(req->filename, &req->data);
+  if (req->error == kErrorCode_Ok) {
+    req->error = req->asset->OnFinalizeWithError(req->filename, &req->data);
+  }
 #if LULLABY_ASSET_LOADER_LOG_TIMES
   const auto dt = MillisecondsFromDuration(timer.GetElapsedTime());
   LOG(INFO) << "[" << dt << "] " << req->filename << " OnFinalize: " << mode;
 #endif
+
+  // Notify the Asset if an error occurred at any point during the load.
+  if (req->error != kErrorCode_Ok) {
+    req->asset->OnError(req->filename, req->error);
+    if (error_fn_) {
+      error_fn_(req->filename, req->error);
+    }
+  }
 }
 
 void AssetLoader::SetLoadFunction(LoadFileFn load_fn) {
@@ -207,6 +230,10 @@ AssetLoader::LoadFileFn AssetLoader::GetDefaultLoadFunction() const {
 #endif
 
   return LoadFileDirect;
+}
+
+void AssetLoader::SetOnErrorFunction(OnErrorFn error_fn) {
+  error_fn_ = std::move(error_fn);
 }
 
 void AssetLoader::StartAsyncLoads() { processor_.Start(); }

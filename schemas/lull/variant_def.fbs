@@ -52,6 +52,16 @@ table DataBytes {
   value: [uint8];
 }
 
+/// The flatbuffer equivalent for lull::VariantArray.
+table VariantArrayDef {
+  values: [VariantArrayDefImpl];
+}
+
+/// The flatbuffer equivalent for lull::VariantMap.
+table VariantMapDef {
+  values: [KeyVariantPairDef];
+}
+
 /// A variant type that can be converted into a lull::Variant.
 union VariantDef {
   DataBool,
@@ -64,6 +74,8 @@ union VariantDef {
   DataVec4,
   DataQuat,
   DataBytes,
+  VariantArrayDef,
+  VariantMapDef,
 }
 
 /// Internal table for VariantMapDef that associates a hash-value key with a
@@ -78,14 +90,4 @@ table KeyVariantPairDef {
 /// in order to have an array of them.
 table VariantArrayDefImpl {
   value: VariantDef;
-}
-
-/// The flatbuffer equivalent for lull::VariantArray.
-table VariantArrayDef {
-  values: [VariantArrayDefImpl];
-}
-
-/// The flatbuffer equivalent for lull::VariantMap.
-table VariantMapDef {
-  values: [KeyVariantPairDef];
 }

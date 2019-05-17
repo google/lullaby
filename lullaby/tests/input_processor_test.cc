@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,6 +46,11 @@ enum ButtonEventType {
   LULLABY_BUTTON_EVENT_LIST(LULLABY_GENERATE_ENUM)
   kNumButtonEventTypes
 };
+
+enum TouchEventType {
+  LULLABY_TOUCH_EVENT_LIST(LULLABY_GENERATE_ENUM)
+  kNumTouchEventTypes
+};
 // clang-format on
 #undef LULLABY_GENERATE_ENUM
 
@@ -64,6 +69,7 @@ class InputProcessorTest : public testing::Test {
 
     DeviceProfile profile;
     profile.buttons.resize(2);
+    profile.touchpads.resize(1);
     input_manager_->ConnectDevice(InputManager::kController, profile);
   }
 
@@ -91,6 +97,7 @@ class InputEventListener {
 
   InputManager::DeviceType device_event_calls_[kNumDeviceEventTypes];
   ButtonEventCall button_event_calls_[kNumButtonEventTypes];
+  InputManager::DeviceType touch_event_calls_[kNumTouchEventTypes];
 
   InputEventListener(Registry* registry, Entity target, string_view prefix) {
     registry_ = registry;
@@ -100,95 +107,173 @@ class InputEventListener {
       auto* dispatcher = registry_->Get<Dispatcher>();
 
       dispatcher->Connect(
-          Hash(prefix.to_string() + "FocusStartEvent"), this,
+          Hash(prefix + "FocusStartEvent"), this,
           [this](const EventWrapper& event) {
             device_event_calls_[kFocusStart] = event.GetValueWithDefault(
                 kDeviceHash, InputManager::kMaxNumDeviceTypes);
           });
       dispatcher->Connect(
-          Hash(prefix.to_string() + "FocusStopEvent"), this,
+          Hash(prefix + "FocusStopEvent"), this,
           [this](const EventWrapper& event) {
             device_event_calls_[kFocusStop] = event.GetValueWithDefault(
                 kDeviceHash, InputManager::kMaxNumDeviceTypes);
           });
       dispatcher->Connect(
-          Hash(prefix.to_string() + "PressEvent"), this,
-          [this](const EventWrapper& event) {
-            button_event_calls_[kPress].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kPress].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+          Hash(prefix + "PressEvent"), this, [this](const EventWrapper& event) {
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchPress] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kPress].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kPress].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
       dispatcher->Connect(
-          Hash(prefix.to_string() + "ReleaseEvent"), this,
+          Hash(prefix + "ReleaseEvent"), this,
           [this](const EventWrapper& event) {
-            button_event_calls_[kRelease].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kRelease].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchRelease] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kRelease].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kRelease].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
       dispatcher->Connect(
-          Hash(prefix.to_string() + "ClickEvent"), this,
-          [this](const EventWrapper& event) {
-            button_event_calls_[kClick].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kClick].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+          Hash(prefix + "ClickEvent"), this, [this](const EventWrapper& event) {
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchClick] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kClick].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kClick].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
       dispatcher->Connect(
-          Hash(prefix.to_string() + "LongPressEvent"), this,
+          Hash(prefix + "LongPressEvent"), this,
           [this](const EventWrapper& event) {
-            button_event_calls_[kLongPress].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kLongPress].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchLongPress] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kLongPress].device =
+                  event.GetValueWithDefault(kDeviceHash,
+                                            InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kLongPress].button =
+                  event.GetValueWithDefault(kButtonHash,
+                                            InputManager::kInvalidButton);
+            }
+          });
+      dispatcher->Connect(
+          Hash(prefix + "CancelEvent"), this,
+          [this](const EventWrapper& event) {
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchCancel] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kCancel].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kCancel].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
     } else {
       auto* dispatcher_system = registry_->Get<DispatcherSystem>();
 
       dispatcher_system->Connect(
-          target, Hash(prefix.to_string() + "FocusStartEvent"), this,
+          target, Hash(prefix + "FocusStartEvent"), this,
           [this](const EventWrapper& event) {
             device_event_calls_[kFocusStart] = event.GetValueWithDefault(
                 kDeviceHash, InputManager::kMaxNumDeviceTypes);
           });
       dispatcher_system->Connect(
-          target, Hash(prefix.to_string() + "FocusStopEvent"), this,
+          target, Hash(prefix + "FocusStopEvent"), this,
           [this](const EventWrapper& event) {
             device_event_calls_[kFocusStop] = event.GetValueWithDefault(
                 kDeviceHash, InputManager::kMaxNumDeviceTypes);
           });
       dispatcher_system->Connect(
-          target, Hash(prefix.to_string() + "PressEvent"), this,
+          target, Hash(prefix + "PressEvent"), this,
           [this](const EventWrapper& event) {
-            button_event_calls_[kPress].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kPress].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchPress] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kPress].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kPress].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
       dispatcher_system->Connect(
-          target, Hash(prefix.to_string() + "ReleaseEvent"), this,
+          target, Hash(prefix + "ReleaseEvent"), this,
           [this](const EventWrapper& event) {
-            button_event_calls_[kRelease].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kRelease].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchRelease] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kRelease].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kRelease].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
       dispatcher_system->Connect(
-          target, Hash(prefix.to_string() + "ClickEvent"), this,
+          target, Hash(prefix + "ClickEvent"), this,
           [this](const EventWrapper& event) {
-            button_event_calls_[kClick].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kClick].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchClick] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kClick].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kClick].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
       dispatcher_system->Connect(
-          target, Hash(prefix.to_string() + "LongPressEvent"), this,
+          target, Hash(prefix + "LongPressEvent"), this,
           [this](const EventWrapper& event) {
-            button_event_calls_[kLongPress].device = event.GetValueWithDefault(
-                kDeviceHash, InputManager::kMaxNumDeviceTypes);
-            button_event_calls_[kLongPress].button = event.GetValueWithDefault(
-                kButtonHash, InputManager::kInvalidButton);
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchLongPress] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kLongPress].device =
+                  event.GetValueWithDefault(kDeviceHash,
+                                            InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kLongPress].button =
+                  event.GetValueWithDefault(kButtonHash,
+                                            InputManager::kInvalidButton);
+            }
+          });
+      dispatcher_system->Connect(
+          target, Hash(prefix + "CancelEvent"), this,
+          [this](const EventWrapper& event) {
+            if (event.GetValue<InputManager::TouchpadId>(kTouchpadIdHash) !=
+                nullptr) {
+              touch_event_calls_[kTouchCancel] = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+            } else {
+              button_event_calls_[kCancel].device = event.GetValueWithDefault(
+                  kDeviceHash, InputManager::kMaxNumDeviceTypes);
+              button_event_calls_[kCancel].button = event.GetValueWithDefault(
+                  kButtonHash, InputManager::kInvalidButton);
+            }
           });
     }
   }
@@ -207,17 +292,26 @@ class InputEventListener {
     for (size_t index = 0; index < kNumButtonEventTypes; index++) {
       button_event_calls_[index].Reset();
     }
+    for (size_t index = 0; index < kNumTouchEventTypes; index++) {
+      touch_event_calls_[index] = InputManager::kMaxNumDeviceTypes;
+    }
   }
 
   void ExpectDefaultState() {
     for (size_t index = 0; index < kNumDeviceEventTypes; index++) {
-      EXPECT_EQ(device_event_calls_[index], InputManager::kMaxNumDeviceTypes);
+      EXPECT_EQ(device_event_calls_[index], InputManager::kMaxNumDeviceTypes)
+          << "index = " << index;
     }
     for (size_t index = 0; index < kNumButtonEventTypes; index++) {
       EXPECT_EQ(button_event_calls_[index].device,
-                InputManager::kMaxNumDeviceTypes);
-      EXPECT_EQ(button_event_calls_[index].button,
-                InputManager::kInvalidButton);
+                InputManager::kMaxNumDeviceTypes)
+          << "index = " << index;
+      EXPECT_EQ(button_event_calls_[index].button, InputManager::kInvalidButton)
+          << "index = " << index;
+    }
+    for (size_t index = 0; index < kNumTouchEventTypes; index++) {
+      EXPECT_EQ(touch_event_calls_[index], InputManager::kMaxNumDeviceTypes)
+          << "index = " << index;
     }
   }
 
@@ -236,7 +330,15 @@ std::ostream& operator<<(std::ostream& os, const InputEventListener& a) {
             << a.button_event_calls_[kClick].device << "/"
             << a.button_event_calls_[kClick].button << ", "
             << a.button_event_calls_[kLongPress].device << "/"
-            << a.button_event_calls_[kLongPress].button << "] ";
+            << a.button_event_calls_[kLongPress].button << "] "
+            << "touch_events: [" << a.touch_event_calls_[kTouchPress] << ", "
+            << a.touch_event_calls_[kTouchRelease] << ", "
+            << a.touch_event_calls_[kTouchLongPress] << ", "
+            << a.touch_event_calls_[kTouchCancel] << ", "
+            << a.touch_event_calls_[kTouchDragStart] << ", "
+            << a.touch_event_calls_[kTouchDragStop] << ", "
+            << a.touch_event_calls_[kSwipeStart] << ", "
+            << a.touch_event_calls_[kSwipeStop] << "] ";
 }
 TEST_F(InputProcessorTest, PrimaryDevice) {
   // Test that setting and getting the primary device works correctly.
@@ -459,6 +561,57 @@ TEST_F(InputProcessorTest, AnyLongPressEvent) {
   local.ExpectDefaultState();
 }
 
+TEST_F(InputProcessorTest, AnyTapEvent) {
+  const auto device = InputManager::kController;
+  Blueprint blueprint;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+  }
+
+  Entity target = entity_factory_->Create(&blueprint);
+  InputEventListener global(registry_.get(), kNullEntity, "Any");
+  InputEventListener local(registry_.get(), target, "Any");
+
+  InputFocus focus;
+  focus.interactive = true;
+  focus.device = InputManager::kController;
+
+  focus.target = target;
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global.Reset();
+  local.Reset();
+  input_manager_->UpdateTouch(device, mathfu::vec2(0.5f, 0.5f), true);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global.touch_event_calls_[kTouchPress], device);
+  EXPECT_EQ(local.touch_event_calls_[kTouchPress], device);
+  global.touch_event_calls_[kTouchPress] = InputManager::kMaxNumDeviceTypes;
+  local.touch_event_calls_[kTouchPress] = InputManager::kMaxNumDeviceTypes;
+  global.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  local.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_manager_->UpdateTouch(device, mathfu::vec2(0.5f, 0.5f), true);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_manager_->UpdateTouch(device, mathfu::vec2(0.5f, 0.5f), false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global.touch_event_calls_[kTouchRelease], device);
+  EXPECT_EQ(local.touch_event_calls_[kTouchRelease], device);
+  EXPECT_EQ(global.touch_event_calls_[kTouchClick], device);
+  EXPECT_EQ(local.touch_event_calls_[kTouchClick], device);
+}
+
 TEST_F(InputProcessorTest, AnyClickFail) {
   const auto button = InputManager::kPrimaryButton;
   const auto device = InputManager::kController;
@@ -551,9 +704,16 @@ TEST_F(InputProcessorTest, AnyLongPressFail) {
   global.device_event_calls_[kFocusStop] = InputManager::kMaxNumDeviceTypes;
   local.device_event_calls_[kFocusStop] = InputManager::kMaxNumDeviceTypes;
 
+  EXPECT_EQ(global.button_event_calls_[kCancel].device, device);
+  EXPECT_EQ(local.button_event_calls_[kCancel].device, device);
+  global.button_event_calls_[kCancel].Reset();
+  local.button_event_calls_[kCancel].Reset();
+
   // Ensure no long press event was sent
-  global.ExpectDefaultState();
-  local.ExpectDefaultState();
+  EXPECT_EQ(global.button_event_calls_[kLongPress].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(local.button_event_calls_[kLongPress].device,
+            InputManager::kMaxNumDeviceTypes);
 
   input_manager_->UpdateButton(device, button, false, false);
   input_manager_->AdvanceFrame(kDeltaTime);
@@ -632,6 +792,259 @@ TEST_F(InputProcessorTest, DevicePrefixes) {
   h.ExpectDefaultState();
 }
 
+TEST_F(InputProcessorTest, OverriddenProcessorEnabled) {
+  const auto button = InputManager::kPrimaryButton;
+  const auto device = InputManager::kController;
+
+  // Test that when the overridden processor is enabled, we hear its
+  // events
+  std::shared_ptr<InputProcessor> modified_processor =
+      std::make_shared<InputProcessor>(registry_.get());
+  modified_processor->SetPrefix(InputManager::kController,
+                                InputManager::kPrimaryButton, "Overridden");
+  input_processor_->AddOverrideProcessor(modified_processor);
+
+  Blueprint blueprint;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+  }
+  Entity target = entity_factory_->Create(&blueprint);
+
+  InputEventListener global(registry_.get(), kNullEntity, "Overridden");
+  InputEventListener local(registry_.get(), target, "Overridden");
+
+  InputFocus focus;
+  focus.interactive = true;
+  focus.device = InputManager::kController;
+
+  focus.target = target;
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global.Reset();
+  local.Reset();
+
+  input_manager_->UpdateButton(device, button, true, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global.button_event_calls_[kPress].device, device);
+  EXPECT_EQ(global.button_event_calls_[kPress].button, button);
+  EXPECT_EQ(local.button_event_calls_[kPress].device, device);
+  EXPECT_EQ(local.button_event_calls_[kPress].button, button);
+  global.button_event_calls_[kPress].Reset();
+  local.button_event_calls_[kPress].Reset();
+  global.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  local.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_manager_->UpdateButton(device, button, true, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_manager_->UpdateButton(device, button, false, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global.button_event_calls_[kClick].device, device);
+  EXPECT_EQ(global.button_event_calls_[kClick].button, button);
+  EXPECT_EQ(local.button_event_calls_[kClick].device, device);
+  EXPECT_EQ(local.button_event_calls_[kClick].button, button);
+  EXPECT_EQ(global.button_event_calls_[kRelease].device, device);
+  EXPECT_EQ(global.button_event_calls_[kRelease].button, button);
+  EXPECT_EQ(local.button_event_calls_[kRelease].device, device);
+  EXPECT_EQ(local.button_event_calls_[kRelease].button, button);
+  global.button_event_calls_[kClick].Reset();
+  local.button_event_calls_[kClick].Reset();
+  global.button_event_calls_[kRelease].Reset();
+  local.button_event_calls_[kRelease].Reset();
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_processor_->RemoveOverrideProcessor(modified_processor);
+}
+
+TEST_F(InputProcessorTest, OverriddenProcessorDisabled) {
+  const auto button = InputManager::kPrimaryButton;
+  const auto device = InputManager::kController;
+
+  // Test that when the Overridden processor is disabled, we are no longer
+  // listening to its events.
+  std::shared_ptr<InputProcessor> modified_processor =
+      std::make_shared<InputProcessor>(registry_.get());
+  modified_processor->SetPrefix(InputManager::kController,
+                                InputManager::kPrimaryButton, "Overridden");
+  input_processor_->AddOverrideProcessor(modified_processor);
+  input_processor_->RemoveOverrideProcessor(modified_processor);
+
+  Blueprint blueprint;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+  }
+  Entity target = entity_factory_->Create(&blueprint);
+
+  InputEventListener global(registry_.get(), kNullEntity, "Overridden");
+  InputEventListener local(registry_.get(), target, "Overridden");
+
+  InputFocus focus;
+  focus.interactive = true;
+  focus.device = InputManager::kController;
+
+  focus.target = target;
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global.Reset();
+  local.Reset();
+
+  input_manager_->UpdateButton(device, button, true, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global.button_event_calls_[kPress].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(local.button_event_calls_[kPress].device,
+            InputManager::kMaxNumDeviceTypes);
+  global.button_event_calls_[kPress].Reset();
+  local.button_event_calls_[kPress].Reset();
+  global.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  local.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_manager_->UpdateButton(device, button, true, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+
+  input_manager_->UpdateButton(device, button, false, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global.button_event_calls_[kClick].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(global.button_event_calls_[kClick].button,
+            InputManager::kInvalidButton);
+  EXPECT_EQ(local.button_event_calls_[kClick].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(local.button_event_calls_[kClick].button,
+            InputManager::kInvalidButton);
+  EXPECT_EQ(global.button_event_calls_[kRelease].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(global.button_event_calls_[kRelease].button,
+            InputManager::kInvalidButton);
+  EXPECT_EQ(local.button_event_calls_[kRelease].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(local.button_event_calls_[kRelease].button,
+            InputManager::kInvalidButton);
+  global.button_event_calls_[kClick].Reset();
+  local.button_event_calls_[kClick].Reset();
+  global.button_event_calls_[kRelease].Reset();
+  local.button_event_calls_[kRelease].Reset();
+  global.ExpectDefaultState();
+  local.ExpectDefaultState();
+}
+
+TEST_F(InputProcessorTest, MultipleOverriddenProcessors) {
+  const auto button = InputManager::kPrimaryButton;
+  const auto device = InputManager::kController;
+
+  // Test that when the Overridden processor is disabled, we are no longer
+  // listening to its events.
+  std::shared_ptr<InputProcessor> modified_processor_1 =
+      std::make_shared<InputProcessor>(registry_.get());
+  std::shared_ptr<InputProcessor> modified_processor_2 =
+      std::make_shared<InputProcessor>(registry_.get());
+  modified_processor_1->SetPrefix(InputManager::kController,
+                                  InputManager::kPrimaryButton, "Overridden_1");
+  modified_processor_2->SetPrefix(InputManager::kController,
+                                  InputManager::kPrimaryButton, "Overridden_2");
+  input_processor_->AddOverrideProcessor(modified_processor_1);
+  input_processor_->AddOverrideProcessor(modified_processor_2);
+
+  Blueprint blueprint;
+  {
+    TransformDefT transform;
+    blueprint.Write(&transform);
+  }
+  Entity target = entity_factory_->Create(&blueprint);
+
+  InputEventListener global_1(registry_.get(), kNullEntity, "Overridden_1");
+  InputEventListener local_1(registry_.get(), target, "Overridden_1");
+
+  InputEventListener global_2(registry_.get(), kNullEntity, "Overridden_2");
+  InputEventListener local_2(registry_.get(), target, "Overridden_2");
+
+  InputFocus focus;
+  focus.interactive = true;
+  focus.device = InputManager::kController;
+
+  focus.target = target;
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global_1.Reset();
+  local_1.Reset();
+  global_2.Reset();
+  local_2.Reset();
+
+  input_manager_->UpdateButton(device, button, true, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  // Unable to listen to Overridden_1 events since Overridden_2 is on top.
+  EXPECT_EQ(global_1.button_event_calls_[kPress].device,
+            InputManager::kMaxNumDeviceTypes);
+  EXPECT_EQ(local_1.button_event_calls_[kPress].device,
+            InputManager::kMaxNumDeviceTypes);
+  global_1.button_event_calls_[kPress].Reset();
+  local_1.button_event_calls_[kPress].Reset();
+  global_1.ExpectDefaultState();
+  local_1.ExpectDefaultState();
+
+  // Overridden_2 is on top, so it's events must be heard.
+  EXPECT_EQ(global_2.button_event_calls_[kPress].device,
+            InputManager::kController);
+  EXPECT_EQ(local_2.button_event_calls_[kPress].device,
+            InputManager::kController);
+  global_2.button_event_calls_[kPress].Reset();
+  local_2.button_event_calls_[kPress].Reset();
+  global_2.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  local_2.device_event_calls_[kFocusStart] = InputManager::kMaxNumDeviceTypes;
+  global_2.ExpectDefaultState();
+  local_2.ExpectDefaultState();
+
+  // Should still listen to modified_processor_2 after removing the first.
+  input_processor_->RemoveOverrideProcessor(modified_processor_1);
+
+  input_manager_->UpdateButton(device, button, true, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  global_2.ExpectDefaultState();
+  local_2.ExpectDefaultState();
+
+  input_manager_->UpdateButton(device, button, false, false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+
+  EXPECT_EQ(global_2.button_event_calls_[kClick].device,
+            InputManager::kController);
+  EXPECT_EQ(global_2.button_event_calls_[kClick].button,
+            InputManager::kPrimaryButton);
+  EXPECT_EQ(local_2.button_event_calls_[kClick].device,
+            InputManager::kController);
+  EXPECT_EQ(local_2.button_event_calls_[kClick].button,
+            InputManager::kPrimaryButton);
+
+  input_processor_->RemoveOverrideProcessor(modified_processor_2);
+}
+
 TEST_F(InputProcessorTest, SharedDevicePrefixes) {
   const auto button = InputManager::kPrimaryButton;
   const auto device = InputManager::kController;
@@ -661,7 +1074,6 @@ TEST_F(InputProcessorTest, SharedDevicePrefixes) {
 
   listener.ExpectDefaultState();
 
-
   input_manager_->UpdateButton(device, button, true, false);
   input_manager_->UpdateButton(device2, button, false, false);
   input_manager_->AdvanceFrame(kDeltaTime);
@@ -686,6 +1098,34 @@ TEST_F(InputProcessorTest, SharedDevicePrefixes) {
 
   EXPECT_EQ(listener.button_event_calls_[kPress].device, device2);
   listener.button_event_calls_[kPress].Reset();
+  listener.ExpectDefaultState();
+}
+
+TEST_F(InputProcessorTest, TouchClickEvent) {
+  const auto device = InputManager::kController;
+  const InputManager::TouchpadId touchpad = InputManager::kPrimaryTouchpadId;
+
+  const std::string prefix = "ControllerTouch";
+  input_processor_->SetTouchPrefix(device, touchpad, prefix);
+  InputEventListener listener(registry_.get(), kNullEntity, prefix);
+
+  InputFocus focus;
+  focus.device = device;
+
+  input_manager_->UpdateTouch(device, mathfu::vec2(0.5, 0.5), true);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+  EXPECT_EQ(listener.touch_event_calls_[kPress], device);
+  listener.touch_event_calls_[kPress] = InputManager::kMaxNumDeviceTypes;
+  listener.ExpectDefaultState();
+
+  input_manager_->UpdateTouch(device, mathfu::vec2(0.5, 0.5), false);
+  input_manager_->AdvanceFrame(kDeltaTime);
+  input_processor_->UpdateDevice(kDeltaTime, focus);
+  EXPECT_EQ(listener.touch_event_calls_[kTouchRelease], device);
+  EXPECT_EQ(listener.touch_event_calls_[kTouchClick], device);
+  listener.touch_event_calls_[kTouchRelease] = InputManager::kMaxNumDeviceTypes;
+  listener.touch_event_calls_[kTouchClick] = InputManager::kMaxNumDeviceTypes;
   listener.ExpectDefaultState();
 }
 }  // namespace

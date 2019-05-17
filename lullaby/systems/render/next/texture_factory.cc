@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,18 +15,27 @@ limitations under the License.
 */
 
 #include "lullaby/systems/render/next/texture_factory.h"
+#include <cmath>
 
+#include "fplbase/texture_atlas_generated.h"
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/systems/render/animated_texture_processor.h"
 #include "lullaby/modules/render/image_decode.h"
+#include "lullaby/modules/render/image_decode_ktx.h"
+#include "lullaby/modules/render/image_util.h"
 #include "lullaby/systems/render/next/gl_helpers.h"
+#include "lullaby/systems/render/texture_factory.h"
 #include "lullaby/util/filename.h"
 
 namespace lull {
 namespace {
 
-// TODO(gavindodd): as KTX is a container class there is no way to determine
-// if the extension is really supported
+// TODO: as KTX is a container class there is no way to determine
+// if the extension is really supported without loading at least part of the
+// file. These flags are used as a workaround but a better design would be less
+// error prone.
+bool g_app_set_ktx_supported = false;
 bool g_is_ktx_supported = true;
 
 bool ValidateNumFaces(int num_faces) {
@@ -51,13 +60,20 @@ bool IsCompressed(ImageData::Format format) {
 }
 
 bool IsKtxSupported() {
-  // KTX can contain any image format.
-  return g_is_ktx_supported;
+  // KTX can contain any image format, so we allow the application to set
+  // whether or not to allow .ktx files.  If the application doesn't set a
+  // value, we assume the .ktx files contain ASTC data and return true if
+  // ASTC is supported.
+  if (g_app_set_ktx_supported) {
+    return g_is_ktx_supported;
+  } else {
+    return CpuAstcDecodingAvailable() || GlSupportsAstc();
+  }
 }
 
 bool IsExtensionSupported(const std::string& ext) {
   if (ext == ".astc") {
-    return GlSupportsAstc();
+    return CpuAstcDecodingAvailable() || GlSupportsAstc();
   } else if (ext == ".ktx") {
     return IsKtxSupported();
   } else if (ext == ".pkm") {
@@ -86,6 +102,8 @@ GLenum GetTextureFormat(ImageData::Format format) {
 #else
       return GL_RG;
 #endif
+    case ImageData::kRg88:
+      return GL_RG;
     case ImageData::kRgb888:
     case ImageData::kRgb565:
       return GL_RGB;
@@ -104,6 +122,7 @@ GLenum GetPixelFormat(ImageData::Format format) {
     case ImageData::kAlpha:
     case ImageData::kLuminance:
     case ImageData::kLuminanceAlpha:
+    case ImageData::kRg88:
     case ImageData::kRgb888:
     case ImageData::kRgba8888:
       return GL_UNSIGNED_BYTE;
@@ -156,114 +175,14 @@ GLenum GetAstcFormat(const AstcHeader* header) {
   }
 }
 
-static bool IsETC(GLenum format) {
-  switch (format) {
-#if defined(GL_ES_VERSION_3_0) || defined(GL_VERSION_4_3)
-    case GL_COMPRESSED_R11_EAC:
-    case GL_COMPRESSED_SIGNED_R11_EAC:
-    case GL_COMPRESSED_RG11_EAC:
-    case GL_COMPRESSED_SIGNED_RG11_EAC:
-    case GL_COMPRESSED_RGB8_ETC2:
-    case GL_COMPRESSED_SRGB8_ETC2:
-    case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
-    case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
-    case GL_COMPRESSED_RGBA8_ETC2_EAC:
-    case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:
-      return true;
-#endif  // GL_ES_VERSION_3_0 || GL_VERSION_4_3
-    default:
-      return false;
-  }
-}
-
-static mathfu::vec2i GetKtxBlockSize(GLenum format) {
-  switch (format) {
-#if defined(GL_ES_VERSION_3_0) || defined(GL_VERSION_4_3)
-    // ETC1 and ETC2 use 4x4 blocks.
-    case GL_COMPRESSED_R11_EAC:
-    case GL_COMPRESSED_SIGNED_R11_EAC:
-    case GL_COMPRESSED_RG11_EAC:
-    case GL_COMPRESSED_SIGNED_RG11_EAC:
-    case GL_COMPRESSED_RGB8_ETC2:
-    case GL_COMPRESSED_SRGB8_ETC2:
-    case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
-    case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
-    case GL_COMPRESSED_RGBA8_ETC2_EAC:
-    case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:
-      return mathfu::vec2i(4, 4);
-#endif  // GL_ES_VERSION_3_0 || GL_VERSION_4_3
-#if defined(GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR:
-      return mathfu::vec2i(4, 4);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR:
-      return mathfu::vec2i(5, 4);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR:
-      return mathfu::vec2i(5, 5);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR:
-      return mathfu::vec2i(6, 5);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR:
-      return mathfu::vec2i(6, 6);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR:
-      return mathfu::vec2i(8, 5);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR:
-      return mathfu::vec2i(8, 6);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR:
-      return mathfu::vec2i(8, 8);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR:
-      return mathfu::vec2i(10, 5);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR:
-      return mathfu::vec2i(10, 6);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR:
-      return mathfu::vec2i(10, 8);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR:
-      return mathfu::vec2i(10, 10);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR:
-      return mathfu::vec2i(12, 10);
-    case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:
-      return mathfu::vec2i(12, 12);
-#endif  // GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
-    case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:
-      return mathfu::vec2i(4, 4);
-    case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:
-      return mathfu::vec2i(5, 4);
-    case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:
-      return mathfu::vec2i(5, 5);
-    case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:
-      return mathfu::vec2i(6, 5);
-    case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:
-      return mathfu::vec2i(6, 6);
-    case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:
-      return mathfu::vec2i(8, 5);
-    case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:
-      return mathfu::vec2i(8, 6);
-    case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:
-      return mathfu::vec2i(8, 8);
-    case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:
-      return mathfu::vec2i(10, 5);
-    case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:
-      return mathfu::vec2i(10, 6);
-    case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:
-      return mathfu::vec2i(10, 8);
-    case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:
-      return mathfu::vec2i(10, 10);
-    case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:
-      return mathfu::vec2i(12, 10);
-    case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:
-      return mathfu::vec2i(12, 12);
-    default:
-      // Uncompressed textures effectively have 1x1 blocks.
-      return mathfu::vec2i(1, 1);
-  }
-}
-
 void WriteTexImage(const uint8_t* data, int num_bytes_per_face, int num_faces,
-                   int width, int height, int mip_level, GLenum format,
-                   GLenum type, bool compressed) {
+                   int width, int height, int mip_level, GLenum internal_format,
+                   GLenum format, GLenum type, bool compressed) {
   if (!ValidateNumFaces(num_faces)) {
     return;
   }
 
-  // TODO(b/80479928): It's possible for this to fail due to unsupported image
+  // TODO: It's possible for this to fail due to unsupported image
   // format.  This is particularly likely for KTX since we can't validate the
   // format up-front, but it can also happen in general and checking the set of
   // extensions is not sufficient to eliminate this possibility (b/80187457).
@@ -274,11 +193,12 @@ void WriteTexImage(const uint8_t* data, int num_bytes_per_face, int num_faces,
       (num_faces == 6) ? GL_TEXTURE_CUBE_MAP_POSITIVE_X : GL_TEXTURE_2D;
   for (int i = 0; i < num_faces; ++i) {
     if (compressed) {
-      GL_CALL(glCompressedTexImage2D(target + i, mip_level, format, width,
-                                     height, border, num_bytes_per_face, data));
+      GL_CALL(glCompressedTexImage2D(target + i, mip_level, internal_format,
+                                     width, height, border, num_bytes_per_face,
+                                     data));
     } else {
-      GL_CALL(glTexImage2D(target + i, mip_level, format, width, height, border,
-                           format, type, data));
+      GL_CALL(glTexImage2D(target + i, mip_level, internal_format, width,
+                           height, border, format, type, data));
     }
     if (data) {
       data += num_bytes_per_face;
@@ -302,10 +222,11 @@ struct GlTextureData {
 void BuildGlTexture(const GlTextureData& data) {
   const int main_mip_level = 0;
   WriteTexImage(data.bytes, data.num_bytes_per_face, data.num_faces, data.width,
-                data.height, main_mip_level, data.format, data.type,
-                data.compressed);
+                data.height, main_mip_level, data.format, data.format,
+                data.type, data.compressed);
 
-#if !defined(FPLBASE_GLES) && defined(GL_TEXTURE_SWIZZLE_A)
+#if !defined(FPLBASE_GLES) && !defined(PLATFORM_OSX) && \
+    defined(GL_TEXTURE_SWIZZLE_A)
   if (data.luminance) {
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED));
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED));
@@ -321,8 +242,8 @@ void BuildGlTexture(const GlTextureData& data) {
     // this workaround, the client will need to do this preallocation
     // workaround themselves.
     const int min_dimension = std::min(data.width, data.height);
-    const int num_levels = static_cast<int>(
-        ceil(log(static_cast<float>(min_dimension)) / log(2.0f)));
+    const int num_levels = static_cast<int>(std::ceil(
+        std::log(static_cast<float>(min_dimension)) / std::log(2.0f)));
 
     int width = data.width;
     int height = data.height;
@@ -330,7 +251,8 @@ void BuildGlTexture(const GlTextureData& data) {
       width /= 2;
       height /= 2;
       WriteTexImage(nullptr, data.num_bytes_per_face, data.num_faces, width,
-                    height, i, data.format, data.type, data.compressed);
+                    height, i, data.format, data.format, data.type,
+                    data.compressed);
     }
     const GLenum target =
         (data.num_faces == 6) ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
@@ -340,65 +262,38 @@ void BuildGlTexture(const GlTextureData& data) {
 
 void BuildKtxTexture(const uint8_t* buffer, size_t len, bool generate_mipmaps) {
   const KtxHeader* header = GetKtxHeader(buffer, len);
-
-  const bool isETC = IsETC(header->internal_format);
-  const mathfu::vec2i block_size = GetKtxBlockSize(header->internal_format);
-  const bool compressed = block_size.x > 1 || block_size.y > 1;
-
-  int mip_width = header->width;
-  int mip_height = header->height;
-  const uint8_t* data = buffer + sizeof(KtxHeader) + header->keyvalue_data;
-  for (uint32_t i = 0; i < header->mip_levels; ++i) {
-    // Guard against extra mip levels in the ktx when using ETC compression.
-    if (isETC && (mip_width < block_size.x || mip_height < block_size.y)) {
-      LOG(ERROR) << "KTX file has too many mips.";
-      // Some GL drivers need to be explicitly told that we don't have a
-      // full mip chain (down to 1x1).
-      DCHECK(i > 0);
-      const GLenum target =
-          (header->faces == 6) ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
-      GL_CALL(glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, i - 1));
-      break;
+  auto processor = [&](const uint8_t* data, size_t num_bytes_per_face,
+                       size_t num_faces, mathfu::vec2i dimensions,
+                       int mip_level, mathfu::vec2i block_size) {
+    // Don't process additional mips.
+    if (generate_mipmaps == false && mip_level > 0) {
+      return;
     }
 
-    // For cube maps imageSize is the number of bytes in each face of the
-    // texture for the current LOD level, not including bytes in cubePadding
-    // or mipPadding.
-    // https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/#2.16
-    const int32_t data_size = *(reinterpret_cast<const int32_t*>(data));
-    data += sizeof(data_size);
-    // https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/#2.17
-    // We do not need to worry about cubePadding as we only support etc and astc
-    // which are both aligned to 8 or 16 bytes (block size)
-    DCHECK_EQ((data_size % 4), 0);
+    const bool compressed = block_size.x > 1 || block_size.y > 1;
+    WriteTexImage(data, static_cast<int>(num_bytes_per_face),
+                  static_cast<int>(num_faces), dimensions.x, dimensions.y,
+                  mip_level, header->internal_format, header->format,
+                  header->type, compressed);
+  };
 
-    // Keep loading mip data even if one of our calculated dimensions goes
-    // to 0, but maintain a min size of 1.  This is needed to get non-square
-    // mip chains to work using ETC2 (eg a 256x512 needs 10 mips defined).
-    const int width = std::max(mip_width, 1);
-    const int height = std::max(mip_height, 1);
+  const int num_images_processed = ProcessKtx(header, processor);
 
-    WriteTexImage(data, data_size, header->faces, width, height, i,
-                  header->internal_format, header->type, compressed);
-
-    // https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/#2.18
-    // We do not need to worry about mipPadding as we only support etc and astc
-    // which are both aligned to 8 or 16 bytes (block size)
-    uint32_t mip_size = data_size * header->faces;
-    DCHECK_EQ((mip_size % 4), 0);
-    data += mip_size;
-    mip_width /= 2;
-    mip_height /= 2;
-    if (generate_mipmaps == false) {
-      break;
-    }
+  // Some GL drivers need to be explicitly told that we don't have a full mip
+  // chain (down to 1x1).
+  if (num_images_processed > 0) {
+    const GLenum target =
+        (header->faces == 6) ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+    GL_CALL(glTexParameteri(target, GL_TEXTURE_MAX_LEVEL,
+                            num_images_processed - 1));
   }
 }
 
 TextureHnd CreateTextureHnd(const uint8_t* buffer, const size_t len,
                             ImageData::Format texture_format,
                             const mathfu::vec2i& size,
-                            const TextureParams& params) {
+                            const TextureParams& params, int unpack_alignment,
+                            int pixels_per_row = 0) {
   GlTextureData data;
   data.num_faces = params.is_cubemap ? 6 : 1;
   data.width = size.x;
@@ -445,14 +340,17 @@ TextureHnd CreateTextureHnd(const uint8_t* buffer, const size_t len,
       data.type = GetPixelFormat(texture_format);
       break;
     }
-    case ImageData::kRgb565: {
+    case ImageData::kLuminanceAlpha: {
       data.bytes = buffer;
       data.num_bytes_per_face = 2 * data.width * data.height;
       data.format = GetTextureFormat(texture_format);
       data.type = GetPixelFormat(texture_format);
+      data.luminance = true;
       break;
     }
-    case ImageData::kRgba5551: {
+    case ImageData::kRgb565:
+    case ImageData::kRgba5551:
+    case ImageData::kRg88: {
       data.bytes = buffer;
       data.num_bytes_per_face = 2 * data.width * data.height;
       data.format = GetTextureFormat(texture_format);
@@ -462,14 +360,6 @@ TextureHnd CreateTextureHnd(const uint8_t* buffer, const size_t len,
     case ImageData::kLuminance: {
       data.bytes = buffer;
       data.num_bytes_per_face = 1 * data.width * data.height;
-      data.format = GetTextureFormat(texture_format);
-      data.type = GetPixelFormat(texture_format);
-      data.luminance = true;
-      break;
-    }
-    case ImageData::kLuminanceAlpha: {
-      data.bytes = buffer;
-      data.num_bytes_per_face = 2 * data.width * data.height;
       data.format = GetTextureFormat(texture_format);
       data.type = GetPixelFormat(texture_format);
       data.luminance = true;
@@ -492,8 +382,12 @@ TextureHnd CreateTextureHnd(const uint8_t* buffer, const size_t len,
     }
     case ImageData::kKtx: {
       // We'll handle KTX images below.
+#ifdef DEBUG
+      // This check causes unused variable errors in opt builds, so only call
+      // GetKtxHeader() in debug builds.
       const KtxHeader* header = GetKtxHeader(buffer, len);
       DCHECK(data.num_faces == static_cast<int>(header->faces));
+#endif
       break;
     }
     default: {
@@ -508,6 +402,10 @@ TextureHnd CreateTextureHnd(const uint8_t* buffer, const size_t len,
 
   const GLenum target =
       (data.num_faces == 6) ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+  GL_CALL(
+      glPixelStorei(GL_UNPACK_ALIGNMENT, static_cast<GLint>(unpack_alignment)));
+  GL_CALL(
+      glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(pixels_per_row)));
   GL_CALL(glBindTexture(target, texture_id));
 
   if (data.num_faces == 6) {
@@ -537,84 +435,25 @@ TextureHnd CreateTextureHnd(const uint8_t* buffer, const size_t len,
   } else {
     BuildGlTexture(data);
   }
+  GL_CALL(glPixelStorei(GL_UNPACK_ALIGNMENT, 4));
+  GL_CALL(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
+
   return texture_id;
 }
-
-class TextureAsset : public Asset {
- public:
-  TextureAsset(const TextureParams& params,
-               const std::function<void(TextureAsset*)>& finalizer)
-      : params_(params), finalizer_(finalizer) {}
-
-  void OnLoad(const std::string& filename, std::string* data) override {
-    if (data->empty()) {
-      return;
-    }
-    if (filename.find("cubemap") != std::string::npos) {
-      params_.is_cubemap = true;
-    }
-    if (filename.find("nopremult") != std::string::npos) {
-      params_.premultiply_alpha = false;
-    }
-
-    const auto* bytes = reinterpret_cast<const uint8_t*>(data->data());
-    const size_t num_bytes = data->size();
-    const auto flags = params_.premultiply_alpha ? kDecodeImage_PremultiplyAlpha
-                                                 : kDecodeImage_None;
-    image_data_ = DecodeImage(bytes, num_bytes, flags);
-    if (image_data_.IsEmpty()) {
-      LOG(ERROR) << "Unsupported texture file type.";
-    }
-  }
-
-  void OnFinalize(const std::string&, std::string*) override {
-    if (!image_data_.IsEmpty()) {
-      finalizer_(this);
-    }
-  }
-
-  ImageData image_data_;
-  TextureParams params_;
-  std::function<void(TextureAsset*)> finalizer_;
-};
 
 }  // namespace
 
 void TextureFactoryImpl::SetKtxFormatSupported(bool enable) {
+  g_app_set_ktx_supported = true;
   g_is_ktx_supported = enable;
 }
 
 TextureFactoryImpl::TextureFactoryImpl(Registry* registry)
     : registry_(registry),
       textures_(ResourceManager<Texture>::kWeakCachingOnly) {
-  // Create placeholder white texture.
-  {
-    constexpr int kTextureSize = 2;
-    const Color4ub data[kTextureSize * kTextureSize];
-    const mathfu::vec2i size(kTextureSize, kTextureSize);
-    ImageData image(ImageData::kRgba8888, size,
-                    DataContainer::WrapDataAsReadOnly(data, sizeof(data)));
-    white_texture_ = CreateTexture(std::move(image), TextureParams());
-  }
+  white_texture_ = CreateTexture(CreateWhiteImage(), TextureParams());
 #ifdef DEBUG
-  // Create placeholder "watermelon" texture.
-  {
-    constexpr int kTextureSize = 16;
-    const Color4ub kUglyGreen(0, 255, 0, 255);
-    const Color4ub kUglyPink(255, 0, 128, 255);
-    Color4ub data[kTextureSize * kTextureSize];
-    Color4ub* ptr = data;
-    for (int y = 0; y < kTextureSize; ++y) {
-      for (int x = 0; x < kTextureSize; ++x) {
-        *ptr = ((x + y) % 2 == 0) ? kUglyGreen : kUglyPink;
-        ++ptr;
-      }
-    }
-    const mathfu::vec2i size(kTextureSize, kTextureSize);
-    ImageData image(ImageData::kRgba8888, size,
-                    DataContainer::WrapDataAsReadOnly(data, sizeof(data)));
-    invalid_texture_ = CreateTexture(std::move(image), TextureParams());
-  }
+  invalid_texture_ = CreateTexture(CreateInvalidImage(), TextureParams());
 #else
   invalid_texture_ = white_texture_;
 #endif
@@ -624,7 +463,7 @@ TexturePtr TextureFactoryImpl::LoadTexture(string_view filename,
                                            const TextureParams& params) {
   const HashValue name = Hash(filename);
   return textures_.Create(name, [this, filename, &params]() {
-    std::string resolved = filename.to_string();
+    std::string resolved(filename);
     if (!IsExtensionSupported(GetExtensionFromFilename(resolved))) {
       resolved = RemoveExtensionFromFilename(resolved) + ".webp";
     }
@@ -632,12 +471,78 @@ TexturePtr TextureFactoryImpl::LoadTexture(string_view filename,
     auto texture = std::make_shared<Texture>();
     texture->SetName(resolved);
 
+    // Try software decoding of the astc if needed.
+    uint32_t flags = 0;
+    if (!GlSupportsAstc()) {
+      flags |= kDecodeImage_DecodeAstc;
+    }
+
     auto* asset_loader = registry_->Get<AssetLoader>();
     asset_loader->LoadAsync<TextureAsset>(
-        resolved, params, [this, texture](TextureAsset* asset) {
+        resolved, params,
+        [this, texture](TextureAsset* asset) {
           InitTextureImpl(texture, &asset->image_data_, asset->params_);
-        });
+          if (asset->animated_image_ != nullptr) {
+            auto* animated_texture_processor =
+                registry_->Get<AnimatedTextureProcessor>();
+            if (animated_texture_processor != nullptr) {
+              animated_texture_processor->Animate(
+                  texture, std::move(asset->animated_image_));
+            } else {
+              LOG(DFATAL) << "AnimatedTextureProcessor not found.";
+            }
+          }
+        },
+        [texture, params](ErrorCode error) {
+          const ImageData image = CreateInvalidImage();
+          const TextureHnd hnd = CreateTextureHnd(
+              image.GetBytes(), image.GetDataSize(), image.GetFormat(),
+              image.GetSize(), params, image.GetRowAlignment(),
+              image.GetStrideInPixels());
+          const GLenum target =
+              params.is_cubemap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+          texture->Init(hnd, target, image.GetSize(), 0);
+        },
+        flags);
     return texture;
+  });
+}
+
+void TextureFactoryImpl::LoadAtlas(const std::string& filename,
+                                   const TextureParams& params) {
+  const HashValue key = Hash(filename.c_str());
+  atlases_.Create(key, [&]() {
+    auto* asset_loader = registry_->Get<AssetLoader>();
+    auto asset = asset_loader->LoadNow<SimpleAsset>(filename);
+    if (asset->GetSize() == 0) {
+      return std::shared_ptr<TextureAtlas>();
+    }
+
+    auto atlasdef = atlasdef::GetTextureAtlas(asset->GetData());
+    auto* texture_factory =
+        static_cast<TextureFactoryImpl*>(registry_->Get<TextureFactory>());
+
+    TexturePtr texture = texture_factory->LoadTexture(
+        atlasdef->texture_filename()->c_str(), params);
+
+    std::vector<std::string> subtextures;
+    subtextures.reserve(atlasdef->entries()->Length());
+    for (const auto* entry : *atlasdef->entries()) {
+      const char* name = entry->name()->c_str();
+      subtextures.emplace_back(name);
+
+      const mathfu::vec2 size(entry->size()->x(), entry->size()->y());
+      const mathfu::vec2 location(entry->location()->x(),
+                                  entry->location()->y());
+      const mathfu::vec4 uv_bounds(location.x, location.y, size.x, size.y);
+      TexturePtr sub_texture =
+          texture_factory->CreateSubtexture(Hash(name), texture, uv_bounds);
+      texture_factory->CacheTexture(Hash(name), sub_texture);
+    }
+
+    auto atlas = std::make_shared<TextureAtlas>();
+    atlas->Init(texture, std::move(subtextures));
+    return atlas;
   });
 }
 
@@ -676,13 +581,13 @@ bool TextureFactoryImpl::UpdateTexture(TexturePtr texture, ImageData image) {
 
 TexturePtr TextureFactoryImpl::CreateTexture(ImageData image,
                                              const TextureParams& params) {
-  return CreateTexture(&image, params);
+  return CreateTextureDeprecated(&image, params);
 }
 
 TexturePtr TextureFactoryImpl::CreateTexture(HashValue name, ImageData image,
                                              const TextureParams& params) {
-  return textures_.Create(name,
-                          [&]() { return CreateTexture(&image, params); });
+  return textures_.Create(
+      name, [&]() { return CreateTextureDeprecated(&image, params); });
 }
 
 TexturePtr TextureFactoryImpl::CreateTexture(const mathfu::vec2i& size,
@@ -731,6 +636,11 @@ TexturePtr TextureFactoryImpl::CreateExternalTexture() {
 #endif  // GL_TEXTURE_EXTERNAL_OES
 }
 
+TexturePtr TextureFactoryImpl::CreateExternalTexture(
+    const mathfu::vec2i& size) {
+  return CreateExternalTexture();
+}
+
 TexturePtr TextureFactoryImpl::CreateSubtexture(const TexturePtr& texture,
                                                 const mathfu::vec4& uv_bounds) {
   auto subtexture = std::make_shared<Texture>();
@@ -752,39 +662,43 @@ void TextureFactoryImpl::CacheTexture(HashValue name,
 
 void TextureFactoryImpl::ReleaseTexture(HashValue name) {
   textures_.Erase(name);
+
+  auto atlas = atlases_.Find(name);
+  if (atlas) {
+    for (const auto& subname : atlas->Subtextures()) {
+      const HashValue key = Hash(subname.c_str());
+      textures_.Erase(key);
+    }
+    atlases_.Release(name);
+  }
 }
 
 TexturePtr TextureFactoryImpl::GetTexture(HashValue name) const {
   return textures_.Find(name);
 }
 
-const TexturePtr& TextureFactoryImpl::GetWhiteTexture() const {
+TexturePtr TextureFactoryImpl::GetWhiteTexture() const {
   return white_texture_;
 }
 
-const TexturePtr& TextureFactoryImpl::GetInvalidTexture() const {
+TexturePtr TextureFactoryImpl::GetInvalidTexture() const {
   return invalid_texture_;
 }
 
-TexturePtr TextureFactoryImpl::CreateTexture(const ImageData* image,
-                                             const TextureParams& params) {
+TexturePtr TextureFactoryImpl::CreateTextureDeprecated(
+    const ImageData* image, const TextureParams& params) {
   auto texture = std::make_shared<Texture>();
   InitTextureImpl(texture, image, params);
   return texture;
 }
 
-TexturePtr TextureFactoryImpl::CreateTexture(HashValue name,
-                                             const ImageData* image,
-                                             const TextureParams& params) {
-  return textures_.Create(name, [&]() { return CreateTexture(image, params); });
-}
-
-void TextureFactoryImpl::InitTextureImpl(
-    const TexturePtr& texture, const ImageData* image,
-    const TextureParams& params) {
+void TextureFactoryImpl::InitTextureImpl(const TexturePtr& texture,
+                                         const ImageData* image,
+                                         const TextureParams& params) {
   const TextureHnd hnd =
       CreateTextureHnd(image->GetBytes(), image->GetDataSize(),
-                       image->GetFormat(), image->GetSize(), params);
+                       image->GetFormat(), image->GetSize(), params,
+                       image->GetRowAlignment(), image->GetStrideInPixels());
   const GLenum target = params.is_cubemap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
   const auto texture_flags = params.generate_mipmaps ? Texture::kHasMipMaps : 0;
   texture->Init(hnd, target, image->GetSize(), texture_flags);

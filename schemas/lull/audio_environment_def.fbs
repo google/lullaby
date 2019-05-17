@@ -36,7 +36,7 @@ table AudioEnvironmentDef {
   /// Whether or not to use this environment as soon as it is created.
   enable_on_create: bool = false;
   room_dimensions: Vec3;
-  reflection_scalar: float;
+  reflection_scalar: float (deprecated);
   reverb_brightness_modifier: float;
   reverb_gain: float;
   reverb_time: float;

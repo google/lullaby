@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,10 +31,36 @@ const int kAnimListIndex = 0;
 }  // namespace
 
 AnimationAsset::AnimationAsset()
-    : Asset(), rig_anim_(nullptr), anim_table_(nullptr), num_splines_(0) {}
+    : Asset(),
+      is_finalized_(false),
+      error_(kErrorCode_Ok),
+      rig_anim_(nullptr),
+      anim_table_(nullptr),
+      num_splines_(0) {}
 
-void AnimationAsset::OnFinalize(const std::string& filename,
-                                std::string* data) {
+AnimationAsset::AnimationAsset(DataContainer splines, size_t num_splines,
+                               std::shared_ptr<void> context)
+    : Asset(),
+      is_finalized_(true),
+      error_(kErrorCode_Ok),
+      context_(std::move(context)),
+      rig_anim_(nullptr),
+      anim_table_(nullptr),
+      spline_buffer_(std::move(splines)),
+      num_splines_(num_splines) {}
+
+AnimationAsset::AnimationAsset(std::unique_ptr<motive::RigAnim> anim,
+                               std::shared_ptr<void> context)
+    : Asset(),
+      is_finalized_(true),
+      error_(kErrorCode_Ok),
+      context_(std::move(context)),
+      rig_anim_(std::move(anim)),
+      anim_table_(nullptr),
+      num_splines_(0) {}
+
+ErrorCode AnimationAsset::OnLoadWithError(const std::string& filename,
+                                          std::string* data) {
   if (filename.find(".motiveanim") != std::string::npos) {
     rig_anim_ = MakeUnique<motive::RigAnim>();
     const motive::RigAnimFb* src = motive::GetRigAnimFb(data->data());
@@ -47,6 +73,7 @@ void AnimationAsset::OnFinalize(const std::string& filename,
     if (src) {
       if (!anim_table_->InitFromFlatBuffers(*src, nullptr /* load_fn */)) {
         LOG(ERROR) << "Failed to load anim table";
+        return kErrorCode_Internal;
       }
     }
   } else {
@@ -55,8 +82,31 @@ void AnimationAsset::OnFinalize(const std::string& filename,
     if (src) {
       if (!GetSplinesFromFlatBuffers(src)) {
         LOG(DFATAL) << "Error processing file" << filename;
+        return kErrorCode_Internal;
       }
     }
+  }
+  return kErrorCode_Ok;
+}
+
+void AnimationAsset::OnFinalize(const std::string& filename,
+                                std::string* data) {
+  is_finalized_ = true;
+  error_ = kErrorCode_Ok;
+  CallAndRemoveFinalizers();
+}
+
+void AnimationAsset::OnError(const std::string& filename, ErrorCode error) {
+  is_finalized_ = true;
+  error_ = error;
+  CallAndRemoveFinalizers();
+}
+
+void AnimationAsset::AddFinalizedCallback(FinalizeCallback finalize_callback) {
+  if (is_finalized_) {
+    finalize_callback(error_);
+  } else {
+    finalize_callbacks_.emplace_back(std::move(finalize_callback));
   }
 }
 
@@ -84,16 +134,17 @@ bool AnimationAsset::GetSplinesFromFlatBuffers(
   }
 
   buffer_size *= 2;  // Double the buffer size to allow for spline smoothing.
-  spline_buffer_.resize(buffer_size);
+  spline_buffer_ = DataContainer::CreateHeapDataContainer(buffer_size);
 
   // Convert the CompactSplineAnimFloatFb* array into a CompactSpline array.
-  uint8_t* iter = spline_buffer_.data();
+  uint8_t* iter = spline_buffer_.GetData();
   for (int i = 0; i < num_splines_; ++i) {
     const motive::CompactSplineFloatFb* spline = src->splines()->Get(i);
     const motive::CompactSpline* cs = CreateCompactSpline(spline, iter);
     if (cs) {
       iter += cs->Size();
       buffer_size -= static_cast<int>(cs->Size());
+      spline_buffer_.Advance(cs->Size());
     }
   }
   if (buffer_size < 0) {
@@ -138,11 +189,12 @@ motive::CompactSpline* AnimationAsset::CreateCompactSpline(
 }
 
 const motive::CompactSpline* AnimationAsset::GetCompactSpline(int idx) const {
-  if (spline_buffer_.empty()) {
+  if (spline_buffer_.GetSize() == 0) {
     return nullptr;
   }
   const motive::CompactSpline* splines =
-      reinterpret_cast<const motive::CompactSpline*>(spline_buffer_.data());
+      reinterpret_cast<const motive::CompactSpline*>(
+      spline_buffer_.GetReadPtr());
   return splines->NextAtIdx(idx);
 }
 
@@ -154,8 +206,8 @@ void AnimationAsset::GetSplinesAndConstants(
     if (rig_anim->NumBones() > 0) {
       const motive::BoneIndex root_bone_index = 0;
       // Pull splines and constant values from the RigAnim for the root bone.
-      rig_anim->GetSplinesAndConstants(root_bone_index, ops, dimensions, splines,
-                                        constants);
+      rig_anim->GetSplinesAndConstants(root_bone_index, ops, dimensions,
+                                       splines, constants);
     } else {
       LOG(ERROR) << "Rigged animations must contain at least one bone.";
     }
@@ -170,7 +222,7 @@ void AnimationAsset::GetSplinesAndConstants(
   }
 }
 
-int AnimationAsset::GetNumCompactSplines() const { return num_splines_; }
+size_t AnimationAsset::GetNumCompactSplines() const { return num_splines_; }
 
 int AnimationAsset::GetNumRigAnims() const {
   if (rig_anim_) {
@@ -190,6 +242,13 @@ const motive::RigAnim* AnimationAsset::GetRigAnim(int index) const {
     return anim_table_->Query(kAnimListIndex, index);
   }
   return nullptr;
+}
+
+void AnimationAsset::CallAndRemoveFinalizers() {
+  for (const auto& finalize_callback : finalize_callbacks_) {
+    finalize_callback(error_);
+  }
+  finalize_callbacks_.clear();
 }
 
 }  // namespace lull

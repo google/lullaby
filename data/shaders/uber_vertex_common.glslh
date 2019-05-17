@@ -1,6 +1,38 @@
-// Implements shared shader features that can be toggled by define flags.
+/* Implements shared shader features that can be toggled by define flags. The
+ * public functions are available no matter the defines, but will have
+ * trivial/no-op behavior if the flag is off. Any combination of flags is
+ * acceptable, except only one *TEX_COORD* flag is needed.
+ *
+ * Flags:
+ *   BATCHED_INDICES
+ *     Required for batching as implemented by BatchRenderSystem.
+ *   CLIP_REGION
+ *     Required for clipping as implemented by ShaderClipSystem.
+ *   TEX_COORD
+ *     Outputs vTexCoord from aTexCoord.
+ *   TEX_COORD_ALT
+ *     Outputs vTexCoordAlt from aTexCoordAlt as well as the above.
+ *   NINE_PATCH_TEX_COORD_ALT
+ *     Same as TEX_COORD_ALT.
+ *   UV_BOUNDS
+ *     Applies uv_bounds to the TexCoord returned by GetVTexCoord() in the
+ *     fragment shader. If TEX_COORD this is vTexCoord, for the other 2 it is
+ *     vTexCoordAlt.
+ *
+ * Functions:
+ *   InitVertexShading()
+ *     Applies all of the above features as well as gl_position.
+ *
+ * Most vertex shaders just need to call InitVertexShading() to use these
+ * features, but the following functions are public if custom behavior is
+ * desired:
+ *   GetPosition()
+ *     Get aPosition, as modified by BatchRenderSystem.
+ *   GetBoundedTexCoord(vec2)
+ *     Returns vec2 after applying clamp_bounds.
+ */
 
-#include "third_party/lullaby/data/shaders/vertex_common.glslh"
+#include "lullaby/data/shaders/vertex_common.glslh"
 
 STAGE_INPUT vec4 aPosition;
 
@@ -22,7 +54,7 @@ void SetBatchedUniforms() {
   vClampBounds = clamp_bounds[GET_INDEX];
   vColor = colors[GET_INDEX];
 }
-#else  // BATCHED_INDICES
+#else   // BATCHED_INDICES
 #define MAX_INSTANCES 1
 
 #define GET_INDEX 0
@@ -30,14 +62,14 @@ vec4 GetPosition() { return aPosition; }
 void SetBatchedUniforms() {}
 #endif  // BATCHED_INDICES
 
-#if defined(TEX_COORD) || defined(NINE_PATCH_TEX_COORD_ALT)
+#if defined(TEX_COORD) || defined(TEX_COORD_ALT) || defined(NINE_PATCH_TEX_COORD_ALT)
 #ifdef UV_BOUNDS
 uniform vec4 uv_bounds[MAX_INSTANCES];
 
 vec2 GetBoundedTexCoord(vec2 tex_coord) {
   return uv_bounds[GET_INDEX].xy + tex_coord * uv_bounds[GET_INDEX].zw;
 }
-#else  // UV_BOUNDS
+#else   // UV_BOUNDS
 vec2 GetBoundedTexCoord(vec2 tex_coord) { return tex_coord; }
 #endif  // UV_BOUNDS
 
@@ -47,7 +79,7 @@ STAGE_OUTPUT highp vec2 vTexCoord;
 // By default, normalized vTexCoord is used for texture lookup. With nine patch,
 // vTexCoordAlt is used for texture lookup instead and vTexCoord is used for
 // edge detection for antialiasing.
-#ifdef NINE_PATCH_TEX_COORD_ALT
+#if defined(TEX_COORD_ALT) || defined(NINE_PATCH_TEX_COORD_ALT)
 STAGE_INPUT vec2 aTexCoordAlt;
 STAGE_OUTPUT highp vec2 vTexCoordAlt;
 
@@ -55,14 +87,14 @@ void SetVTexCoord() {
   vTexCoord = aTexCoord;
   vTexCoordAlt = GetBoundedTexCoord(aTexCoordAlt);
 }
-#else  // NINE_PATCH_TEX_COORD_ALT
+#else   // TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
 void SetVTexCoord() {
   vTexCoord = GetBoundedTexCoord(aTexCoord);
 }
-#endif  // NINE_PATCH_TEX_COORD_ALT
-#else  // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+#endif  // TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
+#else   // TEX_COORD || TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
 void SetVTexCoord() {}
-#endif  // TEX_COORD || NINE_PATCH_TEX_COORD_ALT
+#endif  // TEX_COORD || TEX_COORD_ALT || NINE_PATCH_TEX_COORD_ALT
 
 #ifdef CLIP_REGION
 uniform mat4 clip_region_from_model_space_matrix[MAX_INSTANCES];
@@ -77,7 +109,7 @@ void SetBatchedClipUniforms() {
   vMinInClipRegionSpace = min_in_clip_region_space[GET_INDEX];
   vMaxInClipRegionSpace = max_in_clip_region_space[GET_INDEX];
 }
-#else  // BATCHED_INDICES
+#else   // BATCHED_INDICES
 void SetBatchedClipUniforms() {}
 #endif  // BATCHED_INDICES
 
@@ -88,7 +120,7 @@ void SetClipPosition() {
     (clip_region_from_model_space_matrix[GET_INDEX] * aPosition).xyz;
   SetBatchedClipUniforms();
 }
-#else  // CLIP_REGION
+#else   // CLIP_REGION
 void SetClipPosition() {}
 #endif  // CLIP_REGION
 

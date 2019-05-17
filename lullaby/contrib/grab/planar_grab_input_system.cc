@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ PlanarGrabInputSystem::PlanarGrabInputSystem(Registry* registry)
   RegisterDependency<InputProcessor>(this);
   RegisterDependency<InputFocusLocker>(this);
   RegisterDependency<TransformSystem>(this);
-  RegisterDef(this, kPlanarGrabInputDef);
+  RegisterDef<PlanarGrabInputDefT>(this);
 }
 
 void PlanarGrabInputSystem::Create(Entity entity, HashValue type,

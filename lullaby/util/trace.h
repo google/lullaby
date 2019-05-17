@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,5 +20,6 @@ limitations under the License.
 #define LULLABY_CPU_TRACE_CALL()
 #define LULLABY_CPU_TRACE(name)
 #define LULLABY_CPU_TRACE_INT(name, value)
+#define LULLABY_CPU_TRACE_FORMAT(format, ...)
 
 #endif  // LULLABY_UTIL_TRACE_H_

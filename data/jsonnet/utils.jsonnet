@@ -5,6 +5,9 @@
   // Convenience constructor for a lull.Vec3.
   vec3(x_, y_, z_):: { x: x_, y: y_, z: z_ },
 
+  // Convenience constructor for a lull.Vec4.
+  vec4(x_, y_, z_, w_):: { x: x_, y: y_, z: z_, w: w_ },
+
   // Convenience constructor for a lull.Rect.
   rect(x_, y_, w_, h_):: { x: x_, y: y_, w: w_, h: h_ },
 
@@ -15,6 +18,17 @@
   // else outputs the given default value.
   select(default_value, obj, field)::
     if std.objectHas(obj, field) then obj[field] else default_value,
+
+  // Generates a dictionary from a field in object, if the field exists. The key
+  // in the dictionary is the same as the field name in obj. This is typically
+  // used to fill in arguments of defs with optional parameters, e.g.
+  // {
+  //   def_type: 'NameDef',
+  //   def: utils.dict_from_field(args, 'name'),
+  // }
+  // so we don't need to specify default values (e.g. 'name' here) in jsonnet.
+  dict_from_field(obj, field)::
+    if std.objectHas(obj, field) then {[field]: obj[field]} else {},
 
   // Hash function based on lull::Hash.
   hash(str_)::

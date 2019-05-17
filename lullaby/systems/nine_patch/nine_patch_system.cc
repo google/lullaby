@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/render/mesh_data.h"
-#include "lullaby/systems/layout/layout_box_system.h"
+#include "lullaby/contrib/layout/layout_box_system.h"
 #include "lullaby/systems/render/render_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/logging.h"
@@ -27,22 +27,29 @@ limitations under the License.
 
 namespace lull {
 
-static const HashValue kNinePatchDefHash = ConstHash("NinePatchDef");
+constexpr HashValue kNinePatchDefHash = ConstHash("NinePatchDef");
 
 NinePatchSystem::NinePatchSystem(Registry* registry)
     : System(registry), nine_patches_(16) {
-  RegisterDef(this, kNinePatchDefHash);
+  RegisterDef<NinePatchDefT>(this);
   RegisterDependency<RenderSystem>(this);
+  RegisterDependency<Dispatcher>(this);
+}
 
+NinePatchSystem::~NinePatchSystem() {
+  // The Dispatcher might have been destroyed before this system, so we need
+  // to check the pointer before using it.
+  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
+  if (dispatcher) {
+    dispatcher->DisconnectAll(this);
+  }
+}
+
+void NinePatchSystem::Initialize() {
   Dispatcher* dispatcher = registry_->Get<Dispatcher>();
   dispatcher->Connect(this, [this](const DesiredSizeChangedEvent& event) {
     OnDesiredSizeChanged(event);
   });
-}
-
-NinePatchSystem::~NinePatchSystem() {
-  Dispatcher* dispatcher = registry_->Get<Dispatcher>();
-  dispatcher->DisconnectAll(this);
 }
 
 void NinePatchSystem::Create(Entity entity, DefType type, const Def* def) {

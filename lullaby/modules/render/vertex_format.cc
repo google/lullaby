@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #include "lullaby/modules/render/vertex_format.h"
+
+#include <ostream>
 
 #include "lullaby/util/logging.h"
 
@@ -95,6 +97,10 @@ bool VertexFormat::operator==(const VertexFormat& rhs) const {
   return true;
 }
 
+bool VertexFormat::operator!=(const VertexFormat& rhs) const {
+  return !(*this == rhs);
+}
+
 size_t VertexFormat::GetAttributeSize(const VertexAttribute& attr) {
   switch (attr.type()) {
     case VertexAttributeType_Scalar1f:
@@ -115,6 +121,15 @@ size_t VertexFormat::GetAttributeSize(const VertexAttribute& attr) {
       LOG(DFATAL) << "Unsupported attrib type: " << attr.type();
       return 0;
   }
+}
+
+std::ostream& operator<<(std::ostream& os, const VertexFormat& vf) {
+  for (size_t i = 0; i < vf.GetNumAttributes(); ++i) {
+    const auto* attribute = vf.GetAttributeAt(i);
+    os << i << ": " << EnumNameVertexAttributeType(attribute->type()) << " "
+       << EnumNameVertexAttributeUsage(attribute->usage()) << std::endl;
+  }
+  return os;
 }
 
 }  // namespace lull

@@ -17,6 +17,7 @@ cc_library(
         "//:fbs",
         "//lullaby/modules/file",
         "//lullaby/modules/flatbuffers",
+        "//lullaby/util:flatbuffer_reader",
         "//lullaby/util:registry",
         "//lullaby/util:string_view",
         "//lullaby/util:typeid",

@@ -31,13 +31,16 @@ table PhysicsStaticPlaneShape {
   distance: float = 0.0;
 }
 
-// TODO(b/63892653): add mesh collision shape.
+/// A mesh shape. Loads the mesh data from a ModelAssetDef on the same entity.
+table PhysicsMeshShape {
+}
 
 /// Defines the types of primitive shapes that the simulation supports.
 union PhysicsShapePrimitive {
   PhysicsBoxShape,
   PhysicsSphereShape,
   PhysicsStaticPlaneShape,
+  PhysicsMeshShape,
 }
 
 /// Wraps a primitive collision shape and a transformation to apply to it. The

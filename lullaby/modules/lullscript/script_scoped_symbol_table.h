@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ namespace lull {
 class ScriptScopedSymbolTable {
  public:
   ScriptScopedSymbolTable();
+  explicit ScriptScopedSymbolTable(const ScriptScopedSymbolTable& other);
 
   // Sets a value associated with the symbol.  If there is no binding for
   // the symbol, a new binding will be introduce in the current scope.

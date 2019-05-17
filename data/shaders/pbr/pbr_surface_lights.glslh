@@ -1,14 +1,14 @@
-#ifndef THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_GLSLH_
-#define THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_GLSLH_
+#ifndef LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_GLSLH_
+#define LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_GLSLH_
 
 /// A port of Unity's Standard PBR surface shader, limited to directional
 /// lights.
 
-#include "third_party/lullaby/data/shaders/fragment_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/math_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/pbr_surface_common.glslh"
-#include "third_party/lullaby/data/shaders/pbr/rgb2hsv.glslh"
-#include "third_party/lullaby/data/shaders/pbr/specular_conversions.glslh"
+#include "lullaby/data/shaders/fragment_common.glslh"
+#include "lullaby/data/shaders/pbr/math_common.glslh"
+#include "lullaby/data/shaders/pbr/pbr_surface_common.glslh"
+#include "lullaby/data/shaders/pbr/rgb2hsv.glslh"
+#include "lullaby/data/shaders/pbr/specular_conversions.glslh"
 
 #define CLAMP_LIGHT_OUTPUT 1
 
@@ -91,4 +91,4 @@ vec3 LightShader(
   return out_color;
 }
 
-#endif  // THIRD_PARTY_LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_H_
+#endif  // LULLABY_DATA_SHADERS_PBR_PBR_SURFACE_LIGHTS_H_

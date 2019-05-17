@@ -37,6 +37,9 @@ table TrackHmdDef {
   /// Apply scale to Euler rotation (x: pitch, y: yaw, z: roll).  This is useful
   /// for mirroring (-1) or fixing (0) individual axes of rotation.
   euler_scale: Vec3 (native_default:"{1.0f, 1.0f, 1.0f}");
+
+  /// Set to false to pause updating the entity's transform.
+  resumed: bool = true;
 }
 
 root_type TrackHmdDef;

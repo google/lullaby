@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ struct ParserCallbacks {
     kHashValue,  // A hash of a string literal that was prefixed with a colon.
     kString,     // A literal string constant (eg. text enclosed in either
                  // single- or double-quotes.
+    kNull,       // The special symbol "null" representing an empty value.
     kSymbol,     // A hash of a string literal, basically anything that isn't
                  // one of the above.
   };

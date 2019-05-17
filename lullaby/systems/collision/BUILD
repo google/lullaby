@@ -11,6 +11,7 @@ cc_library(
         "collision_system.cc",
     ],
     hdrs = [
+        "collision_provider.h",
         "collision_system.h",
     ],
     deps = [
@@ -20,6 +21,8 @@ cc_library(
         "//lullaby/modules/flatbuffers",
         "//lullaby/systems/dispatcher",
         "//lullaby/systems/transform",
+        "//lullaby/util:entity",
+        "//lullaby/util:hash",
         "//lullaby/util:logging",
         "//lullaby/util:math",
     ],

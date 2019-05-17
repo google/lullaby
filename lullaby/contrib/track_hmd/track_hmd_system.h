@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@ limitations under the License.
 #ifndef LULLABY_CONTRIB_TRACK_HMD_TRACK_HMD_SYSTEM_H_
 #define LULLABY_CONTRIB_TRACK_HMD_TRACK_HMD_SYSTEM_H_
 
-#include "mathfu/glsl_mappings.h"
+#include <functional>
+
 #include "lullaby/modules/ecs/component.h"
 #include "lullaby/modules/ecs/system.h"
 #include "lullaby/util/clock.h"
+#include "lullaby/util/math.h"
+#include "mathfu/glsl_mappings.h"
 
 namespace lull {
 
@@ -36,6 +39,21 @@ class TrackHmdSystem : public System {
 
   void AdvanceFrame(const Clock::duration& delta_time);
 
+  // Allow an extra transform to be applied to the target entity in addition to
+  // HMD transform. The transform will be applied to the left side of existing
+  // world_from_head transform, before any options (mirror etc.) are applied.
+  void SetExtraHmdTransformFn(
+      Entity entity,
+      const std::function<mathfu::mat4()>& hmd_extra_transform_fn);
+
+  // Pause entity transform updates for a given entity. Does nothing if the
+  // entity doesn't have a tracker in the ComponentPool.
+  void PauseTracker(Entity entity);
+
+  // Resumes tracking for a previously paused entity. Does nothing if the
+  // entity doesn't have a tracker in the ComponentPool.
+  void ResumeTracker(Entity entity);
+
  private:
   struct Tracker : Component {
     explicit Tracker(Entity entity) : Component(entity) {}
@@ -47,6 +65,8 @@ class TrackHmdSystem : public System {
     float convergence_trans_rate;
     float convergence_max_rot_rad;
     float convergence_max_trans;
+    std::function<mathfu::mat4()> hmd_extra_transform_fn;
+    bool resumed = true;
   };
 
   void UpdateTracker(const Clock::duration& delta_time,

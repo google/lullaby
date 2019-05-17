@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ limitations under the License.
 #include "lullaby/util/clock.h"
 #include "lullaby/util/hash.h"
 #include "lullaby/util/registry.h"
+#include "lullaby/util/span.h"
 #include "motive/matrix_op.h"
 #include "motive/motivator.h"
 #include "motive/rig_anim.h"
@@ -41,20 +42,34 @@ namespace lull {
 // passed to the AnimationChannel's virtual |Set| function which is overridden
 // such that the data is passed to the correct Component for the associated
 // Entity.
+//
+// Animation channels can specify an exact number of dimensions that they
+// animate, or 0 if they can animate a flexible number of dimensions. For
+// example, a channel that animates a 3D position (x/y/z) should use a dimension
+// of 3, but a channel animating an arbitrary list of floats should use 0.
+//
+// Users of the AnimationSystem will typically never interact with
+// AnimationChannels directly, other than creating their own channels and
+// implementing Set() and Get(). The public AnimationChannel APIs should not be
+// called by any code other than the AnimationSystem.
 class AnimationChannel {
  public:
-  static const size_t kMaxDimensions = 6;
+  static const size_t kDynamicDimensions;
 
-  AnimationChannel(Registry* registry, int num_dimensions, size_t pool_size);
+  AnimationChannel(Registry* registry, size_t num_dimensions, size_t pool_size);
   virtual ~AnimationChannel() {}
 
-  // Specifies the number of elements being animated by the motivator.  (For
-  // example a 3D position animation has 3 dimensions: x, y, and z.)
-  size_t GetDimensions() const { return dimensions_; }
+  // Returns true if this channel can support an animation with a specific
+  // number of |dimensions|.
+  bool IsDimensionSupported(size_t dimension) const {
+    return dimensions_ == kDynamicDimensions || dimensions_ >= dimension;
+  }
 
-  // Initializes the underlying motive "motivators" to play animations as
-  // defined by the |init_data|.
-  void Init(Entity entity, motive::MotiveEngine* engine, const void* init_data);
+  // Specifies the number of elements being animated by the motivator.  (For
+  // example a 3D position animation has 3 dimensions: x, y, and z).  A value
+  // of kDynamicDimensions indicates that this channel can use a different
+  // dimension for each animation it runs.
+  size_t GetDimensions() const { return dimensions_; }
 
   // Copies all the data from the Motivator into the Component.  Updates the
   // |completed| vector with information about Animations that have completed.
@@ -74,21 +89,23 @@ class AnimationChannel {
   // of which are of size |length|.  For each dimension, the associated spline
   // is used, unless it is NULL in which case the associated constant value is
   // set.  |params| and |modifiers| can be specified to provide extra control of
-  // how the animation is played.  Returns the AnimationId of the previously
+  // how the animation is played.  |context| will be supplied to the Set()
+  // implementation if non-null. Returns the AnimationId of the previously
   // running animation, or kNullAnimation if no animation was active.
   AnimationId Play(Entity e, motive::MotiveEngine* engine, AnimationId id,
                    const motive::CompactSpline* const* splines,
                    const float* constants, size_t length,
                    const PlaybackParameters& params,
-                   const SplineModifiers& modifiers);
+                   const SplineModifiers& modifiers, const void* context);
 
   // Plays a new animation (with the given |id|) on the |entity|.  The animation
   // is specified by the |rig_anim|.  |params| can be specified to provide extra
-  // control of how the animation is played.  Returns the AnimationId of the
+  // control of how the animation is played.  |context| will be supplied to
+  // the SetRig() implementation if non-null. Returns the AnimationId of the
   // previously running animation, or kNullAnimation if no animation was active.
   AnimationId Play(Entity e, motive::MotiveEngine* engine, AnimationId id,
                    const motive::RigAnim* rig_anim,
-                   const PlaybackParameters& params);
+                   const PlaybackParameters& params, const void* context);
 
   // Stops animation playback on this channel for the specified |entity| and
   // returns its AnimationId, or kNullAnimation if no animation was active.
@@ -98,8 +115,15 @@ class AnimationChannel {
   // |rate| multiplies the animation's natural timestep.
   void SetPlaybackRate(Entity entity, float rate);
 
+  // Sets the looping state on an active animation on |entity|'s |channel|.
+  // If true, the animation will loop on completion.
+  void SetLooping(Entity entity, bool looping);
+
   // Returns true if the channel uses the rig_motivator.
   virtual bool IsRigChannel() const { return false; }
+
+  // Returns true if the channel uses an animation context object.
+  virtual bool UsesAnimationContext() const { return false; }
 
   // Gets the array of operations (e.g. scale-x, rotate-z, translate-y, etc.)
   // to pull from the underlying animation, or NULL if no operations supported.
@@ -122,10 +146,13 @@ class AnimationChannel {
   struct Animation : Component {
     explicit Animation(Entity entity) : Component(entity) {}
 
+    const void* context = nullptr;
     motive::MotivatorNf motivator;
     motive::RigMotivator rig_motivator;
-    float base_offset[kMaxDimensions] = {0.f};
-    float multiplier[kMaxDimensions] = {0.f};
+    std::vector<float> base_offset;
+    std::vector<float> multiplier;
+    // A pre-allocated scratchpad for copying data to and from Motive.
+    std::vector<float> scratch;
     motive::MotiveTime total_time = 0;
     AnimationId id = kNullAnimation;
   };
@@ -138,27 +165,51 @@ class AnimationChannel {
   bool IsComplete(const Animation& anim) const;
 
   // Prepares an Animation to be played on the |entity| using the provided
-  // motive |engine| and |init_data|.  Returns the instantiated Animation
+  // motive |engine| and |dimensions|. Returns the instantiated Animation
   // for that |entity|, or the previously instantiated Animation for the
-  // |entity|.
-  virtual Animation* DoInitialize(Entity entity, motive::MotiveEngine* engine,
-                                  const void* init_data);
+  // |entity|. Should only be called on non-rig channels.
+  Animation* DoInitialize(Entity entity, motive::MotiveEngine* engine,
+                          size_t dimensions, const void* context);
 
-  // Gets Component data for this channel (an array of floats) associated with
-  // the Entity.
+  // Prepares an Animation to be played on the |entity| using the provided
+  // motive |engine| and |rig_anim|. Returns the instantiated Animation
+  // for that |entity|, or the previously instantiated Animation for the
+  // |entity|. Should only be called on rig channels.
+  Animation* DoInitialize(Entity entity, motive::MotiveEngine* engine,
+                          const motive::RigAnim* rig_anim);
+
+  // Gets the Component data for this channel for |entity| as an array of
+  // floats.
   virtual bool Get(Entity entity, float* values, size_t len) const;
 
-  // Sets Component data for this channel (an array of floats) associated with
-  // the Entity.
+  // Gets the Component data for this channel for |entity| as an array of
+  // floats, providing an additional |context| object necessary for
+  // interpreting the data.
+  virtual bool Get(Entity entity, float* values, size_t len,
+                   const void* context) const;
+
+  // Sets the Component data for this channel for |entity| as an array of
+  // floats.
   virtual void Set(Entity entity, const float* values, size_t len) = 0;
 
-  // Sets the rig data associated with the Entity.  Valid only for rig channels.
+  // Sets the Component data for this channel for |entity| as an array of
+  // floats, providing an additional |context| object necessary for
+  // interpreting the data.
+  virtual void Set(Entity entity, const float* values, size_t len,
+                   const void* context);
+
+  // Sets the rig data associated with |entity|.
   virtual void SetRig(Entity entity, const mathfu::AffineTransform* values,
                       size_t len);
 
+  // Sets the rig data associated with |entity|, providing an additional context
+  // object necessary for interpreting the data.
+  virtual void SetRig(Entity entity, const mathfu::AffineTransform* values,
+                      size_t len, const void* context);
+
   Registry* registry_;
   ComponentPool<Animation> anims_;
-  int dimensions_;
+  size_t dimensions_;
 };
 
 using AnimationChannelPtr = std::unique_ptr<AnimationChannel>;

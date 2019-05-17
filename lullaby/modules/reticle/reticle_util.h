@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ bool GetReticleIntersectionPoint(Registry* registry, Entity entity,
 /// Computes the relative mathfu::vec3 that was touched by the reticle on the
 /// passed in Entity.  Returns true if the registry contains a TransformSystem
 /// and is passed non-null Entities for the reticle and target.
-// TODO(b/71361065) Remove this function when slider_system is refactored.
+// TODO Remove this function when slider_system is refactored.
 bool GetReticleRelativeHitPoint(Registry* registry,
                                 Entity reticle,
                                 Entity entity,

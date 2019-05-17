@@ -30,6 +30,7 @@ lullaby_example(
         "android",
         "desktop",
         "daydream",
+        "ios",
     ],
     deps = [
         ":entity_library",

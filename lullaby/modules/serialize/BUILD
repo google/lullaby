@@ -16,6 +16,7 @@ cc_library(
     deps = [
         "//lullaby/util:clock",
         "//lullaby/util:common_types",
+        "//lullaby/util:entity",
         "//lullaby/util:hash",
         "//lullaby/util:logging",
         "//lullaby/util:string_view",

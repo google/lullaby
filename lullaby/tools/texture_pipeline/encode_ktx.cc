@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ class KtxUncompressedImage : public KtxImage {
 
 KtxUncompressedImage::KtxUncompressedImage(const ImageData& src)
     : image_data_(src) {
-  // TODO(gavindodd): handle mips and cube map
+  // TODO: handle mips and cube map
   KTX_image_info image_info;
   image_info.data = const_cast<GLubyte*>(src.GetBytes());
   image_info.size = src.GetDataSize();
@@ -114,7 +114,7 @@ uint32_t KtxUncompressedImage::GlType() const {
 // e.g. GLRGBA32F uses 32 bit floats so type size is 4
 // https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/#2.4
 uint32_t KtxUncompressedImage::GlTypeSize() const {
-  // TODO(gavindodd): use GlType(image_data_.GetFormat()) to make more robust?
+  // TODO to make more robust?
   switch (image_data_.GetFormat()) {
     case ImageData::kAlpha:
     case ImageData::kLuminance:
@@ -140,11 +140,11 @@ uint32_t KtxUncompressedImage::GlTypeSize() const {
 uint32_t KtxUncompressedImage::GlFormat() const {
   switch (image_data_.GetFormat()) {
     case ImageData::kAlpha:
-      return GL_RED;  // TODO(gavindodd): Handle GLES
+      return GL_RED;  // TODO: Handle GLES
     case ImageData::kLuminance:
-      return GL_RED;  // TODO(gavindodd): Handle GLES
+      return GL_RED;  // TODO: Handle GLES
     case ImageData::kLuminanceAlpha:
-      return GL_RG;  // TODO(gavindodd): Handle GLES
+      return GL_RG;  // TODO: Handle GLES
     case ImageData::kRgb888:
     case ImageData::kRgb565:
       return GL_RGB;
@@ -166,11 +166,11 @@ uint32_t KtxUncompressedImage::GlFormat() const {
 uint32_t KtxUncompressedImage::GlInternalFormat() const {
   switch (image_data_.GetFormat()) {
     case ImageData::kAlpha:
-      return GL_R8;  // TODO(gavindodd): Handle GLES
+      return GL_R8;  // TODO: Handle GLES
     case ImageData::kLuminance:
-      return GL_R8;  // TODO(gavindodd): Handle GLES
+      return GL_R8;  // TODO: Handle GLES
     case ImageData::kLuminanceAlpha:
-      return GL_RG8;  // TODO(gavindodd): Handle GLES
+      return GL_RG8;  // TODO: Handle GLES
     case ImageData::kRgb888:
       return GL_RGB8;
     case ImageData::kRgba8888:
@@ -204,15 +204,15 @@ uint32_t KtxUncompressedImage::PixelHeight() const {
 uint32_t KtxUncompressedImage::PixelDepth() const { return 0; }
 
 uint32_t KtxUncompressedImage::NumberOfArrayElements() const {
-  // TODO(gavindodd): support array images
+  // TODO: support array images
   return 1;
 }
 uint32_t KtxUncompressedImage::NumberOfFaces() const {
-  // TODO(gavindodd): support cube map images
+  // TODO: support cube map images
   return 1;
 }
 uint32_t KtxUncompressedImage::NumberOfMipmapLevels() const {
-  // TODO(gavindodd): support mip map images
+  // TODO: support mip map images
   return 1;
 }
 

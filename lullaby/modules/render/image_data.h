@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ class ImageData {
     kAlpha,           // Single-component alpha image, 8 bits per pixel.
     kLuminance,       // Single-component luminance image, 8 bits per pixel.
     kLuminanceAlpha,  // Two-component luminance+alpha image, 8 bits each.
+    kRg88,            // RG color image, 8 bits each.
     kRgb888,          // RGB color image, 8 bits each.
     kRgba8888,        // RGBA color image, 8 bits each.
     kRgb565,          // RGB color image, 5 bits red and blue, 6 bits green.
@@ -65,6 +66,13 @@ class ImageData {
 
   // Returns the number of bytes between consecutive rows of pixels.
   size_t GetStride() const { return stride_; }
+
+  // Returns the stride in pixels. That is the number of pixels per row,
+  // including image padding unused as part of the image.
+  int GetStrideInPixels() const;
+
+  // Returns the alignment per row of pixel data.
+  int GetRowAlignment() const;
 
   // Gets a const pointer to the image data as bytes. Returns nullptr if
   // the image DataContainer does not have read access.

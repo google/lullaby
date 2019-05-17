@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,6 +39,9 @@ class FunctionBinder {
  public:
   explicit FunctionBinder(Registry* registry);
 
+  // Create and register a new FunctionBinder in the Registry.
+  static FunctionBinder* Create(Registry* registry);
+
   // Registers a function with a name. Overloading function names is not
   // supported.
   template <typename Fn>
@@ -73,8 +76,8 @@ class FunctionBinder {
 
   template <typename NativeFunction>
   struct TypedFunctionWrapper : public FunctionWrapper {
-    TypedFunctionWrapper(std::string name, NativeFunction fn)
-        : name(std::move(name)), fn(std::move(fn)) {}
+    TypedFunctionWrapper(string_view name, NativeFunction fn)
+        : name(name), fn(std::move(fn)) {}
 
     void Call(FunctionCall* call) override {
       CallNativeFunction(call, name.c_str(), fn);
@@ -101,12 +104,12 @@ void FunctionBinder::RegisterFunction(string_view name, Fn function) {
   }
 
   auto ptr =
-      new TypedFunctionWrapper<Fn>(name.to_string(), std::move(function));
+      new TypedFunctionWrapper<Fn>(name, std::move(function));
   functions_.emplace(id, std::unique_ptr<FunctionWrapper>(ptr));
 
   auto* script_engine = registry_->Get<ScriptEngine>();
   if (script_engine) {
-    script_engine->RegisterFunction(name.to_string(), ptr->fn);
+    script_engine->RegisterFunction(std::string(name), ptr->fn);
   }
 #endif
 }

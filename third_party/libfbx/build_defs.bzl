@@ -1,3 +1,5 @@
+"""Contents of libfbx BUILD file used by local_repository_env rule."""
+
 FBX_BUILD_FILE_CONTENTS = """
 package(
     default_visibility = ["//visibility:public"],

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #include "lullaby/util/string_view.h"
 
 #include <sstream>
+#include <type_traits>
 #include <unordered_map>
 
 #include "gtest/gtest.h"
@@ -76,11 +77,9 @@ TEST(StringViewTest, Iteration) {
 
 TEST(StringViewTest, ToString) {
   string_view str;
-  EXPECT_EQ(std::string(""), str.to_string());
+  EXPECT_EQ(std::string(""), std::string(str));
   str = "abc";
-  EXPECT_EQ(std::string("abc"), str.to_string());
-  std::string string = (std::string) str;
-  EXPECT_EQ(std::string("abc"), string);
+  EXPECT_EQ(std::string("abc"), std::string(str));
 }
 
 TEST(StringViewTest, SubStr) {
@@ -127,6 +126,28 @@ TEST(StringViewTest, Hash) {
   map[test2] = 5;
   EXPECT_EQ(map[test2], 5);
   EXPECT_EQ(map[test1], 5);
+}
+
+TEST(StringViewTest, Add) {
+  string_view view = "View";
+  std::string str = "String";
+  const char* chars = "Chars";
+  auto view_str = view + str;
+  auto str_view = str + view;
+  auto view_chars = view + chars;
+  auto chars_view = chars + view;
+  bool view_str_same = std::is_same<decltype(view_str), std::string>::value;
+  bool str_view_same = std::is_same<decltype(str_view), std::string>::value;
+  bool view_chars_same = std::is_same<decltype(view_chars), std::string>::value;
+  bool chars_view_same = std::is_same<decltype(chars_view), std::string>::value;
+  EXPECT_TRUE(view_str_same);
+  EXPECT_TRUE(str_view_same);
+  EXPECT_TRUE(view_chars_same);
+  EXPECT_TRUE(chars_view_same);
+  EXPECT_EQ(view_str, std::string("ViewString"));
+  EXPECT_EQ(str_view, std::string("StringView"));
+  EXPECT_EQ(view_chars, std::string("ViewChars"));
+  EXPECT_EQ(chars_view, std::string("CharsView"));
 }
 
 }  // namespace lull

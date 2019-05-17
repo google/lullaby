@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 #include "fplbase/mesh_generated.h"
 #include "lullaby/modules/file/asset.h"
 #include "lullaby/modules/file/asset_loader.h"
+#include "lullaby/util/make_unique.h"
 
 namespace lull {
 namespace {
@@ -288,35 +289,7 @@ class MeshAsset : public Asset {
     const uint32_t num_bones =
         meshdef->bone_parents() ? meshdef->bone_parents()->size() : 0;
     if (num_bones > 0) {
-      bone_names_.reserve(num_bones);
-      bone_name_views_.reserve(num_bones);
-      parent_indices_.reserve(num_bones);
-      inverse_bind_pose_.reserve(num_bones);
-      for (uint32_t i = 0; i < num_bones; ++i) {
-        bone_names_.push_back(meshdef->bone_names()->Get(i)->str());
-        bone_name_views_.push_back(bone_names_.back());
-        parent_indices_.push_back(meshdef->bone_parents()->Get(i));
-        const fplbase::Mat3x4* m = meshdef->bone_transforms()->Get(i);
-        const mathfu::vec4 c0(m->c0().x(), m->c0().y(), m->c0().z(),
-                              m->c0().w());
-        const mathfu::vec4 c1(m->c1().x(), m->c1().y(), m->c1().z(),
-                              m->c1().w());
-        const mathfu::vec4 c2(m->c2().x(), m->c2().y(), m->c2().z(),
-                              m->c2().w());
-        const mathfu::AffineTransform transform =
-            mathfu::mat4::ToAffineTransform(
-                mathfu::mat4(c0, c1, c2, mathfu::kAxisW4f).Transpose());
-        inverse_bind_pose_.push_back(transform);
-      }
-
-      const uint32_t num_shader_bones =
-          meshdef->shader_to_mesh_bones()
-              ? meshdef->shader_to_mesh_bones()->size()
-              : 0;
-      shader_indices_.reserve(num_shader_bones);
-      for (uint32_t i = 0; i < num_shader_bones; ++i) {
-        shader_indices_.push_back(meshdef->shader_to_mesh_bones()->Get(i));
-      }
+      LOG(ERROR) << "Skinning not supported.";
     }
   }
 
@@ -325,11 +298,6 @@ class MeshAsset : public Asset {
   }
 
   std::unique_ptr<MeshData> mesh_data_;
-  std::vector<std::string> bone_names_;
-  std::vector<string_view> bone_name_views_;
-  std::vector<uint8_t> parent_indices_;
-  std::vector<mathfu::AffineTransform> inverse_bind_pose_;
-  std::vector<uint8_t> shader_indices_;
   std::function<void(MeshAsset*)> finalizer_;
 };
 
@@ -345,16 +313,7 @@ MeshPtr MeshFactoryImpl::LoadMesh(const std::string& filename) {
     auto mesh = std::make_shared<Mesh>();
     auto finalizer = [mesh](MeshAsset* asset) {
       if (asset->mesh_data_) {
-        if (asset->bone_names_.empty()) {
-          mesh->Init(*asset->mesh_data_);
-        } else {
-          Mesh::SkeletonData skeleton;
-          skeleton.parent_indices = asset->parent_indices_;
-          skeleton.inverse_bind_pose = asset->inverse_bind_pose_;
-          skeleton.shader_indices = asset->shader_indices_;
-          skeleton.bone_names = asset->bone_name_views_;
-          mesh->Init(*asset->mesh_data_, skeleton);
-        }
+        mesh->Init(asset->mesh_data_.get(), 1);
       }
     };
 
@@ -371,8 +330,21 @@ MeshPtr MeshFactoryImpl::CreateMesh(MeshData mesh_data) {
   return CreateMesh(&mesh_data);
 }
 
+MeshPtr MeshFactoryImpl::CreateMesh(MeshData* mesh_datas, size_t len) {
+  MeshPtr mesh = std::make_shared<Mesh>();
+  mesh->Init(mesh_datas, len);
+  return mesh;
+}
+
 MeshPtr MeshFactoryImpl::CreateMesh(HashValue name, MeshData mesh_data) {
   return CreateMesh(name, &mesh_data);
+}
+
+MeshPtr MeshFactoryImpl::CreateMesh(HashValue name, MeshData* mesh_datas,
+                                    size_t len) {
+  return meshes_.Create(name, [&]() {
+    return CreateMesh(mesh_datas, len);
+  });
 }
 
 void MeshFactoryImpl::CacheMesh(HashValue name, const MeshPtr& mesh) {
@@ -390,7 +362,7 @@ MeshPtr MeshFactoryImpl::CreateMesh(const MeshData* mesh_data) {
     return MeshPtr();
   }
   MeshPtr mesh = std::make_shared<Mesh>();
-  mesh->Init(*mesh_data);
+  mesh->Init(mesh_data, 1);
   return mesh;
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 
 #include "mathfu/glsl_mappings.h"
 #include "lullaby/util/hash.h"
+#include "lullaby/util/time.h"
 
 namespace lull {
 
@@ -35,6 +36,18 @@ void RegisterBuiltInFunctions(FunctionBinder* binder) {
   });
   binder->RegisterFunction("quat", [](float s, float x, float y, float z) {
     return mathfu::quat(s, x, y, z);
+  });
+  binder->RegisterFunction("durationFromSeconds", [](float sec) {
+    return DurationFromSeconds(sec);
+  });
+  binder->RegisterFunction("durationFromMilliseconds", [](float ms) {
+    return DurationFromMilliseconds(ms);
+  });
+  binder->RegisterFunction("secondsFromDuration", [](Clock::duration d) {
+    return SecondsFromDuration(d);
+  });
+  binder->RegisterFunction("millisecondsFromDuration", [](Clock::duration d) {
+    return MillisecondsFromDuration(d);
   });
 }
 

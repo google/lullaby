@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,11 +19,14 @@ limitations under the License.
 #include <utility>
 
 #include "lullaby/events/input_events.h"
+#include "lullaby/modules/camera/camera_manager.h"
 #include "lullaby/modules/input/input_manager.h"
+#include "lullaby/modules/input/input_manager_util.h"
 #include "lullaby/modules/input_processor/input_processor.h"
 #include "lullaby/modules/reticle/input_focus_locker.h"
-#include "lullaby/systems/cursor/cursor_system.h"
-#include "lullaby/systems/input_behavior/input_behavior_system.h"
+#include "lullaby/modules/script/function_binder.h"
+#include "lullaby/contrib/cursor/cursor_system.h"
+#include "lullaby/contrib/input_behavior/input_behavior_system.h"
 #include "lullaby/systems/transform/transform_system.h"
 #include "lullaby/util/device_util.h"
 #include "lullaby/util/math.h"
@@ -51,7 +54,44 @@ StandardInputPipeline::StandardInputPipeline(Registry* registry) {
     // i.e. "SecondaryClickEvent".
     input_processor->SetPrefix(InputManager::kController,
                                InputManager::kSecondaryButton, "Secondary");
+
+    // Make clicks on the controller's touch pad send as "Touch<event>".
+    // i.e. "TouchClickEvent".
+    input_processor->SetTouchPrefix(InputManager::kController,
+                                    InputManager::kPrimaryTouchpadId, "Touch");
+
+    // Set up the hmd prefixes for Input events.
+    // Make Device events for the hmd send with no prefix, i.e.
+    // "FocusStartEvent".
+    input_processor->SetPrefix(InputManager::kHmd, "");
+
+    // Make clicks on the hmd's primary button send with no prefix.
+    // i.e. "ClickEvent".
+    input_processor->SetPrefix(InputManager::kHmd, InputManager::kPrimaryButton,
+                               "");
+
+    // Make clicks on the touchscreen send as "<event>".
+    // i.e. "ClickEvent".
+    input_processor->SetTouchPrefix(InputManager::kHmd,
+                                    InputManager::kPrimaryTouchpadId, "");
   }
+
+  FunctionBinder* binder = registry->Get<FunctionBinder>();
+  if (binder) {
+    binder->RegisterMethod("lull.StandardInputPipeline.AdvanceFrame",
+                           &lull::StandardInputPipeline::AdvanceFrame);
+  }
+}
+
+StandardInputPipeline::~StandardInputPipeline() {
+  FunctionBinder* binder = registry_->Get<FunctionBinder>();
+  if (binder) {
+    binder->UnregisterFunction("lull.StandardInputPipeline.AdvanceFrame");
+  }
+}
+
+StandardInputPipeline* StandardInputPipeline::Create(Registry* registry) {
+  return registry->Create<StandardInputPipeline>(registry);
 }
 
 void StandardInputPipeline::AdvanceFrame(const Clock::duration& delta_time) {
@@ -80,30 +120,22 @@ InputFocus StandardInputPipeline::ComputeInputFocus(
   InputFocus focus;
   focus.device = device;
 
-  auto* input_processor = registry_->Get<InputProcessor>();
-  auto* cursor_system = registry_->Get<CursorSystem>();
-  if (cursor_system == nullptr || input_processor == nullptr) {
-    LOG(DFATAL)
-        << "StandardInputPipeline depends on CursorSystem and InputProcessor.";
-    return focus;
+  auto* input_manager = registry_->Get<InputManager>();
+  const DeviceProfile* profile = input_manager->GetDeviceProfile(device);
+  bool is_touchscreen = false;
+  if (profile) {
+    is_touchscreen = profile->type == DeviceProfile::kTouchScreen;
   }
 
-  const auto* transform_system = registry_->Get<TransformSystem>();
-  Entity cursor_entity = cursor_system->GetCursor(device);
-
-  focus.collision_ray = GetDeviceSelectionRay(
-      focus.device, transform_system->GetParent(cursor_entity));
-
-  focus.origin = focus.collision_ray.origin;
-
-  // Set cursor position to be a default depth in the direction of its forward
-  // vector, and calculate the direction of the collision_ray.
-  focus.cursor_position =
-      cursor_system->CalculateCursorPosition(device, focus.collision_ray);
-  focus.no_hit_cursor_position = focus.cursor_position;
-
-  // Make the collision come from the hmd instead of the controller
-  MakeRayComeFromHmd(&focus);
+  if (is_touchscreen) {
+    if (!InitFocusForTouchScreen(&focus)) {
+      return focus;
+    }
+  } else {
+    if (!InitFocusForController(&focus)) {
+      return focus;
+    }
+  }
 
   // Apply focus locking, input behaviors, collision detection, etc
   ApplySystemsToInputFocus(&focus);
@@ -111,19 +143,41 @@ InputFocus StandardInputPipeline::ComputeInputFocus(
   return focus;
 }
 
-void StandardInputPipeline::MakeRayComeFromHmd(InputFocus* focus) const {
+void StandardInputPipeline::MaybeMakeRayComeFromHmd(InputFocus* focus) const {
   if (focus == nullptr) {
     DCHECK(false) << "Focus must not be null.";
     return;
   }
 
+  if (forced_ray_from_origin_mode_ == kAlwaysFromController) {
+    return;
+  }
+
   const auto* input = registry_->Get<InputManager>();
+  const DeviceProfile* profile = input->GetDeviceProfile(focus->device);
+  const bool using_real_6dof_controller =
+      profile && profile->position_dof == DeviceProfile::kRealDof;
+  if (forced_ray_from_origin_mode_ != kAlwaysFromHmd &&
+      using_real_6dof_controller) {
+    // By default, we don't raycast from the HMD when a real 6DoF controller is
+    // being used as the input focus because there are collision corner cases
+    // that arise in 6DoF environments where the controller can collide with
+    // parts of the environment that the HMD could not. In particular, this can
+    // hurt UI <1M away from the user.
+    return;
+  }
+
   // Make the collision come from the hmd instead of the controller
   if (input->HasPositionDof(InputManager::kHmd)) {
     focus->collision_ray.origin = input->GetDofPosition(InputManager::kHmd);
     focus->collision_ray.direction =
         (focus->cursor_position - focus->collision_ray.origin).Normalized();
   }
+}
+
+void StandardInputPipeline::SetForceRayFromOriginMode(
+    ForceRayFromOriginMode mode) {
+  forced_ray_from_origin_mode_ = mode;
 }
 
 void StandardInputPipeline::ApplySystemsToInputFocus(InputFocus* focus) const {
@@ -199,23 +253,9 @@ InputManager::DeviceType StandardInputPipeline::GetPrimaryDevice() const {
 Ray StandardInputPipeline::GetDeviceSelectionRay(
     InputManager::DeviceType device, Entity parent) const {
   const auto* transform_system = registry_->Get<TransformSystem>();
-  const auto* input = registry_->Get<InputManager>();
-  Ray result(mathfu::kZeros3f, -mathfu::kAxisZ3f);
 
-  // If the device has a default local space ray, use that instead.
-  auto selection_ray = input->GetDeviceInfo(device, kSelectionRayHash);
-
-  result = selection_ray.ValueOr(result);
-
-  if (input && input->HasRotationDof(device)) {
-    mathfu::quat rotation = input->GetDofRotation(device);
-    result.origin = rotation * result.origin;
-
-    if (input->HasPositionDof(device)) {
-      result.origin += input->GetDofPosition(device);
-    }
-    result.direction = rotation * result.direction;
-  }
+  // Calculate the selection ray from a Rotation DOF device
+  Ray result = CalculateDeviceSelectionRay(registry_, device);
 
   if (transform_system) {
     // Get world transform from any existing parent transformations.
@@ -232,6 +272,66 @@ Ray StandardInputPipeline::GetDeviceSelectionRay(
     }
   }
   return result;
+}
+
+bool StandardInputPipeline::InitFocusForController(InputFocus* focus) const {
+  auto* cursor_system = registry_->Get<CursorSystem>();
+  if (cursor_system == nullptr) {
+    LOG(DFATAL) << "StandardInputPipeline for Controllers depends on "
+                   "CursorSystem.";
+    return false;
+  }
+
+  const auto* transform_system = registry_->Get<TransformSystem>();
+  Entity cursor_entity = cursor_system->GetCursor(focus->device);
+
+  focus->collision_ray = GetDeviceSelectionRay(
+      focus->device, transform_system->GetParent(cursor_entity));
+
+  focus->origin = focus->collision_ray.origin;
+
+  // Set cursor position to be a default depth in the direction of its forward
+  // vector, and calculate the direction of the collision_ray.
+  focus->cursor_position = cursor_system->CalculateCursorPosition(
+      focus->device, focus->collision_ray);
+  focus->no_hit_cursor_position = focus->cursor_position;
+
+  // Make the collision come from the hmd instead of the controller under
+  // some circumstances.
+  MaybeMakeRayComeFromHmd(focus);
+  return true;
+}
+
+bool StandardInputPipeline::InitFocusForTouchScreen(InputFocus* focus) const {
+  const auto* input_manager = registry_->Get<InputManager>();
+  const auto* camera_manager = registry_->Get<CameraManager>();
+  if (camera_manager == nullptr) {
+    LOG(DFATAL) << "StandardInputPipeline for TouchScreens depends on "
+                   "CameraManager.";
+    return false;
+  }
+
+  // If no touches are active, the collision ray will be left as a ray with
+  // length 0.
+  focus->collision_ray = Ray(mathfu::kZeros3f, mathfu::kZeros3f);
+  if (input_manager->IsValidTouch(InputManager::kHmd)) {
+    mathfu::vec2 touch_pos =
+        input_manager->GetTouchLocation(InputManager::kHmd);
+    Optional<Ray> collision_ray =
+        camera_manager->WorldRayFromScreenUV(touch_pos);
+    if (collision_ray) {
+      focus->collision_ray = collision_ray.value();
+    }
+  }
+
+  focus->origin = focus->collision_ray.origin;
+
+  // Set cursor position to be a default depth in the direction of its forward
+  // vector, and calculate the direction of the collision_ray.
+  focus->cursor_position = focus->collision_ray.origin +
+                           kNoHitDistance * focus->collision_ray.direction;
+  focus->no_hit_cursor_position = focus->cursor_position;
+  return true;
 }
 
 void StandardInputPipeline::SetDevicePreference(

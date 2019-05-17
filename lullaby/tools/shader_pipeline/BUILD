@@ -22,6 +22,7 @@ cc_library(
         "//lullaby/util:optional",
         "//lullaby/util:span",
         "//lullaby/util:string_view",
+        "//lullaby/util:typeid",
         "//lullaby/tools/common:file_utils",
         "//lullaby/tools/common:json_utils",
         "@rapidjson//:rapidjson",

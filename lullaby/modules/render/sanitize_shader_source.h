@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,16 +20,9 @@ limitations under the License.
 #include <string>
 #include "lullaby/util/span.h"
 #include "lullaby/util/string_view.h"
+#include "lullaby/generated/shader_def_generated.h"
 
 namespace lull {
-
-/// The target profile for shader source.  This enum is used by the
-/// SanitizeShaderSource function to fix the source code so that it compiles
-/// correctly for the given target profile.
-enum class ShaderProfile {
-  Core,
-  Gles,
-};
 
 /// This function does several things to try to meet both GLSL and GLSL-ES
 /// specs using the same source:
@@ -39,7 +32,14 @@ enum class ShaderProfile {
 ///    code.
 /// 3. Identify the first non-empty, non-comment, non-preprocessor line, and
 ///    insert a default precision float specifier before it if necessary.
-std::string SanitizeShaderSource(string_view code, ShaderProfile profile);
+std::string SanitizeShaderSource(string_view code, ShaderLanguage language);
+
+/// Converts shader version number from GLSL ES to GLSL.
+int ConvertShaderVersionFromEsToCore(int version);
+/// Converts shader version number from GLSL to GLSL ES.
+int ConvertShaderVersionFromCoreToEs(int version);
+/// Converts shader version from OpenGL Compat shader version.
+int ConvertShaderVersionFromCompat(int version, ShaderLanguage to);
 
 }  // namespace lull
 

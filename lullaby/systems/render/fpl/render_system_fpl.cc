@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,11 +27,12 @@ limitations under the License.
 #include "lullaby/modules/dispatcher/dispatcher.h"
 #include "lullaby/modules/ecs/entity_factory.h"
 #include "lullaby/modules/flatbuffers/mathfu_fb_conversions.h"
-#include "lullaby/modules/render/mesh_util.h"
+#include "lullaby/modules/render/quad_util.h"
 #include "lullaby/modules/script/function_binder.h"
 #include "lullaby/systems/dispatcher/dispatcher_system.h"
 #include "lullaby/systems/dispatcher/event.h"
 #include "lullaby/systems/render/detail/profiler.h"
+#include "lullaby/systems/render/fpl/shader.h"
 #include "lullaby/systems/render/render_helpers.h"
 #include "lullaby/systems/render/render_stats.h"
 #include "lullaby/systems/render/simple_font.h"
@@ -53,26 +54,6 @@ constexpr const char* kBoneTransformsUniform = "bone_transforms";
 // We break the naming convention here for compatibility with early VR apps.
 constexpr const char* kIsRightEyeUniform = "uIsRightEye";
 constexpr HashValue kRenderResetStateHash = ConstHash("lull.Render.ResetState");
-
-ShaderDataType FloatDimensionsToUniformType(int dimensions) {
-  switch (dimensions) {
-    case 1:
-      return ShaderDataType_Float1;
-    case 2:
-      return ShaderDataType_Float2;
-    case 3:
-      return ShaderDataType_Float3;
-    case 4:
-      return ShaderDataType_Float4;
-    case 9:
-      return ShaderDataType_Float3x3;
-    case 16:
-      return ShaderDataType_Float4x4;
-    default:
-      LOG(DFATAL) << "Failed to convert dimensions to uniform type.";
-      return ShaderDataType_Float4;
-  }
-}
 
 bool IsSupportedUniformDimension(int dimension) {
   return (dimension == 1 || dimension == 2 || dimension == 3 ||
@@ -114,8 +95,7 @@ RenderSystemFpl::RenderSystemFpl(Registry* registry,
     : System(registry),
       render_component_pools_(registry),
       sort_order_manager_(registry_),
-      multiview_enabled_(init_params.enable_stereo_multiview),
-      clip_from_model_matrix_func_(CalculateClipFromModelMatrix) {
+      multiview_enabled_(init_params.enable_stereo_multiview) {
   renderer_.Initialize(mathfu::kZeros2i, "lull::RenderSystem");
 
   factory_ = registry->Create<RenderFactory>(registry, &renderer_);
@@ -125,33 +105,34 @@ RenderSystemFpl::RenderSystemFpl(Registry* registry,
   SetSortMode(RenderPass_Main, SortMode_SortOrderIncreasing);
   SetCullMode(RenderPass_Main, CullMode::kNone);
 
+  // Attach to the immediate parent changed event since this has render
+  // implications which don't want to be delayed a frame.
   auto* dispatcher = registry->Get<Dispatcher>();
-  dispatcher->Connect(this, [this](const ParentChangedEvent& event) {
+  dispatcher->Connect(this, [this](const ParentChangedImmediateEvent& event) {
     UpdateSortOrder(event.target);
   });
-  dispatcher->Connect(this, [this](const ChildIndexChangedEvent& event) {
-    UpdateSortOrder(event.target);
-  });
+  dispatcher->Connect(this,
+                      [this](const ChildIndexChangedImmediateEvent& event) {
+                        UpdateSortOrder(event.target);
+                      });
 
   FunctionBinder* binder = registry->Get<FunctionBinder>();
   if (binder) {
-    binder->RegisterMethod("lull.Render.Show", &RenderSystem::Show);
-    binder->RegisterMethod("lull.Render.Hide", &RenderSystem::Hide);
+    // TODO Move to render_system.inc if we can have optional args.
     binder->RegisterFunction("lull.Render.GetTextureId", [this](Entity entity) {
       TexturePtr texture = GetTexture(entity, 0);
       return texture ? static_cast<int>(texture->GetResourceId().handle) : 0;
     });
-    binder->RegisterMethod("lull.Render.SetColor", &RenderSystem::SetColor);
   }
+
+  clear_params_.clear_options =
+      ClearParams::kColor | ClearParams::kDepth | ClearParams::kStencil;
 }
 
 RenderSystemFpl::~RenderSystemFpl() {
   FunctionBinder* binder = registry_->Get<FunctionBinder>();
   if (binder) {
-    binder->UnregisterFunction("lull.Render.Show");
-    binder->UnregisterFunction("lull.Render.Hide");
     binder->UnregisterFunction("lull.Render.GetTextureId");
-    binder->UnregisterFunction("lull.Render.SetColor");
   }
   registry_->Get<Dispatcher>()->DisconnectAll(this);
 }
@@ -161,7 +142,7 @@ void RenderSystemFpl::SetStereoMultiviewEnabled(bool enabled) {
 }
 
 void RenderSystemFpl::PreloadFont(const char* name) {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
+  // TODO Remove after apps use TextSystem directly.
   std::string filename(name);
   if (!EndsWith(filename, ".ttf")) {
     filename.append(".ttf");
@@ -254,7 +235,7 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
   }
 
   if (data.font()) {
-    // TODO(b/33705809) Remove after apps use TextSystem directly.
+    // TODO Remove after apps use TextSystem directly.
     TextSystem* text_system = registry_->Get<TextSystem>();
     CHECK(text_system) << "Missing text system.";
     text_system->CreateFromRenderDef(e, data);
@@ -303,6 +284,8 @@ void RenderSystemFpl::CreateRenderComponentFromDef(Entity e,
     MathfuVec4FromFbColorHex(data.color_hex()->c_str(), &color);
     SetUniform(e, kColorUniform, &color[0], 4, 1);
     component->default_color = color;
+  } else {
+    SetUniform(e, kColorUniform, &component->default_color[0], 4, 1);
   }
 
   if (data.uniforms()) {
@@ -450,7 +433,7 @@ void RenderSystemFpl::SetUniform(Entity entity, Optional<HashValue> pass,
 
   Material* material = &render_component->material;
 
-  const Uniform::Description description(name.to_string(), type, count);
+  const Uniform::Description description(std::string(name), type, count);
 
   Uniform* uniform = material->GetUniformByName(description.name);
   if (!uniform || uniform->GetDescription().type != description.type ||
@@ -630,7 +613,7 @@ void RenderSystemFpl::OnTextureLoaded(const RenderComponent& component,
   SetUniform(entity, kClampBoundsUniform, &clamp_bounds[0], 4, 1);
 
   if (factory_->IsTextureValid(texture)) {
-    // TODO(b/38130323) Add CheckTextureSizeWarning that does not depend on HMD.
+    // TODO Add CheckTextureSizeWarning that does not depend on HMD.
 
     auto* dispatcher_system = registry_->Get<DispatcherSystem>();
     if (dispatcher_system) {
@@ -644,34 +627,31 @@ void RenderSystemFpl::OnTextureLoaded(const RenderComponent& component,
 
 void RenderSystemFpl::SetTexture(Entity e, int unit,
                                  const TexturePtr& texture) {
-  if (texture == nullptr) {
-    LOG(DFATAL) << "Can't set a null texture";
-    return;
-  }
-
   auto* render_component = render_component_pools_.GetComponent(e);
   if (!render_component) {
     return;
   }
-
   render_component->material.SetTexture(unit, texture);
-  max_texture_unit_ = std::max(max_texture_unit_, unit);
 
-  // Add subtexture coordinates so the vertex shaders will pick them up.  These
-  // are known when the texture is created; no need to wait for load.
-  SetUniform(e, kTextureBoundsUniform, &texture->UvBounds()[0], 4, 1);
+  if (texture) {
+    max_texture_unit_ = std::max(max_texture_unit_, unit);
 
-  if (texture->IsLoaded()) {
-    OnTextureLoaded(*render_component, unit, texture);
-  } else {
-    texture->AddOnLoadCallback([this, unit, e, texture]() {
-      RenderComponent* render_component =
-          render_component_pools_.GetComponent(e);
-      if (render_component &&
-          render_component->material.GetTexture(unit) == texture) {
-        OnTextureLoaded(*render_component, unit, texture);
-      }
-    });
+    // Add subtexture coordinates so the vertex shaders will pick them up. These
+    // are known when the texture is created; no need to wait for load.
+    SetUniform(e, kTextureBoundsUniform, &texture->UvBounds()[0], 4, 1);
+
+    if (texture->IsLoaded()) {
+      OnTextureLoaded(*render_component, unit, texture);
+    } else {
+      texture->AddOnLoadCallback([this, unit, e, texture]() {
+        RenderComponent* render_component =
+            render_component_pools_.GetComponent(e);
+        if (render_component &&
+            render_component->material.GetTexture(unit) == texture) {
+          OnTextureLoaded(*render_component, unit, texture);
+        }
+      });
+    }
   }
 }
 
@@ -714,7 +694,7 @@ TexturePtr RenderSystemFpl::GetTexture(Entity entity, int unit) const {
 
 
 void RenderSystemFpl::SetText(Entity e, const std::string& text) {
-  // TODO(b/33705809) Remove after apps use TextSystem directly.
+  // TODO Remove after apps use TextSystem directly.
   TextSystem* text_system = registry_->Get<TextSystem>();
   CHECK(text_system) << "Missing text system.";
   text_system->SetText(e, text);
@@ -875,6 +855,11 @@ bool RenderSystemFpl::IsHidden(Entity e) const {
   return !component_exists || component_hidden;
 }
 
+bool RenderSystemFpl::IsHidden(Entity entity, Optional<HashValue> pass,
+                               Optional<int> submesh_index) const {
+  return IsHidden(entity);
+}
+
 ShaderPtr RenderSystemFpl::GetShader(Entity entity) const {
   const RenderComponent* component =
       render_component_pools_.GetComponent(entity);
@@ -946,6 +931,11 @@ void RenderSystemFpl::SetStencilMode(Entity e, StencilMode mode, int value) {
   render_component->stencil_value = value;
 }
 
+void RenderSystemFpl::SetStencilMode(Entity e, HashValue pass, StencilMode mode,
+                                     int value) {
+  LOG(DFATAL) << "This feature is not implemented in RenderSystemFpl.";
+}
+
 void RenderSystemFpl::SetDeformationFunction(Entity e,
                                              const Deformation& deform) {
   if (deform) {
@@ -983,6 +973,16 @@ void RenderSystemFpl::Show(Entity e) {
   if (newly_unhidden) {
     SendEvent(registry_, e, UnhiddenEvent(e));
   }
+}
+
+void RenderSystemFpl::Hide(Entity entity, Optional<HashValue> pass,
+                           Optional<int> submesh_index) {
+  Hide(entity);
+}
+
+void RenderSystemFpl::Show(Entity entity, Optional<HashValue> pass,
+                           Optional<int> submesh_index) {
+  Show(entity);
 }
 
 void RenderSystemFpl::SetRenderPass(Entity e, HashValue pass) {
@@ -1057,20 +1057,6 @@ void RenderSystemFpl::SetDepthWrite(const bool enabled) {
 void RenderSystemFpl::SetViewport(const View& view) {
   LULLABY_CPU_TRACE_CALL();
   renderer_.SetViewport(fplbase::Viewport(view.viewport, view.dimensions));
-}
-
-void RenderSystemFpl::SetClipFromModelMatrix(const mathfu::mat4& mvp) {
-  renderer_.set_model_view_projection(mvp);
-}
-
-void RenderSystemFpl::SetClipFromModelMatrixFunction(
-    const CalculateClipFromModelMatrixFunc& func) {
-  if (!func) {
-    clip_from_model_matrix_func_ = CalculateClipFromModelMatrix;
-    return;
-  }
-
-  clip_from_model_matrix_func_ = func;
 }
 
 void RenderSystemFpl::BindStencilMode(StencilMode mode, int ref) {
@@ -1172,26 +1158,41 @@ void RenderSystemFpl::SetBlendMode(fplbase::BlendMode blend_mode) {
   blend_mode_ = blend_mode;
 }
 
-mathfu::vec4 RenderSystemFpl::GetClearColor() const { return clear_color_; }
+mathfu::vec4 RenderSystemFpl::GetClearColor() const {
+  return clear_params_.color_value;
+}
 
 void RenderSystemFpl::SetClearColor(float r, float g, float b, float a) {
-  clear_color_ = mathfu::vec4(r, g, b, a);
+  clear_params_.color_value = mathfu::vec4(r, g, b, a);
 }
 
 void RenderSystemFpl::SetClearParams(HashValue pass,
                                      const ClearParams& clear_params) {
-  if (CheckBit(clear_params.clear_options, RenderClearParams::kColor)) {
-    SetClearColor(clear_params.color_value.x, clear_params.color_value.y,
-                  clear_params.color_value.z, clear_params.color_value.w);
-  }
+  clear_params_ = clear_params;
 }
 
 void RenderSystemFpl::BeginFrame() {
   LULLABY_CPU_TRACE_CALL();
-  GL_CALL(glClearColor(clear_color_.x, clear_color_.y, clear_color_.z,
-                       clear_color_.w));
-  GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT |
-                  GL_STENCIL_BUFFER_BIT));
+  GLbitfield options = 0;
+  if (CheckBit(clear_params_.clear_options, ClearParams::kColor)) {
+    GL_CALL(
+        glClearColor(clear_params_.color_value.x, clear_params_.color_value.y,
+                     clear_params_.color_value.z, clear_params_.color_value.w));
+    options |= GL_COLOR_BUFFER_BIT;
+  }
+  if (CheckBit(clear_params_.clear_options, ClearParams::kDepth)) {
+    options |= GL_DEPTH_BUFFER_BIT;
+#ifdef FPLBASE_GLES
+    GL_CALL(glClearDepthf(clear_params_.depth_value));
+#else
+    GL_CALL(glClearDepth(static_cast<double>(clear_params_.depth_value)));
+#endif
+  }
+  if (CheckBit(clear_params_.clear_options, ClearParams::kStencil)) {
+    options |= GL_STENCIL_BUFFER_BIT;
+    GL_CALL(glClearStencil(clear_params_.stencil_value));
+  }
+  GL_CALL(glClear(options));
 }
 
 void RenderSystemFpl::EndFrame() {
@@ -1229,7 +1230,7 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
     return;
   }
 
-  const mathfu::mat4 clip_from_entity_matrix = clip_from_model_matrix_func_(
+  const mathfu::mat4 clip_from_entity_matrix = CalculateClipFromModelMatrix(
       world_from_entity_matrix, view.clip_from_world_matrix);
   renderer_.set_model_view_projection(clip_from_entity_matrix);
   renderer_.set_model(world_from_entity_matrix);
@@ -1249,7 +1250,7 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
         ComputeNormalMatrix(world_from_entity_matrix);
     mathfu::VectorPacked<float, 3> packed[3];
     normal_matrix.Pack(packed);
-    GL_CALL(glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data));
+    GL_CALL(glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data_));
   }
   const Shader::UniformHnd camera_dir_handle =
       shader->FindUniform("camera_dir");
@@ -1257,7 +1258,7 @@ void RenderSystemFpl::RenderAt(const RenderComponent* component,
     const int uniform_gl = fplbase::GlUniformHandle(camera_dir_handle);
     mathfu::vec3_packed camera_dir;
     CalculateCameraDirection(view.world_from_eye_matrix).Pack(&camera_dir);
-    GL_CALL(glUniform3fv(uniform_gl, 1, camera_dir.data));
+    GL_CALL(glUniform3fv(uniform_gl, 1, camera_dir.data_));
   }
 
   const auto& textures = component->material.GetTextures();
@@ -1311,7 +1312,7 @@ void RenderSystemFpl::RenderAtMultiview(
         ComputeNormalMatrix(world_from_entity_matrix);
     mathfu::VectorPacked<float, 3> packed[3];
     normal_matrix.Pack(packed);
-    GL_CALL(glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data));
+    GL_CALL(glUniformMatrix3fv(uniform_gl, 1, false, packed[0].data_));
   }
   const Shader::UniformHnd camera_dir_handle =
       shader->FindUniform("camera_dir");
@@ -1322,7 +1323,7 @@ void RenderSystemFpl::RenderAtMultiview(
       CalculateCameraDirection(views[i].world_from_eye_matrix)
           .Pack(&camera_dir[i]);
     }
-    GL_CALL(glUniform3fv(uniform_gl, 2, camera_dir[0].data));
+    GL_CALL(glUniform3fv(uniform_gl, 2, camera_dir[0].data_));
   }
 
   const auto& textures = component->material.GetTextures();
@@ -1582,7 +1583,16 @@ void RenderSystemFpl::BindUniform(const char* name, const float* data,
   }
 }
 
-void RenderSystemFpl::DrawMesh(const MeshData& mesh) {
+void RenderSystemFpl::DrawMesh(const MeshData& mesh,
+                               Optional<mathfu::mat4> clip_from_model) {
+  if (clip_from_model) {
+    renderer_.set_model_view_projection(*clip_from_model);
+    // Shader needs to be rebound after setting MVP.
+    if (shader_) {
+      BindShader(shader_);
+    }
+  }
+
   if (mesh.GetNumVertices() == 0) {
     return;
   }
@@ -1672,7 +1682,7 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
   mathfu::vec3 start_pos;
   float font_size;
 
-  // TODO(b/29914331) Separate, tested matrix decomposition util functions.
+  // TODO Separate, tested matrix decomposition util functions.
   if (is_perspective) {
     const float kTopOfTextScreenScale = .45f;
     const float kFontScreenScale = .075f;
@@ -1713,10 +1723,7 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
   for (size_t i = 0; i < num_views; ++i) {
     SetViewport(views[i]);
     SetViewUniforms(views[i]);
-
-    renderer_.set_model_view_projection(views[i].clip_from_eye_matrix);
-    BindShader(
-        font->GetShader());  // Shader needs to be bound after setting MVP.
+    BindShader(font->GetShader());
 
     mathfu::vec3 pos = start_pos;
     if (is_stereo && i > 0) {
@@ -1750,7 +1757,7 @@ void RenderSystemFpl::RenderDebugStats(const View* views, size_t num_views) {
       text.Print(buf);
     }
 
-    registry_->Get<RenderSystem>()->DrawMesh(text.GetMesh());
+    DrawMesh(text.GetMesh(), views[i].clip_from_eye_matrix);
   }
 
   // Cleanup render state.
@@ -1794,10 +1801,13 @@ void RenderSystemFpl::Destroy(Entity /*e*/, HashValue pass) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 
-void RenderSystemFpl::SetUniform(Entity /*e*/, HashValue pass, const char* name,
+void RenderSystemFpl::SetUniform(Entity e, HashValue pass, const char* name,
                                  const float* data, int dimension,
-                                 int /*count*/) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+                                 int count) {
+  SetUniform(e, pass, NullOpt, name, FloatDimensionsToUniformType(dimension),
+             {reinterpret_cast<const uint8_t*>(data),
+              dimension * count * sizeof(float)},
+             count);
 }
 bool RenderSystemFpl::GetUniform(Entity /*e*/, HashValue pass, const char* name,
                                  size_t length, float* data_out) const {
@@ -1808,6 +1818,10 @@ void RenderSystemFpl::SetMesh(Entity e, HashValue /*pass*/,
                               const MeshPtr& mesh) {
   SetMesh(e, mesh);
 }
+void RenderSystemFpl::SetMesh(Entity e, HashValue /*pass*/,
+                              const MeshData& mesh) {
+  SetMesh(e, mesh);
+}
 MeshPtr RenderSystemFpl::GetMesh(Entity e, HashValue /*pass*/) {
   RenderComponent* component = render_component_pools_.GetComponent(e);
   return component ? component->mesh : nullptr;
@@ -1816,9 +1830,9 @@ ShaderPtr RenderSystemFpl::GetShader(Entity /*entity*/, HashValue pass) const {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
   return nullptr;
 }
-void RenderSystemFpl::SetShader(Entity /*e*/, HashValue pass,
+void RenderSystemFpl::SetShader(Entity entity, HashValue pass,
                                 const ShaderPtr& shader) {
-  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  SetShader(entity, shader);
 }
 void RenderSystemFpl::SetTexture(Entity /*e*/, HashValue pass, int unit,
                                  const TexturePtr& texture) {
@@ -1839,13 +1853,32 @@ void RenderSystemFpl::SetRenderState(HashValue pass,
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 
-void RenderSystemFpl::SetDefaultRenderPass(HashValue pass) {
+bool RenderSystemFpl::IsShaderFeatureRequested(Entity entity,
+                                               Optional<HashValue> pass,
+                                               Optional<int> submesh_index,
+                                               HashValue feature) const {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
+  return false;
+}
+
+void RenderSystemFpl::RequestShaderFeature(Entity entity,
+                                           Optional<HashValue> pass,
+                                           Optional<int> submesh_index,
+                                           HashValue feature) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 
-HashValue RenderSystemFpl::GetDefaultRenderPass() const {
+void RenderSystemFpl::ClearShaderFeatures(Entity entity,
+                                          Optional<HashValue> pass,
+                                          Optional<int> submesh_index) {
   LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
-  return 0;
+}
+
+void RenderSystemFpl::ClearShaderFeature(Entity entity,
+                                         Optional<HashValue> pass,
+                                         Optional<int> submesh_index,
+                                         HashValue feature) {
+  LOG(DFATAL) << "This feature is only implemented in RenderSystemNext.";
 }
 
 Optional<HashValue> RenderSystemFpl::GetGroupId(Entity entity) const {
@@ -1867,6 +1900,23 @@ const RenderSystem::GroupParams* RenderSystemFpl::GetGroupParams(
 void RenderSystemFpl::SetGroupParams(
     HashValue group_id, const RenderSystem::GroupParams& group_params) {
   // Does nothing.
+}
+
+std::string RenderSystemFpl::GetShaderString(Entity entity, HashValue pass,
+                                             int submesh_index,
+                                             ShaderStageType stage) const {
+  auto* render_component = render_component_pools_.GetComponent(entity);
+  if (!render_component || !render_component->material.GetShader()) {
+    return "";
+  }
+
+  return factory_->GetShaderString(
+      render_component->material.GetShader()->Impl()->filename(), stage);
+}
+
+ShaderPtr RenderSystemFpl::CompileShaderString(
+    const std::string& vertex_string, const std::string& fragment_string) {
+  return factory_->CompileShaderFromStrings(vertex_string, fragment_string);
 }
 
 }  // namespace lull

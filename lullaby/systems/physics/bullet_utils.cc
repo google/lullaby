@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google Inc. All Rights Reserved.
+Copyright 2017-2019 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ std::unique_ptr<btCollisionShape> CreateBtShape(const PhysicsShapePart* part) {
     // supports ellipsoids. Because the scale of this shape is affected by the
     // Entity's scale (which may change at any time), always use a
     // btMultiSphereShape.
-    // TODO(b/64492155): add a "PhysicsUniformSphereShape" to handle this case.
+    // TODO: add a "PhysicsUniformSphereShape" to handle this case.
     shape = MakeUnique<btMultiSphereShape>(&position, &radius, 1);
   } else if (type == PhysicsShapePrimitive_PhysicsStaticPlaneShape) {
     const auto* plane = static_cast<const PhysicsStaticPlaneShape*>(shape_data);

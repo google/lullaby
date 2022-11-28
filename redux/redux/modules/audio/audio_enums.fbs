@@ -1,0 +1,39 @@
+namespace redux;
+
+enum SoundType : ubyte {
+  // Sound is not spatialized.
+  Stereo,
+  // Sound has 3D position and rotation.
+  Point,
+  // Sound has 3D rotation.
+  Field,
+}
+
+// The surface material of an object that can be used to attenuate sounds.
+enum AudioSurfaceMaterial : ubyte {
+  AcousticCeilingTiles,
+  BrickBare,
+  BrickPainted,
+  ConcreteBlockCoarse,
+  ConcreteBlockPainted,
+  CurtainHeavy,
+  FiberGlassInsulation,
+  GlassThick,
+  GlassThin,
+  Grass,
+  LinoleumOnConcrete,
+  Marble,
+  Metal,
+  ParquetOnConcrete,
+  PlasterRough,
+  PlasterSmooth,
+  PlywoodPanel,
+  PolishedConcreteOrTile,
+  Sheetrock,
+  WaterOrIceSurface,
+  WoodCeiling,
+  WoodPanel,
+  Transparent,
+
+  Invalid = 255,
+}

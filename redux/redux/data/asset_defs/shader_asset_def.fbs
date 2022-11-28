@@ -1,0 +1,52 @@
+include "redux/modules/flatbuffers/common.fbs";
+include "redux/modules/graphics/graphics_enums.fbs";
+
+// The rxshader (redux shader) file format.
+
+namespace redux;
+
+// The metadata for a single shader/material property.
+table ShaderPropertyAssetDef {
+  // The name of this property.
+  name: fbs.HashString;
+
+  // The data type of the property.
+  type: MaterialPropertyType;
+
+  // If the property is a sample, identifies how the texture is intended to be
+  // used.
+  texture_usage: [MaterialTextureType];
+
+  // The default value for the property.
+  default_ints: [int];
+  default_floats: [float];
+}
+
+// A shader material variant that supports a specific configuration of
+// conditions and features as identified by the runtime.
+table ShaderVariantAssetDef {
+  // The name of this variant, used for debugging.
+  name: string;
+
+  // The preconditions (ie. hardware capabilities) that are necessary for this
+  // shader variant to be used.
+  conditions: [uint];
+
+  // The list of features that this shader variant fullfils.
+  features: [uint];
+
+  // The list of properties that can be set in this shader variant.
+  properties: [ShaderPropertyAssetDef];
+
+  // The binary filament material which has been built using filament matc.
+  filament_material: [ubyte];
+}
+
+// The root shader data.
+table ShaderAssetDef {
+  // The shading model name that is used to identify this shader.
+  shading_model: string;
+
+  // The list of variants that are
+  variants: [ShaderVariantAssetDef];
+}

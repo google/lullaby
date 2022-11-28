@@ -1,0 +1,7 @@
+include "redux/tools/common/test_data/schema_include.fbs";
+
+table Person {
+  first_name: string;
+  last_name: string;
+  address: Address;
+}

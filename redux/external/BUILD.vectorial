@@ -1,0 +1,6 @@
+cc_library(
+    name = "vectorial",
+    includes = ["include"],
+    hdrs = glob(["include/vectorial/*.h"]),
+    visibility = ["//visibility:public"],
+)

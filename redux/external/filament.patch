@@ -1,0 +1,72 @@
+diff --git a/libs/filamat/include/filamat/MaterialBuilder.h b/libs/filamat/include/filamat/MaterialBuilder.h
+index 9bd6182e3..6fc3b8649 100644
+--- a/libs/filamat/include/filamat/MaterialBuilder.h
++++ b/libs/filamat/include/filamat/MaterialBuilder.h
+@@ -35,6 +35,7 @@
+ #include <math/vec3.h>
+ 
+ #include <atomic>
++#include <memory>
+ #include <string>
+ #include <utility>
+ #include <vector>
+diff --git a/libs/utils/include/utils/algorithm.h b/libs/utils/include/utils/algorithm.h
+index d92555cc9..8524cb0b5 100644
+--- a/libs/utils/include/utils/algorithm.h
++++ b/libs/utils/include/utils/algorithm.h
+@@ -22,6 +22,7 @@
+ #include <type_traits>      // for std::enable_if
+ 
+ #include <limits.h>
++#include <stddef.h>
+ #include <stdint.h>
+ 
+ namespace utils {
+diff --git a/libs/utils/include/utils/bitset.h b/libs/utils/include/utils/bitset.h
+index baad307b5..281e5dfcf 100644
+--- a/libs/utils/include/utils/bitset.h
++++ b/libs/utils/include/utils/bitset.h
+@@ -26,6 +26,7 @@
+ #include <stdint.h>
+ 
+ #include <algorithm> // for std::fill
++#include <iterator>
+ #include <type_traits>
+ 
+ #if defined(__ARM_NEON)
+diff --git a/libs/utils/src/NameComponentManager.cpp b/libs/utils/src/NameComponentManager.cpp
+index 98bb3839a..2c67126c8 100644
+--- a/libs/utils/src/NameComponentManager.cpp
++++ b/libs/utils/src/NameComponentManager.cpp
+@@ -14,6 +14,7 @@
+  * limitations under the License.
+  */
+ 
++#include <algorithm>
+ #include <utils/NameComponentManager.h>
+ #include <utils/EntityManager.h>
+ 
+diff --git a/libs/utils/src/Profiler.cpp b/libs/utils/src/Profiler.cpp
+index 75caf8778..61513b8da 100644
+--- a/libs/utils/src/Profiler.cpp
++++ b/libs/utils/src/Profiler.cpp
+@@ -27,6 +27,7 @@
+ #endif
+ 
+ #include <algorithm>
++#include <iterator>
+ #include <memory>
+ 
+ #if defined(__linux__)
+diff --git a/third_party/glslang/BUILD.bazel b/third_party/glslang/BUILD.bazel
+index 12168fae1..5ad7bfffb 100644
+--- a/third_party/glslang/BUILD.bazel
++++ b/third_party/glslang/BUILD.bazel
+@@ -92,6 +92,7 @@ COMMON_COPTS = select({
+ 
+ cc_library(
+     name = "glslang",
++    includes = ["."],
+     srcs = glob(
+         [
+             "glslang/GenericCodeGen/*.cpp",

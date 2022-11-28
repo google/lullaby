@@ -1,0 +1,7 @@
+namespace redux
+
+# Associates a string name with an Entity.
+struct NameDef {
+  # The name of the Entity.
+  name: string
+}

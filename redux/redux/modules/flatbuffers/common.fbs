@@ -1,0 +1,14 @@
+namespace redux.fbs;
+
+// A trivial wrapper around an integral hash value. We use this wrapper in case
+// we ever need to change the underlying type for our hashes.
+struct HashVal {
+  value: uint;
+}
+
+// A string with its hash, mainly used to encode both a string and its hash into
+// our pipelines so we're not hashing strings on load.
+table HashString {
+  name: string;
+  hash: uint;
+}

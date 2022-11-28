@@ -1,0 +1,7 @@
+namespace redux
+
+# Stores key/value pairs with an Entity.
+struct DatastoreDef {
+  # The data table of key/value pairs to be stored with an Entity.
+  data: VarTable
+}

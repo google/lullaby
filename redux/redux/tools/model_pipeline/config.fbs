@@ -1,0 +1,137 @@
+include "redux/modules/flatbuffers/var.fbs";
+include "redux/modules/graphics/graphics_enums.fbs";
+include "redux/tools/common/axis_system.fbs";
+
+namespace redux.tool;
+
+// Provides the full set of configuration options for the model pipeline.
+table Config {
+  // The list of imported assets.
+  sources: [ModelConfig];
+
+  // The list of models used for rendering. Each index in the list specifies
+  // an LOD level.
+  renderables: [string];
+
+  // The model used for collision.
+  collidable: string;
+
+  // The model used for skeletal animations.
+  skeleton: string;
+}
+
+// Options for importing models.
+table ModelConfig {
+  // The name used to identify this set of options. This is allows for different
+  // components (eg. renderables, collidables, etc.) to specify their own import
+  // configuration.
+  name: string;
+
+  // The location of the asset.
+  uri: string;
+
+  // Inserts an extra node into the asset hierarchy so that the resulting model
+  // is centered around the origin.
+  recenter: bool = false;
+
+  // Multiplier applied to the model to change its size.
+  scale: float = 1.0;
+
+  // Distinct from 'scale'; defines the unit we expect positions to be in.
+  // Kept as 0 for backwards compatibility, this would be 100.0 for contexts
+  // where world units would be measured in meters, and 2.54 for inches.
+  cm_per_unit : float = 0.0;
+
+  // The axis system used by the source asset.
+  axis_system: tool.AxisSystem = Unspecified;
+
+  // The limiting angle (in degrees) between two normals being considered for
+  // tangent space smoothing.
+  smoothing_angle : float = 45;
+
+  // Limits per-vertex bone weights to the N most significant bones.
+  max_bone_weights : int = 4;
+
+  // Inverts vertical texture coordinates when enabled (D3D/OGL difference).
+  flip_texture_coordinates : bool = false;
+
+  // Pre-transforms vertices by their node hierarchy so that all vertices are
+  // in the same object-space, and the node hierarchy is flattened.
+  flatten_hierarchy_and_transform_vertices_to_root_space : bool = false;
+
+  // If a model contains both metallic-roughness textures and
+  // specular-glossiness textures, this flag causes the import to only use the
+  // specular-glossiness textures. Otherwise, it uses the metallic-roughness
+  // textures.
+  use_specular_glossiness_textures_if_present : bool = false;
+
+  // Toggle for Assimp's aiProcess_FixInfacingNormals process.
+  fix_infacing_normals : bool = true;
+
+  // Encodes a sign into the w value of the orientation quaternion such that >0
+  // implies a right handed space, and <0 implies a left handed space. w==0
+  // should never happen. This allows orientation components to be encoded in a
+  // 16-bit int.
+  ensure_vertex_orientation_w_not_zero : bool = false;
+
+  // The names of the nodes that contain the target meshes to import from the
+  // asset. If a node has a mesh and its name is present in this list, the mesh
+  // data will be added to the output model. If this list is empty, all meshes
+  // will be added to the output model.
+  target_meshes : [string];
+
+  // Specific vertex attributes to export. For multiple attributes with the
+  // same usage (eg. two uv-coords for textures), simply list the attribute
+  // twice, regardless of order.
+  attributes: [VertexUsage];
+
+  // The material properties for the model. Each index in the array corresponds
+  // to a submesh in the model.
+  materials: [MaterialConfig];
+
+  // Prevents materials from being merged.
+  merge_materials: bool = false;
+}
+
+table MaterialConfig {
+  // The name of the material. This will be matched with a material contained
+  // in the source asset.
+  name: string;
+
+  // Optional replacement name for the material when it is exported into an
+  // rxmodel. This allows one to change the name of materials.
+  name_override: string;
+
+  // Additional properties that can be added to or removed from the material. To
+  // remove a property, add a key without a value.
+  properties: fbs.VarTableDef;
+
+  // The list of textures associated with the material.
+  textures: [TextureConfig];
+}
+
+table TextureConfig {
+  // The usage of the texture. This will be matched with a texture contained
+  // in the source asset.
+  usage: [MaterialTextureType];
+  // Overrides the name of the texture.
+  name_override: string;
+  // Overrides the location of the texture.
+  file_override: string;
+  // The texture minifying function is used whenever the pixel being textured
+  // maps to an area greater than one texture element.
+  min_filter: TextureFilter = NearestMipmapLinear;
+  // The texture magnification function is used when the pixel being textured
+  // maps to an area less than or equal to one texture element.
+  mag_filter: TextureFilter = Linear;
+  // The wrap mode for texture coordinate s.
+  wrap_s : TextureWrap = Repeat;
+  // The wrap mode for texture coordinate t.
+  wrap_t : TextureWrap = Repeat;
+  // The wrap mode for texture coordinate r.
+  wrap_r : TextureWrap = Repeat;
+  // Whether or not the texture has alpha premultiplied.
+  premultiply_alpha: bool = false;
+  // Whether or not to generate mipmaps for this texture.
+  generate_mipmaps: bool = false;
+}

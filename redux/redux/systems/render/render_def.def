@@ -1,0 +1,6 @@
+namespace redux
+
+struct RenderDef {
+  # The shading model to apply to the Entity.
+  shading_model: string
+}

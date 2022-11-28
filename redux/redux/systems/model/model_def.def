@@ -1,0 +1,6 @@
+namespace redux
+
+struct ModelDef {
+  # The URI for the model asset to load.
+  uri: string
+}

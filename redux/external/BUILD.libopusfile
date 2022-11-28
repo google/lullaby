@@ -1,0 +1,11 @@
+cc_library(
+    name = "libopusfile",
+    srcs = glob(["src/**/*.c", "src/**/*.h"]),
+    hdrs = glob(["include/*.h"]),
+    includes = ["include"],
+    deps = [
+        "@libogg//:libogg",
+        "@libopus//:libopus",
+    ],
+    visibility = ["//visibility:public"],
+)

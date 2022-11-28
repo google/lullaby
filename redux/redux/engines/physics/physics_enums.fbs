@@ -1,0 +1,10 @@
+namespace redux;
+
+enum RigidBodyMotionType : ubyte {
+  // Moving, controlled by physics engine.
+  Dynamic,
+  // Moving, controller by user.
+  Kinematic,
+  // Non-moving.
+  Static,
+}

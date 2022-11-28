@@ -1,0 +1,7 @@
+cc_library(
+    name = "pffft",
+    srcs = ["pffft.c"],
+    hdrs = ["pffft.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

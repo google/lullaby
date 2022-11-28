@@ -1,0 +1,85 @@
+include "redux/modules/flatbuffers/common.fbs";
+include "redux/modules/flatbuffers/math.fbs";
+include "redux/modules/flatbuffers/var.fbs";
+
+// The rxanim (redux animation) file format.
+
+namespace redux;
+
+// Each channel of data is used to animate one of the following properties of
+// a bone.
+enum AnimChannelType : byte {
+  Invalid,
+  TranslateX,
+  TranslateY,
+  TranslateZ,
+  ScaleX,
+  ScaleY,
+  ScaleZ,
+  QuaternionX,
+  QuaternionY,
+  QuaternionZ,
+  QuaternionW,
+}
+
+// The root of the rxanim data format.
+table AnimAssetDef {
+  // Version number to help decide how to interpret the data.
+  version: int = 1;
+
+  // The names of the bones in the animation.
+  bone_names: [fbs.HashString];
+
+  // Each bone in the animation has its own animation.
+  bone_anims: [BoneAnimAssetDef];
+
+  // Specifies bone hierarchy. Bone `i` is a child of `bone_parents[i]`.
+  // If a root bone (i.e. no parent), set to 255.
+  bone_parents: [ushort];
+
+  // The total length of the animation in seconds.
+  length_in_seconds: float;
+
+  // True if all the data streams end where they started.
+  repeat: bool;
+}
+
+// Animation for a single bone.
+table BoneAnimAssetDef {
+  ops: [AnimChannelAssetDef];
+}
+
+// An animation channel is either a constant value or a spline.
+union AnimChannelDataAssetDef {
+  AnimChannelConstValueAssetDef,
+  AnimChannelSplineAssetDef,
+}
+
+// A single channel of animation (for a given bone).
+table AnimChannelAssetDef {
+  type: AnimChannelType;
+  data: AnimChannelDataAssetDef;
+}
+
+// A single const value animation channel.
+table AnimChannelConstValueAssetDef {
+  value: float;
+}
+
+// A node in an animation spline. This is designed to match CompactSplineNode.
+struct AnimSplineNodeAssetDef {
+  x: ushort;
+  y: ushort;
+  angle: short;
+}
+
+// An animation spline.  This is designed to match CompactSpline.
+table AnimChannelSplineAssetDef {
+  x_granularity: float;
+  y_range_start: float;
+  y_range_end: float;
+  nodes: [AnimSplineNodeAssetDef];
+}
+
+root_type AnimAssetDef;
+file_extension "rxanim";

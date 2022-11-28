@@ -1,0 +1,11 @@
+cc_library(
+    name = "zlib",
+    srcs = glob(["*.c"]),
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    copts = select({
+        "@platforms//os:macos": ["-Wno-implicit-function-declaration"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)

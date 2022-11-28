@@ -1,0 +1,184 @@
+namespace redux;
+
+// The intended purpose of an element of data in a vertex.
+enum VertexUsage : ubyte {
+  Position,
+  Normal,
+  Tangent,
+  Orientation,
+  Color0,
+  Color1,
+  Color2,
+  Color3,
+  TexCoord0,
+  TexCoord1,
+  TexCoord2,
+  TexCoord3,
+  TexCoord4,
+  TexCoord5,
+  TexCoord6,
+  TexCoord7,
+  BoneIndices,
+  BoneWeights,
+
+  Invalid = 255,
+}
+
+// The layout of an element of data in a vertex.
+enum VertexType : ubyte {
+  Scalar1f,
+  Vec2f,
+  Vec3f,
+  Vec4f,
+  Vec2us,
+  Vec4us,
+  Vec4ub,
+
+  Invalid = 255,
+}
+
+// How to interpret a list of vertices to create a surface.
+enum MeshPrimitiveType : ubyte {
+  Points,
+  Lines,
+  Triangles,
+  TriangleFan,
+  TriangleStrip,
+}
+
+// The number of bits used to define a single index in a mesh.
+enum MeshIndexType : ubyte  {
+  U16,
+  U32,
+}
+
+// The data type for a given material property.
+enum MaterialPropertyType : ubyte {
+  // Similar to Boolean, but just its existence is basically "true".
+  Feature,
+
+  // Standard mathematical types.
+  Boolean,
+  Float1,
+  Float2,
+  Float3,
+  Float4,
+  Int1,
+  Int2,
+  Int3,
+  Int4,
+  Float2x2,
+  Float3x3,
+  Float4x4,
+
+  // Sampler types.
+  Sampler2D,
+  SamplerCubeMap,
+
+  Invalid = 255,
+}
+
+// The role of a texture in the material.
+enum MaterialTextureType : ubyte {
+  Unspecified,
+  BaseColor,
+  Normal,
+  Metallic,
+  Roughness,
+  Occlusion,
+  Emissive,
+  Diffuse,
+  Specular,
+  Glossiness,
+  Bump,
+  Height,
+  Light,
+  Shadow,
+  Glyph,
+  Reflection,
+  EnvReflection,
+  EnvIrradiance,
+}
+
+enum ImageFormat : ubyte {
+  Invalid,
+
+  // Raw formats.
+  Alpha8,            // Single-component alpha image, 8 bits.
+  Luminance8,        // Single-component luminance image, 8 bits.
+  LuminanceAlpha88,  // Two-component luminance+alpha image, 8 bits each.
+  Rg88,              // RG color image, 8 bits each.
+  Rgb888,            // RGB color image, 8 bits each.
+  Rgb565,            // RGB color image, 5 bits red and blue, 6 bits green.
+  Rgba8888,          // RGBA color+alpha image, 8 bits each.
+  Rgba4444,          // RGBA color+alpha image, 4 bits each.
+  Rgba5551,          // RGBA color+alpha image, 5 bits per color, 1 bit alpha.
+  Rgbm8888,          // RGBM color+multiplier image, 8 bits each.
+
+  // Specialized hardware formats.
+  Depth16,
+  Depth32f,
+
+  // Compressed formats.
+  Astc,              // ASTC hardware image.
+  Jpg,               // JPG compressed image.
+  Png,               // PNG compressed image.
+  Webp,              // WEBP compressed image.
+
+  // Container formats. Useful for encoding cubemaps and mipmaps.
+  Ktx,               // KTX image container.
+}
+
+enum TextureTarget : ubyte {
+  Normal2D,
+  CubeMap,
+}
+
+enum TextureWrap : ubyte {
+  ClampToBorder,
+  ClampToEdge,
+  MirroredRepeat,
+  MirrorClampToEdge,
+  Repeat,
+}
+
+enum TextureFilter : ubyte {
+  // Corresponds to GL_NEAREST. Returns the value of the texture element that
+  // is nearest (in Manhattan distance) to the center of the pixel being
+  // textured.
+  Nearest,
+
+  // Corresponds to GL_LINEAR. Returns the weighted average of the four
+  // texture elements that are closest to the center of the pixel being
+  // textured. These can include border texture elements, depending on the
+  // values of texture wrap_s and texture wrap_t, and on the exact mapping.
+  Linear,
+
+  // Corresponds to GL_NEAREST_MIPMAP_NEAREST. Chooses the mipmap that most
+  // closely matches the size of the pixel being textured and uses the
+  // "Nearest" criterion (the texture element nearest to the center of the
+  // pixel) to produce a texture value.
+  NearestMipmapNearest,
+
+  // Corresponds to GL_LINEAR_MIPMAP_NEAREST. Chooses the mipmap that most
+  // closely matches the size of the pixel being textured and uses the
+  // "Linear" criterion (a weighted average of the four texture elements that
+  // are closest to the center of the pixel) to produce a texture value.
+  LinearMipmapNearest,
+
+  // Corresponds to GL_NEAREST_MIPMAP_LINEAR. Chooses the two mipmaps that
+  // most closely match the size of the pixel being textured and uses the
+  // "Nearest" criterion (the texture element nearest to the center of the
+  // pixel) to produce a texture value from each mipmap. The final texture
+  // value is a weighted average of those two values.
+  NearestMipmapLinear,
+  
+  // Corresponds to GL_LINEAR_MIPMAP_LINEAR. Chooses the two mipmaps that most
+  // closely match the size of the pixel being textured and uses the "Linear"
+  // criterion (a weighted average of the four texture elements that are
+  // closest to the center of the pixel) to produce a texture value from each
+  // mipmap.  The final texture value is a weighted average of those two
+  // values.
+  LinearMipmapLinear,
+}
+

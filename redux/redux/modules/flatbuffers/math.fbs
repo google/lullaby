@@ -1,0 +1,77 @@
+namespace redux.fbs;
+
+struct Vec2f {
+  x: float;
+  y: float;
+}
+
+struct Vec2i {
+  x: int;
+  y: int;
+}
+
+struct Vec3f {
+  x: float;
+  y: float;
+  z: float;
+}
+
+struct Vec3i {
+  x: int;
+  y: int;
+  z: int;
+}
+
+struct Vec4f {
+  x: float;
+  y: float;
+  z: float;
+  w: float;
+}
+
+struct Vec4i {
+  x: int;
+  y: int;
+  z: int;
+  w: int;
+}
+
+struct Quatf {
+  x: float;
+  y: float;
+  z: float;
+  w: float;
+}
+
+struct Mat3x4f {
+  col0: Vec3f;
+  col1: Vec3f;
+  col2: Vec3f;
+  col3: Vec3f;
+}
+
+struct Mat4x4f {
+  col0: Vec4f;
+  col1: Vec4f;
+  col2: Vec4f;
+  col3: Vec4f;
+}
+
+struct Rectf {
+  x: float;
+  y: float;
+  w: float;
+  h: float;
+}
+
+struct Recti {
+  x: int;
+  y: int;
+  w: int;
+  h: int;
+}
+
+struct Boxf {
+  min: Vec3f;
+  max: Vec3f;
+}

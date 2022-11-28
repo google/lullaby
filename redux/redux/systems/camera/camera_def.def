@@ -1,0 +1,17 @@
+namespace redux
+
+# Camera properties that will be used for rendering.
+struct CameraDef {
+  # Near clipping plane distance for the camera view frustum
+  near_plane_distance: float = 0.01
+
+  # Far clipping plane distance for the camera view frustum
+  far_plane_distance: float = 1000.0
+
+  # The horizontal view angle for the camera view frustum (in degrees).
+  horizontal_field_of_view_angle: float = DegreesToRadians(45.0)
+
+  # The screen-space bounds for the viewport with (0,0) for the bottom-left and
+  # (1,1) for the top-right.
+  viewport: Bounds2f
+}

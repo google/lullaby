@@ -1,0 +1,68 @@
+# Filament backend for render engine.
+
+licenses(["notice"])
+
+package(
+    default_visibility = ["//redux:visibility"],
+)
+
+cc_library(
+    name = "filament",
+    srcs = [
+        "filament_indirect_light.cc",
+        "filament_light.cc",
+        "filament_mesh.cc",
+        "filament_render_engine.cc",
+        "filament_render_layer.cc",
+        "filament_render_scene.cc",
+        "filament_render_target.cc",
+        "filament_renderable.cc",
+        "filament_shader.cc",
+        "filament_texture.cc",
+        "mesh_factory.cc",
+        "render_target_factory.cc",
+        "shader_factory.cc",
+        "texture_factory.cc",
+        "thunks.cc",
+    ],
+    hdrs = [
+        "filament_indirect_light.h",
+        "filament_light.h",
+        "filament_mesh.h",
+        "filament_render_engine.h",
+        "filament_render_layer.h",
+        "filament_render_scene.h",
+        "filament_render_target.h",
+        "filament_renderable.h",
+        "filament_shader.h",
+        "filament_texture.h",
+        "filament_utils.h",
+    ],
+    deps = [
+        "@absl//absl/container:btree",
+        "@absl//absl/container:flat_hash_map",
+        "@filament//:filament_hdrs",
+        "@filament//:math_hdrs",
+        "@filament//:utils_hdrs",
+        "//redux/data/asset_defs:shader_asset_def_fbs",
+        "//redux/engines/platform:device_manager",
+        "//redux/engines/render",
+        "//redux/engines/render/thunks",
+        "//redux/modules/base:asset_loader",
+        "//redux/modules/base:choreographer",
+        "//redux/modules/base:data_buffer",
+        "//redux/modules/base:hash",
+        "//redux/modules/base:logging",
+        "//redux/modules/base:registry",
+        "//redux/modules/base:static_registry",
+        "//redux/modules/codecs:decode_image",
+        "//redux/modules/graphics:enums",
+        "//redux/modules/graphics:image_data",
+        "//redux/modules/graphics:image_utils",
+        "//redux/modules/graphics:mesh_data",
+        "//redux/modules/graphics:texture_usage",
+        "//redux/modules/graphics:vertex_format",
+        "//redux/modules/math:bounds",
+        "//redux/modules/math:matrix",
+    ],
+)

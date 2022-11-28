@@ -1,0 +1,165 @@
+include "redux/data/asset_defs/texture_asset_def.fbs";
+include "redux/modules/flatbuffers/common.fbs";
+include "redux/modules/flatbuffers/math.fbs";
+include "redux/modules/flatbuffers/var.fbs";
+include "redux/modules/graphics/graphics_enums.fbs";
+
+// The rxmodel (redux model) file format.
+
+namespace redux;
+
+// The root of the rxmodel data format.
+table ModelAssetDef {
+  // Version number to help decide how to interpret the data.
+  version: int = 1;
+
+  // Model data for different rendering LODs.
+  lods: [ModelInstanceAssetDef];
+
+  // Information about the textures associated with this model.
+  textures: [ModelTextureAssetDef];
+
+  // The skeletal bone information to support skinned animations.
+  skeleton: ModelSkeletonAssetDef;
+
+  // The minimum and maximum bounds contained in the vertex data.
+  bounding_box: fbs.Boxf;
+}
+
+table ModelInstancePartAssetDef {
+  name: fbs.HashString;
+
+  // The material describing the "look" of the part.
+  material: MaterialAssetDef;
+
+  // The range of indices for the part.
+  range: ModelIndexRangeAssetDef;
+
+  // The bounding box for the part.
+  bounding_box: fbs.Boxf;
+}
+
+// A single instance of model data used to render an object at a given LOD.
+table ModelInstanceAssetDef {
+  vertices: ModelVertexBufferAssetDef;
+  indices: ModelIndexBufferAssetDef;
+
+  // The "submeshes" that can be individually targetted in the model.
+  parts: [ModelInstancePartAssetDef];
+
+  // A collection of blend shapes. The geometry defined in these blend shapes
+  // will match the main geometry (ie.
+  blend_shapes: [ModelBlendShapeAssetDef];
+
+  // The shape to use for collisions.
+  collision_shape: ModelCollisionShapeAssetDef;
+
+  // Maps the skeleton bone index to the shader bone index. The shader bones
+  // are only the bones that have at least one vertex weighted to them and, as
+  // such, are a subset of all the bones in the skeleton.
+  shader_to_mesh_bones: [ushort];
+}
+
+table ModelBlendShapeAssetDef {
+  // The name of this blend shape.
+  name: fbs.HashString;
+
+  vertices: ModelVertexBufferAssetDef;
+}
+
+table ModelCollisionShapeAssetDef {
+  vertices: ModelVertexBufferAssetDef;
+  indices: ModelIndexBufferAssetDef;
+}
+
+// Description of a single vertex attribute.
+struct ModelVertexAttributeAssetDef {
+  usage: VertexUsage;
+  type: VertexType;
+}
+
+// The range of indices associated with a single drawable.
+struct ModelIndexRangeAssetDef {
+  start: uint32;
+  end: uint32;
+}
+
+// The texture information related to the model.
+table ModelTextureAssetDef {
+  // The name of the texture. This should match the name defined in the
+  // material.
+  name: fbs.HashString;
+
+  // Information about how the texture will be used for rendering. This is a
+  // fully embedded rxtexture object.
+  texture: TextureAssetDef;
+
+  // The URI to the texture to be loaded if the binary data is not contained in
+  // the 'texture' object above. If this is an rxtexture object, then the
+  // parameters stored in the 'texture' field above will be ignored. If this is
+  // an image file (eg. png, etc.), then the parameters in the 'texture' field
+  // above will be used.
+  uri: string;
+}
+
+// The vertices of a model.
+table ModelVertexBufferAssetDef {
+  // Binary data storing the vertex buffer.
+  data: [uint8];
+
+  // The format of the data in the vertex buffer.
+  vertex_format: [ModelVertexAttributeAssetDef];
+
+  // The total number of vertices stored in the vertex data.
+  num_vertices: uint32;
+
+  // Whether or not the attributes in the vertex data are interleaved.
+  interleaved: bool = true;
+}
+
+table ModelIndexBufferAssetDef {
+  // The indices used for submitting draw calls. Both indices16 and indices32
+  // should not be set at the same time.
+  data16: [uint16];
+  data32: [uint32];
+}
+
+// Describes the "look" applied to a single surface of a mesh.
+table MaterialAssetDef {
+  // The name of the material.
+  name: fbs.HashString;
+
+  // A dictionary of all material properties extracted from the source file.
+  // These properties are interpretted by the RenderSystem to create the
+  // appropriate Material.
+  properties: fbs.VarTableDef;
+
+  // The list of textures associated with the Material.
+  textures: [MaterialTextureAssetDef];
+}
+
+// Information about a texture associated with a material.
+table MaterialTextureAssetDef {
+  // Reference to the ModelTextureAssetDef stored in the ModelAssetDef.
+  name: fbs.HashString;
+
+  // Information about how the material uses the texture data.
+  usage: [MaterialTextureType];
+}
+
+// Describes the skeleton used for skinned animations.
+table ModelSkeletonAssetDef {
+  // The names of each bone in the skeleton. Each bone in the skeleton can
+  // be uniquely identified by an index into this array.
+  bone_names: [string];
+
+  // Effectively a map of a bone to its parent bone.
+  bone_parents: [ushort];
+
+  // The "inverse bind matrices" for each bone. Transforms from mesh space to
+  // bone space so that skinning may be applied.
+  bone_transforms: [fbs.Mat3x4f];
+}
+
+root_type ModelAssetDef;
+file_extension "rxmodel";

@@ -1,0 +1,18 @@
+cc_library(
+    name = "libpng",
+    srcs = glob([
+        "*.c"
+    ], exclude = [
+        "pngtest.c",
+    ]),
+    hdrs = glob(["*.h"]),
+    copts = [
+        "-DHAVE_CONFIG_H",
+    ],
+    includes = ["."],
+    linkopts = ["-lm"],
+    deps = [
+        "@zlib//:zlib",
+    ],
+    visibility = ["//visibility:public"],    
+)

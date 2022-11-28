@@ -1,0 +1,19 @@
+include redux/engines/physics/enums.h
+
+namespace redux
+
+# Provides an Entity with a physical rigid body that participates in the
+# Physics (dynamics) simulation.
+struct RigidBodyDef {
+  # The mass of the rigid body.
+  mass: float
+
+  # The coefficient of friction of the surface of the rigid body.
+  friction: float
+
+  # The coefficient of restitution (i.e. bounciness) of the rigid body.
+  restitution: float
+
+  # The method by which the rigid body's motion is controlled.
+  motion_type: RigidBodyMotionType = RigidBodyMotionType::Dynamic
+}

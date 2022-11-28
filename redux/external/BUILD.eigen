@@ -1,0 +1,26 @@
+EIGEN_HDRS = glob(
+    [
+        "Eigen/*",
+    ],
+    exclude = [
+        "**/src/**",
+    ] + glob(["**/*.*"])
+)
+
+EIGEN_SRCS = glob(
+    [
+        "Eigen/**/src/**/*.h",
+        "Eigen/**/src/**/*.inc",
+    ],
+    exclude = [
+        "Eigen/src/Core/util/NonMPL2.h",
+    ],
+)
+
+cc_library(
+    name = "eigen",
+    srcs = EIGEN_SRCS,
+    hdrs = EIGEN_HDRS,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,89 @@
+include "redux/modules/flatbuffers/common.fbs";
+include "redux/modules/flatbuffers/math.fbs";
+
+namespace redux.fbs;
+
+table DataBool {
+  value: bool;
+}
+table DataInt {
+  value: int;
+}
+table DataFloat {
+  value: float;
+}
+table DataString {
+  value: string;
+}
+table DataHashVal {
+  value: HashVal;
+}
+table DataHashString {
+  value: HashString;
+}
+table DataVec2f {
+  value: Vec2f;
+}
+table DataVec2i {
+  value: Vec2i;
+}
+table DataVec3f {
+  value: Vec3f;
+}
+table DataVec3i {
+  value: Vec3i;
+}
+table DataVec4f {
+  value: Vec4f;
+}
+table DataVec4i {
+  value: Vec4i;
+}
+table DataQuatf {
+  value: Quatf;
+}
+table DataBytes {
+  value: [uint8];
+}
+
+// An array of variants.
+table VarArrayDef {
+  values: [VarArrayDefImpl];
+}
+
+// A map of key-to-variants.
+table VarTableDef {
+  values: [KeyVarPairDef];
+}
+
+// A variant type.
+union VarDef {
+  DataBool,
+  DataInt,
+  DataFloat,
+  DataString,
+  DataHashVal,
+  DataHashString,
+  DataVec2f,
+  DataVec2i,
+  DataVec3f,
+  DataVec3i,
+  DataVec4f,
+  DataVec4i,
+  DataQuatf,
+  DataBytes,
+  VarArrayDef,
+  VarTableDef,
+}
+
+// Internal type for VarTableDef that associates a hash key with a variant.
+table KeyVarPairDef {
+  key: HashString;
+  value: VarDef;
+}
+
+// Internal type for VarArrayDef. Unions need to be wrapped in a table in order
+// to have an array of them.
+table VarArrayDefImpl {
+  value: VarDef;
+}

@@ -1,0 +1,6 @@
+cc_library(
+    name = "utfcpp",
+    includes = ["source"],
+    hdrs = glob(["source/**/*.h"]),
+    visibility = ["//visibility:public"],
+)

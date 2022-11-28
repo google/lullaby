@@ -1,0 +1,49 @@
+namespace redux
+
+# A directional light has a direction, but not a position. All light rays are
+# parallel and come from infinitely far away and from everywhere.
+struct DirectionalLightDef {
+  # The color of the light.
+  color: vec3 = vec3::One()
+
+  # Intensity (in lux) of the light.
+  intensity: float = 100000.0
+}
+
+# A point light emits light in all directions from a certain point in space.
+struct PointLightDef {
+  # The color of the light.
+  color: vec3 = vec3::One()
+
+  # Intensity (in lumen) of the light.
+  intensity: float = 100000.0
+
+  # The distance beyond which the light has no affect.
+  falloff: float = 1.0
+}
+
+# A spot light is similar to a point lights, but the light it emits is limited
+# to a cone.
+struct SpotLightDef {
+  # The color of the light.
+  color: vec3 = vec3::One()
+
+  # Intensity (in lumen) of the light.
+  intensity: float = 100000.0
+
+  # The distance beyond which the light has no affect.
+  falloff: float = 1.0
+
+  # Properties of the spot light cone.
+  inner_cone_angle: float = DegreesToRadians(5.0)
+  outer_cone_angle: float = DegreesToRadians(90.0)
+}
+
+# Adds an environmental (indirect) light to a scene.
+struct EnvLightDef {
+  # The path to the texture with the reflection map.
+  reflections: string
+
+  # The path to the texture with the irradiance map.
+  irradiance: string
+}

@@ -1,0 +1,16 @@
+namespace redux
+
+# The position, rotation, and scale of an Entity.
+struct TransformDef {
+  # The position of the Entity in 3D space.
+  translation: vec3
+
+  # The rotation of the Entity in 3D space.
+  rotation: quat
+
+  # The scale of the Entity relative to its 'default' size.
+  scale: vec3 = vec3::One()
+
+  # The (local, untransformed) bounding box of the Entity.
+  box: Box
+}

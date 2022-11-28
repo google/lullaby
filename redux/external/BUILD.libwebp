@@ -1,0 +1,54 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "webp_encode",
+    srcs =  glob(["src/enc/*.c"]),
+    hdrs = glob(["src/**/*.h"]),
+    includes = [".", "src"],
+    deps = [
+        ":webp_dsp",
+        ":webp_utils",
+        ":webp_sharpyuv",
+    ],
+)
+
+cc_library(
+    name = "webp_decode",
+    srcs =  glob(["src/dec/*.c"]),
+    hdrs = glob(["src/**/*.h"]),
+    includes = [".", "src"],
+    deps = [
+        ":webp_dsp",
+        ":webp_utils",
+    ],
+)
+
+cc_library(
+    name = "webp_demux",
+    srcs =  glob(["src/demux/*.c"]),
+    hdrs = glob(["src/**/*.h"]),
+    includes = [".", "src"],
+)
+
+cc_library(
+    name = "webp_dsp",
+    srcs =  glob(["src/dsp/*.c"]),
+    hdrs = glob(["src/**/*.h"]),
+    includes = [".", "src"],
+)
+
+cc_library(
+    name = "webp_utils",
+    srcs =  glob(["src/utils/*.c"]),
+    hdrs = glob(["src/**/*.h"]),
+    includes = [".", "src"],
+)
+
+cc_library(
+    name = "webp_sharpyuv",
+    srcs =  glob(["sharpyuv/*.c"]),
+    hdrs = glob(["sharpyuv/*.h", "src/**/*.h"]),
+    includes = ["."],
+)

@@ -1,0 +1,256 @@
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//redux/tools:env_repository.bzl", "env_repository")
+
+# Setup the bazel skylib workspace. Needed by absl.
+http_archive(
+    name = "bazel_skylib",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
+        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
+    ],
+    sha256 = "74d544d96f4a5bb630d465ca8bbcfe231e3594e5aae57e1edbf17a6eb3ca2506",
+)
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+bazel_skylib_workspace()
+
+http_archive(
+  name = "absl",
+  urls = ["https://github.com/abseil/abseil-cpp/archive/2052c2e37c7554c52db3c117b3ad468924e10cd2.tar.gz"],
+  strip_prefix = "abseil-cpp-2052c2e37c7554c52db3c117b3ad468924e10cd2",
+  sha256 = "8721f4824f274a0a062848188f70f65ecb348872be2241896e318aec974e91a1",
+)
+
+http_archive(
+  name = "assimp",
+  build_file = "BUILD.assimp",
+  urls = ["https://github.com/assimp/assimp/archive/fd6c534efc78c6a27bc2ef35ef4b0e20977a31d8.tar.gz"],
+  strip_prefix = "assimp-fd6c534efc78c6a27bc2ef35ef4b0e20977a31d8",
+  sha256 = "c7f3ed606df3af1f4c496973c68443412128d7d1645ba515fbbb55c0bbab4166",
+  patches = ["assimp.patch"],
+  patch_args = ["-p1"],
+)
+
+http_archive(
+  name = "bullet",
+  build_file = "BUILD.bullet",
+  urls = ["https://github.com/bulletphysics/bullet3/archive/dad061fc132cda4bd4f834d9384994af0f1fd9c4.tar.gz"],
+  strip_prefix = "bullet3-dad061fc132cda4bd4f834d9384994af0f1fd9c4",
+  sha256 = "d2d7ceba9a441bd941aab76b56dadc6355d41fe8b4e7789872be7e0abfaa89e6",
+)
+
+http_archive(
+  name = "eigen",
+  build_file = "BUILD.eigen",
+  urls = ["https://gitlab.com/libeigen/eigen/-/archive/8f8e36458f4b590adf54936aefd1c0d3fb667c8f/eigen-8f8e36458f4b590adf54936aefd1c0d3fb667c8f.tar.gz"],
+  strip_prefix = "eigen-8f8e36458f4b590adf54936aefd1c0d3fb667c8f",
+  sha256 = "388ad37ae993bdd910d0c0e442efcc1c61412b51797db42383c880e529bedab7",
+)
+
+http_archive(
+  name = "filament",
+  build_file = "BUILD.filament",
+  urls = ["https://github.com/google/filament/archive/0c3d59aba3833c36e984b0c08e7e789b56d40b7b.tar.gz"],
+  strip_prefix = "filament-0c3d59aba3833c36e984b0c08e7e789b56d40b7b",
+  sha256 = "07bf6d0c5872e1c57b592c22775fa2645a12a32dcaf4241219eb825195d81c7c",
+  patches = ["filament.patch"],
+  patch_args = ["-p1"],
+)
+
+http_archive(
+  name = "flatbuffers",
+  urls = ["https://github.com/google/flatbuffers/archive/f124e41ae62ae548e045dadb26b6ad172bf8020b.tar.gz"],
+  strip_prefix = "flatbuffers-f124e41ae62ae548e045dadb26b6ad172bf8020b",
+  sha256 = "d2ccc4bb90c972fea3136a310ccdda617fdd289d789ffb24d014e8769e36513d",
+)
+
+http_archive(
+  name = "fmtlib",
+  build_file = "BUILD.fmtlib",
+  urls = ["https://github.com/fmtlib/fmt/archive/29c6000137dd94151b61e34fc9f658304878d71e.tar.gz"],
+  strip_prefix = "fmt-29c6000137dd94151b61e34fc9f658304878d71e",
+  sha256 = "e1adb6fda8d346697c080afea12ce5a99f281e14193c781d84b35deef099e9a2",
+)
+
+http_archive(
+  name = "freetype",
+  build_file = "BUILD.freetype",
+  url = "https://downloads.sourceforge.net/project/freetype/freetype2/2.12.1/freetype-2.12.1.tar.gz",
+  strip_prefix = "freetype-2.12.1",
+  sha256 = "efe71fd4b8246f1b0b1b9bfca13cfff1c9ad85930340c27df469733bbb620938",
+)
+
+http_archive(
+   name = "gtest",
+   urls = ["https://github.com/google/googletest/archive/e68764c147ea0dac1e8811925c531d937396878e.tar.gz"],
+   strip_prefix = "googletest-e68764c147ea0dac1e8811925c531d937396878e",
+   sha256 = "8ab279eb344f443f0d3a39d6b540245ea8988c7232687cee91a0815f161c4e3f",
+)
+
+http_archive(
+  name = "harfbuzz",
+  build_file = "BUILD.harfbuzz",
+  urls = ["https://github.com/harfbuzz/harfbuzz/archive/e3548c206990f23caba4fa31fed1aaf3fceeb04f.tar.gz"],
+  strip_prefix = "harfbuzz-e3548c206990f23caba4fa31fed1aaf3fceeb04f",
+  sha256 = "b0a3e3a07ad8a9653fa8f0cdb0bb585d7fc150b8460c486a9ec884dc4ffcbabd",
+)
+
+http_archive(
+  name = "jsonnet",
+  urls = ["https://github.com/google/jsonnet/archive/c1fde47edc65bd43b1a2342eae28759d039276a8.tar.gz"],
+  strip_prefix = "jsonnet-c1fde47edc65bd43b1a2342eae28759d039276a8",
+  sha256 = "83262b0575d2dcc58898b95fcc178ed8c16417396c4a82ec2eb1b6bc135e3226",
+)
+
+env_repository(
+  name = "libfbx",
+  env = "FBX_SDK_ROOT",
+  build_file = "BUILD.libfbx",
+)
+
+http_archive(
+  name = "libpng",
+  build_file = "BUILD.libpng",
+  urls = ["https://github.com/glennrp/libpng/archive/a37d4836519517bdce6cb9d956092321eca3e73b.tar.gz"],
+  strip_prefix = "libpng-a37d4836519517bdce6cb9d956092321eca3e73b",
+  sha256 = "7491fb7056fbac282460290115210ac979d758d66406228bcd551107dca49c3d",
+  patches = ["libpng.patch"],
+  patch_args = ["-p1"],
+)
+
+http_archive(
+  name = "libogg",
+  build_file = "BUILD.libogg",
+  urls = ["https://github.com/xiph/ogg/archive/db5c7a49ce7ebda47b15b78471e78fb7f2483e22.tar.gz"],
+  strip_prefix = "ogg-db5c7a49ce7ebda47b15b78471e78fb7f2483e22",
+  sha256 = "d34fdd3b0d06d7ab3222299f517472c29e0367e220e182c69906e05e53f7e4ea",
+  patches = ["libogg.patch"],
+  patch_args = ["-p1"],
+)
+
+http_archive(
+  name = "libopus",
+  build_file = "BUILD.libopus",
+  urls = ["https://github.com/xiph/opus/archive/bce1f392353d72d77d543bb2069a044ae1045e9d.tar.gz"],
+  strip_prefix = "opus-bce1f392353d72d77d543bb2069a044ae1045e9d",
+  sha256 = "f28e625d4627cb4f194e10add5dece6cf8c46f12ded00d16dc80482a669cccb8",
+)
+
+http_archive(
+  name = "libopusfile",
+  build_file = "BUILD.libopusfile",
+  urls = ["https://github.com/xiph/opusfile/archive/0a4cd796df5b030cb866f3f4a5e41a4b92caddf5.tar.gz"],
+  strip_prefix = "opusfile-0a4cd796df5b030cb866f3f4a5e41a4b92caddf5",
+  sha256 = "4bda0933377dfd1ea5a9ad0b76c4acf2425017f306ac086b30669cbbee633197",
+)
+
+http_archive(
+  name = "libunibreak",
+  build_file = "BUILD.libunibreak",
+  urls = ["https://github.com/adah1972/libunibreak/archive/c8fbb31cab50a3f0a728b5b40e89bb6083bb2648.tar.gz"],
+  strip_prefix = "libunibreak-c8fbb31cab50a3f0a728b5b40e89bb6083bb2648",
+  sha256 = "1a12b2be0ec4e3d675e8307c73a044e524fb0b3a6369367c075047f3ca51f24c",
+)
+
+http_archive(
+  name = "libvorbis",
+  build_file = "BUILD.libvorbis",
+  urls = ["https://github.com/xiph/vorbis/archive/84c023699cdf023a32fa4ded32019f194afcdad0.tar.gz"],
+  strip_prefix = "vorbis-84c023699cdf023a32fa4ded32019f194afcdad0",
+  sha256 = "97cfed8b9acb13bf7ec7410b6f303b69c312fc17a009298e9b8a7356cfe8ce7f",
+)
+
+http_archive(
+  name = "libwebp",
+  build_file = "BUILD.libwebp",
+  urls = ["https://github.com/webmproject/libwebp/archive/e8f83de2867456a75b13aa1e876b22e2d1e1c077.tar.gz"],
+  strip_prefix = "libwebp-e8f83de2867456a75b13aa1e876b22e2d1e1c077",
+  sha256 = "be8735d6811920ee4f1b13489d1afa00bc2dc9837760ca097adf4125093f9858",
+)
+
+http_archive(
+  name = "magic_enum",
+  build_file = "BUILD.magic_enum",
+  urls = ["https://github.com/Neargye/magic_enum/archive/1b1194bcd5e0f62047a43161689bae593b12e607.tar.gz"],
+  strip_prefix = "magic_enum-1b1194bcd5e0f62047a43161689bae593b12e607",
+  sha256 = "b31e74e3d2fb07f9e2ef92b62c0c50fd42ccb89b9b974582e660d3b97911709e",
+)
+
+http_archive(
+  name = "pffft",
+  build_file = "BUILD.pffft",
+  urls = ["https://bitbucket.org/jpommier/pffft/get/7c3b5a7dc510.zip"],
+  strip_prefix = "jpommier-pffft-7c3b5a7dc510",
+  sha256 = "20f48fbbd5737d9a7db419f216c8d01ec8fdead48442c04774425a4c6b8b3949",
+)
+
+http_archive(
+  name = "resonance",
+  build_file = "BUILD.resonance",
+  urls = ["https://github.com/resonance-audio/resonance-audio/archive/4f5a95f3d677fecedd3108821e53fec00e94e9e7.tar.gz"],
+  strip_prefix = "resonance-audio-4f5a95f3d677fecedd3108821e53fec00e94e9e7",
+  sha256 = "5a23da4c21548a192d7d2ea88091ff484b072bc77053815b0666e5faf5f71b21",
+)
+
+http_archive(
+  name = "rapidjson",
+  build_file = "BUILD.rapidjson",
+  urls = ["https://github.com/Tencent/rapidjson/archive/06d58b9e848c650114556a23294d0b6440078c61.tar.gz"],
+  strip_prefix = "rapidjson-06d58b9e848c650114556a23294d0b6440078c61",
+  sha256 = "30d28bbe0bfff9d8dc5d3cf62799b6ee550499cc1520e44bdece81e002480d19",
+)
+
+http_archive(
+  name = "sdl2",
+  build_file = "BUILD.sdl2",
+  urls = ["https://github.com/libsdl-org/SDL/archive/03485db0a30f0a42b08f398efa58e7ef51e75d0a.tar.gz"],
+  strip_prefix = "SDL-03485db0a30f0a42b08f398efa58e7ef51e75d0a",
+  sha256 = "74c1b0a887e279f53ce1dbfa62d749ce184290b7fd5397c3410d74e664fc92a1",
+)
+
+http_archive(
+  name = "stblib",
+  build_file = "BUILD.stblib",
+  urls = ["https://github.com/nothings/stb/archive/af1a5bc352164740c1cc1354942b1c6b72eacb8a.tar.gz"],
+  strip_prefix = "stb-af1a5bc352164740c1cc1354942b1c6b72eacb8a",
+  sha256 = "936b4e506b5f55db178207e528ecdf5a411f67431447767d06c9b7061765cd7e",
+  patches = ["stblib.patch"],
+  patch_args = ["-p1"],
+)
+
+http_archive(
+  name = "spirv_headers",
+  urls = ["https://github.com/KhronosGroup/SPIRV-Headers/archive/b2a156e1c0434bc8c99aaebba1c7be98be7ac580.tar.gz"],
+  strip_prefix = "SPIRV-Headers-b2a156e1c0434bc8c99aaebba1c7be98be7ac580",
+  sha256 = "b200990e1c07894906e298368e7e56d5ab9d728d851f9292587ec740c2b4d409",
+)
+
+http_archive(
+  name = "spirv_tools",
+  urls = ["https://github.com/KhronosGroup/SPIRV-Tools/archive/82d91083cb56c89d2cb8e9d56d4d69f07ac34fed.tar.gz"],
+  strip_prefix = "SPIRV-Tools-82d91083cb56c89d2cb8e9d56d4d69f07ac34fed",
+  sha256 = "8ecdfc602c6ed82b94655cb4b269efd1c6ae62db4769f83c9822091313064b4e",
+)
+
+http_archive(
+  name = "utfcpp",
+  build_file = "BUILD.utfcpp",
+  urls = ["https://github.com/nemtrif/utfcpp/archive/d8b92208fddde08d628004563a1a3614a32cf8c8.tar.gz"],
+  strip_prefix = "utfcpp-d8b92208fddde08d628004563a1a3614a32cf8c8",
+  sha256 = "792a380660d016f511d9a18ce208fc21226fffcdad7ab29022f3ac1314029c2c",
+)
+
+http_archive(
+  name = "vectorial",
+  build_file = "BUILD.vectorial",
+  urls = ["https://github.com/scoopr/vectorial/archive/3a00e8c00d017cb49b12eeffd7464246d172ea97.tar.gz"],
+  strip_prefix = "vectorial-3a00e8c00d017cb49b12eeffd7464246d172ea97",
+  sha256 = "06eaac3df75fc2aebb36cf164dae9375f6669d8ef64d6e617b04f2f070f058d1",
+)
+
+http_archive(
+  name = "zlib",
+  build_file = "BUILD.zlib",
+  urls = ["https://github.com/madler/zlib/archive/21767c654d31d2dccdde4330529775c6c5fd5389.tar.gz"],
+  strip_prefix = "zlib-21767c654d31d2dccdde4330529775c6c5fd5389",
+  sha256 = "ef47b0fbe646d69a2fc5ba012cb278de8e8946a8e9649f83a807cc05559f0eff",
+)

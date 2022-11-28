@@ -1,0 +1,13 @@
+namespace redux
+
+# A box-shaped volume in space that can be used to trigger events.
+struct BoxTriggerDef {
+  # The half size of the box.
+  half_extents: vec3
+}
+
+# A spherical volume in space that can be used to trigger events.
+struct SphereTriggerDef {
+  # The radius of the sphere.
+  radius: float
+}

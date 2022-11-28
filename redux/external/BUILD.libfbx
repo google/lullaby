@@ -1,0 +1,16 @@
+cc_library(
+    name = "libfbx",
+    srcs = select({
+        "@platforms//os:osx": ["FBX_SDK_ROOT/lib/osx/release/libfbxsdk.a"],
+        "@platforms//os:linux": ["FBX_SDK_ROOT/lib/linux/release/libfbxsdk.a"],
+        "@platforms//os:windows": ["FBX_SDK_ROOT/lib/windows/release/libfbxsdk.lib"],
+        "//conditions:default": [],
+    }),
+    hdrs = glob(["FBX_SDK_ROOT/include/**/*.h"]),
+    includes = ["FBX_SDK_ROOT/include"],
+    visibility = ["//visibility:public"],
+    linkopts = [
+        "-ldl",
+        "-pthread",
+    ]
+)

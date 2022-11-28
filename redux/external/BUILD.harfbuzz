@@ -1,0 +1,12 @@
+cc_library(
+    name = "harfbuzz",
+    srcs = ["src/harfbuzz.cc"],
+    hdrs = glob([
+        "src/**/*.h",
+        "src/**/*.hh",
+    ]),
+    textual_hdrs = glob(["src/**/*.cc"]),
+    includes = ["src"],
+    deps = ["@freetype//:freetype"],
+    visibility = ["//visibility:public"],    
+)

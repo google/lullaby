@@ -1,0 +1,21 @@
+namespace redux
+
+# Generates a box-shaped physics (rigid body) and render mesh for an Entity.
+struct BoxShapeDef {
+  # The half-size of the box.
+  half_extents: vec3
+}
+
+# Generates a sphere-shaped physics (rigid body) and render mesh for an Entity.
+struct SphereShapeDef {
+  # The radius of the sphere.
+  radius: float
+
+  # The number of parallels (i.e. latitudinal lines) used to tesselate the
+  # render mesh.
+  num_parallels: int
+
+  # The number of meridians (e.g. longitudinals lines) used to tesselate the
+  # render mesh.
+  num_meridians: int
+}

@@ -1,0 +1,31 @@
+RESONANCE_SRCS = glob(
+    ["resonance_audio/**/*.cc"],
+    exclude = [
+        "**/*_test.cc",
+        "**/geometrical_acoustics/**",
+        "**/test_util.cc",
+    ])
+
+RESONANCE_HDRS = glob(["resonance_audio/**/*.h"])
+
+PLATFORM_SRCS = glob(["platforms/common/**/*.cc"], exclude=["**/*_test.cc"])
+
+PLATFORM_HDRS = glob(["platforms/common/**/*.h"])
+
+SADIE_SRCS = ["third_party/SADIE_hrtf_database/generated/hrtf_assets.cc"]
+
+SADIE_HDRS = ["third_party/SADIE_hrtf_database/generated/hrtf_assets.h"]
+
+cc_library(
+    name = "resonance",
+    srcs = RESONANCE_SRCS + PLATFORM_SRCS + SADIE_SRCS,
+    hdrs = RESONANCE_HDRS + PLATFORM_HDRS + SADIE_HDRS,
+    deps = [
+        "@eigen//:eigen", 
+        "@libogg//:libogg",
+        "@libvorbis//:libvorbis",
+        "@pffft//:pffft",
+    ],
+    includes = [".", "resonance_audio"],
+    visibility = ["//visibility:public"],
+)

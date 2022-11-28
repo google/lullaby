@@ -1,0 +1,157 @@
+load("@//third_party/filament:generate_shaders.bzl", "generate_shaders")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "backend_hdrs",
+    hdrs = glob(["filament/backend/include/**/*.h"]),
+    includes = ["filament/backend/include"],
+    deps = [":math_hdrs"],
+)
+
+cc_library(
+    name = "filament_hdrs",
+    hdrs = glob(["filament/include/**/*.h"]),
+    includes = ["filament/include"],
+    deps = [
+        ":filabridge",
+        ":backend_hdrs",
+        ":utils_hdrs",
+    ],
+)
+
+cc_library(
+    name = "math_hdrs",
+    hdrs = glob(["libs/math/include/**/*.h"]),
+    includes = ["libs/math/include"],
+)
+
+cc_library(
+    name = "utils_hdrs",
+    hdrs = glob(["libs/utils/include/**/*.h"]),
+    includes = ["libs/utils/include"],
+)
+
+cc_library(
+    name = "utils",
+    srcs = glob([
+        "libs/utils/src/*.cpp",
+        "libs/utils/src/*.h",
+    ]),
+    deps = [
+        ":utils_hdrs",
+        ":third_party_robin_map",
+    ] + select({
+        "@platforms//os:osx": [":utils_darwin"],
+        "@platforms//os:windows": [":utils_windows"],
+        "//conditions:default": [":utils_default"],
+    }),
+)
+
+cc_library(
+    name = "utils_windows",
+    srcs = ["libs/utils/src/win32/Path.cpp"],
+    deps = [":utils_hdrs"],
+    defines = ["WIN32"],
+)
+
+cc_library(
+    name = "utils_default",
+    srcs = ["libs/utils/src/linux/Path.cpp"],
+    deps = [":utils_hdrs"],
+)
+
+objc_library(
+    name = "utils_darwin",
+    srcs = ["libs/utils/src/darwin/Path.mm"],
+    deps = [":utils_hdrs"],
+)
+
+cc_library(
+    name = "filabridge",
+    srcs = glob(["libs/filabridge/src/**/*.cpp"]),
+    hdrs = glob(["libs/filabridge/include/**/*.h"]),
+    includes = ["libs/filabridge/include"],
+    deps = [
+        ":utils_hdrs",
+        ":backend_hdrs",
+    ],
+)
+
+cc_library(
+    name = "filamat",
+    srcs = glob(["libs/filamat/src/**/*.cpp"]),
+    hdrs = glob([
+        "libs/filamat/include/**/*.h",
+        "libs/filamat/src/**/*.h",
+        "third_party/glslang/glslang/SPIRV/**/*.h",
+    ]),
+    includes = [
+        "libs/filamat/include",
+        "libs/filamat/src",
+        "libs/filamat/src/eiff",
+        "third_party/glslang",
+        "third_party/glslang/glslang/Include",
+        "third_party/glslang/glslang/MachineIndependent",
+        "third_party/glslang/glslang/Public",
+    ],
+    deps = [
+        ":generated_shaders",
+        ":filabridge",
+        ":third_party_robin_map",
+        ":third_party_smolv",
+        ":third_party_spirv_cross",
+        "@filament//third_party/glslang",
+        "@filament//third_party/glslang:SPIRV",
+        "@spirv_tools//:spirv_tools_opt",
+    ],
+)
+
+cc_binary(
+    name = "resgen",
+    srcs = glob([
+        "tools/resgen/src/*.cpp",
+        "tools/resgen/src/*.h",
+    ]),
+    includes = ["tools/resgen/src"],
+    deps = [
+        ":utils",
+        ":utils_hdrs",
+        ":third_party_getopt",
+        "@//third_party/filament:resgen_licenses",
+    ],
+)
+
+generate_shaders(
+    name = "generated_shaders",
+)
+
+cc_library(
+    name = "third_party_getopt",
+    srcs = glob(["third_party/getopt/src/*.c"]),
+    hdrs = glob(["third_party/getopt/include/**/*.h"]),
+    includes = ["third_party/getopt/include"],
+)
+
+cc_library(
+    name = "third_party_smolv",
+    srcs = glob(["third_party/smol-v/source/*.cpp"]),
+    hdrs = glob(["third_party/smol-v/source/*.h"]),
+    includes = ["third_party/smol-v/source"],
+)
+
+cc_library(
+    name = "third_party_robin_map",
+    hdrs = glob(["third_party/robin-map/tsl/*.h"]),
+    includes = ["third_party/robin-map"],
+)
+
+cc_library(
+    name = "third_party_spirv_cross",
+    srcs = glob(["third_party/spirv-cross/*.cpp"]),
+    hdrs = glob(["third_party/spirv-cross/*.h", "third_party/spirv-cross/*.hpp"]),
+    includes = ["third_party/spirv-cross"],
+    deps = ["@spirv_headers//:spirv_c_headers"],
+)

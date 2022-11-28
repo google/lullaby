@@ -1,0 +1,37 @@
+include redux/engines/text/text_enums.h
+include redux/modules/math/bounds.h
+
+namespace redux
+
+# Creates the geometry and texture for rendering text.
+struct TextDef {
+  # The text to display.
+  text: string
+
+  # The path to the font to use for generating the text.
+  font: string
+
+  # The size of the font to use internally within the TextEngine.
+  font_size: float
+
+  # The height of the text.
+  line_height: float
+
+  # The 2D bounds within which to align/wrap the text (if applicable).
+  bounds: Bounds2f
+
+  # How to align the text horizontally within the bounds.
+  horizontal_alignment: HorizontalTextAlignment = HorizontalTextAlignment::kCenter
+
+  # How to align the text vertically within the bounds.
+  vertical_alignment: VerticalTextAlignment = VerticalTextAlignment::kBaseline
+
+  # How to wrap the text within the bounds.
+  wrap: TextWrapMode = TextWrapMode::kNone
+
+  # The direction (e.g. left-to-right) for creating the text.
+  text_direction: TextDirection = TextDirection::kLanguageDefault
+
+  # The language in which the text is encoded.
+  language_iso_639: string
+}

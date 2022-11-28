@@ -1,0 +1,41 @@
+namespace redux
+
+# Trigger/event type that causes a script to be run on an Entity.
+enum ScriptTriggerType {
+  # Runs the script when the Entity is created (or, more specifically, when the
+  # ScriptDef is added to the Entity during Entity creation).
+  OnCreate,
+
+  # Runs the script when the Entity is enabled.
+  OnEnable,
+
+  # Runs the script when the Entity is disabled.
+  OnDisable,
+
+  # Runs the script when the Entity is destroyed.
+  OnDestroy,
+
+  # Runs the script each frame during the "logic update" stage.
+  OnUpdate,
+
+  # Runs the script each frame after the "render" stage.
+  OnLateUpdate,
+
+  # Runs the script when the Entity receives an event. The type of the event
+  # must be specified din the ScriptDef.event property.
+  OnEvent,
+}
+
+struct ScriptDef {
+  # Inline string containing the code to parse and execute.
+  code: string
+
+  # URI to script resource to load and execute.
+  uri: string
+
+  # The trigger when to invoke the script.
+  type: ScriptTriggerType
+
+  # For `OnEvent` triggers, the event (TypeId) on which to invoke the script.
+  event: HashValue
+}

@@ -1,0 +1,8 @@
+diff --git a/stb_image.c b/stb_image.c
+new file mode 100644
+index 0000000..8ddfd1f
+--- /dev/null
++++ b/stb_image.c
+@@ -0,0 +1,2 @@
++#define STB_IMAGE_IMPLEMENTATION
++#include "stb_image.h"

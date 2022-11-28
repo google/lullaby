@@ -1,0 +1,15 @@
+include redux/modules/audio/enums.h
+
+namespace redux
+
+# Defines a sound to be played.
+struct SoundDef {
+  # The URI to the sound file to be played.
+  uri: string
+
+  # The volume of the sound, in the range [0.0, 1.0].
+  volume: float
+
+  # Whether or not the sound should be looped.
+  looping: bool
+}

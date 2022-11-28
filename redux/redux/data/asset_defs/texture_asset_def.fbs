@@ -1,0 +1,54 @@
+include "redux/modules/flatbuffers/math.fbs";
+include "redux/modules/graphics/graphics_enums.fbs";
+
+namespace redux;
+
+// The binary data and metadata containing the actual image used by the texture.
+table ImageAssetDef {
+  data: [uint8];
+  size: fbs.Vec2i;
+  format: ImageFormat;
+}
+
+// Definition of a texture resource.
+table TextureAssetDef {
+  // Binary data containing the image.
+  image: ImageAssetDef;
+
+  // The texture minifying function is used whenever the pixel being textured
+  // maps to an area greater than one texture element. There are six defined
+  // minifying functions. Two of them use the nearest one or nearest four
+  // texture elements to compute the texture value. The other four use mipmaps.
+  //
+  // The allowed TextureFiltering options are: [Nearest, Linear,
+  //   NearestMipmapNearest, LinearMipmapNearest, NearestMipmapLinear,
+  //   LinearMipmapLinear].
+  min_filter: TextureFilter = Linear;
+
+  // The texture magnification function is used when the pixel being textured
+  // maps to an area less than or equal to one texture element.
+  //
+  // The allowed TextureFiltering options are: [Nearest, Linear]
+  mag_filter: TextureFilter = Linear;
+
+  // Sets the wrap parameter for texture coordinate s.
+  wrap_s : TextureWrap = Repeat;
+  // Sets the wrap parameter for texture coordinate t.
+  wrap_t : TextureWrap = Repeat;
+  // Sets the wrap parameter for texture coordinate r.
+  wrap_r : TextureWrap = Repeat;
+
+  // The type of texture (eg. 2D, CubeMap).
+  target_type: TextureTarget = Normal2D;
+
+  // Flag that specifies whether the texture mip chain should be automatically
+  // generated (note: this does not apply to GPU compressed texture formats).
+  generate_mipmaps: bool = false;
+
+  // Whether or not the texture should have alpha premultiplied.
+  premultiply_alpha: bool = false;
+
+  // Indicates that the texture is storing HDR image data where the multiplier
+  // to be applied to the RGB data is encoded into the alpha channel.
+  is_rgbm: bool = false;
+}

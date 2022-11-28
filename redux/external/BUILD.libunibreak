@@ -1,0 +1,20 @@
+cc_library(
+    name = "libunibreak",
+    srcs = glob([
+        "src/*.c"
+    ], exclude = [
+        "src/emojidata.c",
+        "src/graphemebreakdata.c",
+        "src/wordbreakdata.c",
+    ]),
+    hdrs = glob([
+        "src/*.h",
+    ]),
+    textual_hdrs = glob([
+        "src/emojidata.c",
+        "src/graphemebreakdata.c",
+        "src/wordbreakdata.c",
+    ]),
+    includes = ["src"],
+    visibility = ["//visibility:public"],
+)

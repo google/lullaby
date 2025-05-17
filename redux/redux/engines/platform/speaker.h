@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_SPEAKER_H_
 #define REDUX_ENGINES_PLATFORM_SPEAKER_H_
 
+#include <stdint.h>
+
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "redux/engines/platform/device_profiles.h"
 #include "redux/engines/platform/virtual_device.h"

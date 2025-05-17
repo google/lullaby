@@ -14,11 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
+#include <cstddef>
+#include <cstdlib>
+#include <memory>
+
+#include "absl/log/check.h"
 #include "freetype/freetype.h"
 #include "ft2build.h"
 #include "redux/engines/text/internal/glyph.h"
 #include "redux/engines/text/internal/sdf_computer.h"
-#include "redux/engines/text/text_engine.h"
 #include "redux/modules/graphics/enums.h"
 #include "redux/modules/graphics/image_data.h"
 

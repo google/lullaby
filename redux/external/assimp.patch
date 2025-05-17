@@ -5,10 +5,10 @@ index 1265d25da..8ef283e69 100644
 @@ -48,7 +48,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  #pragma GCC diagnostic ignored "-Wunused-function"
  #endif
- 
+
 -#include "stb/stb_image.h"
 +#include "stb_image.h"
- 
+
  #if _MSC_VER
  #pragma warning(pop)
 diff --git a/include/assimp/config.h b/include/assimp/config.h
@@ -16,49 +16,7 @@ new file mode 100644
 index 000000000..ca009e877
 --- /dev/null
 +++ b/include/assimp/config.h
-@@ -0,0 +1,1139 @@
-+/*
-+---------------------------------------------------------------------------
-+Open Asset Import Library (assimp)
-+---------------------------------------------------------------------------
-+
-+Copyright (c) 2006-2020, assimp team
-+
-+
-+All rights reserved.
-+
-+Redistribution and use of this software in source and binary forms,
-+with or without modification, are permitted provided that the following
-+conditions are met:
-+
-+* Redistributions of source code must retain the above
-+  copyright notice, this list of conditions and the
-+  following disclaimer.
-+
-+* Redistributions in binary form must reproduce the above
-+  copyright notice, this list of conditions and the
-+  following disclaimer in the documentation and/or other
-+  materials provided with the distribution.
-+
-+* Neither the name of the assimp team, nor the names of its
-+  contributors may be used to endorse or promote products
-+  derived from this software without specific prior
-+  written permission of the assimp team.
-+
-+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-+---------------------------------------------------------------------------
-+*/
-+
+@@ -0,0 +1,1097 @@
 +/** @file config.h
 + *  @brief Defines constants for configurable properties for the library
 + *
@@ -231,7 +189,7 @@ index 000000000..ca009e877
 +
 +// ---------------------------------------------------------------------------
 +/** @brief Configures the #aiProcess_PreTransformVertices step to
-+ *  keep the scene hierarchy. Meshes are moved to worldspace, but
++ *  keep the scene hierarchy. Meshes are moved to world space, but
 + *  no optimization is performed (read: meshes with equal materials are not
 + *  joined. The total number of meshes won't change).
 + *
@@ -1114,16 +1072,16 @@ index 000000000..ca009e877
 +
 +/**
 + * @brief Specifies the blob name, assimp uses for exporting.
-+ * 
-+ * Some formats require auxiliary files to be written, that need to be linked back into 
++ *
++ * Some formats require auxiliary files to be written, that need to be linked back into
 + * the original file. For example, OBJ files export materials to a separate MTL file and
 + * use the `mtllib` keyword to reference this file.
-+ * 
++ *
 + * When exporting blobs using #ExportToBlob, assimp does not know the name of the blob
-+ * file and thus outputs `mtllib $blobfile.mtl`, which might not be desired, since the 
-+ * MTL file might be called differently. 
-+ * 
-+ * This property can be used to give the exporter a hint on how to use the magic 
++ * file and thus outputs `mtllib $blobfile.mtl`, which might not be desired, since the
++ * MTL file might be called differently.
++ *
++ * This property can be used to give the exporter a hint on how to use the magic
 + * `$blobfile` keyword. If the exporter detects the keyword and is provided with a name
 + * for the blob, it instead uses this name.
 + */

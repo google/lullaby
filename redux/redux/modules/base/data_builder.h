@@ -21,6 +21,7 @@ limitations under the License.
 #include <cstring>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "redux/modules/base/data_container.h"
 #include "redux/modules/base/logging.h"

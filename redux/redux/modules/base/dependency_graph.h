@@ -23,6 +23,7 @@ limitations under the License.
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {

@@ -20,6 +20,7 @@ limitations under the License.
 #include <functional>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
 #include "redux/engines/animation/animation_engine.h"
 #include "redux/engines/animation/motivator/rig_motivator.h"
 #include "redux/engines/animation/motivator/spline_motivator.h"

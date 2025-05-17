@@ -16,7 +16,13 @@ limitations under the License.
 
 #include "redux/engines/platform/sdl2/sdl2_speaker.h"
 
+#include <stdint.h>
+
+#include <memory>
+
 #include "SDL.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/engines/platform/device_manager.h"
 
 namespace redux {

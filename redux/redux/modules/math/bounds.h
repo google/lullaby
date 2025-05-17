@@ -17,6 +17,11 @@ limitations under the License.
 #ifndef REDUX_MODULES_MATH_BOUNDS_H_
 #define REDUX_MODULES_MATH_BOUNDS_H_
 
+#include <stddef.h>
+
+#include <limits>
+
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/base/typeid.h"

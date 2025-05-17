@@ -16,8 +16,20 @@ limitations under the License.
 
 #include "redux/tools/shader_pipeline/shader_pipeline.h"
 
-#include <memory>
+#include <stdint.h>
 
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "filamat/MaterialBuilder.h"
 #include "filamat/Package.h"
 #include "utils/JobSystem.h"
@@ -102,6 +114,10 @@ static filamat::MaterialBuilder::UniformType ToFilament(
       return filamat::MaterialBuilder::UniformType::FLOAT3;
     case MaterialPropertyType::Float4:
       return filamat::MaterialBuilder::UniformType::FLOAT4;
+    case MaterialPropertyType::Float3x3:
+      return filamat::MaterialBuilder::UniformType::MAT3;
+    case MaterialPropertyType::Float4x4:
+      return filamat::MaterialBuilder::UniformType::MAT4;
     default:
       LOG(FATAL) << "Unsupported property type: " << ToString(value);
   }
@@ -112,15 +128,17 @@ static void SetupShader(const ShaderAsset& asset,
   builder->name(asset.name.c_str());
   builder->platform(filamat::MaterialBuilder::Platform::ALL);
   builder->targetApi(filamat::MaterialBuilder::TargetApi::ALL);
-  builder->colorWrite(asset.color_write);
-  builder->depthWrite(asset.depth_write);
-  builder->depthCulling(asset.depth_cull);
-  builder->doubleSided(asset.double_sided);
-  builder->shading(ToFilament(asset.shading));
-  builder->transparencyMode(ToFilament(asset.transparency));
-  builder->culling(ToFilament(asset.culling));
-  builder->blending(ToFilament(asset.blending));
-  builder->postLightingBlending(ToFilament(asset.post_lighting_blending));
+  builder->colorWrite(asset.color_write.value_or(true));
+  builder->depthWrite(asset.depth_write.value_or(true));
+  builder->depthCulling(asset.depth_cull.value_or(true));
+  builder->doubleSided(asset.double_sided.value_or(false));
+  builder->shading(ToFilament(asset.shading.value_or(ShaderAsset::Lit)));
+  builder->transparencyMode(
+      ToFilament(asset.transparency.value_or(ShaderAsset::Default)));
+  builder->culling(ToFilament(asset.culling.value_or(ShaderAsset::None)));
+  builder->blending(ToFilament(asset.blending.value_or(ShaderAsset::Opaque)));
+  builder->postLightingBlending(ToFilament(
+      asset.post_lighting_blending.value_or(ShaderAsset::Transparent)));
   builder->flipUV(false);
   builder->optimization(filamat::MaterialBuilder::Optimization::NONE);
 }
@@ -207,6 +225,83 @@ static std::string BuildGlslHeader(const ShaderAsset& asset) {
   return ss.str();
 }
 
+template <typename T>
+void SetMerge(std::vector<T>& list, const std::vector<T>& other) {
+  absl::flat_hash_set<T> set;
+  for (const T& value : list) {
+    set.insert(value);
+  }
+  for (const T& value : other) {
+    set.insert(value);
+  }
+  list = std::vector<T>(set.begin(), set.end());
+}
+
+template <typename T>
+void DictMerge(std::vector<T>& list, const std::vector<T>& other) {
+  absl::flat_hash_map<std::string, T> map;
+  for (const T& value : list) {
+    map.emplace(value.name, value);
+  }
+  for (const T& value : other) {
+    map.emplace(value.name, value);
+  }
+  list.clear();
+  for (const auto& [name, value] : map) {
+    list.push_back(value);
+  }
+}
+
+ShaderAsset Combine(const ShaderAsset& asset, const ShaderAsset& variant) {
+  ShaderAsset combined = asset;
+
+  if (combined.name.empty()) {
+    combined.name = variant.name;
+  } else if (!variant.name.empty()) {
+    combined.name += " / " + variant.name;
+  }
+  if (variant.shading) {
+    combined.shading = variant.shading;
+  }
+  if (!variant.vertex_shader.empty()) {
+    combined.vertex_shader = variant.vertex_shader;
+  }
+  if (!variant.fragment_shader.empty()) {
+    combined.fragment_shader = variant.fragment_shader;
+  }
+
+  SetMerge(combined.defines, variant.defines);
+  SetMerge(combined.features, variant.features);
+  SetMerge(combined.vertex_attributes, variant.vertex_attributes);
+  DictMerge(combined.parameters, variant.parameters);
+
+  if (variant.color_write) {
+    combined.color_write = variant.color_write;
+  }
+  if (variant.depth_write) {
+    combined.depth_write = variant.depth_write;
+  }
+  if (variant.depth_cull) {
+    combined.depth_cull = variant.depth_cull;
+  }
+  if (variant.double_sided) {
+    combined.double_sided = variant.double_sided;
+  }
+  if (variant.blending) {
+    combined.blending = variant.blending;
+  }
+  if (variant.post_lighting_blending) {
+    combined.post_lighting_blending = variant.post_lighting_blending;
+  }
+  if (variant.culling) {
+    combined.culling = variant.culling;
+  }
+  if (variant.transparency) {
+    combined.transparency = variant.transparency;
+  }
+  return combined;
+}
+
 std::unique_ptr<ShaderVariantAssetDefT> BuildVariant(const ShaderAsset& asset) {
   filamat::MaterialBuilder builder;
 
@@ -261,14 +356,30 @@ std::unique_ptr<ShaderVariantAssetDefT> BuildVariant(const ShaderAsset& asset) {
   return variant;
 }
 
-DataContainer BuildShader(std::string_view name,
-                          absl::Span<const ShaderAsset> assets) {
+DataContainer BuildShader(
+    std::string_view name, absl::Span<const ShaderAsset> assets,
+    const std::vector<std::vector<std::string>>& variants) {
   ShaderAssetDefT shader_def;
   shader_def.shading_model = std::string(name);
 
   filamat::MaterialBuilder::init();
-  for (const ShaderAsset& asset : assets) {
-    shader_def.variants.emplace_back(BuildVariant(asset));
+  if (variants.empty()) {
+    for (const ShaderAsset& asset : assets) {
+      shader_def.variants.emplace_back(BuildVariant(asset));
+    }
+  } else {
+    absl::flat_hash_map<std::string, int> lookup;
+    for (std::size_t i = 0; i < assets.size(); ++i) {
+      lookup[assets[i].name] = i;
+    }
+
+    for (const auto& variant : variants) {
+      ShaderAsset tmp;
+      for (const std::string& name : variant) {
+        tmp = Combine(tmp, assets[lookup[name]]);
+      }
+      shader_def.variants.emplace_back(BuildVariant(tmp));
+    }
   }
   filamat::MaterialBuilder::shutdown();
   return BuildFlatbuffer(shader_def);

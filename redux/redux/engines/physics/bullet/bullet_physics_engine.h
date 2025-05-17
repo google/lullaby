@@ -17,8 +17,18 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PHYSICS_BULLET_BULLET_PHYSICS_ENGINE_H_
 #define REDUX_ENGINES_PHYSICS_BULLET_BULLET_PHYSICS_ENGINE_H_
 
-#include <algorithm>
+#include <stddef.h>
+#include <stdint.h>
 
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "btBulletDynamicsCommon.h"
 #include "redux/engines/physics/bullet/bullet_collision_shape.h"
 #include "redux/engines/physics/bullet/bullet_rigid_body.h"
@@ -26,6 +36,7 @@ limitations under the License.
 #include "redux/engines/physics/bullet/bullet_utils.h"
 #include "redux/engines/physics/physics_engine.h"
 #include "redux/modules/base/choreographer.h"
+#include "redux/modules/base/resource_manager.h"
 #include "redux/modules/base/static_registry.h"
 #include "redux/modules/ecs/entity.h"
 

@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_KEYBOARD_H_
 #define REDUX_ENGINES_PLATFORM_KEYBOARD_H_
 
+#include <string>
+
+#include "absl/time/time.h"
 #include "redux/engines/platform/buffered_state.h"
 #include "redux/engines/platform/device_profiles.h"
 #include "redux/engines/platform/keycodes.h"

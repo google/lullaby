@@ -17,7 +17,12 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_SPLINE_BULK_SPLINE_EVALUATOR_H_
 #define REDUX_ENGINES_ANIMATION_SPLINE_BULK_SPLINE_EVALUATOR_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <cassert>
 #include <vector>
+
 #include "absl/time/time.h"
 #include "redux/engines/animation/spline/compact_spline.h"
 #include "redux/modules/math/bounds.h"

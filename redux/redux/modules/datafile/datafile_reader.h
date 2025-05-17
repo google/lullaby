@@ -17,9 +17,12 @@ limitations under the License.
 #ifndef REDUX_MODULES_DATAFILE_DATAFILE_H_
 #define REDUX_MODULES_DATAFILE_DATAFILE_H_
 
+#include <memory>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
+#include "absl/log/check.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/base/serialize.h"
@@ -86,7 +89,7 @@ class DatafileReader : public DatafileParserCallbacks {
   };
 
   template <typename U>
-  static constexpr bool IsObject = IsSerializableT<U, ObjectDetector>::value;
+  static constexpr bool IsObject = IsSerializable<U, ObjectDetector>;
 
   template <typename U>
   static constexpr bool IsArray = IsVectorT<U>::value;
@@ -95,6 +98,7 @@ class DatafileReader : public DatafileParserCallbacks {
   static constexpr bool IsValue = !IsObject<U> && !IsArray<U>;
 
   class Element;
+
   using ElementPtr = std::unique_ptr<Element>;
 
   // Responsible for Serializing data into an Element. In this case, Elements

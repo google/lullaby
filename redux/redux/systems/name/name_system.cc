@@ -16,11 +16,19 @@ limitations under the License.
 
 #include "redux/systems/name/name_system.h"
 
-#include <functional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 
 namespace redux {
 

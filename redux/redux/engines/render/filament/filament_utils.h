@@ -22,10 +22,16 @@ limitations under the License.
 #include <vector>
 
 #include "filament/Box.h"
+#include "filament/Color.h"
 #include "filament/Engine.h"
 #include "math/mat4.h"
+#include "redux/modules/graphics/color.h"
 #include "redux/modules/math/bounds.h"
 #include "redux/modules/math/matrix.h"
+
+namespace filament {
+class Camera;
+}  // namespace filament
 
 namespace redux {
 
@@ -41,6 +47,14 @@ FilamentResourcePtr<T> MakeFilamentResource(T* ptr, filament::Engine* engine) {
   } else {
     return {ptr, [=](T* obj) { engine->destroy(obj); }};
   }
+}
+
+inline filament::math::float3 ToFilament(const vec3& src) {
+  return filament::math::float3{src.x, src.y, src.z};
+}
+
+inline filament::LinearColorA ToFilament(const Color4f& src) {
+  return filament::LinearColorA{src.r, src.g, src.b, src.a};
 }
 
 inline filament::math::mat4f ToFilament(const mat4& src) {

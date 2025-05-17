@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <cstddef>
 #include <initializer_list>
+#include <iterator>
 
 #include "redux/modules/graphics/vertex_attribute.h"
 
@@ -44,6 +45,8 @@ class VertexFormat {
 
   // Appends the specified attribute to the internal list of attributes.
   void AppendAttribute(const VertexAttribute& attribute);
+  void AppendAttribute(const VertexAttribute& attribute, std::size_t offset,
+                       std::size_t byte_stride);
 
   // Returns the number of attributes in this format.
   std::size_t GetNumAttributes() const { return num_attributes_; }
@@ -51,27 +54,30 @@ class VertexFormat {
   // Returns the attribute at the specified index if valid, else nullptr.
   const VertexAttribute* GetAttributeAt(std::size_t index) const;
 
-  // Returns the attribute withthe specified |usage|, else nullptr.
-  const VertexAttribute* GetAttributeWithUsage(VertexUsage usage) const;
+  // Returns the offset of the vertex attribute at the specified index.
+  std::size_t GetOffsetOfAttributeAt(std::size_t index) const;
+
+  // Returns the stride of the vertex attribute at the specified index.
+  std::size_t GetStrideOfAttributeAt(std::size_t index) const;
 
   // Returns the size of a single vertex.
   std::size_t GetVertexSize() const { return vertex_size_; }
 
-  // Returns the offset of the attribute at |index|.
-  std::size_t GetAttributeOffsetAt(std::size_t index) const;
-
-  // Returns |attribute|'s offset within the vertex.
-  std::size_t GetAttributeOffset(const VertexAttribute* attribute) const;
-
   // Returns the size of a vertex attribute.
-  static std::size_t GetAttributeSize(const VertexAttribute& attr);
+  static std::size_t GetVertexTypeSize(const VertexType& type);
 
   // Tests if the structures described by two VertexFormats are equal.
   bool operator==(const VertexFormat& rhs) const;
   bool operator!=(const VertexFormat& rhs) const;
 
  private:
-  VertexAttribute attributes_[kMaxAttributes];
+  struct Attribute {
+    VertexAttribute attrib;
+    std::size_t offset = 0;
+    std::size_t byte_stride = 0;
+  };
+
+  Attribute attributes_[kMaxAttributes];
   std::size_t num_attributes_ = 0;
   std::size_t vertex_size_ = 0;
 };

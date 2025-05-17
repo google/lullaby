@@ -14,8 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "redux/engines/script/script_engine.h"
 #include "redux/systems/name/name_system.h"
 

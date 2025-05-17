@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_MOTIVATOR_RIG_MOTIVATOR_H_
 #define REDUX_ENGINES_ANIMATION_MOTIVATOR_RIG_MOTIVATOR_H_
 
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/animation_clip.h"
 #include "redux/engines/animation/animation_playback.h"
 #include "redux/engines/animation/motivator/motivator.h"

@@ -17,9 +17,19 @@ limitations under the License.
 #ifndef REDUX_MODULES_VAR_VAR_CONVERT_H_
 #define REDUX_MODULES_VAR_VAR_CONVERT_H_
 
+#include <stddef.h>
+
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/serialize_traits.h"
 #include "redux/modules/base/typed_ptr.h"
 #include "redux/modules/var/var.h"

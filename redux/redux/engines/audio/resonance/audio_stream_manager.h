@@ -17,12 +17,15 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_STREAM_MANAGER_H_
 #define REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_STREAM_MANAGER_H_
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <thread>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "redux/engines/audio/resonance/audio_stream_renderer.h"
+#include "resonance_audio/base/constants_and_types.h"
 #include "resonance_audio/utils/threadsafe_fifo.h"
 
 namespace redux {

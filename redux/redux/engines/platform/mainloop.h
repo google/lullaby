@@ -42,6 +42,7 @@ class Mainloop {
   Mainloop(const Mainloop&) = delete;
   Mainloop& operator=(const Mainloop&) = delete;
 
+  virtual void CreateHeadless(vec2i size) = 0;
   virtual void CreateDisplay(std::string_view title, vec2i size) = 0;
   virtual void CreateKeyboard() = 0;
   virtual void CreateMouse() = 0;
@@ -56,13 +57,17 @@ class Mainloop {
   using PerFrameCallback = std::function<absl::StatusCode()>;
   absl::StatusCode Run(const PerFrameCallback& cb);
 
+  // Pumps all the hardware devices for events.
+  //
+  // This function should only be called if need to explicitly manage the update
+  // loop. For most use-cases, you should simply call the Run() function above.
+  virtual absl::StatusCode PollEvents() = 0;
+
   // Returns the main registry.
   Registry* GetRegistry() { return &registry_; }
 
  protected:
   Mainloop();
-
-  virtual absl::StatusCode PollEvents() = 0;
 
   Registry registry_;
 };

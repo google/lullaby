@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/systems/audio/audio_system.h"
 
+#include <memory>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/choreographer.h"
 #include "redux/systems/transform/transform_system.h"
 

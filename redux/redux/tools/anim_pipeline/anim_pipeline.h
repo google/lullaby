@@ -17,8 +17,10 @@ limitations under the License.
 #ifndef REDUX_TOOLS_ANIM_PIPELINE_ANIM_PIPELINE_H_
 #define REDUX_TOOLS_ANIM_PIPELINE_ANIM_PIPELINE_H_
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "redux/modules/base/data_container.h"

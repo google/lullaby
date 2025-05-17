@@ -17,10 +17,20 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_LIGHT_LIGHT_SYSTEM_H_
 #define REDUX_SYSTEMS_LIGHT_LIGHT_SYSTEM_H_
 
+#include <optional>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "redux/engines/render/render_engine.h"
+#include "redux/engines/render/indirect_light.h"
+#include "redux/engines/render/light.h"
+#include "redux/engines/render/texture.h"
 #include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/base/typeid.h"
+#include "redux/modules/graphics/color.h"
+#include "redux/modules/ecs/entity.h"
 #include "redux/modules/ecs/system.h"
-#include "redux/modules/math/math.h"
 #include "redux/systems/light/light_def_generated.h"
 
 namespace redux {
@@ -57,6 +67,9 @@ class LightSystem : public System {
   void AddEnvironmentalLight(Entity entity, const TexturePtr& reflections,
                              const TexturePtr& irradiance,
                              std::optional<HashValue> scene = std::nullopt);
+  void AddEnvironmentalLight(Entity entity, const TexturePtr& reflections,
+                             absl::Span<const float> spherical_harmonics,
+                             std::optional<HashValue> scene = std::nullopt);
 
   // Adds the light to the specified scene.
   void AddToScene(Entity entity, HashValue scene);
@@ -85,7 +98,7 @@ class LightSystem : public System {
   void SetIntensity(Entity entity, float intensity);
 
   // Sets the falloff distance of the light Entity. Only applies to spot and
-  // directionall lights.
+  // directional lights.
   void SetFalloffDistance(Entity entity, float distance);
 
   // Sets the inner/outer cone angles of a spot light.
@@ -110,7 +123,12 @@ class LightSystem : public System {
   };
 
   void CreateLight(Entity entity, Light::Type type,
-                   std::optional<HashValue> scene_name = std::nullopt);
+                   std::optional<HashValue> scene_name);
+
+  void CreateIndirectLight(Entity entity, const TexturePtr& reflections,
+                           const TexturePtr& irradiance,
+                           absl::Span<const float> spherical_harmonics,
+                           std::optional<HashValue> scene_name);
 
   void OnDestroy(Entity entity) override;
 

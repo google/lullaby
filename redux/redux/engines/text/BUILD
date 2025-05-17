@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -25,6 +26,10 @@ cc_library(
         "text_enums.h",
     ],
     deps = [
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/status:statusor",
         "@absl//absl/types:span",
         "//redux/modules/base:asset_loader",
         "//redux/modules/base:data_builder",
@@ -32,13 +37,14 @@ cc_library(
         "//redux/modules/base:hash",
         "//redux/modules/base:logging",
         "//redux/modules/base:registry",
-        "//redux/modules/base:resource_manager",
         "//redux/modules/base:static_registry",
         "//redux/modules/base:typeid",
+        "//redux/modules/graphics:graphics_enums_fbs",
         "//redux/modules/graphics:image_atlaser",
         "//redux/modules/graphics:image_data",
         "//redux/modules/graphics:mesh_data",
-        "//redux/modules/math",
+        "//redux/modules/graphics:vertex_format",
+        "//redux/modules/math:bounds",
         "//redux/modules/math:vector",
     ],
 )

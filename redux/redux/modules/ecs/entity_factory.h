@@ -17,10 +17,16 @@ limitations under the License.
 #ifndef REDUX_MODULES_ECS_ENTITY_FACTORY_H_
 #define REDUX_MODULES_ECS_ENTITY_FACTORY_H_
 
+#include <stdint.h>
+
 #include <cstddef>
 #include <functional>
 #include <queue>
+#include <string_view>
+#include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/modules/base/bits.h"
 #include "redux/modules/base/registry.h"
@@ -61,6 +67,9 @@ class EntityFactory {
 
   // Creates an Entity with attached Components as defined by the Blueprint.
   Entity Create(const BlueprintPtr& blueprint);
+
+  // Creates an Entity by parsing the given blueprint text.
+  Entity Create(std::string_view text);
 
   // Convenience function that uses the BlueprintFactory to load a Blueprint
   // from the given 'uri' and create an Entity from it all in one go.

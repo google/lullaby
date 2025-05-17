@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -13,6 +14,7 @@ cc_library(
     deps = [
         ":decode_stb",
         ":decode_webp",
+        "@absl//absl/log",
         "//redux/modules/base:data_container",
         "//redux/modules/graphics:image_data",
         "//redux/modules/graphics:image_utils",
@@ -24,6 +26,8 @@ cc_library(
     srcs = ["decode_stb.cc"],
     hdrs = ["decode_stb.h"],
     deps = [
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "//redux/modules/base:data_container",
         "//redux/modules/graphics:image_data",
         "@stblib//:stblib",
@@ -35,6 +39,8 @@ cc_library(
     srcs = ["decode_webp.cc"],
     hdrs = ["decode_webp.h"],
     deps = [
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@libwebp//:webp_decode",
         "@libwebp//:webp_demux",
         "//redux/modules/base:data_container",
@@ -47,6 +53,7 @@ cc_library(
     srcs = ["encode_png.cc"],
     hdrs = ["encode_png.h"],
     deps = [
+        "@absl//absl/log",
         "//redux/modules/base:data_builder",
         "//redux/modules/base:data_container",
         "//redux/modules/graphics:image_data",
@@ -60,8 +67,8 @@ cc_library(
     srcs = ["encode_webp.cc"],
     hdrs = ["encode_webp.h"],
     deps = [
+        "@absl//absl/log",
         "@libwebp//:webp_encode",
-        "//redux/modules/base:data_builder",
         "//redux/modules/base:data_container",
         "//redux/modules/graphics:image_data",
         "//redux/modules/graphics:image_utils",

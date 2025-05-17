@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -22,8 +23,8 @@ cc_library(
     ],
     deps = [
         "@absl//absl/container:flat_hash_map",
-        "@absl//absl/flags:flag",
-        "@absl//absl/flags:parse",
+        "@absl//absl/log:check",
+        "@absl//absl/status",
         "@absl//absl/status:statusor",
         "@absl//absl/strings",
         "@fmtlib//:fmtlib",
@@ -36,6 +37,7 @@ cc_library(
 cc_test(
     name = "parse_def_file_tests",
     srcs = ["parse_def_file_tests.cc"],
+    tags = ["noautofuzz"],
     deps = [
         ":def_code_generator_lib",
         "@gtest//:gtest_main",
@@ -49,6 +51,9 @@ cc_binary(
         ":def_code_generator_lib",
         "@absl//absl/flags:flag",
         "@absl//absl/flags:parse",
+        "@absl//absl/log:check",
+        "@absl//absl/status",
+        "@absl//absl/status:statusor",
         "//redux/modules/base:filepath",
         "//redux/modules/base:logging",
         "//redux/tools/common:file_utils",

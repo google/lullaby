@@ -16,10 +16,30 @@ limitations under the License.
 
 #include "redux/engines/text/internal/text_layout.h"
 
+#include <stdint.h>
+
+#include <cstdlib>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
+#include "redux/engines/text/font.h"
 #include "redux/engines/text/internal/glyph.h"
 #include "redux/engines/text/internal/locale.h"
+#include "redux/engines/text/text_engine.h"
+#include "redux/engines/text/text_enums.h"
 #include "redux/modules/base/data_builder.h"
 #include "redux/modules/base/logging.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/mesh_data.h"
+#include "redux/modules/graphics/vertex_format.h"
+#include "redux/modules/math/bounds.h"
+#include "redux/modules/math/detail/vector_layout.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -276,17 +296,8 @@ MeshData TextLayout::BuildMesh(const GlyphSequence& sequence) const {
     bounds.max = Min(bounds.max, vec3(pos.x + d.x, pos.y + d.y, 0.f));
   }
 
-  MeshData::PartData part;
-  part.primitive_type = MeshPrimitiveType::Triangles;
-  part.start = 0;
-  part.end = num_vertices;
-  part.box = bounds;
-  DataBuilder parts(sizeof(MeshData::PartData));
-  parts.Append(part);
-
   MeshData mesh_data;
   mesh_data.SetVertexData(format, vertices.Release(), bounds);
-  mesh_data.SetParts(parts.Release());
   return mesh_data;
 }
 }  // namespace redux

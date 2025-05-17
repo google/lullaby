@@ -17,6 +17,13 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_OPERATORS_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_OPERATORS_H_
 
+#include <stdint.h>
+
+#include <type_traits>
+#include <utility>
+
+#include "absl/log/check.h"
+#include "absl/time/time.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/modules/ecs/entity.h"
 #include "redux/modules/math/quaternion.h"

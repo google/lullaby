@@ -16,8 +16,14 @@ limitations under the License.
 
 #include "redux/modules/codecs/decode_stb.h"
 
-#include <cstdlib>
+#include <stdint.h>
 
+#include <cstddef>
+#include <cstdlib>
+#include <utility>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "stb_image.h"
 
 namespace redux {

@@ -17,8 +17,11 @@ limitations under the License.
 #ifndef REDUX_TOOLS_ANIM_PIPELINE_ANIM_CURVE_H_
 #define REDUX_TOOLS_ANIM_PIPELINE_ANIM_CURVE_H_
 
+#include <stddef.h>
+
 #include <cmath>
 #include <optional>
+#include <vector>
 
 #include "absl/types/span.h"
 #include "redux/engines/animation/common.h"

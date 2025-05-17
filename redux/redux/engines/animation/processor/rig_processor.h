@@ -20,6 +20,8 @@ limitations under the License.
 #include <cstring>
 #include <vector>
 
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/animation_clip.h"
 #include "redux/engines/animation/common.h"
 #include "redux/engines/animation/motivator/rig_motivator.h"
@@ -29,6 +31,8 @@ limitations under the License.
 #include "redux/modules/math/matrix.h"
 
 namespace redux {
+
+class AnimationEngine;
 
 class RigProcessor : public AnimProcessor {
  public:

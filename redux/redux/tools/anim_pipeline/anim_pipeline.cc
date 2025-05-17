@@ -16,6 +16,16 @@ limitations under the License.
 
 #include "redux/tools/anim_pipeline/anim_pipeline.h"
 
+#include <algorithm>
+#include <cctype>
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/filepath.h"
 #include "redux/tools/anim_pipeline/export.h"
 

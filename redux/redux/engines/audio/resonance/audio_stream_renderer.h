@@ -17,12 +17,16 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_STREAM_RENDERER_H_
 #define REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_STREAM_RENDERER_H_
 
+#include <stddef.h>
+
 #include <atomic>
 #include <memory>
+#include <vector>
 
 #include "redux/engines/audio/resonance/audio_source_stream.h"
 #include "redux/modules/audio/enums.h"
 #include "resonance_audio/api/resonance_audio_api.h"
+#include "resonance_audio/base/constants_and_types.h"
 
 namespace redux {
 

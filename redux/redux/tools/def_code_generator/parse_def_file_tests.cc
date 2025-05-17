@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <utility>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "redux/tools/def_code_generator/parse_def_file.h"
@@ -76,6 +79,7 @@ TEST(ParseDefFileTest, Struct) {
       "  Alpha: int = 0           \n"
       "  # b\n"
       "  Beta: string = \"hello\" \n"
+      "  Gamma: [string] \n"
       "}\n";
   absl::StatusOr<DefDocument> doc = ParseDefFile(txt);
   EXPECT_TRUE(doc.ok()) << doc.status();
@@ -85,7 +89,7 @@ TEST(ParseDefFileTest, Struct) {
   EXPECT_THAT(s.name, Eq("TestStruct"));
   EXPECT_THAT(s.description, Eq("s\n"));
 
-  EXPECT_THAT(s.fields.size(), Eq(2));
+  EXPECT_THAT(s.fields.size(), Eq(3));
 
   EXPECT_THAT(s.fields[0].name, Eq("Alpha"));
   EXPECT_THAT(s.fields[0].type, Eq("int"));
@@ -94,8 +98,13 @@ TEST(ParseDefFileTest, Struct) {
   EXPECT_THAT(s.fields[1].type, Eq("string"));
 
   EXPECT_THAT(s.fields[1].attributes.begin()->first,
-              Eq(FieldMetadata::kDefaulValue));
+              Eq(FieldMetadata::kDefaultValue));
   EXPECT_THAT(s.fields[1].attributes.begin()->second, Eq("\"hello\""));
+
+  EXPECT_THAT(s.fields[2].attributes.begin()->first,
+              Eq(FieldMetadata::kIsArray));
+  EXPECT_THAT(s.fields[2].name, Eq("Gamma"));
+  EXPECT_THAT(s.fields[2].type, Eq("string"));
 }
 
 

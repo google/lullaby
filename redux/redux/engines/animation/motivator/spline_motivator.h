@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_MOTIVATOR_SPLINE_MOTIVATOR_H_
 #define REDUX_ENGINES_ANIMATION_MOTIVATOR_SPLINE_MOTIVATOR_H_
 
+#include "absl/time/time.h"
 #include "redux/engines/animation/animation_playback.h"
 #include "redux/engines/animation/motivator/motivator.h"
 #include "redux/engines/animation/spline/compact_spline.h"

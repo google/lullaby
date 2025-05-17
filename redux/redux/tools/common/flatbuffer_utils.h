@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_TOOLS_COMMON_FLATBUFFER_UTILS_
 #define REDUX_TOOLS_COMMON_FLATBUFFER_UTILS_
 
+#include <cstddef>
+#include <utility>
+
 #include "flatbuffers/flatc.h"
 #include "redux/modules/base/data_container.h"
 

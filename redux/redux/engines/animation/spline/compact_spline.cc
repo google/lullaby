@@ -16,6 +16,13 @@ limitations under the License.
 
 #include "redux/engines/animation/spline/compact_spline.h"
 
+#include <math.h>
+
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <limits>
+
 #include "redux/engines/animation/spline/bulk_spline_evaluator.h"
 #include "redux/engines/animation/spline/dual_cubic.h"
 

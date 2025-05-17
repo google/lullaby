@@ -614,10 +614,11 @@ constexpr auto SLerp(const QuaternionImpl<T>& q1, const QuaternionImpl<T>& q2,
   }
 
   const Scalar npq = std::sqrt(Dot(q1, q1) * Dot(q2, q2));
-  const Scalar a = std::acos(Clamp(std::abs(dot) / npq, Scalar(-1), Scalar(1)));
+  const Scalar cosa = Clamp(std::abs(dot) / npq, Scalar(-1), Scalar(1));
+  const Scalar a = std::acos(cosa);
   const Scalar a0 = a * (Scalar(1) - percent);
   const Scalar a1 = a * percent;
-  const Scalar sina = sin(a);
+  const Scalar sina = std::sqrt(Scalar(1) - cosa * cosa);
   if (sina < kDefaultEpsilon) {
     return NLerp(q1, q2, percent);
   }

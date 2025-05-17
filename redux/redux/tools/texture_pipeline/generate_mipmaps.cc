@@ -16,7 +16,11 @@ limitations under the License.
 
 #include "redux/tools/texture_pipeline/generate_mipmaps.h"
 
+#include <cstddef>
+#include <utility>
 #include <vector>
+
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/graphics/image_utils.h"
 

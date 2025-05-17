@@ -16,13 +16,18 @@ limitations under the License.
 
 #include "redux/engines/physics/bullet/bullet_collision_shape.h"
 
-#include <utility>
+#include <stddef.h>
 
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "BulletCollision/CollisionShapes/btBoxShape.h"
 #include "BulletCollision/CollisionShapes/btCompoundShape.h"
 #include "BulletCollision/CollisionShapes/btSphereShape.h"
 #include "BulletCollision/CollisionShapes/btTriangleIndexVertexArray.h"
-#include "BulletCollision/CollisionShapes/btUniformScalingShape.h"
 #include "BulletCollision/Gimpact/btGImpactShape.h"
 #include "redux/engines/physics/bullet/bullet_utils.h"
 

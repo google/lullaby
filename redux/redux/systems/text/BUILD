@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -31,13 +32,12 @@ cc_library(
     deps = [
         ":text_def",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log:check",
         "//redux/engines/render",
         "//redux/engines/text",
         "//redux/modules/base:choreographer",
-        "//redux/modules/base:logging",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
-        "//redux/modules/math:bounds",
         "//redux/systems/render",
     ],
 )

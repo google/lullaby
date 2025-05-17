@@ -15,10 +15,11 @@ limitations under the License.
 */
 
 #include <string>
-#include <vector>
+#include <string_view>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/check.h"
 #include "redux/modules/math/constants.h"
 #include "redux/tools/anim_pipeline/anim_pipeline.h"
 #include "redux/tools/anim_pipeline/animation.h"

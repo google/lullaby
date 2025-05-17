@@ -16,6 +16,24 @@ limitations under the License.
 
 #include "redux/tools/model_pipeline/model.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <cmath>
+#include <functional>
+#include <limits>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "redux/modules/flatbuffers/var.h"
 #include "redux/modules/graphics/image_utils.h"
 #include "redux/tools/common/file_utils.h"

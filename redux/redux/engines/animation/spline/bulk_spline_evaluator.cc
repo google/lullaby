@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/engines/animation/spline/bulk_spline_evaluator.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <limits>
+#include <vector>
+
 namespace redux {
 
 // These functions are implemented in assembly language.

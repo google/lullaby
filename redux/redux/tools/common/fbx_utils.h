@@ -23,6 +23,7 @@ limitations under the License.
 #include <string>
 
 #include "absl/container/flat_hash_set.h"
+#include "fbxsdk.h"
 #include "redux/modules/math/matrix.h"
 #include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/vector.h"

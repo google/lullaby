@@ -16,7 +16,18 @@ limitations under the License.
 
 #include "redux/engines/audio/resonance/audio_planar_data.h"
 
+#include <stdint.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/modules/audio/audio_reader.h"
+#include "resonance_audio/base/audio_buffer.h"
+#include "resonance_audio/base/channel_view.h"
 #include "resonance_audio/dsp/resampler.h"
 #include "resonance_audio/utils/planar_interleaved_conversion.h"
 

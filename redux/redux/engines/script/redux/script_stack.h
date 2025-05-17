@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_STACK_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_STACK_H_
 
+#include <stddef.h>
+
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -78,15 +81,15 @@ class ScriptStack {
   using LookupTable = absl::flat_hash_map<HashValue, IndexArray>;
 
   // Stores the actual Var associated with a symbol at a specific scope,
-  // as well the symbol's corresponding IndexArray in the lookup table.
+  // as well the symbol's corresponding key in the lookup table.
   struct ValueEntry {
-    ValueEntry(ScriptValue value, LookupTable::value_type* lookup)
-        : value(std::move(value)), lookup_entry(lookup) {}
+    ValueEntry(ScriptValue value, HashValue key)
+        : value(std::move(value)), key(key) {}
 
     // The actual Var associated with a symbol.
     ScriptValue value;
-    // A pointer to the data in the LookupTable associated with the symbol.
-    LookupTable::value_type* lookup_entry;
+    // The key in the LookupTable associated with the symbol.
+    HashValue key;
   };
 
   // Storage for all the Vars stored in the table for all scopes.

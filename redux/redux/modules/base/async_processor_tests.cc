@@ -14,13 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stddef.h>
+
+#include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <unordered_set>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/synchronization/notification.h"
 #include "redux/modules/base/async_processor.h"
 

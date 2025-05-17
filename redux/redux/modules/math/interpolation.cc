@@ -17,6 +17,7 @@ limitations under the License.
 #include "redux/modules/math/interpolation.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "redux/modules/math/math.h"
 

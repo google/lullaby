@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/systems/transform/transform_system.h"
 
+#include <stdint.h>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
+
 namespace redux {
 
 static Box CalculateTransformedBox(const mat4& mat, const Box& box) {
@@ -238,7 +244,7 @@ void TransformSystem::UpdateRow(Transforms::Row& data) const {
   if (data.Get<kFlags>().Any(dirty_flag_)) {
     data.Get<kWorldMatrix>() = TransformMatrix(
         data.Get<kTranslation>(), data.Get<kRotation>(), data.Get<kScale>());
-    data.Get<kLocalBoundingBox>() = CalculateTransformedBox(
+    data.Get<kWorldBoundingBox>() = CalculateTransformedBox(
         data.Get<kWorldMatrix>(), data.Get<kLocalBoundingBox>());
     data.Get<kFlags>().Clear(dirty_flag_);
   }

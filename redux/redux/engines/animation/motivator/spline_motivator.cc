@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "redux/engines/animation/motivator/spline_motivator.h"
 
+#include "absl/time/time.h"
 #include "redux/engines/animation/common.h"
 #include "redux/engines/animation/processor/spline_processor.h"
 

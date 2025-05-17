@@ -29,14 +29,14 @@ void RenderEngine::OnRegistryInitialize() {
 RenderScenePtr RenderEngine::GetRenderScene(HashValue name) {
   return Upcast(this)->GetRenderScene(name);
 }
-RenderScenePtr RenderEngine::GetDefaultRenderScene() {
-  return Upcast(this)->GetDefaultRenderScene();
+HashValue RenderEngine::GetDefaultRenderSceneName() {
+  return Upcast(this)->GetDefaultRenderSceneName();
 }
 RenderLayerPtr RenderEngine::GetRenderLayer(HashValue name) {
   return Upcast(this)->GetRenderLayer(name);
 }
-RenderLayerPtr RenderEngine::GetDefaultRenderLayer() {
-  return Upcast(this)->GetDefaultRenderLayer();
+HashValue RenderEngine::GetDefaultRenderLayerName() {
+  return Upcast(this)->GetDefaultRenderLayerName();
 }
 RenderScenePtr RenderEngine::CreateRenderScene(HashValue name) {
   return Upcast(this)->CreateRenderScene(name);
@@ -51,8 +51,10 @@ LightPtr RenderEngine::CreateLight(Light::Type type) {
   return Upcast(this)->CreateLight(type);
 }
 IndirectLightPtr RenderEngine::CreateIndirectLight(
-    const TexturePtr& reflection, const TexturePtr& irradiance) {
-  return Upcast(this)->CreateIndirectLight(reflection, irradiance);
+    const TexturePtr& reflection, const TexturePtr& irradiance,
+    absl::Span<const float> spherical_harmonics) {
+  return Upcast(this)->CreateIndirectLight(reflection, irradiance,
+                                           spherical_harmonics);
 }
 bool RenderEngine::Render() { return Upcast(this)->Render(); }
 bool RenderEngine::RenderLayer(HashValue name) {

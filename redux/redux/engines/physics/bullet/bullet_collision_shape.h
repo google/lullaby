@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_ENGINES_PHYSICS_BULLET_BULLET_COLLISION_SHAPE_H_
 
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include "BulletCollision/CollisionShapes/btCollisionShape.h"

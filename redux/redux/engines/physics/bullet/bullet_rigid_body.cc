@@ -16,10 +16,23 @@ limitations under the License.
 
 #include "redux/engines/physics/bullet/bullet_rigid_body.h"
 
+#include <memory>
+
+#include "BulletCollision/BroadphaseCollision/btBroadphaseProxy.h"
+#include "BulletCollision/CollisionDispatch/btCollisionObject.h"
+#include "BulletDynamics/Dynamics/btRigidBody.h"
+#include "BulletDynamics/Dynamics/btDynamicsWorld.h"
 #include "LinearMath/btDefaultMotionState.h"
+#include "LinearMath/btTransform.h"
+#include "LinearMath/btVector3.h"
 #include "redux/engines/physics/bullet/bullet_collision_shape.h"
 #include "redux/engines/physics/bullet/bullet_utils.h"
+#include "redux/engines/physics/physics_enums_generated.h"
+#include "redux/engines/physics/rigid_body.h"
 #include "redux/modules/base/bits.h"
+#include "redux/modules/math/quaternion.h"
+#include "redux/modules/math/transform.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -39,13 +52,13 @@ BulletRigidBody::BulletRigidBody(const RigidBodyParams& params,
   bt_rigid_body_ = std::make_unique<btRigidBody>(info);
   bt_rigid_body_->setUserIndex(EntityToBulletUserIndex(params_.entity));
 
-  UpdateFlags();
+  UpdateMotionType();
   Activate();
 }
 
 BulletRigidBody::~BulletRigidBody() { Deactivate(); }
 
-void BulletRigidBody::UpdateFlags() {
+void BulletRigidBody::UpdateMotionType() {
   static constexpr int kStaticFlag =
       btCollisionObject::CollisionFlags::CF_STATIC_OBJECT;
   static constexpr int kKinematicFlag =
@@ -65,6 +78,16 @@ void BulletRigidBody::UpdateFlags() {
   bt_rigid_body_->setFlags(flags);
 }
 
+void BulletRigidBody::UpdateCollisionFlags() {
+  btBroadphaseProxy* proxy = bt_rigid_body_->getBroadphaseProxy();
+  if (proxy) {
+    const int group = static_cast<int>(params_.collision_group.Value());
+    const int mask = static_cast<int>(params_.collision_filter.Value());
+    proxy->m_collisionFilterGroup = group;
+    proxy->m_collisionFilterMask = mask;
+  }
+}
+
 void BulletRigidBody::Activate() {
   const int group = static_cast<int>(params_.collision_group.Value());
   const int mask = static_cast<int>(params_.collision_filter.Value());
@@ -75,9 +98,16 @@ void BulletRigidBody::Deactivate() {
   world_->removeRigidBody(bt_rigid_body_.get());
 }
 
-void BulletRigidBody::SetType(RigidBodyMotionType type) {
+void BulletRigidBody::SetMotionType(RigidBodyMotionType type) {
   params_.type = type;
-  UpdateFlags();
+  UpdateMotionType();
+}
+
+void BulletRigidBody::SetCollisionState(Bits32 collision_group,
+                                        Bits32 collision_filter) {
+  params_.collision_group = collision_group;
+  params_.collision_filter = collision_filter;
+  UpdateCollisionFlags();
 }
 
 bool BulletRigidBody::IsActive() const { return bt_rigid_body_->isInWorld(); }
@@ -106,8 +136,8 @@ void BulletRigidBody::SetMass(float mass_in_kg) {
   btVector3 inertia(0.f, 0.f, 0.f);
   GetUnderlyingBtCollisionShape()->calculateLocalInertia(mass_in_kg, inertia);
   bt_rigid_body_->setMassProps(mass_in_kg, inertia);
-  // setMassProps() can change collision flags, so reset them to be sure.
-  UpdateFlags();
+  // setMassProps() can change motion state flags, so reset them to be sure.
+  UpdateMotionType();
 }
 
 float BulletRigidBody::GetMass() const { return bt_rigid_body_->getMass(); }

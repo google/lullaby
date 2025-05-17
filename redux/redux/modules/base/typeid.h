@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_TYPEID_H_
 #define REDUX_MODULES_BASE_TYPEID_H_
 
+#include <cstddef>
 #include <cstdint>
 
 #include "redux/modules/base/hash.h"
@@ -97,5 +98,6 @@ REDUX_SETUP_TYPEID(std::uint64_t);
 REDUX_SETUP_TYPEID(float);
 REDUX_SETUP_TYPEID(double);
 REDUX_SETUP_TYPEID(redux::HashValue);
+REDUX_SETUP_TYPEID(std::nullptr_t)
 
 #endif  // REDUX_MODULES_BASE_TYPEID_H_

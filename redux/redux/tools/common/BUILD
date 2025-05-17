@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -38,6 +39,7 @@ cc_library(
     deps = [
         ":axis_system",
         "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log",
         "@assimp//:assimp",
         "//redux/modules/base:logging",
     ],
@@ -50,6 +52,7 @@ cc_library(
     deps = [
         ":axis_system",
         "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log",
         "@libfbx//:libfbx",
         "//redux/modules/math:matrix",
         "//redux/modules/math:quaternion",
@@ -62,10 +65,11 @@ cc_library(
     srcs = ["file_utils.cc"],
     hdrs = ["file_utils.h"],
     deps = [
+        "@absl//absl/log:check",
+        "@absl//absl/status",
         "@absl//absl/status:statusor",
         "//redux/modules/base:data_builder",
         "//redux/modules/base:data_container",
-        "//redux/modules/base:logging",
     ],
 )
 
@@ -76,6 +80,7 @@ cc_test(
     deps = [
         ":file_utils",
         "@gtest//:gtest_main",
+        "@absl//absl/status:statusor",
         "//redux/modules/testing",
     ],
 )
@@ -86,6 +91,8 @@ cc_library(
     hdrs = ["flatbuffer_utils.h"],
     deps = [
         ":file_utils",
+        "@absl//absl/log:check",
+        "@absl//absl/status:statusor",
         "@flatbuffers//:flatc_library",
         "//redux/modules/base:data_container",
     ],
@@ -111,6 +118,7 @@ cc_library(
     name = "json_utils",
     hdrs = ["json_utils.h"],
     deps = [
+        "@absl//absl/log:check",
         "//redux/modules/base:hash",
         "//redux/modules/base:logging",
         "//redux/modules/base:serialize_traits",
@@ -136,8 +144,8 @@ cc_library(
     deps = [
         ":file_utils",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
         "@jsonnet//core:libjsonnet",
-        "//redux/modules/base:logging",
     ],
 )
 
@@ -149,6 +157,7 @@ cc_test(
         ":file_utils",
         ":jsonnet_utils",
         "@gtest//:gtest_main",
+        "@absl//absl/container:flat_hash_map",
         "//redux/modules/testing",
     ],
 )

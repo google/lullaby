@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/modules/datafile/datafile_parser.h"
 
+#include <cstdlib>
+#include <string>
+#include <string_view>
+
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {

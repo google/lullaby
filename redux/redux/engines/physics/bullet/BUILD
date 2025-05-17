@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -24,16 +25,22 @@ cc_library(
     ],
     deps = [
         "@absl//absl/base",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/time",
+        "@absl//absl/types:span",
         "@bullet//:BulletCollision",
         "@bullet//:BulletDynamics",
         "@bullet//:LinearMath",
         "//redux/engines/physics",
+        "//redux/engines/physics:physics_enums_fbs",
         "//redux/engines/physics/thunks",
         "//redux/modules/base:bits",
         "//redux/modules/base:choreographer",
+        "//redux/modules/base:resource_manager",
         "//redux/modules/base:static_registry",
         "//redux/modules/ecs:entity",
-        "//redux/modules/math:bounds",
         "//redux/modules/math:quaternion",
         "//redux/modules/math:transform",
         "//redux/modules/math:vector",

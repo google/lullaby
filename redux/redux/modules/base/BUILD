@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -18,7 +19,11 @@ cc_library(
         ":data_reader",
         ":logging",
         ":registry",
+        "@absl//absl/algorithm:container",
+        "@absl//absl/log:check",
+        "@absl//absl/status",
         "@absl//absl/status:statusor",
+        "@absl//absl/strings",
     ],
 )
 
@@ -30,6 +35,8 @@ cc_test(
         ":data_builder",
         "@gtest//:gtest_main",
         "@absl//absl/functional:bind_front",
+        "@absl//absl/status",
+        "@absl//absl/status:statusor",
     ],
 )
 
@@ -39,6 +46,7 @@ cc_library(
     deps = [
         ":logging",
         ":thread_safe_deque",
+        "@absl//absl/log:check",
     ],
 )
 
@@ -48,6 +56,7 @@ cc_test(
     deps = [
         ":async_processor",
         "@gtest//:gtest_main",
+        "@absl//absl/log",
         "@absl//absl/synchronization",
     ],
 )
@@ -86,6 +95,8 @@ cc_test(
     deps = [
         ":choreographer",
         "@gtest//:gtest_main",
+        "@absl//absl/container:flat_hash_set",
+        "@absl//absl/time",
     ],
 )
 
@@ -114,6 +125,7 @@ cc_library(
     deps = [
         ":data_container",
         ":logging",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
     ],
 )
@@ -153,6 +165,7 @@ cc_library(
     hdrs = ["data_reader.h"],
     deps = [
         ":logging",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
     ],
 )
@@ -163,7 +176,6 @@ cc_test(
     deps = [
         ":data_reader",
         "@gtest//:gtest_main",
-        "@absl//absl/types:span",
     ],
 )
 
@@ -174,6 +186,7 @@ cc_library(
         ":logging",
         "@absl//absl/container:flat_hash_map",
         "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log:check",
     ],
 )
 
@@ -183,6 +196,7 @@ cc_test(
     deps = [
         ":dependency_graph",
         "@gtest//:gtest_main",
+        "@absl//absl/container:flat_hash_set",
     ],
 )
 
@@ -249,6 +263,8 @@ cc_library(
         ":typeid",
         "@absl//absl/container:flat_hash_map",
         "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@absl//absl/synchronization",
     ],
 )
@@ -267,7 +283,6 @@ cc_library(
     hdrs = ["resource_manager.h"],
     deps = [
         ":hash",
-        ":logging",
         "@absl//absl/container:flat_hash_map",
     ],
 )
@@ -308,6 +323,7 @@ cc_library(
     hdrs = ["serialize_traits.h"],
     deps = [
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/types:span",
     ],
 )
 
@@ -383,6 +399,7 @@ cc_library(
     deps = [
         ":logging",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
     ],
 )
 

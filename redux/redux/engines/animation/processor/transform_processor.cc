@@ -16,6 +16,14 @@ limitations under the License.
 
 #include "redux/engines/animation/processor/transform_processor.h"
 
+#include <stddef.h>
+
+#include <algorithm>
+#include <cmath>
+#include <optional>
+#include <vector>
+
+#include "absl/log/check.h"
 #include "absl/time/time.h"
 #include "redux/engines/animation/animation_clip.h"
 #include "redux/engines/animation/animation_engine.h"

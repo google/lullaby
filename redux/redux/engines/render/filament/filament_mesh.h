@@ -17,9 +17,12 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_MESH_H_
 #define REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_MESH_H_
 
-#include <memory>
+#include <cstddef>
+#include <vector>
 
+#include "absl/types/span.h"
 #include "filament/IndexBuffer.h"
+#include "filament/RenderableManager.h"
 #include "filament/VertexBuffer.h"
 #include "redux/engines/render/filament/filament_utils.h"
 #include "redux/engines/render/mesh.h"
@@ -31,38 +34,34 @@ namespace redux {
 // Manages a filament VertexBuffer and IndexBuffer created using MeshData.
 class FilamentMesh : public Mesh, public Readiable {
  public:
-  FilamentMesh(Registry* registry, const std::shared_ptr<MeshData>& mesh_data);
+  explicit FilamentMesh(Registry* registry);
+  FilamentMesh(Registry* registry, absl::Span<MeshData> meshes);
 
-  // Returns the number of vertices contained in the mesh.
-  size_t GetNumVertices() const;
+  // Returns the number of parts in the mesh.
+  size_t GetNumParts() const;
 
-  // Returns the number of primitives (eg. points, lines, triangles, etc.)
-  // contained in the mesh.
-  size_t GetNumPrimitives() const;
+  // Returns the name of the part at the given index.
+  HashValue GetPartName(size_t index) const;
 
-  // Gets the bounding box for the mesh.
-  Box GetBoundingBox() const;
+  // Populates the RenderableManager::Builder with information from this mesh.
+  void PreparePartRenderable(size_t index,
+                             filament::RenderableManager::Builder& builder);
 
-  // Returns the number of submeshes in the mesh.
-  size_t GetNumSubmeshes() const;
-
-  // Returns information about submesh of the mesh.
-  const SubmeshData& GetSubmeshData(size_t index) const;
-
-  // Returns the underlying filament vertex buffer.
-  filament::VertexBuffer* GetFilamentVertexBuffer() const;
-
-  // Returns the underlying filament index buffer.
-  filament::IndexBuffer* GetFilamentIndexBuffer() const;
+  // Returns the list of vertex data usages encoded in the mesh.
+  absl::Span<const VertexUsage> GetVertexUsages() const;
 
  private:
+  struct PartData {
+    HashValue name;
+    Box bounding_box;
+    MeshPrimitiveType primitive_type;
+    FilamentResourcePtr<filament::VertexBuffer> vbuffer;
+    FilamentResourcePtr<filament::IndexBuffer> ibuffer;
+  };
+
   filament::Engine* fengine_ = nullptr;
-  FilamentResourcePtr<filament::VertexBuffer> fvbuffer_;
-  FilamentResourcePtr<filament::IndexBuffer> fibuffer_;
-  Box bounding_box_;
-  size_t num_vertices_ = 0;
-  size_t num_primitives_ = 0;
-  std::vector<SubmeshData> submeshes_;
+  std::vector<PartData> parts_;
+  std::vector<VertexUsage> usages_;
 };
 }  // namespace redux
 

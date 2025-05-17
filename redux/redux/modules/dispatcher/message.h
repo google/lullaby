@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_MODULES_DISPATCHER_MESSAGE_H_
 #define REDUX_MODULES_DISPATCHER_MESSAGE_H_
 
+#include <utility>
+
+#include "absl/log/check.h"
 #include "absl/types/any.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/base/serialize.h"

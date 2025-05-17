@@ -19,9 +19,11 @@ limitations under the License.
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <type_traits>
+#include <vector>
 
-#include "redux/modules/base/logging.h"
+#include "absl/log/check.h"
 
 namespace redux {
 

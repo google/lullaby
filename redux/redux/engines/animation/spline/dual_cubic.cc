@@ -16,7 +16,11 @@ limitations under the License.
 
 #include "redux/engines/animation/spline/dual_cubic.h"
 
+#include <stddef.h>
+
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "redux/engines/animation/spline/quadratic_curve.h"
 #include "redux/modules/math/bounds.h"

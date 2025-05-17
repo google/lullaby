@@ -16,6 +16,17 @@ limitations under the License.
 
 #include "redux/engines/platform/device_manager.h"
 
+#include <stdint.h>
+
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/choreographer.h"
 
 namespace redux {

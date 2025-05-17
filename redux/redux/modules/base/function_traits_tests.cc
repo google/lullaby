@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 #include <functional>
+#include <type_traits>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "redux/modules/base/function_traits.h"
 

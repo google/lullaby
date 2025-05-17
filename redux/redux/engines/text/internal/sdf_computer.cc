@@ -16,7 +16,20 @@ limitations under the License.
 
 #include "redux/engines/text/internal/sdf_computer.h"
 
+#include <stdint.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <limits>
+#include <memory>
+#include <vector>
+
+#include "absl/log/check.h"
 #include "redux/modules/base/data_builder.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/image_data.h"
+#include "redux/modules/math/detail/vector_layout.h"
 #include "redux/modules/math/vector.h"
 
 // We can choose between two different implementations where the trade-off is

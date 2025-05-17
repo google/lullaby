@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/modules/base/filepath.h"
 
+#include <stddef.h>
+
+#include <string>
+#include <string_view>
+
 namespace redux {
 
 #if defined(_WINDOWS) || defined(_WIN32)

@@ -17,8 +17,10 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_SHAPE_SHAPE_BUILDER_H_
 #define REDUX_SYSTEMS_SHAPE_SHAPE_BUILDER_H_
 
+#include <cstddef>
 #include <utility>
 
+#include "absl/types/span.h"
 #include "redux/modules/base/data_builder.h"
 #include "redux/modules/base/logging.h"
 #include "redux/systems/shape/box_shape_generator.h"

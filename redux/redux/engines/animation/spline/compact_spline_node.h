@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_SPLINE_COMPACT_SPLINE_NODE_H_
 #define REDUX_ENGINES_ANIMATION_SPLINE_COMPACT_SPLINE_NODE_H_
 
+#include <cassert>
+#include <cmath>
 #include <cstdint>
 
 #include "redux/modules/math/bounds.h"

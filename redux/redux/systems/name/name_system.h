@@ -20,11 +20,13 @@ limitations under the License.
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "redux/engines/script/function_binder.h"
 #include "redux/modules/ecs/system.h"
 #include "redux/systems/name/name_def_generated.h"

@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_MODULES_GRAPHICS_VERTEX_H_
 #define REDUX_MODULES_GRAPHICS_VERTEX_H_
 
+#include <stddef.h>
+
 #include <tuple>
 #include <type_traits>
 

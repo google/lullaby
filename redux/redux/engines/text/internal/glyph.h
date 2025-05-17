@@ -17,10 +17,15 @@ limitations under the License.
 #ifndef REDUX_ENGINES_TEXT_INTERNAL_GLYPH_H_
 #define REDUX_ENGINES_TEXT_INTERNAL_GLYPH_H_
 
-#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string_view>
+#include <vector>
 
 #include "redux/engines/text/text_enums.h"
+#include "redux/modules/base/data_container.h"
 #include "redux/modules/graphics/image_atlaser.h"
+#include "redux/modules/graphics/image_data.h"
 #include "redux/modules/math/vector.h"
 
 namespace redux {

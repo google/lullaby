@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,6 +13,7 @@ cc_test(
     deps = [
         ":compact_spline",
         "@gtest//:gtest_main",
+        "@absl//absl/base:core_headers",
     ],
 )
 
@@ -30,6 +32,7 @@ cc_library(
         ":cubic_curve",
         ":dual_cubic",
         "@absl//absl/base:core_headers",
+        "@absl//absl/log:check",
         "@absl//absl/time",
         "//redux/modules/math",
         "//redux/modules/math:bounds",
@@ -44,6 +47,7 @@ cc_test(
     deps = [
         ":compact_spline",
         "@gtest//:gtest_main",
+        "@absl//absl/base:core_headers",
     ],
 )
 
@@ -96,6 +100,7 @@ cc_library(
         "quadratic_curve.h",
     ],
     deps = [
+        "@absl//absl/log:check",
         "//redux/modules/base:logging",
         "//redux/modules/math:bounds",
         "//redux/modules/math:float",

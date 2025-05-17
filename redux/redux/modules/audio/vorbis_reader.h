@@ -17,9 +17,13 @@ limitations under the License.
 #ifndef REDUX_MODULES_AUDIO_VORBIS_READER_H_
 #define REDUX_MODULES_AUDIO_VORBIS_READER_H_
 
+#include <stdint.h>
+
+#include <cstddef>
 #include <vector>
 
 #define OV_EXCLUDE_STATIC_CALLBACKS 1
+#include "absl/types/span.h"
 #include "vorbis/vorbisfile.h"
 #include "redux/modules/audio/audio_reader.h"
 #include "redux/modules/base/data_reader.h"

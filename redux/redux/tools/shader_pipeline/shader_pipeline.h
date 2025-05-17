@@ -76,7 +76,7 @@ struct ShaderAsset {
   };
 
   std::string name;
-  Shading shading;
+  std::optional<Shading> shading;
 
   std::string vertex_shader;
   std::string fragment_shader;
@@ -86,15 +86,15 @@ struct ShaderAsset {
   std::vector<VertexUsage> vertex_attributes;
   std::vector<ShaderAssetParameter> parameters;
 
-  bool color_write = true;
-  bool depth_write = true;
-  bool depth_cull = true;
-  bool double_sided = false;
-  BlendMode blending = Opaque;
-  BlendMode post_lighting_blending = Transparent;
-  CullingMode culling = None;
-  TransparencyMode transparency = Default;
-  float mask_threshold = 0.4;
+  std::optional<bool> color_write;
+  std::optional<bool> depth_write;
+  std::optional<bool> depth_cull;
+  std::optional<bool> double_sided;
+  std::optional<BlendMode> blending;
+  std::optional<BlendMode> post_lighting_blending;
+  std::optional<CullingMode> culling;
+  std::optional<TransparencyMode> transparency;
+  std::optional<float> mask_threshold;
 
   template <typename Archive>
   void Serialize(Archive archive) {
@@ -117,8 +117,9 @@ struct ShaderAsset {
   }
 };
 
-DataContainer BuildShader(std::string_view name,
-                          absl::Span<const ShaderAsset> assets);
+DataContainer BuildShader(
+    std::string_view name, absl::Span<const ShaderAsset> assets,
+    const std::vector<std::vector<std::string>>& variants);
 
 }  // namespace redux::tool
 

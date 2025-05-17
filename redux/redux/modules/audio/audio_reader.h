@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_MODULES_AUDIO_AUDIO_READER_H_
 #define REDUX_MODULES_AUDIO_AUDIO_READER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>

@@ -20,8 +20,10 @@ limitations under the License.
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "redux/engines/text/font.h"
 #include "redux/engines/text/text_enums.h"
 #include "redux/modules/base/registry.h"

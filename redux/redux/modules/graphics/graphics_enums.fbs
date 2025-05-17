@@ -115,7 +115,10 @@ enum ImageFormat : ubyte {
   Rgba5551,          // RGBA color+alpha image, 5 bits per color, 1 bit alpha.
   Rgbm8888,          // RGBM color+multiplier image, 8 bits each.
 
-  // Specialized hardware formats.
+  // Special formats.
+  Rgb_11_11_10f,     // RGB floats encoded into 32 bits (11, 11, 10 bits resp.)
+
+  // Hardware formats.
   Depth16,
   Depth32f,
 
@@ -140,6 +143,11 @@ enum TextureWrap : ubyte {
   MirroredRepeat,
   MirrorClampToEdge,
   Repeat,
+}
+
+enum ColorSpace : ubyte {
+  sRGB,
+  Linear,
 }
 
 enum TextureFilter : ubyte {

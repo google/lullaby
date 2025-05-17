@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "redux/engines/render/render_target_factory.h"
 
+#include <memory>
+
 #include "redux/engines/render/filament/filament_render_target.h"
 
 namespace redux {

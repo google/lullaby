@@ -14,6 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
+#include <cmath>
+#include <cstdlib>
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "assimp/GltfMaterial.h"
 #include "assimp/material.h"
 #include "assimp/scene.h"
@@ -233,7 +246,7 @@ void AssetImporter::ReadShadingModel(const aiMaterial* src, Material* dst) {
   const auto res = src->Get(AI_MATKEY_SHADING_MODEL, model);
   if (res != AI_SUCCESS) {
     LOG(ERROR) << "Unable to determine shading model. Defaulting to Phong.";
-    dst->properties["ShadingModel"] = std::string("Phong");
+    dst->properties["ShadingModel"] = std::string("phong");
     return;
   }
   switch (model) {
@@ -244,7 +257,7 @@ void AssetImporter::ReadShadingModel(const aiMaterial* src, Material* dst) {
       dst->properties["ShadingModel"] = std::string("flat");
       break;
     case aiShadingMode_Gouraud:
-      dst->properties["ShadingModel"] = std::string("gouraud");
+      dst->properties["ShadingModel"] = std::string("phong");
       break;
     case aiShadingMode_Phong:
       dst->properties["ShadingModel"] = std::string("phong");

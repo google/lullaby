@@ -17,10 +17,16 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_TWEEN_TWEEN_SYSTEM_H_
 #define REDUX_SYSTEMS_TWEEN_TWEEN_SYSTEM_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include <functional>
+#include <optional>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/animation_engine.h"
 #include "redux/engines/animation/motivator/spline_motivator.h"
 #include "redux/engines/animation/spline/compact_spline.h"

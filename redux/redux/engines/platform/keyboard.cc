@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/engines/platform/keyboard.h"
 
+#include <bitset>
+#include <string>
+#include <utility>
+
+#include "absl/time/time.h"
+
 namespace redux {
 
 Keyboard::Keyboard(KeyboardProfile profile, OnDestroy on_destroy)

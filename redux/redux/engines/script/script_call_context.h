@@ -17,6 +17,10 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_SCRIPT_CALL_CONTEXT_H_
 #define REDUX_ENGINES_SCRIPT_SCRIPT_CALL_CONTEXT_H_
 
+#include <stddef.h>
+
+#include <utility>
+
 #include "absl/status/status.h"
 #include "redux/modules/var/var.h"
 

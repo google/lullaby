@@ -1,6 +1,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -32,6 +33,10 @@ cc_library(
     deps = [
         "@absl//absl/container:flat_hash_map",
         "@absl//absl/functional:bind_front",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/status",
+        "@absl//absl/status:statusor",
         "@absl//absl/types:span",
         "//redux/engines/audio",
         "//redux/engines/platform:device_manager",
@@ -46,8 +51,22 @@ cc_library(
         "//redux/modules/base:data_reader",
         "//redux/modules/base:logging",
         "//redux/modules/base:registry",
+        "//redux/modules/base:resource_manager",
         "//redux/modules/base:static_registry",
-        "@resonance//:resonance",
+        "@resonance//resonance/api:resonance_audio_api",
+        "@resonance//resonance/base:vraudio_base",
+        "@resonance//resonance/dsp:channel_converter",
+        "@resonance//resonance/dsp:resampler",
+        "@resonance//resonance/graph:resonance_audio_api_impl",
+        "@resonance//resonance/platform/common:room_effects_utils",
+        "@resonance//resonance/platform/common:room_properties",
+        "@resonance//resonance/utils:buffer_partitioner",
+        "@resonance//resonance/utils:lockless_task_queue",
+        "@resonance//resonance/utils:planar_interleaved_conversion",
+        "@resonance//resonance/utils:sample_type_conversion",
+        "@resonance//resonance/utils:semi_lockless_fifo",
+        "@resonance//resonance/utils:task_thread_pool",
+        "@resonance//resonance/utils:threadsafe_fifo",
     ],
 )
 
@@ -76,6 +95,7 @@ cc_test(
         "@gtest//:gtest_main",
         "//redux/modules/audio:wav_reader",
         "//redux/modules/testing",
+        "@resonance//resonance/base:vraudio_base",
     ],
 )
 
@@ -88,7 +108,9 @@ cc_test(
     deps = [
         ":resonance",
         "@gtest//:gtest_main",
+        "@absl//absl/types:span",
         "//redux/modules/audio:wav_reader",
         "//redux/modules/testing",
+        "@resonance//resonance/base:vraudio_base",
     ],
 )

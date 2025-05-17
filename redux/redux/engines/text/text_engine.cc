@@ -16,8 +16,15 @@ limitations under the License.
 
 #include "redux/engines/text/text_engine.h"
 
+#include <memory>
+#include <string_view>
 #include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
+#include "redux/engines/text/internal/glyph.h"
 #include "redux/engines/text/internal/text_layout.h"
 #include "redux/modules/base/asset_loader.h"
 #include "redux/modules/base/logging.h"

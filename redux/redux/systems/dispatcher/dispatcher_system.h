@@ -19,8 +19,11 @@ limitations under the License.
 
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/engines/script/function_binder.h"
 #include "redux/modules/dispatcher/dispatcher.h"
 #include "redux/modules/ecs/system.h"

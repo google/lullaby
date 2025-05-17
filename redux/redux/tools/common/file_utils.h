@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_TOOLS_COMMON_FILE_UTILS_
 #define REDUX_TOOLS_COMMON_FILE_UTILS_
 
+#include <stddef.h>
+
 #include <functional>
 #include <string>
 

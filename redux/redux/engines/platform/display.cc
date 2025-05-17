@@ -16,6 +16,10 @@ limitations under the License.
 
 #include "redux/engines/platform/display.h"
 
+#include <utility>
+
+#include "absl/time/time.h"
+
 namespace redux {
 
 Display::Display(DisplayProfile profile, OnDestroy on_destroy)

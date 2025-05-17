@@ -16,11 +16,17 @@ limitations under the License.
 
 #include "redux/tools/model_pipeline/texture_locator.h"
 
+#include <stddef.h>
+
 #include <algorithm>
+#include <cctype>
 #include <functional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "redux/modules/base/filepath.h"
-#include "redux/modules/base/logging.h"
 #include "redux/tools/common/file_utils.h"
 
 namespace redux::tool {

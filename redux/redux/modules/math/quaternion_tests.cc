@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <cmath>
 #include <cstddef>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

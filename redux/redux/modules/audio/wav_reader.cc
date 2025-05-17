@@ -16,6 +16,17 @@ limitations under the License.
 
 #include "redux/modules/audio/wav_reader.h"
 
+#include <stdint.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {

@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "redux/engines/platform/keycodes.h"
 
+#include <string>
+
 namespace redux {
 
 struct ChordMaker {

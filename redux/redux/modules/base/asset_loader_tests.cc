@@ -14,9 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <cstddef>
+#include <future>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/functional/bind_front.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "redux/modules/base/asset_loader.h"
 #include "redux/modules/base/data_builder.h"
 
@@ -29,8 +38,9 @@ class AssetLoaderTest : public testing::Test {
  protected:
   void SetUp() override {
     asset_loader_.emplace(&registry_);
-    auto on_load = absl::bind_front(&AssetLoaderTest::OnOpen, this);
-    asset_loader_->SetOpenFunction(on_load);
+    auto open = absl::bind_front(&AssetLoaderTest::OnOpen, this);
+    auto match = [](std::string_view uri) { return true; };
+    asset_loader_->SetOpenFunction(match, open, AssetLoader::kHighPriority);
   }
 
   void FailOnOpen(std::string message) { fail_message_ = std::move(message); }
@@ -249,6 +259,36 @@ TEST_F(AssetLoaderTest, LoadAsyncBadOnLoad) {
   EXPECT_TRUE(on_load_called);
   EXPECT_TRUE(on_finalize_called);
   EXPECT_FALSE(asset.ok());
+}
+
+TEST_F(AssetLoaderTest, HighPriorityOverridesDefault) {
+  bool matched = false;
+  auto match = [](std::string_view uri) { return uri == "filename.txt"; };
+  auto open = [&](std::string_view uri) {
+    matched = true;
+    return OnOpen(uri);
+  };
+
+  asset_loader_->SetOpenFunction(match, open, AssetLoader::kHighPriority);
+  auto asset = asset_loader_->OpenNow("filename.txt");
+  EXPECT_TRUE(asset.ok());
+  EXPECT_THAT(ReadString(asset.value()), Eq("filename.txt"));
+  EXPECT_TRUE(matched);
+}
+
+TEST_F(AssetLoaderTest, LowPriorityIgnored) {
+  bool matched = false;
+  auto match = [](std::string_view uri) { return uri == "filename.txt"; };
+  auto open = [&](std::string_view uri) {
+    matched = true;
+    return OnOpen(uri);
+  };
+
+  asset_loader_->SetOpenFunction(match, open, AssetLoader::kLowPriority);
+  auto asset = asset_loader_->OpenNow("filename.txt");
+  EXPECT_TRUE(asset.ok());
+  EXPECT_THAT(ReadString(asset.value()), Eq("filename.txt"));
+  EXPECT_FALSE(matched);
 }
 
 }  // namespace

@@ -17,7 +17,9 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_DATA_READER_H_
 #define REDUX_MODULES_BASE_DATA_READER_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <functional>
 
 #include "absl/types/span.h"

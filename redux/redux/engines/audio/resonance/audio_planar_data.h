@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_PLANAR_DATA_H_
 #define REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_PLANAR_DATA_H_
 
+#include <stddef.h>
+
 #include <cstdint>
 #include <memory>
 #include <vector>

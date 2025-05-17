@@ -18,10 +18,18 @@ limitations under the License.
 #define REDUX_SYSTEMS_PHYSICS_PHYSICS_SYSTEM_H_
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
+#include "redux/engines/physics/collision_data.h"
+#include "redux/engines/physics/collision_shape.h"
 #include "redux/engines/physics/physics_engine.h"
-#include "redux/modules/base/hash.h"
+#include "redux/engines/physics/physics_enums_generated.h"
+#include "redux/engines/physics/rigid_body.h"
+#include "redux/engines/physics/trigger_volume.h"
+#include "redux/modules/base/bits.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/base/typeid.h"
+#include "redux/modules/ecs/entity.h"
 #include "redux/modules/ecs/system.h"
-#include "redux/modules/math/math.h"
 #include "redux/systems/dispatcher/dispatcher_system.h"
 #include "redux/systems/physics/rigid_body_def_generated.h"
 #include "redux/systems/physics/trigger_def_generated.h"
@@ -50,19 +58,59 @@ class PhysicsSystem : public System {
 
   void OnRegistryInitialize();
 
-  // Sets the rigid body properties of an Entity. Only when an Entity has both
-  // RigidBodyParams and a Shape (see SetShape below), will it start behaving
-  // like a rigid body.
-  void SetRigidBodyParams(Entity entity, RigidBodyParams params);
+  // Parameters used to configure a RigidBody Entity.
+  struct RigidBodyConfig {
+    // The method by which the RigidBody will move.
+    RigidBodyMotionType type = RigidBodyMotionType::Static;
 
-  // Sets the trigger volume properties of an Entity. Only when an Entity has
-  // both TriggerVolumeParams and a Shape (see SetShape below), will it start
-  // behaving like a trigger volume.
-  void SetTriggerVolumeParams(Entity entity, TriggerVolumeParams params);
+    // The mass of the rigid body. Note that this is ignored for Static bodies.
+    float mass = 0.f;  // in kg
+
+    // The coefficient of restitution (bounciness) of the rigid body.
+    float restitution = 0.f;
+
+    // The coefficient of friction when sliding of the rigid body.
+    float sliding_friction = 0.f;
+
+    // The coefficient of friction when rolling of the rigid body.
+    float rolling_friction = 0.f;
+
+    // The coefficient of friction when spinning of the rigid body.
+    float spinning_friction = 0.f;
+  };
+
+  // Flags used for controlling collision responses for Entities.
+  struct CollisionFlags {
+    CollisionFlags()
+        : collision_group(Bits32::All()), collision_filter(Bits32::All()) {}
+
+    // The collision groups to which the Entity belongs.
+    Bits32 collision_group;
+
+    // The groups against which the Entity will report collisions.
+    Bits32 collision_filter;
+  };
+
+  // Configures the Entity as a rigid body. However, the Entity will only start
+  // behaving like a rigid body once it also has a shape (see below).
+  void SetRigidBody(Entity entity, const RigidBodyConfig& config,
+                    const CollisionFlags& flags = CollisionFlags());
+
+  // Configures the Entity as a trigger volume. However, the Entity will only
+  // start behaving like a trigger volume once it also has a shape (see below).
+  void SetTriggerVolume(Entity entity,
+                        const CollisionFlags& flags = CollisionFlags());
 
   // Sets the collision shape for the Entity.
   void SetShape(Entity entity, CollisionShapePtr shape);
   void SetShape(Entity entity, CollisionDataPtr shape_data);
+
+  // Changes the motion type of an Entity's rigid body. The Entity must have a
+  // rigid body configured using SetRigidBody.
+  void SetRigidBodyMotionType(Entity entity, RigidBodyMotionType motion_type);
+
+  // Changes the collision flags for the Entity.
+  void SetCollisionFlags(Entity entity, const CollisionFlags& flags);
 
   // Prepares all physical Entities to be updated by the PhysicsEngine.
   void PrePhysics(absl::Duration timestep);

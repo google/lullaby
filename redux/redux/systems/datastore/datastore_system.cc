@@ -16,9 +16,9 @@ limitations under the License.
 
 #include "redux/systems/datastore/datastore_system.h"
 
-#include <functional>
-#include <optional>
 #include <utility>
+
+#include "absl/container/flat_hash_map.h"
 
 namespace redux {
 

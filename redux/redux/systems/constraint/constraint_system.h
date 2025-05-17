@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_CONSTRAINT_CONSTRAINT_SYSTEM_H_
 #define REDUX_SYSTEMS_CONSTRAINT_CONSTRAINT_SYSTEM_H_
 
+#include <stdint.h>
+
 #include <functional>
 #include <utility>
 

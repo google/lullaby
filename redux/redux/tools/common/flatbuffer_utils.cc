@@ -16,6 +16,10 @@ limitations under the License.
 
 #include "redux/tools/common/flatbuffer_utils.h"
 
+#include <string>
+
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "redux/tools/common/file_utils.h"
 
 namespace redux::tool {

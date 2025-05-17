@@ -17,9 +17,13 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_SCRIPT_SCRIPT_SYSTEM_H_
 #define REDUX_SYSTEMS_SCRIPT_SCRIPT_SYSTEM_H_
 
+#include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
 #include "redux/engines/script/script_engine.h"
 #include "redux/modules/ecs/system.h"
 #include "redux/systems/dispatcher/dispatcher_system.h"

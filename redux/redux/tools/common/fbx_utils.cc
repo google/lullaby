@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/tools/common/fbx_utils.h"
 
+#include <ostream>
+#include <string>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
+
 namespace redux::tool {
 
 static FbxAxisSystem AxisSystemToFbxAxisSystem(AxisSystem system) {

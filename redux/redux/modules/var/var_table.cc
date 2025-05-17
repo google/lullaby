@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/modules/var/var_table.h"
 
+#include <stddef.h>
+
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+
 namespace redux {
 
 void VarTable::Clear() { data_.clear(); }

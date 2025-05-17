@@ -14,12 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <string_view>
+#include <stddef.h>
+#include <stdint.h>
 
+#include <memory>
+#include <string_view>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "hb-ot.h"
 #include "redux/engines/text/internal/glyph.h"
 #include "redux/engines/text/internal/locale.h"
-#include "redux/engines/text/text_engine.h"
 
 namespace redux {
 
@@ -83,9 +89,8 @@ static hb_script_t HarfBuzzScript(std::string_view language_iso_639) {
   }
 
   const char* script = GetTextScriptIso15924(lang);
-  uint32_t s = *reinterpret_cast<const uint32_t*>(script);
-  return hb_script_t(s >> 24 | (s & 0xff0000) >> 8 | (s & 0xff00) << 8 |
-                     s << 24);
+  const uint32_t tag = HB_TAG(script[0], script[1], script[2], script[3]);
+  return hb_script_t(tag);
 }
 
 HarfBuzzGlyphSequencer::HarfBuzzGlyphSequencer(const DataContainer& data,

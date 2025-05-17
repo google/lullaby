@@ -22,6 +22,7 @@ limitations under the License.
 #include <vector>
 
 #include "SDL.h"
+#include "absl/status/status.h"
 #include "redux/engines/platform/mainloop.h"
 #include "redux/engines/platform/sdl2/sdl2_event_handler.h"
 
@@ -32,6 +33,7 @@ class Sdl2Mainloop : public Mainloop {
   Sdl2Mainloop();
   ~Sdl2Mainloop() override;
 
+  void CreateHeadless(vec2i size) override;
   void CreateDisplay(std::string_view title, vec2i size) override;
   void CreateKeyboard() override;
   void CreateMouse() override;

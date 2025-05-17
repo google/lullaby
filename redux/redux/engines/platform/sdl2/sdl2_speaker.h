@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_SDL2_SDL2_SPEAKER_H_
 #define REDUX_ENGINES_PLATFORM_SDL2_SDL2_SPEAKER_H_
 
+#include <memory>
+
 #include "redux/engines/platform/device_manager.h"
 #include "redux/engines/platform/sdl2/sdl2_event_handler.h"
 #include "redux/engines/platform/speaker.h"

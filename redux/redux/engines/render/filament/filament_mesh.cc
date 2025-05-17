@@ -16,13 +16,58 @@ limitations under the License.
 
 #include "redux/engines/render/filament/filament_mesh.h"
 
-#include <utility>
+#include <stdint.h>
 
+#include <cstddef>
+#include <limits>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
+#include "filament/RenderableManager.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
+#include "redux/engines/render/filament/filament_utils.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/graphics/enums.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/mesh_data.h"
+#include "redux/modules/graphics/mesh_utils.h"
+#include "redux/modules/graphics/vertex_attribute.h"
+#include "redux/modules/graphics/vertex_format.h"
 
 namespace redux {
 
 using MeshDataPtr = std::shared_ptr<MeshData>;
+
+static filament::RenderableManager::PrimitiveType ToFilamentPrimitiveType(
+    MeshPrimitiveType type) {
+  switch (type) {
+    case MeshPrimitiveType::Triangles:
+      return filament::RenderableManager::PrimitiveType::TRIANGLES;
+    case MeshPrimitiveType::Points:
+      return filament::RenderableManager::PrimitiveType::POINTS;
+    case MeshPrimitiveType::Lines:
+      return filament::RenderableManager::PrimitiveType::LINES;
+    default:
+      LOG(FATAL) << "Unsupported primitive type: " << ToString(type);
+  }
+}
+
+static filament::IndexBuffer::IndexType ToFilamentIndexType(
+    MeshIndexType type) {
+  switch (type) {
+    case MeshIndexType::U16:
+      return filament::IndexBuffer::IndexType::USHORT;
+    case MeshIndexType::U32:
+      return filament::IndexBuffer::IndexType::UINT;
+    default:
+      LOG(FATAL) << "Unsupported index type: " << ToString(type);
+      return filament::IndexBuffer::IndexType::USHORT;
+  }
+}
 
 static filament::VertexBuffer::AttributeType ToFilamentAttributeType(
     VertexType type) {
@@ -69,30 +114,31 @@ static filament::VertexAttribute ToFilamentAttributeUsage(VertexUsage usage) {
   }
 }
 
-static filament::VertexBuffer::BufferDescriptor CreateVertexBufferDescriptor(
-    const MeshDataPtr& mesh_data) {
+// Binds the lifetime of the builder to the buffer descriptor.
+static void BindLifetime(filament::backend::BufferDescriptor& desc,
+                         const MeshDataPtr& mesh_data) {
   auto* user_data = new MeshDataPtr(mesh_data);
   const auto callback = [](void* buffer, size_t size, void* user) {
     auto* ptr = reinterpret_cast<MeshDataPtr*>(user);
     delete ptr;
   };
+  desc.setCallback(callback, user_data);
+}
 
+static filament::VertexBuffer::BufferDescriptor CreateVertexBufferDescriptor(
+    const MeshDataPtr& mesh_data) {
   const auto bytes = mesh_data->GetVertexData();
-  return filament::VertexBuffer::BufferDescriptor(bytes.data(), bytes.size(),
-                                                  callback, user_data);
+  filament::VertexBuffer::BufferDescriptor desc(bytes.data(), bytes.size());
+  BindLifetime(desc, mesh_data);
+  return desc;
 }
 
 static filament::IndexBuffer::BufferDescriptor CreateIndexBufferDescriptor(
     const MeshDataPtr& mesh_data) {
-  auto* user_data = new MeshDataPtr(mesh_data);
-  const auto callback = [](void* buffer, size_t size, void* user) {
-    auto* ptr = reinterpret_cast<MeshDataPtr*>(user);
-    delete ptr;
-  };
-
   const auto bytes = mesh_data->GetIndexData();
-  return filament::IndexBuffer::BufferDescriptor(bytes.data(), bytes.size(),
-                                                 callback, user_data);
+  filament::VertexBuffer::BufferDescriptor desc(bytes.data(), bytes.size());
+  BindLifetime(desc, mesh_data);
+  return desc;
 }
 
 template <typename T>
@@ -110,6 +156,57 @@ CreateIndexBufferDescriptorForRange(size_t count) {
                                                  callback, arr);
 }
 
+static MeshDataPtr MaybeGenerateOrientations(const MeshDataPtr& mesh_data) {
+  bool has_normals = false;
+  bool has_orientations = false;
+
+  const VertexFormat& vertex_format = mesh_data->GetVertexFormat();
+  for (size_t index = 0; index < vertex_format.GetNumAttributes(); ++index) {
+    const VertexAttribute* attribute = vertex_format.GetAttributeAt(index);
+    if (attribute->usage == VertexUsage::Normal) {
+      has_normals = true;
+    } else if (attribute->usage == VertexUsage::Orientation) {
+      has_orientations = true;
+    }
+  }
+
+  if (has_orientations) {
+    return nullptr;
+  }
+  if (!has_normals) {
+    return nullptr;
+  }
+  return std::make_shared<MeshData>(ComputeOrientations(*mesh_data));
+}
+
+static void SetupVertexBufferBuilder(filament::VertexBuffer::Builder& builder,
+                                     const VertexFormat& vertex_format,
+                                     int buffer_index) {
+  for (size_t index = 0; index < vertex_format.GetNumAttributes(); ++index) {
+    const VertexAttribute* attribute = vertex_format.GetAttributeAt(index);
+
+    // Skip these as they are unsupported by filament. Instead, we need to
+    // generate vertex orientations; see MaybeGenerateOrientations above.
+    if (attribute->usage == VertexUsage::Normal) {
+      continue;
+    } else if (attribute->usage == VertexUsage::Tangent) {
+      continue;
+    }
+
+    const auto ftype = ToFilamentAttributeType(attribute->type);
+    const auto fusage = ToFilamentAttributeUsage(attribute->usage);
+    const uint32_t offset = vertex_format.GetOffsetOfAttributeAt(index);
+    const uint32_t stride = vertex_format.GetStrideOfAttributeAt(index);
+
+    builder.attribute(fusage, buffer_index, ftype, offset, stride);
+    if (ftype == filament::VertexBuffer::AttributeType::UBYTE4) {
+      if (fusage == filament::VertexAttribute::COLOR) {
+        builder.normalized(fusage);
+      }
+    }
+  }
+}
+
 static FilamentResourcePtr<filament::VertexBuffer> CreateVertexBuffer(
     filament::Engine* engine, const MeshDataPtr& mesh_data) {
   const uint32_t count = static_cast<uint32_t>(mesh_data->GetNumVertices());
@@ -117,43 +214,39 @@ static FilamentResourcePtr<filament::VertexBuffer> CreateVertexBuffer(
     return nullptr;
   }
 
+  MeshDataPtr orientations = MaybeGenerateOrientations(mesh_data);
+
   filament::VertexBuffer::Builder builder;
   builder.vertexCount(count);
-  builder.bufferCount(1);
+  builder.bufferCount(orientations ? 2 : 1);
 
-  const VertexFormat& vertex_format = mesh_data->GetVertexFormat();
-  const uint8_t vertex_size =
-      static_cast<uint8_t>(vertex_format.GetVertexSize());
-
-  uint32_t offset = 0;
-  for (size_t index = 0; index < vertex_format.GetNumAttributes(); ++index) {
-    const VertexAttribute* attribute = vertex_format.GetAttributeAt(index);
-
-    const auto ftype = ToFilamentAttributeType(attribute->type);
-    const auto fusage = ToFilamentAttributeUsage(attribute->usage);
-    builder.attribute(fusage, 0, ftype, offset, vertex_size);
-    if (ftype == filament::VertexBuffer::AttributeType::UBYTE4) {
-      if (fusage == filament::VertexAttribute::COLOR) {
-        builder.normalized(fusage);
-      }
-    }
-    offset += VertexFormat::GetAttributeSize(*attribute);
+  SetupVertexBufferBuilder(builder, mesh_data->GetVertexFormat(), 0);
+  if (orientations) {
+    SetupVertexBufferBuilder(builder, orientations->GetVertexFormat(), 1);
   }
 
   filament::VertexBuffer* buffer = builder.build(*engine);
   buffer->setBufferAt(*engine, 0, CreateVertexBufferDescriptor(mesh_data));
+  if (orientations) {
+    buffer->setBufferAt(*engine, 1, CreateVertexBufferDescriptor(orientations));
+  }
   return MakeFilamentResource(buffer, engine);
 }
 
 static FilamentResourcePtr<filament::IndexBuffer> CreateIndexBuffer(
     filament::Engine* engine, const MeshDataPtr& mesh_data) {
-  const uint32_t count = static_cast<uint32_t>(mesh_data->GetNumIndices());
+  const uint32_t index_count =
+      static_cast<uint32_t>(mesh_data->GetNumIndices());
   const size_t vertex_count = mesh_data->GetNumVertices();
-  if (count == 0 && vertex_count > 0) {
-    // Filament requires an index buffer, so create one here.
-    filament::IndexBuffer::Builder builder;
-    filament::IndexBuffer::BufferDescriptor desc;
 
+  if (index_count == 0 && vertex_count == 0) {
+    return nullptr;
+  }
+
+  filament::IndexBuffer::Builder builder;
+  filament::IndexBuffer::BufferDescriptor desc;
+  if (index_count == 0 && vertex_count > 0) {
+    // Filament requires an index buffer, so create one here.
     builder.indexCount(static_cast<uint32_t>(vertex_count));
     if (vertex_count <= std::numeric_limits<uint16_t>::max()) {
       builder.bufferType(filament::IndexBuffer::IndexType::USHORT);
@@ -162,114 +255,76 @@ static FilamentResourcePtr<filament::IndexBuffer> CreateIndexBuffer(
       builder.bufferType(filament::IndexBuffer::IndexType::UINT);
       desc = CreateIndexBufferDescriptorForRange<uint32_t>(vertex_count);
     }
-    filament::IndexBuffer* buffer = builder.build(*engine);
-    buffer->setBuffer(*engine, std::move(desc));
-    return MakeFilamentResource(buffer, engine);
+  } else {
+    builder.indexCount(index_count);
+    builder.bufferType(ToFilamentIndexType(mesh_data->GetMeshIndexType()));
+    desc = CreateIndexBufferDescriptor(mesh_data);
   }
 
-  if (count == 0) {
-    return nullptr;
-  }
-
-  filament::IndexBuffer::Builder builder;
-  builder.indexCount(count);
-  switch (mesh_data->GetMeshIndexType()) {
-    case MeshIndexType::U16:
-      builder.bufferType(filament::IndexBuffer::IndexType::USHORT);
-      break;
-    case MeshIndexType::U32:
-      builder.bufferType(filament::IndexBuffer::IndexType::UINT);
-      break;
-    default:
-      LOG(FATAL) << "Unsupported index type.";
-      return nullptr;
-  }
-
-  filament::IndexBuffer* buffer = builder.build(*engine);
-  buffer->setBuffer(*engine, CreateIndexBufferDescriptor(mesh_data));
-  return MakeFilamentResource(buffer, engine);
+  filament::IndexBuffer* ibuffer = builder.build(*engine);
+  ibuffer->setBuffer(*engine, std::move(desc));
+  return MakeFilamentResource(ibuffer, engine);
 }
 
-static size_t CalculateNumPrimitives(MeshPrimitiveType type,
-                                     const size_t count) {
-  switch (type) {
-    case MeshPrimitiveType::Points:
-      return count;
-    case MeshPrimitiveType::Lines:
-      return count / 2;
-    case MeshPrimitiveType::Triangles:
-      return count / 3;
-    case MeshPrimitiveType::TriangleFan:
-      return count - 2;
-    case MeshPrimitiveType::TriangleStrip:
-      return count - 2;
-    default:
-      LOG(FATAL) << "Invalid primitive type " << ToString(type);
-      return count;
-  }
-}
-
-static size_t CalculateNumVertices(const VertexFormat& format,
-                                   absl::Span<const std::byte> bytes) {
-  const size_t size = format.GetVertexSize();
-  return size > 0 ? bytes.size() / size : 0;
-}
-
-FilamentMesh::FilamentMesh(Registry* registry,
-                           const std::shared_ptr<MeshData>& mesh_data) {
+FilamentMesh::FilamentMesh(Registry* registry) {
   fengine_ = GetFilamentEngine(registry);
   CHECK(fengine_);
-  if (mesh_data == nullptr) {
-    return;
+}
+
+FilamentMesh::FilamentMesh(Registry* registry, absl::Span<MeshData> meshes) {
+  fengine_ = GetFilamentEngine(registry);
+  CHECK(fengine_);
+  CHECK(!meshes.empty());
+
+  const VertexFormat& vertex_format = meshes[0].GetVertexFormat();
+  for (size_t index = 0; index < vertex_format.GetNumAttributes(); ++index) {
+    const VertexAttribute* attribute = vertex_format.GetAttributeAt(index);
+
+    // Skip these as they are unsupported by filament. Instead, we need to
+    // generate vertex orientations; see MaybeGenerateOrientations above.
+    if (attribute->usage == VertexUsage::Normal) {
+      usages_.push_back(VertexUsage::Orientation);
+      continue;
+    } else if (attribute->usage == VertexUsage::Tangent) {
+      continue;
+    }
+    usages_.push_back(attribute->usage);
   }
 
-  fvbuffer_ = CreateVertexBuffer(fengine_, mesh_data);
-  fibuffer_ = CreateIndexBuffer(fengine_, mesh_data);
+  parts_.reserve(meshes.size());
+  for (MeshData& mesh : meshes) {
+    MeshDataPtr mesh_ptr = std::make_shared<MeshData>(std::move(mesh));
 
-  SubmeshData submesh;
-  submesh.vertex_format = mesh_data->GetVertexFormat();
-  submesh.index_type = mesh_data->GetMeshIndexType();
-
-  auto parts = mesh_data->GetPartData();
-  submeshes_.reserve(parts.size());
-  for (const MeshData::PartData& part : parts) {
-    submesh.name = part.name;
-    submesh.primitive_type = part.primitive_type;
-    submesh.range_start = part.start;
-    submesh.range_end = part.end;
-    submesh.box = part.box;
-    submeshes_.push_back(submesh);
-
-    num_primitives_ +=
-        CalculateNumPrimitives(part.primitive_type, part.end - part.start);
+    PartData& part = parts_.emplace_back();
+    part.name = mesh_ptr->GetName();
+    part.bounding_box = mesh_ptr->GetBoundingBox();
+    part.primitive_type = mesh_ptr->GetPrimitiveType();
+    part.vbuffer = CreateVertexBuffer(fengine_, mesh_ptr);
+    part.ibuffer = CreateIndexBuffer(fengine_, mesh_ptr);
   }
+  parts_.front().name =  HashValue(0);
 
-  num_vertices_ = CalculateNumVertices(mesh_data->GetVertexFormat(),
-                                       mesh_data->GetVertexData());
-  bounding_box_ = mesh_data->GetBoundingBox();
   NotifyReady();
 }
 
-size_t FilamentMesh::GetNumVertices() const { return num_vertices_; }
+size_t FilamentMesh::GetNumParts() const { return parts_.size(); }
 
-size_t FilamentMesh::GetNumPrimitives() const { return num_primitives_; }
-
-size_t FilamentMesh::GetNumSubmeshes() const { return submeshes_.size(); }
-
-const FilamentMesh::SubmeshData& FilamentMesh::GetSubmeshData(
-    size_t index) const {
-  CHECK_LT(index, submeshes_.size());
-  return submeshes_[index];
+HashValue FilamentMesh::GetPartName(size_t index) const {
+  CHECK_LT(index, parts_.size());
+  return parts_[index].name;
 }
 
-Box FilamentMesh::GetBoundingBox() const { return bounding_box_; }
-
-filament::VertexBuffer* FilamentMesh::GetFilamentVertexBuffer() const {
-  return fvbuffer_.get();
+void FilamentMesh::PreparePartRenderable(
+    size_t index, filament::RenderableManager::Builder& builder) {
+  CHECK_LT(index, parts_.size());
+  const auto& part = parts_[index];
+  const auto type = ToFilamentPrimitiveType(part.primitive_type);
+  builder.boundingBox(ToFilament(part.bounding_box));
+  builder.geometry(0, type, part.vbuffer.get(), part.ibuffer.get());
 }
 
-filament::IndexBuffer* FilamentMesh::GetFilamentIndexBuffer() const {
-  return fibuffer_.get();
+absl::Span<const VertexUsage> FilamentMesh::GetVertexUsages() const {
+  return usages_;
 }
 
 }  // namespace redux

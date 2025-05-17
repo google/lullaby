@@ -17,8 +17,15 @@ limitations under the License.
 #include "redux/engines/audio/resonance/audio_asset_manager.h"
 
 #include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "redux/engines/audio/resonance/resonance_audio_asset.h"
 #include "redux/modules/audio/audio_reader.h"
 #include "redux/modules/audio/opus_reader.h"

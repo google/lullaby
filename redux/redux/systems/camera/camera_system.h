@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <optional>
 
+#include "absl/container/flat_hash_map.h"
 #include "redux/engines/render/render_engine.h"
 #include "redux/engines/render/render_layer.h"
 #include "redux/modules/ecs/system.h"
@@ -57,6 +58,24 @@ class CameraSystem : public System {
   // angle should be specified in radians.
   void SetHorizontalFieldOfViewAngle(Entity entity, float horizontal_fov);
 
+  // Sets the aspect ratio for perspective projection.
+  void SetAspectRatio(Entity entity, float aspect_ratio);
+
+  // Sets the exposure parameters of the camera.
+  // aperture: size of the camera aperture in f-stops. A lower aperture value
+  //     increases the exposure, leading to a brighter scene. Realistic values
+  //     are between 0.95 and
+  // shutter_speed: speed of the shutter in seconds.A slower shutter speed
+  //     increases the exposure. Realistic values are between 1/8000 and 30.
+  // iso_sensitivity: the ISO sensitivity of the camera to light. A higher
+  //     sensitivity increases the exposure. Realistic values are between 50 and
+  //     25600.
+  void SetExposure(Entity entity, float aperture, float shutter_speed,
+                   float iso_sensitivity);
+
+  // Sets the focal distance of the camera.
+  void SetFocalDistance(Entity entity, float distance);
+
   // Returns the CameraOps associated with the Entity.
   CameraOps GetCameraOps(Entity entity) const;
 
@@ -75,14 +94,18 @@ class CameraSystem : public System {
     float far_plane = 1000.0f;
     float near_plane = 0.01f;
     float horizontal_fov = DegreesToRadians(90.f);
+    float aspect_ratio = 1.0f;
+    float aperture = 16.0f;  // i.e. f-stop number.
+    float shutter_speed = 1.0f / 125.0f;
+    float iso_sensitivity = 100.0f;
+    float focus_distance = 0.0f;
   };
 
   void OnDestroy(Entity entity) override;
 
   RenderLayerPtr GetRenderLayer(HashValue key) const;
 
-  static mat4 CalculateProjectionMatrix(const Camera& camera,
-                                        const RenderLayerPtr& layer);
+  static mat4 CalculateProjectionMatrix(const Camera& camera);
 
   absl::flat_hash_map<Entity, Camera> cameras_;
   TransformSystem* transform_system_ = nullptr;

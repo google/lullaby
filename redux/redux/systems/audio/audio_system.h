@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_AUDIO_AUDIO_SYSTEM_H_
 #define REDUX_SYSTEMS_AUDIO_AUDIO_SYSTEM_H_
 
+#include <string_view>
+
 #include "absl/container/flat_hash_map.h"
 #include "redux/engines/audio/audio_engine.h"
 #include "redux/modules/base/hash.h"

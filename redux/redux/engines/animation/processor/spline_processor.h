@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <vector>
 
+#include "absl/time/time.h"
 #include "redux/engines/animation/common.h"
 #include "redux/engines/animation/motivator/spline_motivator.h"
 #include "redux/engines/animation/processor/anim_processor.h"
@@ -27,6 +28,8 @@ limitations under the License.
 #include "redux/modules/base/typeid.h"
 
 namespace redux {
+
+class AnimationEngine;
 
 class SplineProcessor : public AnimProcessor {
  public:

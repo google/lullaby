@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_ASSET_STREAM_H_
 #define REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_ASSET_STREAM_H_
 
+#include <stdint.h>
+
 #include <atomic>
 #include <cstdio>
 #include <memory>

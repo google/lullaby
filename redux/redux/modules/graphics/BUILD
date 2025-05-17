@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -63,8 +64,10 @@ cc_library(
     hdrs = ["enums.h"],
     deps = [
         ":graphics_enums_fbs",
+        "@absl//absl/log",
         "//redux/modules/base:hash",
         "//redux/modules/base:logging",
+        "//redux/modules/base:typeid",
     ],
 )
 
@@ -77,9 +80,9 @@ cc_library(
         ":image_data",
         ":image_utils",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "//redux/modules/base:data_container",
         "//redux/modules/base:hash",
-        "//redux/modules/base:logging",
         "//redux/modules/math:bounds",
     ],
 )
@@ -102,6 +105,7 @@ cc_library(
     deps = [
         ":enums",
         ":image_utils",
+        "@absl//absl/log:check",
         "//redux/modules/base:data_container",
         "//redux/modules/base:logging",
         "//redux/modules/math:vector",
@@ -114,7 +118,24 @@ cc_library(
     hdrs = ["image_utils.h"],
     deps = [
         ":enums",
+        "@absl//absl/log",
         "@absl//absl/types:span",
+        "//redux/modules/math:vector",
+    ],
+)
+
+cc_library(
+    name = "ktx_container",
+    srcs = ["ktx_container.cc"],
+    hdrs = ["ktx_container.h"],
+    deps = [
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
+        "//redux/modules/base:data_container",
+        "//redux/modules/graphics:graphics_enums_fbs",
+        "//redux/modules/graphics:image_data",
         "//redux/modules/math:vector",
     ],
 )
@@ -134,12 +155,45 @@ cc_library(
     srcs = ["mesh_data.cc"],
     hdrs = ["mesh_data.h"],
     deps = [
-        ":vertex_attribute",
         ":vertex_format",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/modules/base:data_container",
         "//redux/modules/base:hash",
-        "//redux/modules/base:logging",
+        "//redux/modules/graphics:enums",
+        "//redux/modules/graphics:graphics_enums_fbs",
         "//redux/modules/math:bounds",
+    ],
+)
+
+cc_library(
+    name = "mesh_utils",
+    srcs = ["mesh_utils.cc"],
+    hdrs = ["mesh_utils.h"],
+    deps = [
+        ":mesh_data",
+        ":vertex",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
+        "//redux/modules/base:data_builder",
+    ],
+)
+
+cc_test(
+    name = "mesh_utils_tests",
+    srcs = ["mesh_utils_tests.cc"],
+    deps = [
+        ":graphics_enums_fbs",
+        ":mesh_data",
+        ":mesh_utils",
+        ":vertex",
+        ":vertex_format",
+        "@gtest//:gtest_main",
+        "@absl//absl/types:span",
+        "//redux/modules/base:data_container",
+        "//redux/modules/math:bounds",
+        "//redux/modules/math:vector",
     ],
 )
 
@@ -148,6 +202,8 @@ cc_library(
     hdrs = ["texture_usage.h"],
     deps = [
         ":enums",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
         "//redux/modules/base:hash",
         "//redux/modules/base:logging",
@@ -164,7 +220,6 @@ cc_library(
     deps = [
         ":enums",
         ":vertex_format",
-        "//redux/modules/math",
         "//redux/modules/math:matrix",
         "//redux/modules/math:quaternion",
         "//redux/modules/math:vector",
@@ -177,6 +232,7 @@ cc_test(
     deps = [
         ":vertex",
         "@gtest//:gtest_main",
+        "@absl//absl/log:check",
     ],
 )
 
@@ -194,6 +250,8 @@ cc_library(
     hdrs = ["vertex_format.h"],
     deps = [
         ":vertex_attribute",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "//redux/modules/base:logging",
     ],
 )

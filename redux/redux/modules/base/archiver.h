@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_ARCHIVER_H_
 #define REDUX_MODULES_BASE_ARCHIVER_H_
 
+#include <concepts>
 #include <type_traits>
 
 #include "redux/modules/base/hash.h"
@@ -88,53 +89,27 @@ namespace redux::detail {
 // the values being serialized and delegating the appropriate calls to the
 // Serializer. See serialize.h for more information.
 
-// A helper class used to determine if T has a Serialize function.
-template <typename T, typename Archive>
-struct IsSerializableImpl {
-  template <typename U>
-  static typename std::is_same<void, decltype(std::declval<U>().Serialize(
-                                         std::declval<Archive>()))>::type
-  Test(U*);
-
-  template <typename U>
-  static std::false_type Test(...);
-
-  using type = decltype(Test<T>(nullptr));
+// Whether T has a member function like 'void T::Serialize(Archive)':
+template <typename T, typename Ar>
+constexpr bool IsSerializable = requires(T t, const Ar& ar) {
+  { t.Serialize(ar) } -> std::same_as<void>;
 };
 
-// IsSerializable<T, Archive>: does T have a member function with the signature:
-//     void T::Serialize(Archive);
-template <typename T, typename Archive>
-using IsSerializableT = typename IsSerializableImpl<T, Archive>::type;
-template <typename T, typename Archive>
-inline constexpr bool IsSerializable = IsSerializableT<T, Archive>::value;
+// Whether T has a member function like 'void T::Begin(HashValue)':
+template <typename T>
+constexpr bool IsScoped = requires(T t, const HashValue& hash_value) {
+  { t.Begin(hash_value) } -> std::same_as<void>;
+};
 
 template <typename Serializer>
 class Archiver {
-  using Self = Archiver<Serializer>;
-
-  // Helper to determines if |T| has a member function with the signature:
-  //  void T::Begin(HashValue).
-  template <typename T>
-  struct IsScopedImpl {
-    template <typename U>
-    static typename std::is_same<void, decltype(std::declval<U>().Begin(
-                                           std::declval<HashValue>()))>::type
-    Test(U*);
-
-    template <typename U>
-    static std::false_type Test(...);
-
-    using type = decltype(Test<T>(nullptr));
-  };
-
  public:
   explicit Archiver(Serializer* serializer) : serializer_(serializer) {}
 
   template <typename T>
   void operator()(T& value, HashValue key) {
-    constexpr bool kScoped = IsScopedImpl<Serializer>::type::value;
-    constexpr bool kSerializable = IsSerializable<T, Self>;
+    constexpr bool kScoped = IsScoped<Serializer>;
+    constexpr bool kSerializable = IsSerializable<T, Archiver<Serializer>>;
 
     if constexpr (kSerializable) {
       if constexpr (kScoped) {

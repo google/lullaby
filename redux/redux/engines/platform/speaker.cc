@@ -16,6 +16,10 @@ limitations under the License.
 
 #include "redux/engines/platform/speaker.h"
 
+#include <utility>
+
+#include "absl/time/time.h"
+
 namespace redux {
 
 Speaker::Speaker(SpeakerProfile profile, OnDestroy on_destroy)

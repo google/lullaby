@@ -16,9 +16,21 @@ limitations under the License.
 
 #include "redux/engines/animation/processor/spline_processor.h"
 
+#include <stddef.h>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/time/time.h"
 #include "redux/engines/animation/common.h"
 
 namespace redux {
+
+class AnimationEngine;
 
 inline float DurationToSplineTime(absl::Duration duration) {
   return static_cast<float>(absl::ToDoubleMilliseconds(duration));

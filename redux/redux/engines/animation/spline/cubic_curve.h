@@ -17,7 +17,10 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_SPLINE_CUBIC_CURVE_H_
 #define REDUX_ENGINES_ANIMATION_SPLINE_CUBIC_CURVE_H_
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 
 #include "redux/modules/math/bounds.h"
 #include "redux/modules/math/vector.h"

@@ -17,6 +17,14 @@ limitations under the License.
 #include "redux/modules/base/choreographer.h"
 
 #include <cstddef>
+#include <functional>
+#include <memory>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
 
 namespace redux {
 

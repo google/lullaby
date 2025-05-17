@@ -15,6 +15,9 @@ limitations under the License.
 */
 
 #include <cstddef>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

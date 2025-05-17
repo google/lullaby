@@ -16,9 +16,13 @@ limitations under the License.
 
 #include "redux/modules/dispatcher/dispatcher.h"
 
+#include <functional>
+#include <memory>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 
 namespace redux {
 

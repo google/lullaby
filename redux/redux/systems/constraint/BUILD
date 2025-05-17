@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -22,15 +23,13 @@ cc_library(
     hdrs = ["constraint_system.h"],
     deps = [
         ":events",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
         "//redux/engines/script:function_binder",
         "//redux/modules/base:choreographer",
         "//redux/modules/base:data_table",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
-        "//redux/modules/math:matrix",
         "//redux/modules/math:transform",
-        "//redux/modules/math:vector",
         "//redux/systems/dispatcher",
         "//redux/systems/rig",
         "//redux/systems/transform",

@@ -16,9 +16,12 @@ limitations under the License.
 
 #include "redux/modules/testing/testing.h"
 
+#include <string>
+#include <string_view>
+
+#include "absl/log/log.h"
 #include "redux/modules/base/filepath.h"
 #include "redux/modules/base/logging.h"
-#include "gtest/gtest.h"
 
 namespace redux {
 

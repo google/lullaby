@@ -17,8 +17,16 @@ limitations under the License.
 #ifndef REDUX_ENGINES_TEXT_INTERNAL_TEXT_LAYOUT_H_
 #define REDUX_ENGINES_TEXT_INTERNAL_TEXT_LAYOUT_H_
 
+#include <stddef.h>
+
+#include <string_view>
+#include <vector>
+
+#include "redux/engines/text/internal/glyph.h"
 #include "redux/engines/text/text_engine.h"
 #include "redux/modules/graphics/mesh_data.h"
+#include "redux/modules/math/bounds.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 

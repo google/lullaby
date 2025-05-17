@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_PROCESSOR_TRANSFORM_PROCESSOR_H_
 #define REDUX_ENGINES_ANIMATION_PROCESSOR_TRANSFORM_PROCESSOR_H_
 
+#include <vector>
+
+#include "absl/time/time.h"
 #include "redux/engines/animation/animation_clip.h"
 #include "redux/engines/animation/common.h"
 #include "redux/engines/animation/motivator/spline_motivator.h"
@@ -26,6 +29,8 @@ limitations under the License.
 #include "redux/modules/math/transform.h"
 
 namespace redux {
+
+class AnimationEngine;
 
 class TransformProcessor : public AnimProcessor {
  public:

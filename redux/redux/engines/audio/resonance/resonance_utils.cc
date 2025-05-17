@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "redux/engines/audio/resonance/resonance_utils.h"
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "resonance_audio/api/resonance_audio_api.h"
 #include "platforms/common/room_properties.h"
 
 namespace redux {

@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/engines/animation/spline/quadratic_curve.h"
 
+#include <stddef.h>
+
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+
 #include "redux/modules/math/float.h"
 
 #ifdef _DEBUG

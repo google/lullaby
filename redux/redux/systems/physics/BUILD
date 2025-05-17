@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -41,13 +42,22 @@ cc_library(
         ":rigid_body_def",
         ":trigger_def",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/time",
         "//redux/engines/physics",
+        "//redux/engines/physics:physics_enums_fbs",
+        "//redux/modules/base:bits",
         "//redux/modules/base:choreographer",
         "//redux/modules/base:hash",
+        "//redux/modules/base:registry",
         "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/modules/ecs:entity",
         "//redux/modules/math",
+        "//redux/modules/math:quaternion",
+        "//redux/modules/math:transform",
+        "//redux/modules/math:vector",
         "//redux/systems/dispatcher",
         "//redux/systems/transform",
     ],

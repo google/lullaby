@@ -16,9 +16,15 @@ limitations under the License.
 
 #include "redux/systems/script/script_system.h"
 
-#include <string_view>
+#include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/time/time.h"
 #include "redux/modules/base/choreographer.h"
 #include "redux/modules/ecs/entity_factory.h"
 

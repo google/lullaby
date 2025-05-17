@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_TYPES_H_
 
 #include <functional>
+#include <utility>
 
 #include "redux/engines/script/redux/script_value.h"
 #include "redux/modules/base/logging.h"

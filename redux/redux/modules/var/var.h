@@ -18,9 +18,13 @@ limitations under the License.
 #define REDUX_MODULES_VAR_VAR_H_
 
 #include <cstddef>
+#include <new>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
+#include "absl/log/check.h"
 #include "absl/time/time.h"
 #include "redux/modules/base/data_buffer.h"
 #include "redux/modules/base/logging.h"

@@ -18,8 +18,13 @@ limitations under the License.
 #define REDUX_MODULES_DISPATCHER_DISPATCHER_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <memory>
+#include <type_traits>
+#include <utility>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/function_traits.h"
 #include "redux/modules/base/typeid.h"
 #include "redux/modules/dispatcher/message.h"

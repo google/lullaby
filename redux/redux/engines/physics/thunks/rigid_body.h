@@ -24,8 +24,12 @@ namespace redux {
 // Thunk functions to call the actual implementation.
 void RigidBody::Activate() { Upcast(this)->Activate(); }
 void RigidBody::Deactivate() { Upcast(this)->Deactivate(); }
-void RigidBody::SetType(RigidBodyMotionType type) {
-  Upcast(this)->SetType(type);
+void RigidBody::SetMotionType(RigidBodyMotionType motion_type) {
+  Upcast(this)->SetMotionType(motion_type);
+}
+void RigidBody::SetCollisionState(Bits32 collision_group,
+                                  Bits32 collision_filter) {
+  Upcast(this)->SetCollisionState(collision_group, collision_filter);
 }
 bool RigidBody::IsActive() const { return Upcast(this)->IsActive(); }
 void RigidBody::SetTransform(const Transform& transform) {

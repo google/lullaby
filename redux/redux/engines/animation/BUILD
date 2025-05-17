@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -38,7 +39,9 @@ cc_library(
     deps = [
         "@absl//absl/algorithm:container",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "@absl//absl/time",
+        "@absl//absl/types:span",
         "//redux/data/asset_defs:anim_asset_def_fbs",
         "//redux/engines/animation/spline:compact_spline",
         "//redux/modules/base:asset_loader",
@@ -52,6 +55,5 @@ cc_library(
         "//redux/modules/math:constants",
         "//redux/modules/math:matrix",
         "//redux/modules/math:transform",
-        "//redux/modules/math:vector",
     ],
 )

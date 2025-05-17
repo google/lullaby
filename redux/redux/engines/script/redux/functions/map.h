@@ -17,6 +17,11 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_MAP_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_MAP_H_
 
+#include <stdint.h>
+
+#include <utility>
+
+#include "absl/log/check.h"
 #include "redux/engines/script/redux/script_env.h"
 
 // This file implements the following script functions:

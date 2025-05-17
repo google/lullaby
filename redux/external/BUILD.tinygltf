@@ -1,0 +1,6 @@
+cc_library(
+    name = "tinygltf",
+    hdrs = ["tiny_gltf.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

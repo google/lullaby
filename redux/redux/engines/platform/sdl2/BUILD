@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -26,13 +27,18 @@ cc_library(
     ],
     deps = [
         "@sdl2//:sdl2",
-        "//redux/modules/math:vector",
+        "@absl//absl/log:check",
+        "@absl//absl/status",
+        "@absl//absl/types:span",
         "//redux/engines/platform:device_manager",
+        "//redux/engines/platform:device_profiles",
         "//redux/engines/platform:display",
+        "//redux/engines/platform:keyboard",
+        "//redux/engines/platform:keycodes",
         "//redux/engines/platform:mainloop",
         "//redux/engines/platform:mouse",
-        "//redux/engines/platform:keyboard",
         "//redux/engines/platform:speaker",
+        "//redux/modules/math:vector",
     ] + select({
         "@platforms//os:osx": [
             ":get_native_window_osx",
@@ -53,8 +59,8 @@ objc_library(
     }),
     deps = select({
         "@platforms//os:osx": [
-            # "//third_party/apple_frameworks:Cocoa",
-            # "//third_party/apple_frameworks:Metal",
+            "//third_party/apple_frameworks:Cocoa",
+            "//third_party/apple_frameworks:Metal",
         ],
         "//conditions:default": [
         ],

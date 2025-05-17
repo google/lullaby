@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_DISPLAY_H_
 #define REDUX_ENGINES_PLATFORM_DISPLAY_H_
 
+#include "absl/time/time.h"
 #include "redux/engines/platform/buffered_state.h"
 #include "redux/engines/platform/device_profiles.h"
 #include "redux/engines/platform/virtual_device.h"

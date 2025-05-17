@@ -15,10 +15,15 @@ limitations under the License.
 */
 
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "redux/modules/base/filepath.h"
 #include "redux/modules/codecs/decode_image.h"
 #include "redux/modules/codecs/encode_png.h"

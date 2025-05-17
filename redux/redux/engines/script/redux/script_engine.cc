@@ -16,9 +16,14 @@ limitations under the License.
 
 #include "redux/engines/script/script_engine.h"
 
-#include <optional>
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <string_view>
 #include <utility>
 
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/engines/script/redux/script_stack.h"
 #include "redux/engines/script/redux/script_value.h"
@@ -26,11 +31,8 @@ limitations under the License.
 #include "redux/modules/base/static_registry.h"
 #include "redux/modules/ecs/entity.h"
 #include "redux/modules/math/matrix.h"
-#include "redux/modules/math/quaternion.h"
-#include "redux/modules/math/vector.h"
 #include "redux/modules/var/var.h"
 #include "redux/modules/var/var_array.h"
-#include "redux/modules/var/var_table.h"
 
 namespace redux {
 

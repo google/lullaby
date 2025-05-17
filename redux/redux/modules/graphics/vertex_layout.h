@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_MODULES_GRAPHICS_VERTEX_LAYOUT_H_
 #define REDUX_MODULES_GRAPHICS_VERTEX_LAYOUT_H_
 
+#include <stdint.h>
+
 #include <cstddef>
 
 #include "redux/modules/graphics/enums.h"

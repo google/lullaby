@@ -17,9 +17,12 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_MESH_FACTORY_H_
 #define REDUX_ENGINES_RENDER_MESH_FACTORY_H_
 
+#include "absl/types/span.h"
 #include "redux/engines/render/mesh.h"
+#include "redux/modules/base/hash.h"
 #include "redux/modules/base/registry.h"
 #include "redux/modules/base/resource_manager.h"
+#include "redux/modules/base/typeid.h"
 #include "redux/modules/graphics/mesh_data.h"
 
 namespace redux {
@@ -49,9 +52,22 @@ class MeshFactory {
   // Creates a mesh using the specified data.
   MeshPtr CreateMesh(MeshData mesh_data);
 
+  // Creates a mesh from multiple data buffers.
+  //
+  // IMPORTANT: Like above, this takes ownership of the MeshData. i.e. we will
+  // be calling std::move on each element of the span.
+  MeshPtr CreateMesh(absl::Span<MeshData> mesh_data);
+
   // Creates a named mesh using the specified data; automatically registered
   // with the factory.
   MeshPtr CreateMesh(HashValue name, MeshData mesh_data);
+
+  // Creates a named mesh from multiple data buffers; automatically registered
+  // with the factory.
+  //
+  // IMPORTANT: Like above, this takes ownership of the MeshData. i.e. we will
+  // be calling std::move on each element of the span.
+  MeshPtr CreateMesh(HashValue name, absl::Span<MeshData> mesh_data);
 
  private:
   Registry* registry_ = nullptr;

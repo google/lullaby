@@ -17,6 +17,10 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_ARRAY_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_ARRAY_H_
 
+#include <stddef.h>
+
+#include <utility>
+
 #include "redux/engines/script/redux/script_env.h"
 
 // This file implements the following script functions:

@@ -16,8 +16,18 @@ limitations under the License.
 
 #include "redux/tools/anim_pipeline/export.h"
 
-#include <limits>
+#include <stddef.h>
+#include <stdint.h>
 
+#include <algorithm>
+#include <limits>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/log/log.h"
 #include "redux/data/asset_defs/anim_asset_def_generated.h"
 #include "redux/engines/animation/spline/compact_spline.h"
 #include "redux/modules/flatbuffers/common.h"

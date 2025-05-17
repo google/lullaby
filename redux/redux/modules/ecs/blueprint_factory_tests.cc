@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "redux/engines/script/redux/script_types.h"
+#include "redux/engines/script/redux/script_value.h"
 #include "redux/modules/ecs/blueprint_factory.h"
 #include "redux/modules/var/var.h"
 #include "redux/modules/var/var_array.h"

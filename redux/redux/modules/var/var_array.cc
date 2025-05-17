@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/modules/var/var_array.h"
 
+#include <stddef.h>
+
+#include <vector>
+
+#include "absl/log/check.h"
+
 namespace redux {
 
 void VarArray::Clear() { data_.clear(); }

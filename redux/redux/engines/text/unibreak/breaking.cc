@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "linebreak.h"
 #include "redux/engines/text/text_engine.h"
 

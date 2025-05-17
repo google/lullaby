@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_HASH_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_HASH_H_
 
+#include <string>
+
 #include "redux/engines/script/redux/script_env.h"
 
 // This file implements the following script functions:

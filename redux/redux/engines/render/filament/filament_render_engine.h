@@ -17,17 +17,28 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_RENDER_ENGINE_H_
 #define REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_RENDER_ENGINE_H_
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "filament/Engine.h"
 #include "filament/Renderer.h"
 #include "filament/SwapChain.h"
-#include "redux/engines/render/filament/filament_render_layer.h"
-#include "redux/engines/render/filament/filament_render_scene.h"
 #include "redux/engines/render/filament/filament_render_target.h"
 #include "redux/engines/render/mesh_factory.h"
+#include "redux/engines/render/indirect_light.h"
+#include "redux/engines/render/light.h"
 #include "redux/engines/render/render_engine.h"
+#include "redux/engines/render/render_layer.h"
+#include "redux/engines/render/render_scene.h"
+#include "redux/engines/render/render_target.h"
 #include "redux/engines/render/render_target_factory.h"
 #include "redux/engines/render/shader_factory.h"
+#include "redux/engines/render/renderable.h"
+#include "redux/engines/render/texture.h"
 #include "redux/engines/render/texture_factory.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/graphics/image_data.h"
 
 namespace redux {
 
@@ -46,8 +57,8 @@ class FilamentRenderEngine : public RenderEngine {
   // Returns the RenderScene with the given name.
   RenderScenePtr GetRenderScene(HashValue name);
 
-  // Returns a default RenderScene.
-  RenderScenePtr GetDefaultRenderScene();
+  // Returns the name of the default RenderScene.
+  HashValue GetDefaultRenderSceneName();
 
   // Creates a new RenderLayer with the given name.
   RenderLayerPtr CreateRenderLayer(HashValue name);
@@ -55,8 +66,8 @@ class FilamentRenderEngine : public RenderEngine {
   // Returns the RenderLayer with the given name.
   RenderLayerPtr GetRenderLayer(HashValue name);
 
-  // Returns a default RenderLayer.
-  RenderLayerPtr GetDefaultRenderLayer();
+  // Returns the name of the default RenderLayer.
+  HashValue GetDefaultRenderLayerName();
 
   // Creates a new Renderable.
   RenderablePtr CreateRenderable();
@@ -65,8 +76,9 @@ class FilamentRenderEngine : public RenderEngine {
   LightPtr CreateLight(Light::Type type);
 
   // Creates a new IndirectLight.
-  IndirectLightPtr CreateIndirectLight(const TexturePtr& reflection,
-                                       const TexturePtr& irradiance = nullptr);
+  IndirectLightPtr CreateIndirectLight(
+      const TexturePtr& reflection, const TexturePtr& irradiance,
+      absl::Span<const float> spherical_harmonics);
 
   // Renders all active RenderLayers in priority order.
   bool Render();

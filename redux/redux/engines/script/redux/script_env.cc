@@ -16,8 +16,20 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_env.h"
 
-#include <optional>
+#include <stddef.h>
+#include <stdint.h>
 
+#include <ostream>
+#include <random>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/script/redux/functions/array.h"
 #include "redux/engines/script/redux/functions/cond.h"
 #include "redux/engines/script/redux/functions/hash.h"

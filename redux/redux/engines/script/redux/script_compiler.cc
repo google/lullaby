@@ -16,6 +16,14 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_compiler.h"
 
+#include <stdint.h>
+
+#include <cstddef>
+#include <string_view>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/engines/script/redux/script_types.h"
 

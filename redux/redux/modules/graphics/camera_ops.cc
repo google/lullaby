@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "redux/modules/graphics/camera_ops.h"
 
+#include <optional>
+
 #include "redux/modules/math/transform.h"
 
 namespace redux {

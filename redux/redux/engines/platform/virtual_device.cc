@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "redux/engines/platform/virtual_device.h"
 
+#include <optional>
+
 namespace redux {
 
 const VirtualDevice::TriggerFlag VirtualDevice::DetermineTrigger(bool curr,

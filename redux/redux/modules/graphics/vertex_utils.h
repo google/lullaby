@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_MODULES_GRAPHICS_VERTEX_UTILS_H_
 #define REDUX_MODULES_GRAPHICS_VERTEX_UTILS_H_
 
+#include <cmath>
+
 #include "redux/modules/math/matrix.h"
 #include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/vector.h"

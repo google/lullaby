@@ -17,11 +17,16 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_ANIMATION_CLIP_H_
 #define REDUX_ENGINES_ANIMATION_ANIMATION_CLIP_H_
 
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/common.h"
 #include "redux/engines/animation/spline/compact_spline.h"
 #include "redux/modules/base/data_container.h"

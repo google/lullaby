@@ -14,10 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stddef.h>
+
 #include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/macros.h"
 #include "redux/engines/animation/spline/bulk_spline_evaluator.h"
 
 namespace redux {

@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_AUDIO_ASSET_H_
 #define REDUX_ENGINES_AUDIO_AUDIO_ASSET_H_
 
+#include <stdint.h>
+
 #include <memory>
 
 namespace redux {

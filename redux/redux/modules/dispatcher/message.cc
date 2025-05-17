@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/modules/dispatcher/message.h"
 
+#include <any>
+#include <utility>
+
+#include "absl/log/check.h"
+
 namespace redux {
 
 Message::Message(const Message& rhs)

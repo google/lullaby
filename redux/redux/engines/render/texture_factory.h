@@ -17,9 +17,15 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_TEXTURE_FACTORY_H_
 #define REDUX_ENGINES_RENDER_TEXTURE_FACTORY_H_
 
+#include <string_view>
+
 #include "redux/engines/render/texture.h"
+#include "redux/modules/base/hash.h"
 #include "redux/modules/base/registry.h"
 #include "redux/modules/base/resource_manager.h"
+#include "redux/modules/base/typeid.h"
+#include "redux/modules/math/vector.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
 #include "redux/modules/graphics/image_data.h"
 
 namespace redux {
@@ -33,6 +39,7 @@ struct TextureParams {
   TextureWrap wrap_t = TextureWrap::Repeat;
   TextureWrap wrap_r = TextureWrap::Repeat;
   TextureTarget target = TextureTarget::Normal2D;
+  ColorSpace color_space = ColorSpace::Linear;
   bool premultiply_alpha = false;
   bool generate_mipmaps = false;
 };

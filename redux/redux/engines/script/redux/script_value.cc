@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_value.h"
 
+#include <memory>
+
 namespace redux {
 
 TypeId ScriptValue::GetTypeId() const {

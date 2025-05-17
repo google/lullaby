@@ -16,10 +16,17 @@ limitations under the License.
 
 #include "redux/modules/ecs/blueprint_factory.h"
 
+#include <stddef.h>
+
+#include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "redux/engines/script/redux/script_ast_builder.h"
 #include "redux/engines/script/redux/script_parser.h"
 #include "redux/modules/base/asset_loader.h"

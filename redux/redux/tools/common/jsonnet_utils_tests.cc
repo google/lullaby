@@ -14,8 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "redux/modules/testing/testing.h"
 #include "redux/tools/common/file_utils.h"
 #include "redux/tools/common/jsonnet_utils.h"

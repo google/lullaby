@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_TOOLS_DEF_CODE_GENERATOR_METADATA_TYPES_H_
 #define REDUX_TOOLS_DEF_CODE_GENERATOR_METADATA_TYPES_H_
 
+#include <stdint.h>
+
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -47,7 +50,8 @@ struct FieldMetadata : CommonMetadata {
   absl::flat_hash_map<std::string, std::string> attributes;
 
   // Some common attribute keys.
-  static constexpr char kDefaulValue[] = "default_value";
+  static constexpr char kDefaultValue[] = "default_value";
+  static constexpr char kIsArray[] = "is_array";
 };
 
 struct StructMetadata : TypeMetadata {

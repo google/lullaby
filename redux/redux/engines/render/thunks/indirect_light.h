@@ -25,6 +25,9 @@ namespace redux {
 void IndirectLight::Disable() { Upcast(this)->Disable(); }
 void IndirectLight::Enable() { Upcast(this)->Enable(); }
 bool IndirectLight::IsEnabled() const { return Upcast(this)->IsEnabled(); }
+void IndirectLight::SetIntensity(float intensity) {
+  Upcast(this)->SetIntensity(intensity);
+}
 void IndirectLight::SetTransform(const mat4& transform) {
   Upcast(this)->SetTransform(transform);
 }

@@ -14,8 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "redux/modules/base/dependency_graph.h"
 
 namespace redux {

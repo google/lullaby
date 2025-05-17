@@ -17,6 +17,12 @@ limitations under the License.
 #ifndef REDUX_TOOLS_MODEL_PIPELINE_UTIL_H_
 #define REDUX_TOOLS_MODEL_PIPELINE_UTIL_H_
 
+#include <stdint.h>
+
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/types/span.h"
 #include "redux/tools/model_pipeline/config_generated.h"
 #include "redux/tools/model_pipeline/model.h"

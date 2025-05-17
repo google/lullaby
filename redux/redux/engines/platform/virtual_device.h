@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_VIRTUAL_DEVICE_H_
 #define REDUX_ENGINES_PLATFORM_VIRTUAL_DEVICE_H_
 
+#include <stdint.h>
+
 #include <functional>
 #include <optional>
 #include <utility>

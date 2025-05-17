@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -47,6 +48,10 @@ cc_library(
     deps = [
         ":config_fbs",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/hash",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/status:statusor",
         "@absl//absl/types:span",
         "//redux/modules/base:bits",
         "//redux/modules/base:data_container",
@@ -70,9 +75,10 @@ cc_library(
     deps = [
         ":config_fbs",
         ":model",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@assimp//:assimp",
-        "//redux/modules/base:data_buffer",
-        "//redux/modules/base:filepath",
         "//redux/modules/graphics:image_utils",
         "//redux/tools/common:assimp_utils",
     ],
@@ -84,7 +90,9 @@ cc_library(
     deps = [
         ":config_fbs",
         ":model",
-        "@absl//absl/types:span",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@libfbx//:libfbx",
         "//redux/modules/base:logging",
         "//redux/tools/common:fbx_utils",
@@ -96,16 +104,15 @@ cc_library(
     srcs = ["export.cc"],
     hdrs = ["export.h"],
     deps = [
-        ":config_fbs",
         ":model",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
         "//redux/data/asset_defs:model_asset_def_fbs",
         "//redux/data/asset_defs:texture_asset_def_fbs",
         "//redux/modules/base:data_container",
         "//redux/modules/flatbuffers:common",
-        "//redux/modules/flatbuffers:math",
-        "//redux/modules/flatbuffers:var",
         "//redux/modules/graphics:color",
         "//redux/tools/common:flatbuffer_utils",
         "//redux/tools/common:log_utils",
@@ -126,8 +133,9 @@ cc_library(
     deps = [
         ":export",
         ":model",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
-        "@flatbuffers//:flatbuffers",
         "//redux/modules/base:filepath",
         "//redux/modules/base:logging",
         "//redux/tools/common:file_utils",
@@ -145,8 +153,9 @@ cc_binary(
         ":model_pipeline_lib",
         "@absl//absl/flags:flag",
         "@absl//absl/flags:parse",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "//redux/modules/base:filepath",
-        "//redux/modules/base:logging",
         "//redux/tools/common:axis_system",
         "//redux/tools/common:file_utils",
         "//redux/tools/common:flatbuffer_utils",

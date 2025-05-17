@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/functional/bind_front.h"
+#include "absl/time/time.h"
 #include "redux/systems/dispatcher/dispatcher_system.h"
 #include "redux/systems/script/script_system.h"
 

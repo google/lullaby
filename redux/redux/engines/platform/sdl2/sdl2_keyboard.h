@@ -17,8 +17,11 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_SDL2_SDL2_KEYBOARD_H_
 #define REDUX_ENGINES_PLATFORM_SDL2_SDL2_KEYBOARD_H_
 
+#include <memory>
+
 #include "redux/engines/platform/device_manager.h"
 #include "redux/engines/platform/keyboard.h"
+#include "redux/engines/platform/keycodes.h"
 #include "redux/engines/platform/sdl2/sdl2_event_handler.h"
 
 namespace redux {
@@ -33,6 +36,7 @@ class Sdl2Keyboard : public Sdl2EventHandler {
 
  private:
   std::unique_ptr<Keyboard> keyboard_;
+  bool pressed_keys_[NUM_KEYCODES] = {false};
 };
 
 }  // namespace redux

@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_TOOLS_MODEL_PIPELINE_DRAWABLE_H_
 #define REDUX_TOOLS_MODEL_PIPELINE_DRAWABLE_H_
 
+#include <stddef.h>
+
 #include <limits>
 #include <vector>
 

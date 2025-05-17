@@ -16,8 +16,18 @@ limitations under the License.
 
 #include "redux/modules/audio/opus_reader.h"
 
-#include <algorithm>
+#include <stdint.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {

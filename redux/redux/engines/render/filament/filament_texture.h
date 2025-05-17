@@ -19,9 +19,11 @@ limitations under the License.
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "filament/Texture.h"
 #include "filament/TextureSampler.h"
+#include "math/vec3.h"
 #include "redux/engines/render/filament/filament_utils.h"
 #include "redux/engines/render/texture.h"
 #include "redux/engines/render/texture_factory.h"
@@ -50,23 +52,26 @@ class FilamentTexture : public Texture, public Readiable {
   // Returns the underlying filament sampler.
   filament::TextureSampler GetFilamentSampler() { return fsampler_; }
 
+  // Returns spherical harmonics data that may be encoded in the texture.
+  absl::Span<const filament::math::float3> GetSphericalHarmonics() const {
+    return spherical_harmonics_;
+  }
+
   // Creates the actual underlying filament texture and sampler using the
   // `image_data` and `params`.
   void Build(ImageData image_data, const TextureParams& params);
-
-  // Updates the entire contents of the texture. Image data is sent as-is.
-  // Returns false if the dimensions don't match or if the texture isn't
-  // internal and 2D.
-  bool Update(ImageData image);
-
   void Build(const std::shared_ptr<ImageData>& image_data,
              const TextureParams& params);
+
+  // Updates the entire contents of the texture.
+  void Update(ImageData image);
   void Update(const std::shared_ptr<ImageData>& image_data);
 
  private:
   std::string name_;
   vec2i dimensions_;
   TextureTarget target_ = TextureTarget::Normal2D;
+  std::vector<filament::math::float3> spherical_harmonics_;
   filament::Engine* fengine_ = nullptr;
   filament::TextureSampler fsampler_;
   FilamentResourcePtr<filament::Texture> ftexture_;

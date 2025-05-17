@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <atomic>            
 #include <condition_variable>
+#include <memory>
 #include <mutex>             
 
 #include "redux/engines/audio/audio_asset.h"

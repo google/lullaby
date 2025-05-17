@@ -16,8 +16,14 @@ limitations under the License.
 
 #include "redux/tools/anim_pipeline/anim_curve.h"
 
-#include <cmath>
+#include <stddef.h>
 
+#include <cmath>
+#include <optional>
+#include <utility>
+#include <vector>
+
+#include "absl/types/span.h"
 #include "redux/engines/animation/spline/cubic_curve.h"
 
 namespace redux::tool {

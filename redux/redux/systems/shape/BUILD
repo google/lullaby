@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -25,6 +26,9 @@ cc_library(
     ],
     deps = [
         ":shape_def",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/modules/base:data_builder",
         "//redux/modules/base:logging",
         "//redux/modules/graphics:vertex",
@@ -40,6 +44,7 @@ cc_test(
     deps = [
         ":shape_builder",
         "@gtest//:gtest_main",
+        "@absl//absl/types:span",
     ],
 )
 
@@ -54,10 +59,11 @@ cc_library(
     deps = [
         ":shape_builder",
         ":shape_def",
-        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/modules/base:data_builder",
-        "//redux/modules/base:logging",
         "//redux/modules/ecs",
+        "//redux/modules/graphics:graphics_enums_fbs",
         "//redux/modules/graphics:vertex",
         "//redux/modules/math:bounds",
         "//redux/systems/physics",

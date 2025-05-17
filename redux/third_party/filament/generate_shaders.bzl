@@ -1,3 +1,4 @@
+"""Executes filament's resgen tool to generate shaders."""
 
 def generate_shaders(name):
     gendir = "generated"

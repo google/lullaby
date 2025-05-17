@@ -17,7 +17,11 @@ limitations under the License.
 #include "redux/engines/platform/sdl2/sdl2_mainloop.h"
 
 #include <memory>
+#include <string_view>
+#include <vector>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "redux/engines/platform/sdl2/sdl2_display.h"
 #include "redux/engines/platform/sdl2/sdl2_keyboard.h"
 #include "redux/engines/platform/sdl2/sdl2_mouse.h"
@@ -31,11 +35,17 @@ std::unique_ptr<Mainloop> Mainloop::Create() {
 }
 
 Sdl2Mainloop::Sdl2Mainloop() {
+  SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "1");
   const auto init = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
   CHECK_EQ(init, 0);
 }
 
 Sdl2Mainloop::~Sdl2Mainloop() { SDL_Quit(); }
+
+void Sdl2Mainloop::CreateHeadless(vec2i size) {
+  auto device_manager = registry_.Get<DeviceManager>();
+  handlers_.emplace_back(Sdl2Display::CreateHeadless(device_manager, size));
+}
 
 void Sdl2Mainloop::CreateDisplay(std::string_view title, vec2i size) {
   auto device_manager = registry_.Get<DeviceManager>();

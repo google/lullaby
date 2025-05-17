@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_FRAME_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_FRAME_H_
 
+#include <utility>
+
 #include "redux/engines/script/redux/script_types.h"
 
 namespace redux {

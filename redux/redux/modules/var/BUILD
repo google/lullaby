@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -20,6 +21,7 @@ cc_library(
     ],
     deps = [
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "@absl//absl/time",
         "//redux/modules/base:data_buffer",
         "//redux/modules/base:logging",
@@ -34,6 +36,9 @@ cc_library(
     ],
     deps = [
         ":var",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/modules/base:serialize_traits",
         "//redux/modules/base:typed_ptr",
         "@magic_enum//:magic_enum",
@@ -48,6 +53,7 @@ cc_library(
     deps = [
         ":var",
         ":var_convert",
+        "@absl//absl/log:check",
     ],
 )
 
@@ -75,6 +81,7 @@ cc_test(
     deps = [
         ":var_convert",
         "@gtest//:gtest_main",
+        "@absl//absl/container:flat_hash_map",
     ],
 )
 

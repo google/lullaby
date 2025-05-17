@@ -28,6 +28,10 @@ bool TriggerVolume::IsActive() const { return Upcast(this)->IsActive(); }
 void TriggerVolume::SetTransform(const Transform& transform) {
   Upcast(this)->SetTransform(transform);
 }
+void TriggerVolume::SetCollisionState(Bits32 collision_group,
+                                      Bits32 collision_filter) {
+  Upcast(this)->SetCollisionState(collision_group, collision_filter);
+}
 vec3 TriggerVolume::GetPosition() const { return Upcast(this)->GetPosition(); }
 quat TriggerVolume::GetRotation() const { return Upcast(this)->GetRotation(); }
 

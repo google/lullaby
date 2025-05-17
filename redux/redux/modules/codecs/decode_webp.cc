@@ -16,11 +16,18 @@ limitations under the License.
 
 #include "redux/modules/codecs/decode_webp.h"
 
-#include <cstdlib>
+#include <stdint.h>
 
-#include "webp/decode.h"
-#include "webp/demux.h"
-#include "webp/mux_types.h"
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
+#include <utility>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "src/webp/decode.h"
+#include "src/webp/demux.h"
+#include "src/webp/mux_types.h"
 
 namespace redux {
 

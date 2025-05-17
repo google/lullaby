@@ -16,9 +16,14 @@ limitations under the License.
 
 #include "redux/systems/dispatcher/dispatcher_system.h"
 
+#include <stddef.h>
+
 #include <functional>
+#include <memory>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/choreographer.h"
 #include "redux/modules/dispatcher/queued_dispatcher.h"
 

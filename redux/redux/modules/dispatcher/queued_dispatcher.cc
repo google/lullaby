@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "redux/modules/dispatcher/queued_dispatcher.h"
 
+#include <memory>
+#include <optional>
+
 namespace redux {
 
 void QueuedDispatcher::Dispatch() {

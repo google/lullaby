@@ -17,28 +17,23 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_RENDER_ENGINE_H_
 #define REDUX_ENGINES_RENDER_RENDER_ENGINE_H_
 
-#include <memory>
-
+#include "absl/types/span.h"
 #include "redux/engines/render/indirect_light.h"
 #include "redux/engines/render/light.h"
-#include "redux/engines/render/mesh.h"
 #include "redux/engines/render/render_layer.h"
-#include "redux/engines/render/render_target.h"
+#include "redux/engines/render/render_scene.h"
 #include "redux/engines/render/renderable.h"
-#include "redux/engines/render/shader.h"
 #include "redux/engines/render/texture.h"
-#include "redux/modules/base/bits.h"
+#include "redux/modules/base/hash.h"
 #include "redux/modules/base/registry.h"
 #include "redux/modules/base/typeid.h"
-#include "redux/modules/graphics/color.h"
-#include "redux/modules/math/bounds.h"
 
 namespace redux {
 
 class MeshFactory;
+class RenderTargetFactory;
 class ShaderFactory;
 class TextureFactory;
-class RenderTargetFactory;
 
 // Creates and manages the various rendering-related objects (e.g. layers,
 // scenes, lights, and renderables) and provides the main API for rendering
@@ -56,8 +51,8 @@ class RenderEngine {
   // Returns the RenderScene with the given name.
   RenderScenePtr GetRenderScene(HashValue name);
 
-  // Returns a default RenderScene.
-  RenderScenePtr GetDefaultRenderScene();
+  // Returns the name of the default RenderScene.
+  HashValue GetDefaultRenderSceneName();
 
   // Creates a new RenderLayer with the given name.
   RenderLayerPtr CreateRenderLayer(HashValue name);
@@ -65,8 +60,8 @@ class RenderEngine {
   // Returns the RenderLayer with the given name.
   RenderLayerPtr GetRenderLayer(HashValue name);
 
-  // Returns a default RenderLayer.
-  RenderLayerPtr GetDefaultRenderLayer();
+  // Returns the name of the default RenderLayer.
+  HashValue GetDefaultRenderLayerName();
 
   // Creates a new Renderable.
   RenderablePtr CreateRenderable();
@@ -75,8 +70,9 @@ class RenderEngine {
   LightPtr CreateLight(Light::Type type);
 
   // Creates a new IndirectLight.
-  IndirectLightPtr CreateIndirectLight(const TexturePtr& reflection,
-                                       const TexturePtr& irradiance = nullptr);
+  IndirectLightPtr CreateIndirectLight(
+      const TexturePtr& reflection, const TexturePtr& irradiance,
+      absl::Span<const float> spherical_harmonics);
 
   // Renders all active RenderLayers in priority order.
   bool Render();

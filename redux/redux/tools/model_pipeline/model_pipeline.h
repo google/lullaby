@@ -17,9 +17,12 @@ limitations under the License.
 #ifndef REDUX_TOOLS_MODEL_PIPELINE_MODEL_PIPELINE_H_
 #define REDUX_TOOLS_MODEL_PIPELINE_MODEL_PIPELINE_H_
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "redux/tools/common/log_utils.h"
 #include "redux/tools/model_pipeline/model.h"

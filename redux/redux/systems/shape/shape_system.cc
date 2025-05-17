@@ -16,9 +16,15 @@ limitations under the License.
 
 #include "redux/systems/shape/shape_system.h"
 
+#include <stdint.h>
+
+#include <memory>
 #include <utility>
 
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/data_builder.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
 #include "redux/modules/graphics/vertex.h"
 #include "redux/systems/physics/physics_system.h"
 #include "redux/systems/render/render_system.h"
@@ -84,19 +90,11 @@ void ShapeSystem::BuildMeshShape(Entity entity, const T* def,
   ShapeBuilder<ShapeVertex, ShapeIndex> builder;
   builder.Build(*def);
 
-  MeshData::PartData part;
-  part.primitive_type = MeshPrimitiveType::Triangles;
-  part.start = 0;
-  part.end = builder.Indices().size();
-  part.box = bounds;
-  DataBuilder parts(sizeof(MeshData::PartData));
-  parts.Append(part);
-
   MeshData mesh_data;
   const VertexFormat vertex_format = ShapeVertex().GetVertexFormat();
   mesh_data.SetVertexData(vertex_format, builder.ReleaseVertices(), bounds);
-  mesh_data.SetIndexData(MeshIndexType::U16, builder.ReleaseIndices());
-  mesh_data.SetParts(parts.Release());
+  mesh_data.SetIndexData(MeshIndexType::U16, MeshPrimitiveType::Triangles,
+                         builder.ReleaseIndices());
 
   render_systems->SetMesh(entity, std::move(mesh_data));
 }

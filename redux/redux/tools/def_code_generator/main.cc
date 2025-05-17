@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <cctype>
 #include <string>
 
-#include "redux/tools/def_code_generator/generate_code.h"
-#include "redux/tools/def_code_generator/parse_def_file.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "redux/modules/base/filepath.h"
 #include "redux/modules/base/logging.h"
 #include "redux/tools/common/file_utils.h"
+#include "redux/tools/def_code_generator/generate_code.h"
+#include "redux/tools/def_code_generator/parse_def_file.h"
 
 ABSL_FLAG(std::string, input, "", "Input def file.");
 ABSL_FLAG(std::string, output, "", "Output header file.");

@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <cstdlib>
 
 #include "gmock/gmock.h"
@@ -502,15 +501,14 @@ TYPED_TEST(MatrixTest, DivScalar) {
   TypeParam mat_as(m1);
   mat_as /= scalar;
 
-  const auto inv = typename TypeParam::Scalar(1) / scalar;
   for (int i = 0; i < TypeParam::kRows; ++i) {
     for (int j = 0; j < TypeParam::kCols; ++j) {
       const auto v1 = ArrayAt<TypeParam>(arr1, i, j);
       const auto v2 = ArrayAt<TypeParam>(arr2, i, j);
 
-      EXPECT_THAT(mat_ms.cols[j][i], Eq(v1 * inv));
+      EXPECT_THAT(mat_ms.cols[j][i], Eq(v1 / scalar));
       EXPECT_THAT(mat_sm.cols[j][i], Eq(scalar / v2));
-      EXPECT_THAT(mat_as.cols[j][i], Eq(v1 * inv));
+      EXPECT_THAT(mat_as.cols[j][i], Eq(v1 / scalar));
     }
   }
 }

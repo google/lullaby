@@ -16,6 +16,18 @@ limitations under the License.
 
 #include "redux/modules/ecs/entity_factory.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <functional>
+#include <memory>
+#include <queue>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "redux/modules/ecs/entity.h"
 #include "redux/modules/ecs/system.h"
 
@@ -54,6 +66,15 @@ Entity EntityFactory::Create(const BlueprintPtr& blueprint) {
   }
 
   return entity;
+}
+
+Entity EntityFactory::Create(std::string_view text) {
+  if (text.empty()) {
+    return Create();
+  } else {
+    const BlueprintPtr blueprint = blueprint_factory_.ReadBlueprint(text);
+    return Create(blueprint);
+  }
 }
 
 Entity EntityFactory::Load(std::string_view uri) {

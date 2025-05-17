@@ -17,6 +17,10 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_SHAPE_BOX_SHAPE_GENERATOR_H_
 #define REDUX_SYSTEMS_SHAPE_BOX_SHAPE_GENERATOR_H_
 
+#include <stddef.h>
+
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/data_builder.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/graphics/vertex.h"

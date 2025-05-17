@@ -14,8 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 #include "redux/systems/shape/shape_builder.h"
 
 namespace redux {

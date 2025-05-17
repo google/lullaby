@@ -16,7 +16,14 @@ limitations under the License.
 
 #include "redux/engines/animation/animation_clip.h"
 
-#include "redux/modules/base/logging.h"
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 
 namespace redux {
 

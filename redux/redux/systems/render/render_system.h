@@ -17,11 +17,32 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_RENDER_RENDER_SYSTEM_H_
 #define REDUX_SYSTEMS_RENDER_RENDER_SYSTEM_H_
 
+#include <stdint.h>
+
+#include <cstddef>
+#include <optional>
+#include <string_view>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
+#include "redux/engines/render/mesh.h"
+#include "redux/engines/render/renderable.h"
 #include "redux/engines/render/render_engine.h"
-#include "redux/engines/render/render_target_factory.h"
+#include "redux/engines/render/texture.h"
 #include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/base/typeid.h"
+#include "redux/modules/math/matrix.h"
+#include "redux/modules/math/vector.h"
+#include "redux/modules/ecs/entity.h"
 #include "redux/modules/ecs/system.h"
-#include "redux/modules/math/math.h"
+#include "redux/modules/graphics/color.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/mesh_data.h"
+#include "redux/modules/graphics/texture_usage.h"
 #include "redux/systems/render/render_def_generated.h"
 
 namespace redux {
@@ -53,7 +74,7 @@ MaterialPropertyType DetermineMaterialPropertyType();
 // is being rendered. Think of this as the canvas on which you are drawing/
 // rendering the final image.
 //
-// Light: Decsribes a source of light, such as a sun or a light bulb. In most
+// Light: Describes a source of light, such as a sun or a light bulb. In most
 // cases, there must be at least one light in order to "see" anything.
 //
 // Shader: The program that runs on the GPU that computes the color of each
@@ -63,7 +84,7 @@ MaterialPropertyType DetermineMaterialPropertyType();
 // final pixel is a combination of the Textures applied to the Mesh and the
 // Lights surrounding the Mesh.
 //
-// Shading Model: A collection of individual Shader progams that basically
+// Shading Model: A collection of individual Shader programs that basically
 // use the same general algorithm in its calculations. For example, a "flat"
 // shader may ignore all lighting in a scene, or a "pbr" shader applies
 // "Physics-Based Rendering" algorithms to determine how the Lights and
@@ -71,8 +92,8 @@ MaterialPropertyType DetermineMaterialPropertyType();
 //
 // Shading Feature: A flag that helps pick a specific variation of a Shading
 // Model algorithm. For example, if your object is semi-transparent, you may
-// need to enable the "Alpha" shading feature (since calculating transparencies
-// is a rather expensive operation).
+// need to enable the "Transparent" shading feature (since calculating
+// transparencies is a rather expensive operation).
 //
 // Scene: The collection of Entities (i.e. Lights and Meshes+Materials) that
 // will be rendered together. Multiple Scenes can be rendered onto the same
@@ -91,39 +112,50 @@ class RenderSystem : public System {
   // Removes the Entity from the given scene.
   void RemoveFromScene(Entity entity, HashValue scene);
 
-  // Returns whether all the Entity's GPU resources are loaded for rendering.
-  bool IsReadyToRender(Entity entity) const;
-
-  // Entity visibility functions. Applies to the entire Entity across all
-  // scenes.
+  // Controls the visibility of the Entity. These functions apply to the entire
+  // Entity across all scenes.
   void Hide(Entity entity);
   void Show(Entity entity);
   bool IsHidden(Entity entity) const;
 
-  // Entity part/submesh visibility functions. Applies across all scenes.
+  // Controls the visibility of individual parts of the Entity across all
+  // scenes.
   void Hide(Entity entity, HashValue part);
   void Show(Entity entity, HashValue part);
   bool IsHidden(Entity entity, HashValue part) const;
 
-  // Shading model. Applies to either the entire Entity or a specific part.
+  // Sets the shading model to be used by the Entity.  Can be applied either to
+  // the entire Entity or a specific part.
   void SetShadingModel(Entity entity, std::string_view model);
   void SetShadingModel(Entity entity, HashValue part, std::string_view model);
 
-  // Enables specific features of the shading model.
+  // Enables/disables specific features of the shading model. Can be applied
+  // either to the entire Entity or a specific part.
   void EnableShadingFeature(Entity entity, HashValue feature);
   void DisableShadingFeature(Entity entity, HashValue feature);
+  void EnableShadingFeature(Entity entity, HashValue part, HashValue feature);
+  void DisableShadingFeature(Entity entity, HashValue part, HashValue feature);
 
-  // Meshes can be assigned only at the Entity level. A mesh may be composed
-  // of submeshes which can be individually targetted by some functions.
+  // Assigns a Mesh to an Entity. The Mesh may be composed of submeshes (parts)
+  // which can be individually targeted by other functions.
   void SetMesh(Entity entity, const MeshPtr& mesh);
   void SetMesh(Entity entity, MeshData mesh);
+
+  // Returns the Mesh associated with the Entity.
   MeshPtr GetMesh(Entity entity) const;
 
-  // Textures can be set only at the Entity level. To provide different textures
-  // across different parts/views/layers, use a custom TextureUsage instead to
-  // more accurately describe the purpose.
+  // Sets a Texture on the Entity. It can be applied either to the entire Entity
+  // or a specific part.
   void SetTexture(Entity entity, TextureUsage usage, const TexturePtr& texture);
+  void SetTexture(Entity entity, HashValue part, TextureUsage usage,
+                  const TexturePtr& texture);
+
+  // Returns the Texture on the Entity. This function will fail if multiple
+  // Textures are assigned same usage on different parts if you do not specify
+  // the part you want to query.
   TexturePtr GetTexture(Entity entity, TextureUsage usage) const;
+  TexturePtr GetTexture(Entity entity, HashValue part,
+                        TextureUsage usage) const;
 
   // Sets a binding pose for skeletal animations to allow animations to be
   // encoded more efficiently. This pose will be multiplied with the bone
@@ -141,6 +173,9 @@ class RenderSystem : public System {
   void SetMaterialProperty(Entity entity, HashValue name,
                            MaterialPropertyType type,
                            absl::Span<const std::byte> data);
+  void SetMaterialProperty(Entity entity, HashValue part, HashValue name,
+                           MaterialPropertyType type,
+                           absl::Span<const std::byte> data);
 
   // Similar to the more "generic" SetMaterialProperty function, this one will
   // automatically determine the MaterialPropertyType based on the type T.
@@ -152,6 +187,15 @@ class RenderSystem : public System {
     SetMaterialProperty(entity, name, type, {bytes, size});
   }
 
+  template <typename T>
+  void SetMaterialProperty(Entity entity, HashValue part, HashValue name,
+                           const T& value) {
+    const auto type = DetermineMaterialPropertyType<T>();
+    const size_t size = MaterialPropertyTypeByteSize(type);
+    const std::byte* bytes = reinterpret_cast<const std::byte*>(&value);
+    SetMaterialProperty(entity, part, name, type, {bytes, size});
+  }
+
   // Similar to the more "generic" SetMaterialProperty function, this one will
   // automatically determine the MaterialPropertyType based on the type T.
   template <typename T>
@@ -161,6 +205,15 @@ class RenderSystem : public System {
     const size_t size = MaterialPropertyTypeByteSize(type) * value.size();
     const std::byte* bytes = reinterpret_cast<const std::byte*>(value.data());
     SetMaterialProperty(entity, name, type, {bytes, size});
+  }
+
+  template <typename T>
+  void SetMaterialProperty(Entity entity, HashValue part, HashValue name,
+                           absl::Span<const T> value) {
+    const auto type = DetermineMaterialPropertyType<T>();
+    const size_t size = MaterialPropertyTypeByteSize(type) * value.size();
+    const std::byte* bytes = reinterpret_cast<const std::byte*>(value.data());
+    SetMaterialProperty(entity, part, name, type, {bytes, size});
   }
 
   // Sets the Entity's rendering data from the RenderDef.
@@ -175,7 +228,7 @@ class RenderSystem : public System {
   struct RenderableComponent {
     // The default inverse bind pose of each bone in the rig. These matrices
     // transform vertices into the space of each bone so that skinning can be
-    // applied. They are mulitplied with the individual bone pose transforms to
+    // applied. They are multiplied with the individual bone pose transforms to
     // generate the final flattened pose that is sent to skinning shaders.
     std::vector<mat4> inverse_bind_pose;
 
@@ -187,17 +240,33 @@ class RenderSystem : public System {
     // necessary for the final |shader_pose|.
     std::vector<uint16_t> shader_indices;
 
-    RenderablePtr renderable;
+    // The set of render scenes to which this Entity belongs.
+    absl::flat_hash_set<HashValue> scenes;
+
+    // The mesh currently associated with the renderable.
+    MeshPtr mesh;
+
+    // A dummy renderable that we use to track material properties which aren't
+    // specific to any particular parts. This renderable will never have a mesh
+    // assigned or be added to a scene. It will only be used by newly created
+    // parts to inherit material properties.
+    RenderablePtr global_renderable;
+
+    // A renderable for each part.
+    absl::flat_hash_map<HashValue, RenderablePtr> renderable_parts;
   };
 
   void OnDestroy(Entity entity) override;
 
-  Renderable& GetRenderable(Entity entity,
-                            std::optional<HashValue> scene_name = std::nullopt);
-  Renderable* TryGetRenderable(Entity entity);
-  const Renderable* TryGetRenderable(Entity entity) const;
+  void EnsureRenderable(Entity entity,
+                        std::optional<HashValue> part = std::nullopt);
 
-  void RemoveRenderableComponent(RenderableComponent* c);
+  template <typename Fn>
+  void ApplyToRenderables(Entity entity, std::optional<HashValue> part, Fn fn);
+
+  template <typename Fn>
+  void ApplyToRenderables(Entity entity, std::optional<HashValue> part,
+                          Fn fn) const;
 
   RenderEngine* engine_ = nullptr;
   absl::flat_hash_map<Entity, RenderableComponent> renderables_;
@@ -225,6 +294,8 @@ MaterialPropertyType DetermineMaterialPropertyType() {
     return MaterialPropertyType::Float3;
   } else if constexpr (std::is_same_v<T, vec4>) {
     return MaterialPropertyType::Float4;
+  } else if constexpr (std::is_same_v<T, mat3>) {
+    return MaterialPropertyType::Float3x3;
   } else if constexpr (std::is_same_v<T, mat4>) {
     return MaterialPropertyType::Float4x4;
   } else if constexpr (std::is_same_v<T, Color4f>) {

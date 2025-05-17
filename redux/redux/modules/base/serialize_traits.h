@@ -23,6 +23,7 @@ limitations under the License.
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 
 // A collection of type traits to help identify some non-primitive types that we
 // want to support for serialization.

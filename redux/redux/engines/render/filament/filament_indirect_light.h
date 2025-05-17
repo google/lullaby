@@ -17,20 +17,28 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_INDIRECT_LIGHT_H_
 #define REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_INDIRECT_LIGHT_H_
 
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/types/span.h"
 #include "filament/Engine.h"
+#include "filament/IndirectLight.h"
 #include "filament/LightManager.h"
-#include "utils/Entity.h"
+#include "math/vec3.h"
 #include "redux/engines/render/filament/filament_render_scene.h"
 #include "redux/engines/render/indirect_light.h"
+#include "redux/engines/render/texture.h"
 #include "redux/modules/base/registry.h"
+#include "redux/modules/math/matrix.h"
 
 namespace redux {
 
-// Manages filament IndirectLights.
+// Manages filament IndirectLight objects.
 class FilamentIndirectLight : public IndirectLight {
  public:
   FilamentIndirectLight(Registry* registry, const TexturePtr& reflection,
-                        const TexturePtr& irradiance = nullptr);
+                        const TexturePtr& irradiance,
+                        absl::Span<const float> spherical_harmonics);
   ~FilamentIndirectLight() override;
 
   // Hides/disables the light from the scene.
@@ -45,6 +53,10 @@ class FilamentIndirectLight : public IndirectLight {
   // Sets the transform of the light.
   void SetTransform(const mat4& transform);
 
+  // Sets the intensity of the light; a factor applied to the environment and
+  // irradiance such that the result is in lux.
+  void SetIntensity(float intensity);
+
   // Adds the light to a filament scene.
   void AddToScene(FilamentRenderScene* scene) const;
 
@@ -52,11 +64,16 @@ class FilamentIndirectLight : public IndirectLight {
   void RemoveFromScene(FilamentRenderScene* scene) const;
 
  private:
+  void OnReady();
+
   filament::Engine* fengine_ = nullptr;
   filament::IndirectLight* fibl_ = nullptr;
+  mutable absl::flat_hash_set<filament::Scene*> scenes_;
   TexturePtr reflection_;
   TexturePtr irradiance_;
-  mutable absl::flat_hash_set<filament::Scene*> scenes_;
+  std::vector<filament::math::float3> spherical_harmonics_;
+  mat4 transform_;
+  int intensity_ = 10000;
   bool visible_ = true;
 };
 

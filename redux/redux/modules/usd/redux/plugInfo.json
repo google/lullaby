@@ -1,0 +1,14 @@
+{
+  "Plugins": [{
+    "Type": "library",
+    "Name": "ReduxCustomResolver",
+    "LibraryPath": "",
+    "Info": {
+      "Types" : {
+        "redux::UsdAssetResolver" : {
+          "bases": [ "ArResolver" ]
+        }
+      }
+    }
+  }]
+}

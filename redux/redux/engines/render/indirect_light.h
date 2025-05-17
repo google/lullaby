@@ -47,6 +47,10 @@ class IndirectLight {
   // Sets the transform of the light.
   void SetTransform(const mat4& transform);
 
+  // Sets the intensity of the light; a factor applied to the environment and
+  // irradiance such that the result is in lux.
+  void SetIntensity(float intensity);
+
  protected:
   explicit IndirectLight() = default;
 };

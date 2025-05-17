@@ -17,8 +17,12 @@ limitations under the License.
 #ifndef THIRD_PARTY_REDUX_MODULES_BASE_CALL_NATIVE_FUNCTION_H_
 #define THIRD_PARTY_REDUX_MODULES_BASE_CALL_NATIVE_FUNCTION_H_
 
-#include <type_traits>
+#include <stddef.h>
 
+#include <type_traits>
+#include <utility>
+
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "redux/modules/base/function_traits.h"
 #include "redux/modules/base/logging.h"

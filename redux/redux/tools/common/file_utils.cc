@@ -21,9 +21,15 @@ limitations under the License.
 #else
 #include <sys/stat.h>
 #endif
+#include <cerrno>
+#include <cstddef>
 #include <fstream>
+#include <functional>
 #include <string>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "redux/modules/base/data_builder.h"
 
 namespace redux::tool {

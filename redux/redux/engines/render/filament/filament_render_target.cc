@@ -16,6 +16,10 @@ limitations under the License.
 
 #include "redux/engines/render/filament/filament_render_target.h"
 
+#include <stdint.h>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "redux/engines/platform/device_manager.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
 
@@ -40,6 +44,7 @@ static filament::Texture::InternalFormat ToFilamentDepthStencilInternalFormat(
   switch (format) {
     case RenderTargetDepthStencilFormat::Depth16:
     case RenderTargetDepthStencilFormat::Depth24:
+      return filament::Texture::InternalFormat::DEPTH24;
     case RenderTargetDepthStencilFormat::Depth24Stencil8:
       return filament::Texture::InternalFormat::DEPTH24_STENCIL8;
     case RenderTargetDepthStencilFormat::Depth32f:

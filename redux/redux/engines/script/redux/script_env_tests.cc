@@ -14,8 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/engines/script/redux/testing.h"
 

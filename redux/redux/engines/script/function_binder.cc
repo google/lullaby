@@ -16,14 +16,22 @@ limitations under the License.
 
 #include "redux/engines/script/function_binder.h"
 
+#include <string>
+
+#include "absl/log/check.h"
+#include "redux/engines/script/script_engine.h"
+#include "redux/modules/base/registry.h"
+
 namespace redux {
 
 FunctionBinder::FunctionBinder(Registry* registry) : registry_(registry) {}
 
 FunctionBinder::~FunctionBinder() {
-  auto* engine = GetScriptEngine();
-  for (const std::string& name : functions_) {
-    engine->UnregisterFunction(name);
+  auto* engine = registry_->Get<ScriptEngine>();
+  if (engine != nullptr) {
+    for (const std::string& name : functions_) {
+      engine->UnregisterFunction(name);
+    }
   }
 }
 

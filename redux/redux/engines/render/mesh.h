@@ -17,15 +17,13 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_MESH_H_
 #define REDUX_ENGINES_RENDER_MESH_H_
 
-#include <functional>
+#include <cstddef>
 #include <memory>
-#include <vector>
-
-#include "redux/modules/graphics/mesh_data.h"
+#include "redux/modules/base/hash.h"
 
 namespace redux {
 
-// Geometry (eg. vertices, indicies, primitive type) used in a draw call.
+// Geometry (eg. vertices, indices, primitive type) used in a draw call.
 //
 // A mesh can be composed of multiple submeshes, each of which can be drawn
 // independently of each other.
@@ -33,35 +31,14 @@ class Mesh {
  public:
   virtual ~Mesh() = default;
 
+  // Returns the number of parts in the mesh.
+  size_t GetNumParts() const;
+
+  // Returns the name of the part at the given index.
+  HashValue GetPartName(size_t index) const;
+
   Mesh(const Mesh&) = delete;
   Mesh& operator=(const Mesh&) = delete;
-
-  // Information about a submesh.
-  struct SubmeshData {
-    HashValue name;
-    VertexFormat vertex_format;
-    MeshPrimitiveType primitive_type = MeshPrimitiveType::Triangles;
-    MeshIndexType index_type = MeshIndexType::U16;
-    size_t range_start = 0;
-    size_t range_end = 0;
-    Box box;
-  };
-
-  // Returns the number of vertices contained in the mesh.
-  size_t GetNumVertices() const;
-
-  // Returns the number of primitives (eg. points, lines, triangles, etc.)
-  // contained in the mesh.
-  size_t GetNumPrimitives() const;
-
-  // Gets the bounding box for the mesh.
-  Box GetBoundingBox() const;
-
-  // Returns the number of submeshes in the mesh.
-  size_t GetNumSubmeshes() const;
-
-  // Returns information about submesh of the mesh.
-  const SubmeshData& GetSubmeshData(size_t index) const;
 
  protected:
   Mesh() = default;

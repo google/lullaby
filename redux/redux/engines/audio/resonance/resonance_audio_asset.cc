@@ -16,6 +16,14 @@ limitations under the License.
 
 #include "redux/engines/audio/resonance/resonance_audio_asset.h"
 
+#include <atomic>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <ostream>
+#include <utility>
+
+#include "absl/log/check.h"
 #include "redux/modules/audio/audio_reader.h"
 
 namespace redux {

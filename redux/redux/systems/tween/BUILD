@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,12 +13,13 @@ cc_library(
     hdrs = ["tween_system.h"],
     deps = [
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "@absl//absl/time",
+        "@absl//absl/types:span",
         "//redux/engines/animation",
         "//redux/engines/animation/spline:compact_spline",
         "//redux/engines/script:function_binder",
         "//redux/modules/base:choreographer",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/modules/math:interpolation",
     ],
@@ -29,6 +31,8 @@ cc_test(
     deps = [
         ":tween",
         "@gtest//:gtest_main",
+        "@absl//absl/time",
+        "@absl//absl/types:span",
         "//redux/engines/script/redux",
     ],
 )

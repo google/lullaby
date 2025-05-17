@@ -16,7 +16,12 @@ limitations under the License.
 
 #include "redux/engines/physics/collision_data.h"
 
+#include <stddef.h>
+
 #include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
 
 namespace redux {
 

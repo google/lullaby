@@ -19,6 +19,9 @@ limitations under the License.
 #ifdef REDUX_EDITOR
 #include "redux/editor/editor.h"
 #endif
+#include "absl/status/status.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "redux/engines/platform/device_manager.h"
 #include "redux/modules/base/asset_loader.h"
 #include "redux/modules/base/choreographer.h"

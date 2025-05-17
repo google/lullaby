@@ -20,8 +20,10 @@ limitations under the License.
 #include <stddef.h>  // for types missing from the autogen file.
 #include <stdint.h>  // for types missing from the autogen file.
 
+#include "absl/log/log.h"
 #include "redux/modules/base/hash.h"
 #include "redux/modules/base/logging.h"
+#include "redux/modules/base/typeid.h"
 #include "redux/modules/graphics/graphics_enums_generated.h"
 
 namespace redux {
@@ -109,5 +111,7 @@ inline size_t MaterialPropertyTypeByteSize(MaterialPropertyType type) {
 }
 
 }  // namespace redux
+
+REDUX_SETUP_TYPEID(redux::MaterialTextureType);
 
 #endif  // REDUX_MODULES_GRAPHICS_ENUMS_H_

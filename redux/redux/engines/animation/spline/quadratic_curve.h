@@ -17,8 +17,12 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_SPLINE_QUADRATIC_CURVE_H_
 #define REDUX_ENGINES_ANIMATION_SPLINE_QUADRATIC_CURVE_H_
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/math/bounds.h"
 #include "redux/modules/math/vector.h"

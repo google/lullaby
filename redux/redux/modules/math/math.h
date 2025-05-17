@@ -21,6 +21,7 @@ limitations under the License.
 #include <cmath>
 #include <cstdlib>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/math/constants.h"
 

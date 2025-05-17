@@ -17,7 +17,13 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_TEXT_TEXT_SYSTEM_H_
 #define REDUX_SYSTEMS_TEXT_TEXT_SYSTEM_H_
 
+#include <stddef.h>
+
+#include <string>
+#include <string_view>
+
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "redux/engines/render/texture.h"
 #include "redux/engines/text/text_engine.h"
 #include "redux/modules/ecs/system.h"

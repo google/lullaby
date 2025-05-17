@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "redux/modules/graphics/color.h"
 
+#include <algorithm>
+#include <cstdint>
+
 namespace redux {
 
 Color4ub::Color4ub() : r(255), g(255), b(255), a(255) {}

@@ -17,16 +17,26 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_MODEL_MODEL_ASSET_H_
 #define REDUX_SYSTEMS_MODEL_MODEL_ASSET_H_
 
-#include <cstddef>
-#include <functional>
-#include <string>
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "redux/engines/physics/collision_data.h"
 #include "redux/engines/render/texture_factory.h"
+#include "redux/modules/base/data_container.h"
 #include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/math/matrix.h"
 #include "redux/modules/graphics/image_data.h"
 #include "redux/modules/graphics/material_data.h"
 #include "redux/modules/graphics/mesh_data.h"
+#include "redux/modules/graphics/vertex_format.h"
 
 namespace redux {
 
@@ -35,25 +45,32 @@ namespace redux {
 class ModelAsset {
  public:
   using ByteSpan = absl::Span<const std::byte>;
-  using ImageDecoder = std::function<ImageData(ImageData)>;
 
-  ModelAsset() = default;
+  ModelAsset(Registry* registry, std::string_view uri)
+      : registry_(registry), uri_(uri) {}
+  virtual ~ModelAsset() = default;
 
-  void OnLoad(std::shared_ptr<DataContainer> data, ImageDecoder decoder);
+  void OnLoad(std::shared_ptr<DataContainer> data);
 
   void OnFinalize() { is_ready_ = true; }
 
   bool IsReady() const { return is_ready_; }
 
-  // Returns the MeshData contained in the model asset.
-  MeshData GetMeshData() const;
+  // Returns the collection of MeshData objects defined by the model asset.
+  // Each MeshData will have a corresponding MaterialData returned by
+  // GetMaterialData below.
+  absl::Span<const std::shared_ptr<MeshData>> GetMeshData() const {
+    return meshes_;
+  }
 
-  // Returns the Materials defined in the model asset, one material for each
-  // part of the mesh.
-  absl::Span<const MaterialData> GetMaterialData() const { return materials_; }
+  // Returns the Materials defined by the model asset. Each material
+  // corresponds to a MeshData returned by GenerateMeshData above.
+  absl::Span<const MaterialData> GetMaterialData() const {
+    return materials_;
+  }
 
   struct TextureData {
-    std::string_view uri;
+    std::string uri;
     std::shared_ptr<ImageData> image;
     TextureParams params;
   };
@@ -92,31 +109,23 @@ class ModelAsset {
   // Returns true if the model contains blend shapes.
   bool HasBlendShapes() const { return !blend_shapes_.empty(); }
 
-  const VertexFormat& GetBlendShapeFormat() const { return blend_format_; }
-
   // Returns the collection of blend shapes for the model.
   const absl::flat_hash_map<HashValue, ByteSpan>& GetBlendShapes() const {
     return blend_shapes_;
   }
 
- private:
-  std::shared_ptr<ImageData> ReadImage(ImageData image,
-                                       const ImageDecoder& decoder);
+  // Returns the (shared) vertex format of all the blend shapes.
+  const VertexFormat& GetBlendShapeFormat() const { return blend_format_; }
 
-  std::shared_ptr<DataContainer> data_;
+ protected:
+  virtual void ProcessData() = 0;
 
-  // Information extracted from the raw ModelDef asset. We try as much as
-  // possible to simply point to the buffer directly in the asset, but do need
-  // to perform some additional processing in order to make the data compatible
-  // with our runtime.
-  VertexFormat vertex_format_;
-  VertexFormat blend_format_;
-  MeshIndexType index_format_;
+  Registry* registry_;
+  std::string uri_;
+  std::shared_ptr<DataContainer> asset_data_;
   CollisionDataPtr collision_data_;
-  ByteSpan vertex_data_;
-  ByteSpan index_data_;
-  std::vector<MeshData::PartData> parts_;
   std::vector<MaterialData> materials_;
+  std::vector<std::shared_ptr<MeshData>> meshes_;
   std::vector<std::string_view> bone_names_;
   std::vector<mat4> inverse_bind_pose_;
   std::vector<std::shared_ptr<ImageData>> decoded_images_;
@@ -124,9 +133,11 @@ class ModelAsset {
   absl::Span<const uint16_t> shader_bones_;
   absl::flat_hash_map<HashValue, TextureData> textures_;
   absl::flat_hash_map<HashValue, ByteSpan> blend_shapes_;
-  Box bounds_;
+  VertexFormat blend_format_;
   bool is_ready_ = false;
 };
+
+using ModelAssetPtr = std::shared_ptr<ModelAsset>;
 
 }  // namespace redux
 

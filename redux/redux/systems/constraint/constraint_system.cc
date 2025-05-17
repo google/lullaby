@@ -16,6 +16,10 @@ limitations under the License.
 
 #include "redux/systems/constraint/constraint_system.h"
 
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
 #include "redux/modules/base/choreographer.h"
 #include "redux/modules/math/transform.h"
 #include "redux/systems/constraint/events.h"

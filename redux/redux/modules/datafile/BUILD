@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,6 +13,7 @@ cc_library(
     hdrs = ["datafile_reader.h"],
     deps = [
         ":datafile_parser",
+        "@absl//absl/log:check",
         "//redux/engines/script/redux:script_env",
         "//redux/modules/base:logging",
         "//redux/modules/base:serialize",
@@ -33,12 +35,16 @@ cc_library(
     name = "datafile_parser",
     srcs = ["datafile_parser.cc"],
     hdrs = ["datafile_parser.h"],
-    deps = ["//redux/modules/base:logging"],
+    deps = [
+        "@absl//absl/log:check",
+        "//redux/modules/base:logging",
+    ],
 )
 
 cc_test(
     name = "datafile_parser_tests",
     srcs = ["datafile_parser_tests.cc"],
+    tags = ["noautofuzz"],
     deps = [
         ":datafile_parser",
         "@gtest//:gtest_main",

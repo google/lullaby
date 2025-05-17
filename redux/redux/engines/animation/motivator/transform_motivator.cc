@@ -16,7 +16,9 @@ limitations under the License.
 
 #include "redux/engines/animation/motivator/transform_motivator.h"
 
-#include "redux/engines/animation/common.h"
+#include <vector>
+
+#include "absl/time/time.h"
 #include "redux/engines/animation/processor/transform_processor.h"
 
 namespace redux {

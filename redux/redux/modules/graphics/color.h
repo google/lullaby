@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_MODULES_GRAPHICS_COLOR_H_
 
 #include <cstddef>
+#include <cstdint>
 
 #include "redux/modules/math/vector.h"
 

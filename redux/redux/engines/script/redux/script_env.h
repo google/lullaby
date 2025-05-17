@@ -18,6 +18,8 @@ limitations under the License.
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_ENV_H_
 
 #include <random>
+#include <string_view>
+#include <utility>
 
 #include "absl/types/span.h"
 #include "redux/engines/script/call_native_function.h"

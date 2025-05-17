@@ -17,18 +17,17 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_RENDER_LAYER_H_
 #define REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_RENDER_LAYER_H_
 
-#include "absl/container/btree_set.h"
 #include "filament/Camera.h"
 #include "filament/Engine.h"
 #include "filament/Renderer.h"
-#include "filament/Scene.h"
 #include "filament/View.h"
-#include "filament/Viewport.h"
 #include "redux/engines/render/filament/filament_utils.h"
-#include "redux/engines/render/light.h"
-#include "redux/engines/render/render_engine.h"
-#include "redux/engines/render/renderable.h"
+#include "redux/engines/render/render_layer.h"
+#include "redux/engines/render/render_layer_options.h"
+#include "redux/engines/render/render_target.h"
 #include "redux/modules/base/registry.h"
+#include "redux/modules/math/bounds.h"
+#include "redux/modules/math/matrix.h"
 
 namespace redux {
 
@@ -82,13 +81,48 @@ class FilamentRenderLayer : public RenderLayer {
   // effectively the lens of the camera form which the scene will be rendered.
   void SetProjectionMatrix(const mat4& projection_matrix);
 
-  // Enables anti-aliasing when rendering the layer.
-  void EnableAntiAliasing();
+  // Sets the camera's exposure (i.e. sensitivity to light).
+  void SetCameraExposure(float aperture, float shutter_speed,
+                         float iso_sensitivity);
 
-  // Disables anti-aliasing when rendering the layer.
+  // Sets the camera focus distance.
+  void SetCameraFocalDistance(float focus_distance);
+
+  // Configures anti-aliasing options when rendering the layer.
+  void EnableAntiAliasing(const MultiSampleAntiAliasingOptions& opts);
   void DisableAntiAliasing();
 
+  // Configures depth-of-field options when rendering the layer.
+  void EnableDepthOfField(const DepthOfFieldOptions& opts);
+  void DisableDepthOfField();
+
+  // Configures vignetting options when rendering the layer.
+  void EnableVignette(const VignetteOptions& opts);
+  void DisableVignette();
+
+  // Configures bloom options when rendering the layer.
+  void EnableBloom(const BloomOptions& opts);
+  void DisableBloom();
+
+  // Configures fog options when rendering the layer.
+  void EnableFog(const FogOptions& opts);
+  void DisableFog();
+
+  // Configures ambient occlusion options when rendering the layer.
+  void EnableAmbientOcclusion(const AmbientOcclusionOptions& opts);
+  void DisableAmbientOcclusion();
+
+  // Configures screen-space cone tracing options when rendering the layer.
+  // Note: Ambient Occlusion must be enabled for this to take effect.
+  void EnableScreenSpaceConeTracing(const ScreenSpaceConeTracingOptions& opts);
+  void DisableScreenSpaceConeTracing();
+
+  // Configures screen-space reflections options when rendering the layer.
+  void EnableScreenSpaceReflections(const ScreenSpaceReflectionsOptions& opts);
+  void DisableScreenSpaceReflections();
+
   // Disables post-processing (like tone mapping) when rendering the layer.
+  void EnablePostProcessing();
   void DisablePostProcessing();
 
   // Returns the underlying filament view.
@@ -107,7 +141,7 @@ class FilamentRenderLayer : public RenderLayer {
   FilamentResourcePtr<filament::View> fview_ = nullptr;
   RenderTargetPtr render_target_;
   Bounds2f viewport_;
-  float near_plane_ = 0.1f;
+  float near_plane_ = 0.01f;
   float far_plane_ = 1000.0f;
   int priority_ = 0;
   bool enabled_ = true;

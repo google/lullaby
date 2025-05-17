@@ -17,6 +17,10 @@ limitations under the License.
 #ifndef REDUX_MODULES_ECS_SYSTEM_H_
 #define REDUX_MODULES_ECS_SYSTEM_H_
 
+#include <type_traits>
+#include <utility>
+
+#include "absl/log/check.h"
 #include "redux/modules/base/function_traits.h"
 #include "redux/modules/base/registry.h"
 #include "redux/modules/base/static_registry.h"

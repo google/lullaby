@@ -20,6 +20,8 @@ limitations under the License.
 #include <cstddef>
 #include <initializer_list>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "redux/modules/base/hash.h"
 #include "redux/modules/base/logging.h"

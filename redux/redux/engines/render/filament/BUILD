@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -39,8 +40,14 @@ cc_library(
         "filament_utils.h",
     ],
     deps = [
+        "@absl//absl/algorithm:container",
         "@absl//absl/container:btree",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/status:statusor",
+        "@absl//absl/types:span",
         "@filament//:filament_hdrs",
         "@filament//:math_hdrs",
         "@filament//:utils_hdrs",
@@ -51,18 +58,27 @@ cc_library(
         "//redux/modules/base:asset_loader",
         "//redux/modules/base:choreographer",
         "//redux/modules/base:data_buffer",
+        "//redux/modules/base:data_container",
         "//redux/modules/base:hash",
         "//redux/modules/base:logging",
         "//redux/modules/base:registry",
         "//redux/modules/base:static_registry",
         "//redux/modules/codecs:decode_image",
+        "//redux/modules/graphics:color",
         "//redux/modules/graphics:enums",
+        "//redux/modules/graphics:graphics_enums_fbs",
         "//redux/modules/graphics:image_data",
         "//redux/modules/graphics:image_utils",
+        "//redux/modules/graphics:ktx_container",
         "//redux/modules/graphics:mesh_data",
+        "//redux/modules/graphics:mesh_utils",
         "//redux/modules/graphics:texture_usage",
+        "//redux/modules/graphics:vertex_attribute",
         "//redux/modules/graphics:vertex_format",
         "//redux/modules/math:bounds",
         "//redux/modules/math:matrix",
+        "//redux/modules/math:quaternion",
+        "//redux/modules/math:transform",
+        "//redux/modules/math:vector",
     ],
 )

@@ -16,6 +16,15 @@ limitations under the License.
 
 #include "redux/modules/graphics/image_atlaser.h"
 
+#include <cstddef>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/modules/graphics/image_utils.h"
 
 namespace redux {

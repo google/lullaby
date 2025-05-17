@@ -20,7 +20,11 @@ limitations under the License.
 #include <stdarg.h>
 #include <stdio.h>
 
+#include <memory>
 #include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "redux/modules/base/hash.h"
 #include "redux/modules/base/logging.h"

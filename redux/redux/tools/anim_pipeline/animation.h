@@ -17,9 +17,12 @@ limitations under the License.
 #ifndef REDUX_TOOLS_ANIM_PIPELINE_ANIMATION_H_
 #define REDUX_TOOLS_ANIM_PIPELINE_ANIMATION_H_
 
+#include <stddef.h>
+
 #include <cmath>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "redux/engines/animation/common.h"

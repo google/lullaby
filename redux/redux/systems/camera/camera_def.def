@@ -14,4 +14,20 @@ struct CameraDef {
   # The screen-space bounds for the viewport with (0,0) for the bottom-left and
   # (1,1) for the top-right.
   viewport: Bounds2f
+
+  # The aperture of the camera in f-stops. A lower aperture value increases the
+  # exposure, leading to a brighter scene. Realistic values are between 0.95 and
+  # 32.
+  aperture: float = 16.0
+
+  # The camera shutter speed in seconds. A slower shutter speed increases the
+  # exposure. Realistic values are between 1/8000 and 30.
+  shutter_speed: float = 0.008  # 1/125
+
+  # The camera sensitivity in ISO. A higher sensitivity increases the exposure.
+  # Realistic values are between 50 and 25600.
+  iso_sensitivity: float = 100.0
+
+  # The camera's focal distance, which is used for depth-of-field effects.
+  focus_distance: float = 0.0
 }

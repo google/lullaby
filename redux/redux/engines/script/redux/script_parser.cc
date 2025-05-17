@@ -16,7 +16,12 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_parser.h"
 
-#include <cctype>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <optional>
+#include <string>
+#include <string_view>
 
 #include "absl/strings/numbers.h"
 #include "redux/engines/script/redux/script_types.h"

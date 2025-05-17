@@ -16,10 +16,24 @@ limitations under the License.
 
 #include "redux/engines/audio/resonance/audio_asset_stream.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <memory>
+#include <ostream>
+#include <utility>
 
 #include "absl/functional/bind_front.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
+#include "resonance_audio/base/audio_buffer.h"
+#include "resonance_audio/base/channel_view.h"
 #include "resonance_audio/dsp/resampler.h"
+#include "resonance_audio/utils/buffer_partitioner.h"
+#include "resonance_audio/utils/threadsafe_fifo.h"
 
 namespace redux {
 

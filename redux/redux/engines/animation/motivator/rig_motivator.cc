@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "redux/engines/animation/motivator/rig_motivator.h"
 
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/processor/rig_processor.h"
 
 namespace redux {

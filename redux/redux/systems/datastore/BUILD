@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -24,7 +25,6 @@ cc_library(
         ":datastore_def",
         "@absl//absl/container:flat_hash_map",
         "//redux/engines/script:function_binder",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/modules/var",
     ],

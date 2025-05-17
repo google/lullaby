@@ -17,11 +17,18 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_RESONANCE_RESONANCE_AUDIO_ENGINE_H_
 #define REDUX_ENGINES_AUDIO_RESONANCE_RESONANCE_AUDIO_ENGINE_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex> 
+#include <optional>
 #include <thread>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "redux/engines/audio/audio_engine.h"
 #include "redux/engines/audio/resonance/audio_asset_manager.h"
 #include "redux/engines/audio/resonance/audio_stream_manager.h"
@@ -29,6 +36,7 @@ limitations under the License.
 #include "redux/engines/platform/device_profiles.h"
 #include "redux/modules/base/registry.h"
 #include "resonance_audio/api/resonance_audio_api.h"
+#include "resonance_audio/base/audio_buffer.h"
 #include "resonance_audio/base/constants_and_types.h"
 #include "resonance_audio/utils/lockless_task_queue.h"
 #include "resonance_audio/utils/semi_lockless_fifo.h"

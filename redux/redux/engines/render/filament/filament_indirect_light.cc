@@ -15,51 +15,63 @@ limitations under the License.
 */
 
 #include "redux/engines/render/filament/filament_indirect_light.h"
+#include <memory>
 
-#include "filament/Color.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "filament/IndirectLight.h"
 #include "filament/LightManager.h"
-#include "filament/TransformManager.h"
-#include "utils/EntityManager.h"
+#include "filament/Scene.h"
+#include "math/vec3.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
+#include "redux/engines/render/filament/filament_render_scene.h"
 #include "redux/engines/render/filament/filament_texture.h"
 #include "redux/engines/render/filament/filament_utils.h"
+#include "redux/engines/render/texture.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/math/matrix.h"
 
 namespace redux {
 
-FilamentIndirectLight::FilamentIndirectLight(Registry* registry,
-                                             const TexturePtr& reflection,
-                                             const TexturePtr& irradiance)
+inline std::shared_ptr<FilamentTexture> GetFilamentTexture(
+    const TexturePtr& texture) {
+  return std::static_pointer_cast<FilamentTexture>(texture);
+}
+
+FilamentIndirectLight::FilamentIndirectLight(
+    Registry* registry, const TexturePtr& reflection,
+    const TexturePtr& irradiance, absl::Span<const float> spherical_harmonics)
     : reflection_(reflection), irradiance_(irradiance) {
   CHECK(reflection_);
-
   fengine_ = GetFilamentEngine(registry);
-  filament::IndirectLight::Builder builder;
-  FilamentTexture* reflections =
-      static_cast<FilamentTexture*>(reflection_.get());
-  builder.reflections(reflections->GetFilamentTexture());
-  if (irradiance_) {
-    FilamentTexture* irradiance =
-        static_cast<FilamentTexture*>(irradiance_.get());
-    builder.irradiance(irradiance->GetFilamentTexture());
-  } else {
-    // clang-format off
-    std::array<filament::math::float3, 9> sh_coefficients = {
-        filament::math::float3{ 0.592915142902302,  0.580783147865357,  0.564906236122309},  // L00, irradiance, pre-scaled base
-        filament::math::float3{ 0.038230073440953,  0.040661612793765,  0.045912497583365},  // L1-1, irradiance, pre-scaled base
-        filament::math::float3{-0.306182569332798, -0.298728189882871, -0.292527808646246},  // L10, irradiance, pre-scaled base
-        filament::math::float3{-0.268674829827722, -0.258309969107310, -0.244936138194592},  // L11, irradiance, pre-scaled base
-        filament::math::float3{ 0.055981897791156,  0.053190319920282,  0.047808414744011},  // L2-2, irradiance, pre-scaled base
-        filament::math::float3{ 0.009835221123367,  0.006544190646597,  0.000350193519574},  // L2-1, irradiance, pre-scaled base
-        filament::math::float3{ 0.017525154215762,  0.017508716588022,  0.018218263542429},  // L20, irradiance, pre-scaled base
-        filament::math::float3{ 0.306912095635860,  0.292384283162994,  0.274657325943371},  // L21, irradiance, pre-scaled base
-        filament::math::float3{ 0.055928224084081,  0.051564836176893,  0.044938623517990},  // L22, irradiance, pre-scaled base
+
+  if (!spherical_harmonics.empty()) {
+    CHECK_EQ(spherical_harmonics.size(), 27);
+    const float* sh = spherical_harmonics.data();
+    spherical_harmonics_ = {
+        filament::math::float3{sh[0], sh[1], sh[2]},
+        filament::math::float3{sh[3], sh[4], sh[5]},
+        filament::math::float3{sh[6], sh[7], sh[8]},
+        filament::math::float3{sh[9], sh[10], sh[11]},
+        filament::math::float3{sh[12], sh[13], sh[14]},
+        filament::math::float3{sh[15], sh[16], sh[17]},
+        filament::math::float3{sh[18], sh[19], sh[20]},
+        filament::math::float3{sh[21], sh[22], sh[23]},
+        filament::math::float3{sh[24], sh[25], sh[26]},
     };
-    // clang-format on
-    builder.irradiance(3, sh_coefficients.data());
   }
-  builder.intensity(30000);
-  fibl_ = builder.build(*fengine_);
+
+  auto reflection_ptr = GetFilamentTexture(reflection_);
+  if (reflection_ptr) {
+    reflection_ptr->OnReady([this]() { OnReady(); });
+  }
+
+  auto irradiance_ptr = GetFilamentTexture(irradiance_);
+  if (irradiance_ptr) {
+    irradiance_ptr->OnReady([this]() { OnReady(); });
+  }
 }
 
 FilamentIndirectLight::~FilamentIndirectLight() {
@@ -91,8 +103,16 @@ void FilamentIndirectLight::Disable() {
 bool FilamentIndirectLight::IsEnabled() const { return visible_; }
 
 void FilamentIndirectLight::SetTransform(const mat4& transform) {
+  transform_ = transform;
   if (fibl_) {
     fibl_->setRotation(ToFilament(transform).upperLeft());
+  }
+}
+
+void FilamentIndirectLight::SetIntensity(float intensity) {
+  intensity_ = intensity;
+  if (fibl_) {
+    fibl_->setIntensity(intensity);
   }
 }
 
@@ -114,6 +134,45 @@ void FilamentIndirectLight::RemoveFromScene(FilamentRenderScene* scene) const {
       fscene->setIndirectLight(nullptr);
     }
     scenes_.erase(iter);
+  }
+}
+
+void FilamentIndirectLight::OnReady() {
+  if (fibl_) {
+    return;
+  }
+
+  auto reflection_ptr = GetFilamentTexture(reflection_);
+  if (!reflection_ptr->IsReady()) {
+    return;
+  }
+
+  auto irradiance_ptr = GetFilamentTexture(irradiance_);
+  if (irradiance_ptr && !irradiance_ptr->IsReady()) {
+    return;
+  }
+
+  filament::IndirectLight::Builder builder;
+  builder.reflections(reflection_ptr->GetFilamentTexture());
+
+  if (irradiance_ptr) {
+    builder.irradiance(irradiance_ptr->GetFilamentTexture());
+  } else if (!spherical_harmonics_.empty()) {
+    builder.irradiance(3, spherical_harmonics_.data());
+  } else if (!reflection_ptr->GetSphericalHarmonics().empty()) {
+    builder.irradiance(3, reflection_ptr->GetSphericalHarmonics().data());
+  } else {
+    LOG(FATAL) << "No irradiance/spherical harmonics provided";
+  }
+
+  builder.intensity(intensity_);
+  builder.rotation(ToFilament(transform_).upperLeft());
+  fibl_ = builder.build(*fengine_);
+
+  if (visible_) {
+    for (filament::Scene* scene : scenes_) {
+      scene->setIndirectLight(fibl_);
+    }
   }
 }
 

@@ -17,9 +17,11 @@ limitations under the License.
 #include "redux/engines/text/internal/locale.h"
 
 #include <algorithm>
+#include <cstring>
 
+#include "absl/log/check.h"
+#include "redux/engines/text/text_enums.h"
 #include "redux/modules/base/hash.h"
-#include "redux/modules/base/logging.h"
 
 #define REDUX_TEXT_LANGUAGE_TUPLE \
   LANG("aa",         "Latn", kLeftToRight) \

@@ -18,9 +18,21 @@ limitations under the License.
 
 #include <memory>
 
+#include "BulletCollision/BroadphaseCollision/btBroadphaseProxy.h"
+#include "BulletCollision/CollisionDispatch/btCollisionObject.h"
+#include "BulletCollision/CollisionShapes/btCollisionShape.h"
+#include "BulletDynamics/Dynamics/btDynamicsWorld.h"
+#include "BulletDynamics/Dynamics/btRigidBody.h"
 #include "LinearMath/btDefaultMotionState.h"
+#include "LinearMath/btScalar.h"
+#include "LinearMath/btTransform.h"
 #include "redux/engines/physics/bullet/bullet_collision_shape.h"
 #include "redux/engines/physics/bullet/bullet_utils.h"
+#include "redux/engines/physics/trigger_volume.h"
+#include "redux/modules/base/bits.h"
+#include "redux/modules/math/transform.h"
+#include "redux/modules/math/quaternion.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -52,6 +64,20 @@ void BulletTriggerVolume::Deactivate() {
 
 bool BulletTriggerVolume::IsActive() const {
   return bt_rigid_body_->isInWorld();
+}
+
+void BulletTriggerVolume::SetCollisionState(Bits32 collision_group,
+                                            Bits32 collision_filter) {
+  params_.collision_group = collision_group;
+  params_.collision_filter = collision_filter;
+
+  btBroadphaseProxy* proxy = bt_rigid_body_->getBroadphaseProxy();
+  if (proxy) {
+    const int group = static_cast<int>(params_.collision_group.Value());
+    const int mask = static_cast<int>(params_.collision_filter.Value());
+    proxy->m_collisionFilterGroup = group;
+    proxy->m_collisionFilterMask = mask;
+  }
 }
 
 void BulletTriggerVolume::SetTransform(const Transform& transform) {

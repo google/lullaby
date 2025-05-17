@@ -25,8 +25,8 @@ namespace redux {
 const std::string& Texture::GetName() const { return Upcast(this)->GetName(); }
 TextureTarget Texture::GetTarget() const { return Upcast(this)->GetTarget(); }
 vec2i Texture::GetDimensions() const { return Upcast(this)->GetDimensions(); }
-bool Texture::Update(ImageData image) {
-  return Upcast(this)->Update(std::move(image));
+void Texture::Update(ImageData image) {
+  Upcast(this)->Update(std::move(image));
 }
 
 }  // namespace redux

@@ -17,7 +17,11 @@ limitations under the License.
 #include "redux/modules/graphics/image_utils.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 
 namespace redux {
 
@@ -28,10 +32,11 @@ static constexpr std::size_t kBitsPerByte = 8;
 static constexpr std::uint8_t kRiffMagicId[] = {0x52, 0x49, 0x46, 0x46};
 static constexpr std::uint8_t kWebpMagicId[] = {0x57, 0x45, 0x42, 0x50};
 static constexpr std::uint8_t kAstcMagicId[] = {0x13, 0xab, 0xa1, 0x5c};
-static constexpr std::uint8_t kJpgMagicId[] = {0xff, 0xd8, 0xff, 0xe0};
-static constexpr std::uint8_t kKtxMagicId[] = "\xABKTX 11\xBB\r\n\x1A\n";
+static constexpr std::uint8_t kJpgMagicId[] = {0xff, 0xd8, 0xff};
+static constexpr std::uint8_t kKtxMagicId[] = {
+    0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
 static constexpr std::uint8_t kPngMagicId[] = {0x89, 0x50, 0x4E, 0x47,
-                                          0x0D, 0x0A, 0x1A, 0x0A};
+                                               0x0D, 0x0A, 0x1A, 0x0A};
 static constexpr size_t kWebpMagicOffset = 8;
 
 // Returns true if the data in header (at the given offset) matches the magic
@@ -84,6 +89,7 @@ size_t GetBytesPerPixel(ImageFormat format) {
       return 3;
     case ImageFormat::Rgba8888:
     case ImageFormat::Rgbm8888:
+    case ImageFormat::Rgb_11_11_10f:
       return 4;
     default:
       LOG(FATAL) << "Unknown format: " << ToString(format);
@@ -117,6 +123,7 @@ std::size_t GetChannelCountForFormat(ImageFormat format) {
     // 3 channels:
     case ImageFormat::Rgb565:
     case ImageFormat::Rgb888:
+    case ImageFormat::Rgb_11_11_10f:
       return 3;
 
     // 4 channels:

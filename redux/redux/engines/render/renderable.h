@@ -17,13 +17,16 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_RENDERABLE_H_
 #define REDUX_ENGINES_RENDER_RENDERABLE_H_
 
+#include <cstddef>
 #include <memory>
-#include <optional>
 
+#include "absl/types/span.h"
 #include "redux/engines/render/mesh.h"
 #include "redux/engines/render/shader.h"
 #include "redux/engines/render/texture.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
 #include "redux/modules/graphics/texture_usage.h"
+#include "redux/modules/base/hash.h"
 #include "redux/modules/math/matrix.h"
 
 namespace redux {
@@ -35,10 +38,6 @@ namespace redux {
 // Shader. A Shader will use information from the Mesh as well as any Textures
 // or Properties that are set on the renderable to "color-in" the surface of
 // renderable as described by its Mesh shape.
-//
-// A renderable may have multiple parts as defined by the Mesh object. Each
-// part can then be individually assigned a Shader and given its own set of
-// properties.
 //
 // Renderables can belong to multiple scenes. See RenderScene and RenderLayer
 // for more information.
@@ -53,20 +52,19 @@ class Renderable {
   // renderable in all scenes to which it belongs.
   void PrepareToRender(const mat4& transform);
 
-  // Enables the renderable (or a part of the renderable) to be rendered.
-  void Show(std::optional<HashValue> part = std::nullopt);
+  // Enables the renderable.
+  void Show();
 
-  // Disables the renderable (or a part of the renderable) to be rendered.
-  void Hide(std::optional<HashValue> part = std::nullopt);
+  // Disables the renderable from being rendered.
+  void Hide();
 
-  // Returns true if the renderable (or a part of the renderable) is hidden.
-  bool IsHidden(std::optional<HashValue> part = std::nullopt) const;
+  // Returns true if the renderable is hidden.
+  bool IsHidden() const;
 
-  // Sets the mesh (i.e. shape) of the renderable.
-  void SetMesh(MeshPtr mesh);
-
-  // Returns the mesh for the renderable.
-  MeshPtr GetMesh() const;
+  // Sets the mesh (i.e. shape) of the renderable. Note that a single renderable
+  // represents just a single part of a larger mesh. This allows each part to
+  // be configured independently for rendering.
+  void SetMesh(MeshPtr mesh, size_t part_index);
 
   // Enables a vertex attributes. All attributes are enabled by default.
   void EnableVertexAttribute(VertexUsage usage);
@@ -75,15 +73,14 @@ class Renderable {
   // drawn. For example, disabling a color vertex attribute will prevent the
   // renderable's mesh color from being used when rendering.
   void DisableVertexAttribute(VertexUsage usage);
+
+  // Returns whether or not the given vertex attribute is enabled.
   bool IsVertexAttributeEnabled(VertexUsage usage) const;
 
-  // Sets the shader that will be used to render the surface of the renderable
-  // for a specific part.
-  void SetShader(ShaderPtr shader,
-                 std::optional<HashValue> part = std::nullopt);
+  // Sets the shader that will be used to render the surface of the renderable.
+  void SetShader(ShaderPtr shader);
 
-  // Assigns a Texture for a given usage on the renderable. Textures are applied
-  // to the entirety of the renderable and not to individual parts.
+  // Assigns a Texture for a given usage on the renderable.
   void SetTexture(TextureUsage usage, const TexturePtr& texture);
 
   // Returns the Texture that was set for a given usage on the renderable.
@@ -92,11 +89,11 @@ class Renderable {
   // Assigns a specific value to a material property with the given `name` which
   // can be used by the shader when drawing the renderable. The shader will
   // interpret the property `data` based on the material property `type`.
-  // Properties can be assigned to individual `part`s or the entire renderable.
   void SetProperty(HashValue name, MaterialPropertyType type,
                    absl::Span<const std::byte> data);
-  void SetProperty(HashValue name, HashValue part, MaterialPropertyType type,
-                   absl::Span<const std::byte> data);
+
+  // Copies properties from the other renderable.
+  void InheritProperties(const Renderable& other);
 
  protected:
   Renderable() = default;

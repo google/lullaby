@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_ENGINES_ANIMATION_COMMON_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
 #include "redux/data/asset_defs/anim_asset_def_generated.h"

@@ -16,9 +16,17 @@ limitations under the License.
 
 #include "redux/modules/base/data_reader.h"
 
-#include <algorithm>
+#include <stdint.h>
 
-#include "redux/modules/base/logging.h"
+#include <algorithm>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+#include <functional>
+#include <utility>
+
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 
 namespace redux {
 

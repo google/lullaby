@@ -20,10 +20,12 @@ limitations under the License.
 #include <memory>
 
 #include "redux/engines/physics/collision_shape.h"
-#include "redux/engines/physics/enums.h"
+#include "redux/engines/physics/physics_enums_generated.h"
 #include "redux/modules/base/bits.h"
 #include "redux/modules/ecs/entity.h"
+#include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/transform.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -66,7 +68,10 @@ class RigidBody {
   void Deactivate();
 
   // Changes the type of the rigid body.
-  void SetType(RigidBodyMotionType type);
+  void SetMotionType(RigidBodyMotionType type);
+
+  // Changes the collision state for the rigid body.
+  void SetCollisionState(Bits32 collision_group, Bits32 collision_filter);
 
   // Returns true if the rigid body is active.
   bool IsActive() const;

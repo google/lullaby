@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_TOOLS_MODEL_PIPELINE_TEXTURE_INFO_H_
 #define REDUX_TOOLS_MODEL_PIPELINE_TEXTURE_INFO_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 

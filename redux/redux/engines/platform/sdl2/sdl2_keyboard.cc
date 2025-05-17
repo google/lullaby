@@ -16,7 +16,13 @@ limitations under the License.
 
 #include "redux/engines/platform/sdl2/sdl2_keyboard.h"
 
+#include <memory>
+
+#include "absl/log/check.h"
 #include "redux/engines/platform/device_manager.h"
+#include "redux/engines/platform/device_profiles.h"
+#include "redux/engines/platform/keyboard.h"
+#include "redux/engines/platform/keycodes.h"
 
 namespace redux {
 
@@ -156,7 +162,7 @@ namespace redux {
   KEY(F23, SDLK_F23)                    \
   KEY(F24, SDLK_F24)
 
-// The mapping bewteen the redux name and the SDL name for a give key modifier.
+// The mapping between the redux name and the SDL name for a give key modifier.
 #define KEYMODS            \
   KEY(NONE, KMOD_NONE)     \
   KEY(LSHIFT, KMOD_LSHIFT) \
@@ -198,13 +204,19 @@ Sdl2Keyboard::Sdl2Keyboard(DeviceManager* dm) {
 Sdl2Keyboard::~Sdl2Keyboard() { keyboard_.reset(); }
 
 void Sdl2Keyboard::HandleEvent(SDL_Event event) {
-  if (event.type == SDL_KEYDOWN) {
-    keyboard_->PressKey(ConvertSdlKeycode(event.key.keysym.sym));
+  if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+    const KeyCode code = ConvertSdlKeycode(event.key.keysym.sym);
+    pressed_keys_[code] = (event.type == SDL_KEYDOWN);
   }
 }
 
 void Sdl2Keyboard::Commit() {
   const SDL_Keymod mod = SDL_GetModState();
   keyboard_->SetModifierState(ConvertSdlKeyModifier(mod));
+  for (int i = 0; i < NUM_KEYCODES; ++i) {
+    if (pressed_keys_[i]) {
+      keyboard_->PressKey(static_cast<KeyCode>(i));
+    }
+  }
 }
 }  // namespace redux

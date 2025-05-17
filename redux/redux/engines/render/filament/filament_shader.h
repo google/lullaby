@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_SHADER_H_
 #define REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_SHADER_H_
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -24,6 +25,7 @@ limitations under the License.
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "filament/Material.h"
 #include "filament/MaterialInstance.h"
 #include "redux/data/asset_defs/shader_asset_def_generated.h"

@@ -16,6 +16,14 @@ limitations under the License.
 
 #include "redux/systems/text/text_system.h"
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "redux/engines/render/mesh_factory.h"
 #include "redux/engines/render/texture_factory.h"
 #include "redux/modules/base/choreographer.h"

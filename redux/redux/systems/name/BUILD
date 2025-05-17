@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -25,10 +26,12 @@ cc_library(
         "@absl//absl/container:flat_hash_map",
         "@absl//absl/container:flat_hash_set",
         "@absl//absl/functional:function_ref",
+        "@absl//absl/log:check",
+        "@absl//absl/status",
         "@absl//absl/status:statusor",
         "@absl//absl/strings",
+        "@absl//absl/types:span",
         "//redux/engines/script:function_binder",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
     ],
 )
@@ -39,6 +42,8 @@ cc_test(
     deps = [
         ":name",
         "@gtest//:gtest_main",
+        "@absl//absl/container:flat_hash_set",
+        "@absl//absl/status:statusor",
         "//redux/engines/script",
         "//redux/engines/script/redux",
     ],

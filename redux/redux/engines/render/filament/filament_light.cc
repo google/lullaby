@@ -16,13 +16,14 @@ limitations under the License.
 
 #include "redux/engines/render/filament/filament_light.h"
 
+#include "absl/container/flat_hash_set.h"
 #include "filament/Color.h"
 #include "filament/LightManager.h"
 #include "filament/TransformManager.h"
 #include "utils/EntityManager.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
-#include "redux/engines/render/filament/filament_texture.h"
 #include "redux/engines/render/filament/filament_utils.h"
+#include "redux/modules/math/quaternion.h"
 
 namespace redux {
 
@@ -58,7 +59,8 @@ FilamentLight::~FilamentLight() {
 void FilamentLight::CreateLightEntity(filament::LightManager::Type type) {
   fentity_ = utils::EntityManager::get().create();
   filament::LightManager::Builder builder(type);
-  builder.direction({0, 0, -1});  // point lights in same direction as camera
+  builder.direction({0, 0, -1});
+  builder.castShadows(true);
   builder.build(*fengine_, fentity_);
 }
 
@@ -86,6 +88,15 @@ void FilamentLight::SetTransform(const mat4& transform) {
   if (fentity_) {
     auto ti = fengine_->getTransformManager().getInstance(fentity_);
     fengine_->getTransformManager().setTransform(ti, ToFilament(transform));
+
+    // Filament light transforms are controlled by the light manager, not the
+    // transform manager.
+    auto li = fengine_->getLightManager().getInstance(fentity_);
+    const vec3 pos = vec3(transform.m03, transform.m13, transform.m23);
+    const quat rot = QuaternionFromRotationMatrix(transform.Submatrix<3, 3>());
+    const vec3 dir = rot * vec3::XAxis();
+    fengine_->getLightManager().setPosition(li, ToFilament(pos));
+    fengine_->getLightManager().setDirection(li, ToFilament(dir));
   }
 }
 

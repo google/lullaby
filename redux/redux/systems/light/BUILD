@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -22,13 +23,19 @@ cc_library(
     hdrs = ["light_system.h"],
     deps = [
         ":light_def",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/engines/render",
         "//redux/modules/base:choreographer",
         "//redux/modules/base:hash",
+        "//redux/modules/base:registry",
         "//redux/modules/base:typeid",
         "//redux/modules/ecs",
+        "//redux/modules/ecs:entity",
+        "//redux/modules/graphics:color",
+        "//redux/modules/graphics:graphics_enums_fbs",
         "//redux/modules/math",
-        "//redux/modules/math:vector",
         "//redux/systems/transform",
     ],
 )

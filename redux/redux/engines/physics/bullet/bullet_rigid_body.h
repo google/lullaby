@@ -17,9 +17,18 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PHYSICS_BULLET_BULLET_RIGID_BODY_H_
 #define REDUX_ENGINES_PHYSICS_BULLET_BULLET_RIGID_BODY_H_
 
+#include <memory>
+
 #include "BulletDynamics/Dynamics/btDynamicsWorld.h"
 #include "BulletDynamics/Dynamics/btRigidBody.h"
+#include "redux/engines/physics/physics_enums_generated.h"
 #include "redux/engines/physics/rigid_body.h"
+#include "redux/modules/base/bits.h"
+#include "redux/modules/math/transform.h"
+#include "redux/modules/math/quaternion.h"
+#include "redux/modules/math/vector.h"
+
+class btCollisionShape;
 
 namespace redux {
 
@@ -39,7 +48,10 @@ class BulletRigidBody : public RigidBody {
   void Deactivate();
 
   // Changes the type of the rigid body.
-  void SetType(RigidBodyMotionType type);
+  void SetMotionType(RigidBodyMotionType type);
+
+  // Changes the collision state for the rigid body.
+  void SetCollisionState(Bits32 collision_group, Bits32 collision_filter);
 
   // Returns true if the rigid body is active.
   bool IsActive() const;
@@ -80,33 +92,33 @@ class BulletRigidBody : public RigidBody {
   // Returns the rigid body's mass.
   float GetMass() const;
 
-  // Sets the rigid body's co-efficient of restitution (i.e. bounciness), with a
+  // Sets the rigid body's coefficient of restitution (i.e. bounciness), with a
   // range of 0.0 (i.e. will not bounce whatsoever) to 1.0 (i.e. does not lose
   // any energy from bouncing).
   void SetRestitution(float restitution);
 
-  // Returns the rigid body's co-efficient of restitution (i.e. bounciness).
+  // Returns the rigid body's coefficient of restitution (i.e. bounciness).
   float GetRestitution() const;
 
-  // Sets the rigid body's co-efficient of sliding friction, with a range of 0.0
+  // Sets the rigid body's coefficient of sliding friction, with a range of 0.0
   // (i.e. will not stop) to 1.0 (i.e. will not slide).
   void SetSlidingFriction(float friction);
 
-  // Returns the rigid body's co-efficient of sliding friction.
+  // Returns the rigid body's coefficient of sliding friction.
   float GetSlidingFriction() const;
 
-  // Sets the rigid body's co-efficient of rolling friction, with a range of 0.0
+  // Sets the rigid body's coefficient of rolling friction, with a range of 0.0
   // (i.e. will not stop) to 1.0 (i.e. will not slide).
   void SetRollingFriction(float friction);
 
-  // Returns the rigid body's co-efficient of rolling friction.
+  // Returns the rigid body's coefficient of rolling friction.
   float GetRollingFriction() const;
 
-  // Sets the rigid body's co-efficient of spinning friction, with a range of
+  // Sets the rigid body's coefficient of spinning friction, with a range of
   // 0.0 (i.e. will not stop) to 1.0 (i.e. will not spin).
   void SetSpinningFriction(float friction);
 
-  // Returns the rigid body's co-efficient of spinning friction.
+  // Returns the rigid body's coefficient of spinning friction.
   float GetSpinningFriction() const;
 
   // Sets the rigid body's linear damping, with a range of 0.0 (i.e. do not
@@ -124,7 +136,8 @@ class BulletRigidBody : public RigidBody {
   float GetAngularDamping() const;
 
  private:
-  void UpdateFlags();
+  void UpdateMotionType();
+  void UpdateCollisionFlags();
   btCollisionShape* GetUnderlyingBtCollisionShape();
 
   RigidBodyParams params_;

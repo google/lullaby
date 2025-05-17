@@ -17,9 +17,11 @@ limitations under the License.
 #ifndef REDUX_MODULES_ECS_COMPONENT_SERIALIZER_H_
 #define REDUX_MODULES_ECS_COMPONENT_SERIALIZER_H_
 
+#include <string>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/modules/var/var.h"
 #include "redux/modules/var/var_convert.h"
@@ -52,22 +54,7 @@ class ComponentSerializer {
   template <typename T>
   void operator()(T& value, HashValue key) {
     const Var& var = GetElement(key);
-    if (var.Empty()) {
-      return;
-    } else if (const ScriptValue* val = var.Get<ScriptValue>()) {
-      const ScriptValue result = env_->Eval(*val);
-      const Var* result_var = result.Get<Var>();
-      CHECK(result_var != nullptr);
-      if (!FromVar(*result_var, &value)) {
-        status_ = absl::InvalidArgumentError(
-            absl::StrCat("Unknown key: ", key.get()));
-      }
-    } else {
-      if (!FromVar(var, &value)) {
-        status_ = absl::InvalidArgumentError(
-            absl::StrCat("Unknown key: ", key.get()));
-      }
-    }
+    status_ = ReadVar(key, var, value);
   }
 
   // Indicates that calls to operator() will modify/overwrite the `value`
@@ -82,6 +69,77 @@ class ComponentSerializer {
     const Var& current_object = *stack_.back();
     const Var& element = current_object[key];
     return element;
+  }
+
+  template <typename T>
+  absl::Status ReadVar(HashValue key, const Var& var, T& out) {
+    if (!status_.ok()) {
+      return status_;
+    } else if (var.Empty()) {
+      return absl::OkStatus();
+    } else if (const ScriptValue* val = var.Get<ScriptValue>()) {
+      return ReadScriptValue(key, *val, out);
+    } else if (const VarArray* arr = var.Get<VarArray>()) {
+      return ReadArray(key, *arr, out);
+    } else if (const VarTable* table = var.Get<VarTable>()) {
+      return ReadTable(key, *table, out);
+    } else {
+      return ReadPrimitive(key, var, out);
+    }
+  }
+
+  template <typename T>
+  absl::Status ReadTable(HashValue key, const VarTable& table, T& out) {
+    if constexpr (detail::IsSerializable<T, ComponentSerializer>) {
+      Var root(table);
+      ComponentSerializer serializer(root, env_);
+      Serialize(serializer, out);
+      return serializer.Status();
+    }
+
+    return absl::InvalidArgumentError(
+        absl::StrCat("Expected object at key: ", key.get()));
+  }
+
+  template <typename T>
+  absl::Status ReadArray(HashValue key, const VarArray& arr, T& out) {
+    if constexpr (IsVectorV<T>) {
+      out.clear();
+      for (const auto& var : arr) {
+        typename T::value_type value;
+        status_ = ReadVar(key, var, value);
+        if (status_.ok()) {
+          out.emplace_back(std::move(value));
+        } else {
+          return status_;
+        }
+      }
+      return absl::OkStatus();
+    }
+
+    return absl::InvalidArgumentError(
+        absl::StrCat("Expected array at key: ", key.get()));
+  }
+
+  template <typename T>
+  absl::Status ReadScriptValue(HashValue key, const ScriptValue& val, T& out) {
+    const ScriptValue result = env_->Eval(val);
+    const Var* result_var = result.Get<Var>();
+    if (result_var == nullptr) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Unable to resolve script at key: ", key.get()));
+    }
+    return ReadVar(key, *result_var, out);
+  }
+
+  template <typename T>
+  absl::Status ReadPrimitive(HashValue key, const Var& var, T& value) {
+    const bool converted = FromVar(var, &value);
+    if (!converted) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Unable to read value at key: ", key.get()));
+    }
+    return absl::OkStatus();
   }
 
   const Var* root_ = nullptr;

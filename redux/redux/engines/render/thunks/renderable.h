@@ -25,10 +25,9 @@ namespace redux {
 void Renderable::PrepareToRender(const mat4& transform) {
   Upcast(this)->PrepareToRender(transform);
 }
-void Renderable::SetMesh(MeshPtr mesh) {
-  Upcast(this)->SetMesh(std::move(mesh));
+void Renderable::SetMesh(MeshPtr mesh, size_t part_index) {
+  Upcast(this)->SetMesh(std::move(mesh), part_index);
 }
-MeshPtr Renderable::GetMesh() const { return Upcast(this)->GetMesh(); }
 void Renderable::EnableVertexAttribute(VertexUsage usage) {
   Upcast(this)->EnableVertexAttribute(usage);
 }
@@ -38,17 +37,17 @@ void Renderable::DisableVertexAttribute(VertexUsage usage) {
 bool Renderable::IsVertexAttributeEnabled(VertexUsage usage) const {
   return Upcast(this)->IsVertexAttributeEnabled(usage);
 }
-void Renderable::SetShader(ShaderPtr shader, std::optional<HashValue> part) {
-  Upcast(this)->SetShader(std::move(shader), part);
+void Renderable::SetShader(ShaderPtr shader) {
+  Upcast(this)->SetShader(std::move(shader));
 }
-void Renderable::Show(std::optional<HashValue> part) {
-  Upcast(this)->Show(part);
+void Renderable::Show() {
+  Upcast(this)->Show();
 }
-void Renderable::Hide(std::optional<HashValue> part) {
-  Upcast(this)->Hide(part);
+void Renderable::Hide() {
+  Upcast(this)->Hide();
 }
-bool Renderable::IsHidden(std::optional<HashValue> part) const {
-  return Upcast(this)->IsHidden(part);
+bool Renderable::IsHidden() const {
+  return Upcast(this)->IsHidden();
 }
 void Renderable::SetTexture(TextureUsage usage, const TexturePtr& texture) {
   Upcast(this)->SetTexture(usage, texture);
@@ -60,10 +59,8 @@ void Renderable::SetProperty(HashValue name, MaterialPropertyType type,
                              absl::Span<const std::byte> data) {
   Upcast(this)->SetProperty(name, type, data);
 }
-void Renderable::SetProperty(HashValue name, HashValue part,
-                             MaterialPropertyType type,
-                             absl::Span<const std::byte> data) {
-  Upcast(this)->SetProperty(name, part, type, data);
+void Renderable::InheritProperties(const Renderable& other) {
+  Upcast(this)->InheritProperties(other);
 }
 
 }  // namespace redux

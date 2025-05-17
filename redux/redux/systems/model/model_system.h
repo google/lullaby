@@ -17,11 +17,20 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_MODEL_MODEL_SYSTEM_H_
 #define REDUX_SYSTEMS_MODEL_MODEL_SYSTEM_H_
 
+#include <string_view>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "redux/engines/physics/collision_shape.h"
 #include "redux/engines/render/mesh.h"
+#include "redux/engines/render/texture.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
 #include "redux/modules/base/resource_manager.h"
+#include "redux/modules/base/typeid.h"
+#include "redux/modules/ecs/entity.h"
 #include "redux/modules/ecs/system.h"
+#include "redux/modules/math/bounds.h"
 #include "redux/systems/model/model_asset.h"
 #include "redux/systems/model/model_def_generated.h"
 
@@ -42,18 +51,20 @@ class ModelSystem : public System {
   // Releases the loaded model file from the internal cache.
   void ReleaseModel(HashValue key);
 
+  // Loads the model from the given file and updates the Entity accordingly.
+  void SetModel(Entity entity, std::string_view uri);
+
  private:
   struct ModelInstance {
     MeshPtr mesh;
     CollisionShapePtr collision_shape;
     absl::flat_hash_map<HashValue, TexturePtr> textures;
+    Box bounding_box;
   };
 
   struct EntitySetupInfo {
     Entity entity = kNullEntity;
     HashValue model_id = HashValue(0);
-    HashValue render_scene = HashValue(0);
-    bool distinct = false;
   };
 
   void AddFromDef(Entity entity, const ModelDef& def);

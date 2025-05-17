@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_MESSAGE_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_MESSAGE_H_
 
+#include <stdint.h>
+
+#include "absl/log/check.h"
 #include "redux/engines/script/redux/script_env.h"
 
 // This file implements the following script functions:

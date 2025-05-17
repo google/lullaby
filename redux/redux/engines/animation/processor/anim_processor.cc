@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "redux/engines/animation/processor/anim_processor.h"
 
+#include <cassert>
+#include <vector>
+
 #include "redux/engines/animation/motivator/motivator.h"
 
 namespace redux {

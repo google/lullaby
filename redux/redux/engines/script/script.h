@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_ENGINES_SCRIPT_SCRIPT_H_
 
 #include <optional>
+#include <string_view>
 
 #include "redux/modules/var/var.h"
 #include "redux/modules/var/var_convert.h"

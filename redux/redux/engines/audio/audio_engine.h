@@ -17,12 +17,13 @@ limitations under the License.
 #ifndef REDUX_ENGINES_AUDIO_AUDIO_ENGINE_H_
 #define REDUX_ENGINES_AUDIO_AUDIO_ENGINE_H_
 
+#include <string_view>
+
 #include "redux/engines/audio/audio_asset.h"
 #include "redux/engines/audio/sound.h"
 #include "redux/engines/audio/sound_room.h"
 #include "redux/modules/audio/enums.h"
 #include "redux/modules/base/registry.h"
-#include "redux/modules/base/resource_manager.h"
 #include "redux/modules/base/typeid.h"
 #include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/vector.h"

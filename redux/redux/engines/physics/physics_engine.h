@@ -20,12 +20,12 @@ limitations under the License.
 #include <functional>
 
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/physics/collision_data.h"
 #include "redux/engines/physics/collision_shape.h"
 #include "redux/engines/physics/rigid_body.h"
 #include "redux/engines/physics/trigger_volume.h"
 #include "redux/modules/base/registry.h"
-#include "redux/modules/base/resource_manager.h"
 #include "redux/modules/math/vector.h"
 
 namespace redux {

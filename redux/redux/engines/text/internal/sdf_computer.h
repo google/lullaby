@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_ENGINES_TEXT_INTERNAL_SDF_COMPUTER_H_
 #define REDUX_ENGINES_TEXT_INTERNAL_SDF_COMPUTER_H_
 
+#include <cstddef>
 #include <memory>
 
 #include "redux/modules/graphics/image_data.h"
@@ -39,6 +40,7 @@ class SdfComputer {
 
  private:
   class Impl;
+
   std::unique_ptr<Impl> impl_;
 };
 }  // namespace redux

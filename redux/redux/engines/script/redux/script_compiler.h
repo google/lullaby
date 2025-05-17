@@ -17,8 +17,12 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_COMPILER_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_COMPILER_H_
 
+#include <stdint.h>
+
+#include <string_view>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "redux/engines/script/redux/script_parser.h"
 #include "redux/engines/script/redux/script_types.h"
 

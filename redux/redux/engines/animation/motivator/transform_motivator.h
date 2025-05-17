@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_MOTIVATOR_TRANSFORM_MOTIVATOR_H_
 #define REDUX_ENGINES_ANIMATION_MOTIVATOR_TRANSFORM_MOTIVATOR_H_
 
+#include <vector>
+
+#include "absl/time/time.h"
 #include "redux/engines/animation/animation_clip.h"
 #include "redux/engines/animation/animation_playback.h"
 #include "redux/engines/animation/motivator/motivator.h"

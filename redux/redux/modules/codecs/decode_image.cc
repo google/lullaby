@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "redux/modules/codecs/decode_image.h"
 
+#include "absl/log/log.h"
 #include "redux/modules/codecs/decode_stb.h"
 #include "redux/modules/codecs/decode_webp.h"
 #include "redux/modules/graphics/image_utils.h"

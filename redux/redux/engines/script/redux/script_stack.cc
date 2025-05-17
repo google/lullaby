@@ -16,6 +16,14 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_stack.h"
 
+#include <stddef.h>
+
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+
 namespace redux {
 
 ScriptStack::ScriptStack() { PushScope(); }
@@ -33,7 +41,7 @@ void ScriptStack::SetValue(HashValue id, ScriptValue value) {
     CHECK(array.count < IndexArray::kMaxInstancesPerValue);
 
     const size_t index = values_.size();
-    values_.emplace_back(std::move(value), &(*iter));
+    values_.emplace_back(std::move(value), id);
 
     array.index[array.count] = index;
     array.count++;
@@ -53,7 +61,7 @@ void ScriptStack::LetValue(HashValue id, ScriptValue value) {
     CHECK(array.count < IndexArray::kMaxInstancesPerValue);
 
     const size_t index = values_.size();
-    values_.emplace_back(std::move(value), &(*iter));
+    values_.emplace_back(std::move(value), id);
 
     array.index[array.count] = index;
     array.count++;
@@ -79,12 +87,13 @@ void ScriptStack::PushScope() { scopes_.emplace_back(values_.size()); }
 void ScriptStack::PopScope() {
   const size_t size = scopes_.back();
   while (values_.size() > size) {
-    auto* lookup = values_.back().lookup_entry;
+    HashValue key = values_.back().key;
+    auto lookup = lookup_.find(key);
 
     IndexArray& array = lookup->second;
     --array.count;
     if (array.count == 0) {
-      lookup_.erase(lookup->first);
+      lookup_.erase(lookup);
     }
     values_.pop_back();
   }

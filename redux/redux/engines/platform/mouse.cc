@@ -17,7 +17,11 @@ limitations under the License.
 #include "redux/engines/platform/mouse.h"
 
 #include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/time/time.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {
@@ -67,9 +71,23 @@ vec2i Mouse::View::GetPosition() const {
   return mouse ? mouse->state_.GetCurrent().position : vec2i::Zero();
 }
 
+vec2i Mouse::View::GetDelta() const {
+  const Mouse* mouse = GetDevice();
+  return mouse ? mouse->state_.GetPrevious().position -
+                     mouse->state_.GetCurrent().position
+               : vec2i::Zero();
+}
+
 int Mouse::View::GetScrollValue() const {
   const Mouse* mouse = GetDevice();
   return mouse ? mouse->state_.GetCurrent().scroll_value : 0;
+}
+
+int Mouse::View::GetScrollDelta() const {
+  const Mouse* mouse = GetDevice();
+  return mouse ? mouse->state_.GetCurrent().scroll_value -
+                     mouse->state_.GetPrevious().scroll_value
+               : 0;
 }
 
 Mouse::TriggerFlag Mouse::View::GetButtonState(Button button) const {

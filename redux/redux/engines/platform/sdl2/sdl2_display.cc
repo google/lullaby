@@ -16,7 +16,11 @@ limitations under the License.
 
 #include "redux/engines/platform/sdl2/sdl2_display.h"
 
+#include <memory>
+#include <string_view>
+
 #include "SDL_syswm.h"
+#include "absl/log/check.h"
 #include "redux/engines/platform/device_manager.h"
 
 #if defined(__APPLE__)

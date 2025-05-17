@@ -16,11 +16,26 @@ limitations under the License.
 
 #include "redux/engines/render/filament/filament_shader.h"
 
-#include <utility>
+#include <stdint.h>
 
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
+#include "math/mat3.h"
+#include "math/mat4.h"
+#include "math/vec2.h"
+#include "math/vec3.h"
+#include "math/vec4.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
 #include "redux/engines/render/filament/filament_utils.h"
-#include "redux/modules/base/logging.h"
 
 namespace redux {
 
@@ -105,7 +120,7 @@ FilamentShader::VariantId FilamentShader::DetermineVariantId(
   for (int i = 0; i < variants_.size(); ++i) {
     const auto& variant = variants_[i];
     if (absl::c_includes(conditions, variant->conditions) &&
-        absl::c_includes(variant->features, features)) {
+        absl::c_includes(features, variant->features)) {
       return i;
     }
   }
@@ -135,6 +150,10 @@ void FilamentShader::SetParameter(filament::MaterialInstance* instance,
   using filament::math::float2;
   using filament::math::float3;
   using filament::math::float4;
+  using filament::math::float4;
+  using filament::math::mat3f;
+  using filament::math::mat4f;
+
   switch (type) {
     case MaterialPropertyType::Float1: {
       CHECK_EQ(data.size(), sizeof(float));
@@ -157,6 +176,18 @@ void FilamentShader::SetParameter(filament::MaterialInstance* instance,
     case MaterialPropertyType::Float4: {
       CHECK_EQ(data.size(), sizeof(float4));
       const float4* value = reinterpret_cast<const float4*>(data.data());
+      instance->setParameter(name, *value);
+      return;
+    }
+    case MaterialPropertyType::Float3x3: {
+      CHECK_EQ(data.size(), sizeof(mat3f));
+      const mat3f* value = reinterpret_cast<const mat3f*>(data.data());
+      instance->setParameter(name, *value);
+      return;
+    }
+    case MaterialPropertyType::Float4x4: {
+      CHECK_EQ(data.size(), sizeof(mat4f));
+      const mat4f* value = reinterpret_cast<const mat4f*>(data.data());
       instance->setParameter(name, *value);
       return;
     }

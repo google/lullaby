@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_SHADER_FACTORY_H_
 #define REDUX_ENGINES_RENDER_SHADER_FACTORY_H_
 
+#include <string_view>
+
 #include "redux/engines/render/shader.h"
 #include "redux/modules/base/registry.h"
 #include "redux/modules/base/resource_manager.h"

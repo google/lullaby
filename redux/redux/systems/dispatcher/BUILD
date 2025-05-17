@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -11,6 +12,8 @@ cc_library(
     srcs = ["dispatcher_system.cc"],
     hdrs = ["dispatcher_system.h"],
     deps = [
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "//redux/engines/script:function_binder",
         "//redux/modules/base:choreographer",
         "//redux/modules/dispatcher",

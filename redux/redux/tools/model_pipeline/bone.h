@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_TOOLS_MODEL_PIPELINE_BONE_H_
 
 #include <string>
+#include <utility>
 
 #include "redux/modules/math/matrix.h"
 #include "redux/modules/math/vector.h"

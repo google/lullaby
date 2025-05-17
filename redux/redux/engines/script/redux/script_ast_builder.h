@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_AST_BUILDER_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_AST_BUILDER_H_
 
+#include <string_view>
 #include <vector>
 
 #include "redux/engines/script/redux/script_parser.h"

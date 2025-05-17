@@ -17,15 +17,13 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_RENDER_LAYER_H_
 #define REDUX_ENGINES_RENDER_RENDER_LAYER_H_
 
-#include <functional>
-#include <optional>
+#include <memory>
 
-#include "redux/engines/render/light.h"
+#include "redux/engines/render/render_layer_options.h"
 #include "redux/engines/render/render_scene.h"
 #include "redux/engines/render/render_target.h"
-#include "redux/engines/render/renderable.h"
-#include "redux/modules/graphics/color.h"
 #include "redux/modules/math/bounds.h"
+#include "redux/modules/math/matrix.h"
 
 namespace redux {
 
@@ -85,13 +83,48 @@ class RenderLayer {
   // effectively the lens of the camera from which the scene will be rendered.
   void SetProjectionMatrix(const mat4& projection_matrix);
 
-  // Enables anti-aliasing when rendering the layer.
-  void EnableAntiAliasing();
+  // Sets the camera's exposure (i.e. sensitivity to light).
+  void SetCameraExposure(float aperture, float shutter_speed,
+                         float iso_sensitivity);
 
-  // Disables anti-aliasing when rendering the layer.
+  // Sets the camera focus distance.
+  void SetCameraFocalDistance(float focus_distance);
+
+  // Configures anti-aliasing options when rendering the layer.
+  void EnableAntiAliasing(const MultiSampleAntiAliasingOptions& opts);
   void DisableAntiAliasing();
 
+  // Configures depth-of-field options when rendering the layer.
+  void EnableDepthOfField(const DepthOfFieldOptions& opts);
+  void DisableDepthOfField();
+
+  // Configures vignetting options when rendering the layer.
+  void EnableVignette(const VignetteOptions& opts);
+  void DisableVignette();
+
+  // Configures bloom options when rendering the layer.
+  void EnableBloom(const BloomOptions& opts);
+  void DisableBloom();
+
+  // Configures fog options when rendering the layer.
+  void EnableFog(const FogOptions& opts);
+  void DisableFog();
+
+  // Configures ambient occlusion options when rendering the layer.
+  void EnableAmbientOcclusion(const AmbientOcclusionOptions& opts);
+  void DisableAmbientOcclusion();
+
+  // Configures screen-space cone tracing options when rendering the layer.
+  // Note: Ambient Occlusion must be enabled for this to take effect.
+  void EnableScreenSpaceConeTracing(const ScreenSpaceConeTracingOptions& opts);
+  void DisableScreenSpaceConeTracing();
+
+  // Configures screen-space reflections options when rendering the layer.
+  void EnableScreenSpaceReflections(const ScreenSpaceReflectionsOptions& opts);
+  void DisableScreenSpaceReflections();
+
   // Disables post-processing (like tone mapping) when rendering the layer.
+  void EnablePostProcessing();
   void DisablePostProcessing();
 
  protected:

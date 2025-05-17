@@ -17,19 +17,14 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_THUNKS_MESH_H_
 #define REDUX_ENGINES_RENDER_THUNKS_MESH_H_
 
-#include "redux/engines/render/renderable.h"
+#include "redux/engines/render/mesh.h"
 
 namespace redux {
 
-// Thunk functions to call the actual implementation.
-size_t Mesh::GetNumVertices() const { return Upcast(this)->GetNumVertices(); }
-size_t Mesh::GetNumPrimitives() const {
-  return Upcast(this)->GetNumPrimitives();
-}
-Box Mesh::GetBoundingBox() const { return Upcast(this)->GetBoundingBox(); }
-size_t Mesh::GetNumSubmeshes() const { return Upcast(this)->GetNumSubmeshes(); }
-const Mesh::SubmeshData& Mesh::GetSubmeshData(size_t index) const {
-  return Upcast(this)->GetSubmeshData(index);
+// Thunk functions to call the actual implementations.
+size_t Mesh::GetNumParts() const { return Upcast(this)->GetNumParts(); }
+HashValue Mesh::GetPartName(size_t index) const {
+  return Upcast(this)->GetPartName(index);
 }
 
 }  // namespace redux

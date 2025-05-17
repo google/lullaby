@@ -17,9 +17,12 @@ limitations under the License.
 #ifndef REDUX_MODULES_MATH_TESTING_H_
 #define REDUX_MODULES_MATH_TESTING_H_
 
+#include <cstdlib>
 #include <iostream>
 
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "redux/modules/math/matrix.h"
 #include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/vector.h"

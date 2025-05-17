@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_MODULES_ECS_BLUEPRINT_H_
 #define REDUX_MODULES_ECS_BLUEPRINT_H_
 
+#include <stddef.h>
+
 #include <memory>
 #include <string>
 #include <utility>

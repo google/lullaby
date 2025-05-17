@@ -18,6 +18,8 @@ limitations under the License.
 #define REDUX_ENGINES_AUDIO_RESONANCE_AUDIO_ASSET_MANAGER_H_
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "redux/engines/audio/audio_asset.h"
@@ -27,6 +29,7 @@ limitations under the License.
 #include "redux/modules/audio/audio_reader.h"
 #include "redux/modules/base/data_reader.h"
 #include "redux/modules/base/registry.h"
+#include "redux/modules/base/resource_manager.h"
 
 namespace redux {
 

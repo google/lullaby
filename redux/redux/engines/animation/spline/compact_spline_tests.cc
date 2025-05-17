@@ -14,8 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
+#include <cassert>
+#include <cstring>
+#include <memory>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/macros.h"
 #include "redux/engines/animation/spline/compact_spline.h"
 
 namespace redux {

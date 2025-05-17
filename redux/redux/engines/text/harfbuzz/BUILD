@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,6 +13,8 @@ cc_library(
         "sequencer.cc",
     ],
     deps = [
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@harfbuzz//:harfbuzz",
         "//redux/engines/text",
     ],

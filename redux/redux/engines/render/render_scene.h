@@ -17,13 +17,12 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_RENDER_SCENE_H_
 #define REDUX_ENGINES_RENDER_RENDER_SCENE_H_
 
+#include <memory>
 #include <optional>
 
 #include "redux/engines/render/indirect_light.h"
 #include "redux/engines/render/light.h"
-#include "redux/engines/render/render_target.h"
 #include "redux/engines/render/renderable.h"
-#include "redux/modules/graphics/color.h"
 #include "redux/modules/math/bounds.h"
 
 namespace redux {

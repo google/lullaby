@@ -17,9 +17,15 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PHYSICS_BULLET_BULLET_TRIGGER_VOLUME_H_
 #define REDUX_ENGINES_PHYSICS_BULLET_BULLET_TRIGGER_VOLUME_H_
 
+#include <memory>
+
 #include "BulletDynamics/Dynamics/btDynamicsWorld.h"
 #include "BulletDynamics/Dynamics/btRigidBody.h"
 #include "redux/engines/physics/trigger_volume.h"
+#include "redux/modules/base/bits.h"
+#include "redux/modules/math/transform.h"
+#include "redux/modules/math/quaternion.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -41,6 +47,9 @@ class BulletTriggerVolume : public TriggerVolume {
 
   // Returns true if the trigger volume is active.
   bool IsActive() const;
+
+  // Changes the collision state for the trigger volume.
+  void SetCollisionState(Bits32 collision_group, Bits32 collision_filter);
 
   // Sets the trigger volume's transform.
   void SetTransform(const Transform& transform);

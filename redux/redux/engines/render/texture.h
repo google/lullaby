@@ -17,12 +17,10 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_TEXTURE_H_
 #define REDUX_ENGINES_RENDER_TEXTURE_H_
 
-#include <functional>
 #include <memory>
 #include <string>
-#include <vector>
 
-#include "redux/modules/graphics/enums.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
 #include "redux/modules/graphics/image_data.h"
 #include "redux/modules/math/vector.h"
 
@@ -50,10 +48,8 @@ class Texture {
   // Gets the dimensions of the underlying image.
   vec2i GetDimensions() const;
 
-  // Updates the entire contents of the texture. Image data is sent as-is.
-  // Returns false if the dimensions don't match or if the texture isn't
-  // internal and 2D.
-  bool Update(ImageData image);
+  // Updates the entire contents of the texture.
+  void Update(ImageData image);
 
  protected:
   Texture() = default;

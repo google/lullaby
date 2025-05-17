@@ -17,8 +17,11 @@ limitations under the License.
 #ifndef REDUX_TOOLS_MODEL_PIPELINE_VERTEX_H_
 #define REDUX_TOOLS_MODEL_PIPELINE_VERTEX_H_
 
+#include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "redux/modules/base/bits.h"
 #include "redux/modules/graphics/enums.h"
 #include "redux/modules/math/vector.h"

@@ -14,11 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <memory>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "redux/engines/audio/resonance/audio_asset_manager.h"
 #include "redux/modules/base/asset_loader.h"
 #include "redux/modules/testing/testing.h"
-#include "redux/engines/audio/resonance/audio_asset_manager.h"
 
 namespace redux {
 namespace {

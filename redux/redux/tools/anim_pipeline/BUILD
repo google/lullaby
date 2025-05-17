@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -19,9 +20,9 @@ cc_library(
         "tolerances.h",
     ],
     deps = [
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
         "//redux/engines/animation",
-        "//redux/engines/animation/spline:compact_spline",
         "//redux/engines/animation/spline:cubic_curve",
         "//redux/modules/math:matrix",
         "//redux/modules/math:quaternion",
@@ -37,7 +38,6 @@ cc_library(
         ":animation",
         "@absl//absl/container:flat_hash_map",
         "@assimp//:assimp",
-        "//redux/modules/base:data_buffer",
         "//redux/modules/base:filepath",
         "//redux/tools/common:assimp_utils",
     ],
@@ -49,10 +49,8 @@ cc_library(
     deps = [
         ":animation",
         "@absl//absl/container:flat_hash_map",
-        "@absl//absl/types:span",
         "@libfbx//:libfbx",
         "//redux/modules/base:filepath",
-        "//redux/modules/base:logging",
         "//redux/modules/math:transform",
         "//redux/tools/common:fbx_utils",
     ],
@@ -64,8 +62,8 @@ cc_library(
     hdrs = ["export.h"],
     deps = [
         ":animation",
+        "@absl//absl/log",
         "//redux/data/asset_defs:anim_asset_def_fbs",
-        "//redux/engines/animation",
         "//redux/engines/animation/spline:compact_spline",
         "//redux/modules/base:data_container",
         "//redux/modules/flatbuffers:common",
@@ -84,6 +82,7 @@ cc_library(
         ":animation",
         ":export",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "//redux/modules/base:data_container",
         "//redux/modules/base:filepath",
         "//redux/tools/common:log_utils",
@@ -100,8 +99,7 @@ cc_binary(
         ":import_fbx",
         "@absl//absl/flags:flag",
         "@absl//absl/flags:parse",
-        "//redux/modules/base:filepath",
-        "//redux/modules/base:logging",
+        "@absl//absl/log:check",
         "//redux/modules/math:constants",
         "//redux/tools/common:file_utils",
         "//redux/tools/common:flatbuffer_utils",

@@ -17,12 +17,17 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_ASYNC_PROCESSOR_H_
 #define REDUX_MODULES_BASE_ASYNC_PROCESSOR_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/base/thread_safe_deque.h"
 

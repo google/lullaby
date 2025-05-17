@@ -14,11 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "redux/modules/base/filepath.h"
 #include "redux/tools/common/axis_system.h"
 #include "redux/tools/common/file_utils.h"

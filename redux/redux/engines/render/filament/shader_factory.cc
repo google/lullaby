@@ -16,8 +16,12 @@ limitations under the License.
 
 #include "redux/engines/render/shader_factory.h"
 
+#include <memory>
 #include <string>
+#include <string_view>
 
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "redux/data/asset_defs/shader_asset_def_generated.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
 #include "redux/engines/render/filament/filament_shader.h"

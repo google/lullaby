@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -41,6 +42,9 @@ cc_library(
     hdrs = ["opus_reader.h"],
     deps = [
         ":audio_reader",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "@libopusfile//:libopusfile",
         "//redux/modules/base:data_reader",
         "//redux/modules/base:logging",
@@ -51,13 +55,14 @@ cc_test(
     name = "opus_reader_tests",
     srcs = ["opus_reader_tests.cc"],
     data = [
-        "//redux/modules/audio:test_data/small.opus",
-        "//redux/modules/audio:test_data/speech.opus",
-        "//redux/modules/audio:test_data/speech.wav",
+        ":test_data/small.opus",
+        ":test_data/speech.opus",
+        ":test_data/speech.wav",
     ],
     deps = [
         ":opus_reader",
         "@gtest//:gtest_main",
+        "@absl//absl/types:span",
         "//redux/modules/testing",
     ],
 )
@@ -68,6 +73,9 @@ cc_library(
     hdrs = ["vorbis_reader.h"],
     deps = [
         ":audio_reader",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "@libvorbis//:libvorbis",
         "//redux/modules/base:data_reader",
         "//redux/modules/base:logging",
@@ -78,13 +86,14 @@ cc_test(
     name = "vorbis_reader_tests",
     srcs = ["vorbis_reader_tests.cc"],
     data = [
-        "//redux/modules/audio:test_data/small.ogg",
-        "//redux/modules/audio:test_data/speech.ogg",
-        "//redux/modules/audio:test_data/speech.wav",
+        ":test_data/small.ogg",
+        ":test_data/speech.ogg",
+        ":test_data/speech.wav",
     ],
     deps = [
         ":vorbis_reader",
         "@gtest//:gtest_main",
+        "@absl//absl/types:span",
         "//redux/modules/testing",
     ],
 )
@@ -95,6 +104,8 @@ cc_library(
     hdrs = ["wav_reader.h"],
     deps = [
         ":audio_reader",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/modules/base:data_reader",
         "//redux/modules/base:logging",
     ],
@@ -104,13 +115,14 @@ cc_test(
     name = "wav_reader_tests",
     srcs = ["wav_reader_tests.cc"],
     data = [
-        "//redux/modules/audio:test_data/ambisonic.wav",
-        "//redux/modules/audio:test_data/speech.ogg",
-        "//redux/modules/audio:test_data/speech.wav",
+        ":test_data/ambisonic.wav",
+        ":test_data/speech.ogg",
+        ":test_data/speech.wav",
     ],
     deps = [
         ":wav_reader",
         "@gtest//:gtest_main",
+        "@absl//absl/types:span",
         "//redux/modules/testing",
     ],
 )

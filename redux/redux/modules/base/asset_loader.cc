@@ -22,11 +22,23 @@ limitations under the License.
 #include <jni.h>
 #endif
 
+#include <cstddef>
+#include <cstdio>
+#include <functional>
+#include <future>
 #include <limits>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
+#include "absl/algorithm/container.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "redux/modules/base/choreographer.h"
 #include "redux/modules/base/data_builder.h"
-#include "redux/modules/base/logging.h"
 
 namespace redux {
 
@@ -161,7 +173,7 @@ auto AssetLoader::Request<T>::PackageFinalizer(RequestPtr ptr,
 }
 
 AssetLoader::AssetLoader(Registry* registry) : registry_(registry) {
-  SetOpenFunction(nullptr);
+  default_open_fn_ = std::make_shared<OpenFn>(GetDefaultOpenFunction(registry));
 }
 
 AssetLoader::~AssetLoader() {
@@ -174,15 +186,31 @@ void AssetLoader::OnRegistryInitialize() {
       Choreographer::Stage::kPrologue);
 }
 
-void AssetLoader::SetOpenFunction(OpenFn open_fn) {
-  if (open_fn) {
-    open_fn_ = std::make_shared<OpenFn>(std::move(open_fn));
-  } else {
-    open_fn_ = std::make_shared<OpenFn>(GetDefaultOpenFunction(registry_));
+void AssetLoader::SetOpenFunction(MatchFn match_fn, OpenFn open_fn,
+                                  int priority) {
+  CHECK(match_fn != nullptr) << "Must provide a Match function.";
+  CHECK(open_fn != nullptr) << "Must provide an Open function.";
+  if (priority == kLowPriority) {
+    priority = open_fns_.empty() ? 0 : open_fns_.back().priority - 1;
+  } else if (priority == kHighPriority) {
+    priority = open_fns_.empty() ? 0 : open_fns_.front().priority + 1;
   }
+
+  open_fns_.emplace_back(priority, std::move(match_fn),
+                         std::make_shared<OpenFn>(std::move(open_fn)));
+  absl::c_sort(open_fns_, [](const OpenFnEntry& a, const OpenFnEntry& b) {
+    return a.priority > b.priority;
+  });
 }
 
-AssetLoader::OpenFn AssetLoader::GetOpenFunction() const { return *open_fn_; }
+AssetLoader::OpenFnPtr AssetLoader::GetOpenFn(std::string_view uri) {
+  for (auto& entry : open_fns_) {
+    if (entry.match_fn(uri)) {
+      return entry.open_fn;
+    }
+  }
+  return default_open_fn_;
+}
 
 AssetLoader::OpenFn AssetLoader::GetDefaultOpenFunction(Registry* registry) {
   return [=](std::string_view uri) {
@@ -195,11 +223,13 @@ void AssetLoader::StartAsyncOperations() { processor_.Start(); }
 void AssetLoader::StopAsyncOperations() { processor_.Stop(); }
 
 auto AssetLoader::OpenNow(std::string_view uri) -> StatusOrReader {
-  return (*open_fn_)(uri);
+  OpenFnPtr open_fn = GetOpenFn(uri);
+  return (*open_fn)(uri);
 }
 
 auto AssetLoader::LoadNow(std::string_view uri) -> StatusOrData {
-  StatusOrReader reader = (*open_fn_)(uri);
+  OpenFnPtr open_fn = GetOpenFn(uri);
+  StatusOrReader reader = (*open_fn)(uri);
   if (!reader.ok()) {
     return reader.status();
   }
@@ -210,7 +240,8 @@ auto AssetLoader::OpenAsync(std::string_view uri, ReaderCallback on_open,
                             ReaderCallback on_finalize)
     -> std::future<StatusOrReader> {
   using RequestT = Request<DataReader>;
-  auto request = std::make_shared<RequestT>(uri, open_fn_, std::move(on_open));
+  OpenFnPtr open_fn = GetOpenFn(uri);
+  auto request = std::make_shared<RequestT>(uri, open_fn, std::move(on_open));
 
   if (!processor_.IsRunning()) {
     request->DoAsyncOp();
@@ -229,7 +260,8 @@ auto AssetLoader::LoadAsync(std::string_view uri, DataCallback on_load,
                             DataCallback on_finalize)
     -> std::future<StatusOrData> {
   using RequestT = Request<DataContainer>;
-  auto request = std::make_shared<RequestT>(uri, open_fn_, std::move(on_load));
+  OpenFnPtr open_fn = GetOpenFn(uri);
+  auto request = std::make_shared<RequestT>(uri, open_fn, std::move(on_load));
   if (!processor_.IsRunning()) {
     request->DoAsyncOp();
   } else {

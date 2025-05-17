@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -28,9 +29,10 @@ cc_library(
     deps = [
         ":entity",
         "@absl//absl/container:flat_hash_map",
-        "@absl//absl/hash",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@absl//absl/status",
-        "//redux/engines/script",
+        "@absl//absl/strings",
         "//redux/engines/script/redux:script_env",
         "//redux/modules/base:asset_loader",
         "//redux/modules/base:bits",
@@ -50,10 +52,10 @@ cc_library(
 cc_test(
     name = "blueprint_factory_tests",
     srcs = ["blueprint_factory_tests.cc"],
+    tags = ["noautofuzz"],
     deps = [
         ":ecs",
         "@gtest//:gtest_main",
-        "//redux/engines/script/redux",
         "//redux/engines/script/redux:script_env",
         "//redux/modules/var",
     ],
@@ -65,6 +67,6 @@ cc_test(
     deps = [
         ":ecs",
         "@gtest//:gtest_main",
-        "//redux/engines/script/redux",
+        "@absl//absl/container:flat_hash_map",
     ],
 )

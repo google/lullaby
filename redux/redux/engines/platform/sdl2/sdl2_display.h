@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_SDL2_SDL2_DISPLAY_H_
 #define REDUX_ENGINES_PLATFORM_SDL2_SDL2_DISPLAY_H_
 
+#include <memory>
+#include <string_view>
+
 #include "redux/engines/platform/device_manager.h"
 #include "redux/engines/platform/display.h"
 #include "redux/engines/platform/sdl2/sdl2_event_handler.h"

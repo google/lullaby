@@ -16,13 +16,24 @@ limitations under the License.
 
 #include "redux/engines/render/texture_factory.h"
 
+#include <stdint.h>
+
+#include <memory>
+#include <string_view>
 #include <utility>
 
-#include "redux/engines/render/filament/filament_render_engine.h"
+#include "absl/log/log.h"
 #include "redux/engines/render/filament/filament_texture.h"
+#include "redux/engines/render/texture.h"
 #include "redux/modules/base/asset_loader.h"
+#include "redux/modules/base/data_container.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
 #include "redux/modules/codecs/decode_image.h"
-#include "redux/modules/graphics/enums.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/image_data.h"
+#include "redux/modules/graphics/image_utils.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -62,20 +73,32 @@ TexturePtr TextureFactory::CreateTexture(const vec2i& size, ImageFormat format,
 TexturePtr TextureFactory::LoadTexture(std::string_view uri,
                                        const TextureParams& params) {
   const HashValue key = Hash(uri);
-  return textures_.Create(key, [=]() {
+  return textures_.Create(key, [this, uri, &params]() {
     auto texture = std::make_shared<FilamentTexture>(registry_, uri);
 
     std::shared_ptr<ImageData> image = std::make_shared<ImageData>();
     auto on_load = [=](AssetLoader::StatusOrData& asset) mutable {
       if (asset.ok()) {
-        DecodeImageOptions opts;
-        opts.premultiply_alpha = params.premultiply_alpha;
-        *image = DecodeImage(*asset, opts);
+        DataContainer& data = asset.value();
+        ImageFormat format = IdentifyImageTypeFromHeader(data.GetByteSpan());
+        if (IsContainerFormat(format)) {
+          // Allow render engine to handle container formats directly as they
+          // could contain multiple images (e.g. mipmaps).
+          *image = ImageData(format, vec2i::Zero(), std::move(data));
+        } else {
+          DecodeImageOptions opts;
+          opts.premultiply_alpha = params.premultiply_alpha;
+          *image = DecodeImage(data, opts);
+        }
+      } else {
+        LOG(FATAL) << "Unable to load texture.";
       }
     };
 
     auto on_finalize = [=](AssetLoader::StatusOrData& asset) mutable {
-      texture->Build(image, params);
+      if (asset.ok()) {
+        texture->Build(image, params);
+      }
     };
 
     auto asset_loader = registry_->Get<AssetLoader>();

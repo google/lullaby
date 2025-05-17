@@ -18,7 +18,10 @@ limitations under the License.
 #define REDUX_ENGINES_SCRIPT_REDUX_SCRIPT_VALUE_H_
 
 #include <memory>
+#include <type_traits>
+#include <utility>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/typeid.h"
 #include "redux/modules/var/var.h"
 #include "redux/modules/var/var_convert.h"

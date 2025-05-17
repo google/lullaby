@@ -18,6 +18,7 @@ limitations under the License.
 #define REDUX_MODULES_ECS_ENTITY_H_
 
 #include <cstdint>
+#include <utility>
 
 #include "redux/modules/base/typeid.h"
 

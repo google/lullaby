@@ -17,14 +17,15 @@ limitations under the License.
 #ifndef REDUX_TOOLS_COMMON_JSON_UTILS_H_
 #define REDUX_TOOLS_COMMON_JSON_UTILS_H_
 
+#include <string>
 #include <type_traits>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/hash.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/base/serialize_traits.h"
 #include "magic_enum.hpp"
 #include "rapidjson/document.h"
-#include "rapidjson/error/error.h"
 
 namespace redux::tool {
 
@@ -44,6 +45,7 @@ void ReadJsonValue(T* value, rapidjson::Value& jobj) {
   constexpr bool kIsNumber = std::is_arithmetic_v<T>;
   constexpr bool kIsString = std::is_same_v<T, std::string>;
   constexpr bool kIsArray = IsVectorV<T>;
+  constexpr bool kIsOptional = IsOptionalV<T>;
 
   if constexpr (kIsBoolean) {
     CHECK(jobj.IsBool());
@@ -66,6 +68,9 @@ void ReadJsonValue(T* value, rapidjson::Value& jobj) {
   } else if constexpr (kIsArray) {
     CHECK(jobj.IsArray());
     ReadJsonArray(value, jobj);
+  } else if constexpr (kIsOptional) {
+    value->emplace(typename T::value_type{});
+    ReadJsonValue(&value->value(), jobj);
   } else {
     CHECK(jobj.IsObject());
     ReadJsonObject(value, jobj);

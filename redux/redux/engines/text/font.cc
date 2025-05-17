@@ -16,7 +16,16 @@ limitations under the License.
 
 #include "redux/engines/text/font.h"
 
+#include <stddef.h>
+
+#include <memory>
+#include <string_view>
 #include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "redux/engines/text/internal/glyph.h"
 
 namespace redux {
 

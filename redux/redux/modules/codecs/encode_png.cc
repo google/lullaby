@@ -16,6 +16,12 @@ limitations under the License.
 
 #include "redux/modules/codecs/encode_png.h"
 
+#include <stdint.h>
+
+#include <cstring>
+#include <vector>
+
+#include "absl/log/log.h"
 #include "redux/modules/base/data_builder.h"
 #include "redux/modules/graphics/image_utils.h"
 #include "png.h"

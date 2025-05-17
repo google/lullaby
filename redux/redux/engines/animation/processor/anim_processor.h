@@ -17,8 +17,10 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_PROCESSOR_ANIM_PROCESSOR_H_
 #define REDUX_ENGINES_ANIMATION_PROCESSOR_ANIM_PROCESSOR_H_
 
+#include <cassert>
 #include <vector>
 
+#include "absl/time/time.h"
 #include "redux/engines/animation/common.h"
 #include "redux/engines/animation/motivator/motivator.h"
 #include "redux/engines/animation/processor/index_allocator.h"

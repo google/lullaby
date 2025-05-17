@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -21,7 +22,9 @@ cc_library(
         ":keyboard",
         ":mouse",
         ":speaker",
+        "@absl//absl/base:core_headers",
         "@absl//absl/synchronization",
+        "@absl//absl/time",
         "@absl//absl/types:span",
         "//redux/modules/base:choreographer",
         "//redux/modules/base:logging",
@@ -53,8 +56,6 @@ cc_library(
         ":device_profiles",
         ":virtual_device",
         "@absl//absl/time",
-        "//redux/modules/base:logging",
-        "//redux/modules/math:vector",
     ],
 )
 
@@ -68,8 +69,6 @@ cc_library(
         ":keycodes",
         ":virtual_device",
         "@absl//absl/time",
-        "//redux/modules/base:logging",
-        "//redux/modules/math:vector",
     ],
 )
 
@@ -84,6 +83,7 @@ cc_library(
     deps = [
         ":device_manager",
         "@absl//absl/status",
+        "@absl//absl/time",
         "//redux/modules/base:asset_loader",
         "//redux/modules/base:choreographer",
         "//redux/modules/base:registry",
@@ -100,9 +100,10 @@ cc_library(
         ":buffered_state",
         ":device_profiles",
         ":virtual_device",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "@absl//absl/time",
         "//redux/modules/base:logging",
-        "//redux/modules/math:vector",
     ],
 )
 
@@ -113,6 +114,7 @@ cc_library(
     deps = [
         ":device_profiles",
         ":virtual_device",
+        "@absl//absl/time",
         "@absl//absl/types:span",
     ],
 )

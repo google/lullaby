@@ -16,6 +16,14 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_ast_builder.h"
 
+#include <stdint.h>
+
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/log/log.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {

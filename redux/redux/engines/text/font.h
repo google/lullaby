@@ -18,7 +18,9 @@ limitations under the License.
 #define REDUX_ENGINES_TEXT_FONT_H_
 
 #include <memory>
+#include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "redux/engines/text/internal/glyph.h"
 #include "redux/engines/text/text_enums.h"
 #include "redux/modules/base/data_container.h"

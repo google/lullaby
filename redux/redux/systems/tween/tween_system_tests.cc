@@ -14,10 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <utility>
+#include <functional>
+#include <optional>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/systems/tween/tween_system.h"
 
 namespace redux {

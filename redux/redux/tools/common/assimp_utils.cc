@@ -16,15 +16,25 @@ limitations under the License.
 
 #include "redux/tools/common/assimp_utils.h"
 
-#include <iostream>
+#include <algorithm>
+#include <cstring>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "assimp/DefaultIOSystem.h"
 #include "assimp/DefaultLogger.hpp"
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
 #include "redux/modules/base/logging.h"
+
+namespace Assimp {
+class IOStream;
+}  // namespace Assimp
 
 namespace redux::tool {
 

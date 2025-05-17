@@ -1,0 +1,6 @@
+cc_library(
+    name = "draco",
+    hdrs = ["draco.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

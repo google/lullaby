@@ -23,6 +23,7 @@ limitations under the License.
 #include <optional>
 #include <type_traits>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/base/typeid.h"
 #include "redux/modules/math/constants.h"
@@ -852,16 +853,15 @@ constexpr MatrixImpl<T> operator/(ScalarImpl<T> s, const MatrixImpl<T>& m) {
 template <typename T>
 constexpr MatrixImpl<T> operator/(const MatrixImpl<T>& m, ScalarImpl<T> s) {
   MatrixImpl<T> result;
-  const auto inv = ScalarImpl<T>(1) / s;
   if constexpr (MatrixImpl<T>::kSimd) {
-    const auto ss = simd4f_splat(inv);
+    const auto ss = simd4f_splat(s);
     for (int cc = 0; cc < T::kCols; ++cc) {
-      result.simd[cc] = simd4f_mul(m.simd[cc], ss);
+      result.simd[cc] = simd4f_div(m.simd[cc], ss);
     }
   } else {
     for (int cc = 0; cc < T::kCols; ++cc) {
       for (int rr = 0; rr < T::kRows; ++rr) {
-        result.cols[cc][rr] = m.cols[cc][rr] * inv;
+        result.cols[cc][rr] = m.cols[cc][rr] / s;
       }
     }
   }
@@ -880,16 +880,15 @@ constexpr MatrixImpl<T> operator/(const MatrixImpl<T>& m1,
 // Divides (in-place) a scalar with a matrix.
 template <typename T>
 constexpr auto& operator/=(MatrixImpl<T>& m, ScalarImpl<T> s) {
-  const auto inv = ScalarImpl<T>(1) / s;
   if constexpr (MatrixImpl<T>::kSimd) {
-    const auto ss = simd4f_splat(inv);
+    const auto ss = simd4f_splat(s);
     for (int cc = 0; cc < T::kCols; ++cc) {
-      m.simd[cc] = simd4f_mul(m.simd[cc], ss);
+      m.simd[cc] = simd4f_div(m.simd[cc], ss);
     }
   } else {
     for (int cc = 0; cc < T::kCols; ++cc) {
       for (int rr = 0; rr < T::kRows; ++rr) {
-        m.cols[cc][rr] *= inv;
+        m.cols[cc][rr] /= s;
       }
     }
   }

@@ -14,9 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <fbxsdk.h>
+#include <cassert>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "absl/types/span.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "fbxsdk.h"
 #include "redux/modules/base/logging.h"
 #include "redux/tools/common/fbx_utils.h"
 #include "redux/tools/model_pipeline/config_generated.h"

@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "redux/engines/script/redux/script_frame.h"
 
+#include "absl/log/check.h"
 #include "redux/engines/script/redux/script_env.h"
 
 namespace redux {

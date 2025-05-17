@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/tools/common/jsonnet_utils.h"
 
+#include <cstring>
+#include <string>
+#include <utility>
+
+#include "absl/log/log.h"
 extern "C" {
 #include "libjsonnet.h"
 }

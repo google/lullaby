@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,7 +13,7 @@ cc_library(
     srcs = ["testing.cc"],
     hdrs = ["testing.h"],
     deps = [
-        "@gtest//:gtest",
+        "@absl//absl/log",
         "//redux/modules/base:filepath",
         "//redux/modules/base:logging",
     ],

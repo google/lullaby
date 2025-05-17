@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <cstdlib>
 
 #include "gmock/gmock.h"
@@ -404,12 +403,11 @@ TYPED_TEST(VectorTest, Div) {
   TypeParam vec_av(v1);
   vec_av /= v2;
 
-  const auto inv = typename TypeParam::Scalar(1) / scalar;
   for (int i = 0; i < TypeParam::kDims; ++i) {
-    EXPECT_THAT(vec_vs[i], Eq(arr1[i] * inv));
+    EXPECT_THAT(vec_vs[i], Eq(arr1[i] / scalar));
     EXPECT_THAT(vec_sv[i], Eq(scalar / arr2[i]));
     EXPECT_THAT(vec_vv[i], Eq(arr1[i] / arr2[i]));
-    EXPECT_THAT(vec_as[i], Eq(arr1[i] * inv));
+    EXPECT_THAT(vec_as[i], Eq(arr1[i] / scalar));
     EXPECT_THAT(vec_av[i], Eq(arr1[i] / arr2[i]));
   }
 }

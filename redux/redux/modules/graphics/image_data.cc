@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/modules/graphics/image_data.h"
 
+#include <cstddef>
+#include <memory>
+#include <utility>
+
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/graphics/image_utils.h"
 

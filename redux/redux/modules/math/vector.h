@@ -640,12 +640,11 @@ constexpr auto operator/(ScalarImpl<T> s, const VectorImpl<T>& v) {
 template <typename T>
 constexpr auto operator/(const VectorImpl<T>& v, ScalarImpl<T> s) {
   VectorImpl<T> result;
-  const auto inv = ScalarImpl<T>(1) / s;
   if constexpr (T::kSimd) {
-    result.simd = simd4f_mul(v.simd, simd4f_splat(inv));
+    result.simd = simd4f_div(v.simd, simd4f_splat(s));
   } else {
     for (int i = 0; i < T::kDims; ++i) {
-      result.data[i] = v.data[i] * inv;
+      result.data[i] = v.data[i] / s;
     }
   }
   return result;
@@ -668,12 +667,11 @@ constexpr auto operator/(const VectorImpl<T>& v1, const VectorImpl<T>& v2) {
 // Divides (in-place) a scalar with a vector.
 template <typename T>
 constexpr auto& operator/=(VectorImpl<T>& v, ScalarImpl<T> s) {
-  const auto inv = ScalarImpl<T>(1) / s;
   if constexpr (T::kSimd) {
-    v.simd = simd4f_mul(v.simd, simd4f_splat(inv));
+    v.simd = simd4f_div(v.simd, simd4f_splat(s));
   } else {
     for (int i = 0; i < T::kDims; ++i) {
-      v.data[i] *= inv;
+      v.data[i] /= s;
     }
   }
   return v;

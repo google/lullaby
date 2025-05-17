@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -22,9 +23,12 @@ cc_library(
     hdrs = ["script_system.h"],
     deps = [
         ":script_def",
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/time",
         "//redux/engines/script",
         "//redux/modules/base:choreographer",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/systems/dispatcher",
     ],
@@ -36,7 +40,7 @@ cc_test(
     deps = [
         ":script",
         "@gtest//:gtest_main",
-        "@absl//absl/functional:bind_front",
+        "@absl//absl/time",
         "//redux/engines/script/redux",
         "//redux/systems/dispatcher",
     ],

@@ -16,23 +16,35 @@ limitations under the License.
 
 #include "redux/engines/render/mesh_factory.h"
 
-#include <utility>
+#include <memory>
 
+#include "absl/types/span.h"
 #include "redux/engines/render/filament/filament_mesh.h"
-#include "redux/engines/render/filament/filament_render_engine.h"
+#include "redux/engines/render/mesh.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/graphics/mesh_data.h"
 
 namespace redux {
 
 MeshFactory::MeshFactory(Registry* registry) : registry_(registry) {}
 
 MeshPtr MeshFactory::CreateMesh(MeshData mesh_data) {
-  auto ptr = std::make_shared<MeshData>(std::move(mesh_data));
-  auto impl = std::make_shared<FilamentMesh>(registry_, ptr);
+  return CreateMesh(absl::MakeSpan(&mesh_data, 1));
+}
+
+MeshPtr MeshFactory::CreateMesh(absl::Span<MeshData> mesh_data) {
+  auto impl = std::make_shared<FilamentMesh>(registry_, mesh_data);
   return std::static_pointer_cast<Mesh>(impl);
 }
 
 MeshPtr MeshFactory::CreateMesh(HashValue name, MeshData mesh_data) {
-  MeshPtr mesh = CreateMesh(std::move(mesh_data));
+  return CreateMesh(name, absl::MakeSpan(&mesh_data, 1));
+}
+
+MeshPtr MeshFactory::CreateMesh(HashValue name,
+                                absl::Span<MeshData> mesh_data) {
+  MeshPtr mesh = CreateMesh(mesh_data);
   CacheMesh(name, mesh);
   return mesh;
 }
@@ -49,7 +61,7 @@ void MeshFactory::ReleaseMesh(HashValue name) { meshes_.Release(name); }
 
 MeshPtr MeshFactory::EmptyMesh() {
   if (!empty_) {
-    auto mesh = std::make_shared<FilamentMesh>(registry_, nullptr);
+    auto mesh = std::make_shared<FilamentMesh>(registry_);
     empty_ = std::static_pointer_cast<Mesh>(mesh);
   }
   return empty_;

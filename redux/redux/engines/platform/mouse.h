@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_MOUSE_H_
 #define REDUX_ENGINES_PLATFORM_MOUSE_H_
 
+#include <vector>
+
+#include "absl/time/time.h"
 #include "redux/engines/platform/buffered_state.h"
 #include "redux/engines/platform/device_profiles.h"
 #include "redux/engines/platform/virtual_device.h"
@@ -41,7 +44,9 @@ class Mouse : public VirtualDevice {
   struct View : VirtualView<Mouse> {
     const Profile* GetProfile() const;
     vec2i GetPosition() const;
+    vec2i GetDelta() const;
     int GetScrollValue() const;
+    int GetScrollDelta() const;
     TriggerFlag GetButtonState(Button button) const;
   };
 

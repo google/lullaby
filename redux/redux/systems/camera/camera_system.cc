@@ -16,10 +16,13 @@ limitations under the License.
 
 #include "redux/systems/camera/camera_system.h"
 
-#include "redux/engines/platform/device_manager.h"
+#include <memory>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/choreographer.h"
-#include "redux/modules/math/math.h"
-#include "redux/modules/math/ray.h"
+#include "redux/modules/math/matrix.h"
 
 namespace redux {
 
@@ -45,6 +48,8 @@ void CameraSystem::SetFromCameraDef(Entity entity, const CameraDef& def) {
   SetViewport(entity, def.viewport);
   SetClipPlanes(entity, def.near_plane_distance, def.far_plane_distance);
   SetHorizontalFieldOfViewAngle(entity, def.horizontal_field_of_view_angle);
+  SetExposure(entity, def.aperture, def.shutter_speed, def.iso_sensitivity);
+  SetFocalDistance(entity, def.focus_distance);
 }
 
 void CameraSystem::OnDestroy(Entity entity) { cameras_.erase(entity); }
@@ -82,6 +87,24 @@ void CameraSystem::SetHorizontalFieldOfViewAngle(Entity entity,
   camera.horizontal_fov = horizontal_fov;
 }
 
+void CameraSystem::SetAspectRatio(Entity entity, float aspect_ratio) {
+  Camera& camera = cameras_[entity];
+  camera.aspect_ratio = aspect_ratio;
+}
+
+void CameraSystem::SetExposure(Entity entity, float aperture,
+                               float shutter_speed, float iso_sensitivity) {
+  Camera& camera = cameras_[entity];
+  camera.aperture = aperture;
+  camera.shutter_speed = shutter_speed;
+  camera.iso_sensitivity = iso_sensitivity;
+}
+
+void CameraSystem::SetFocalDistance(Entity entity, float distance) {
+  Camera& camera = cameras_[entity];
+  camera.focus_distance = distance;
+}
+
 CameraOps CameraSystem::GetCameraOps(Entity entity) const {
   auto iter = cameras_.find(entity);
   if (iter != cameras_.end()) {
@@ -90,7 +113,7 @@ CameraOps CameraSystem::GetCameraOps(Entity entity) const {
     const Transform transform = transform_system_->GetTransform(entity);
     const vec3& position = transform.translation;
     const quat& rotation = transform.rotation;
-    const mat4 projection = CalculateProjectionMatrix(iter->second, layer);
+    const mat4 projection = CalculateProjectionMatrix(iter->second);
     const Bounds2i viewport = layer->GetAbsoluteViewport();
     return CameraOps(position, rotation, projection, viewport);
   }
@@ -99,26 +122,17 @@ CameraOps CameraSystem::GetCameraOps(Entity entity) const {
 }
 
 RenderLayerPtr CameraSystem::GetRenderLayer(HashValue key) const {
-  RenderLayerPtr layer;
-  if (key != HashValue()) {
-    layer = render_engine_->GetRenderLayer(key);
-    CHECK(layer) << "Unable to get RenderLayer: " << key.get();
-  } else {
-    layer = render_engine_->GetDefaultRenderLayer();
-    CHECK(layer) << "Unable to get default RenderLayer.";
+  if (key == HashValue()) {
+    key = render_engine_->GetDefaultRenderLayerName();
   }
+  RenderLayerPtr layer = render_engine_->GetRenderLayer(key);
+  CHECK(layer) << "Unable to get RenderLayer: " << key.get();
   return layer;
 }
 
-mat4 CameraSystem::CalculateProjectionMatrix(const Camera& camera,
-                                             const RenderLayerPtr& layer) {
-  const vec2i size = layer->GetAbsoluteViewport().Size();
-  const float width = static_cast<float>(size.x);
-  const float height = static_cast<float>(size.y);
-  const float aspect_ratio = height > 0.f ? width / height : 1.f;
-  const mat4 projection = PerspectiveMatrix(
-      camera.horizontal_fov, aspect_ratio, camera.near_plane, camera.far_plane);
-  return projection;
+mat4 CameraSystem::CalculateProjectionMatrix(const Camera& camera) {
+  return PerspectiveMatrix(camera.horizontal_fov, camera.aspect_ratio,
+                           camera.near_plane, camera.far_plane);
 }
 
 void CameraSystem::UpdateRenderLayers() {
@@ -130,9 +144,11 @@ void CameraSystem::UpdateRenderLayers() {
         TransformMatrix(transform.translation, transform.rotation, vec3::One());
     layer->SetViewMatrix(view_matrix);
 
-    const mat4 projection_matrix =
-        CalculateProjectionMatrix(iter.second, layer);
+    const mat4 projection_matrix = CalculateProjectionMatrix(iter.second);
     layer->SetProjectionMatrix(projection_matrix);
+    layer->SetCameraExposure(iter.second.aperture, iter.second.shutter_speed,
+                             iter.second.iso_sensitivity);
+    layer->SetCameraFocalDistance(iter.second.focus_distance);
   }
 }
 

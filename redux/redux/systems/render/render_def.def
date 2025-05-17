@@ -1,6 +1,36 @@
+include redux/modules/graphics/enums.h
+
 namespace redux
+
+struct RenderTextureDef {
+  # The URI for the texture.
+  uri: string
+
+  # Specifies how each channel of a texture should be used.
+  #
+  # Up to 4 usages can be specified. Each index corresponds to a texture channel
+  # (e.g. the type at index 0 is encoded in the R channel of the texture.)
+  # The last type will be used for all remaining channels. To explicitly
+  # "disable" a specific channel, use MaterialTextureType.Unspecified.
+  usage: [MaterialTextureType]
+}
+
+struct RenderPropertyDef {
+  # The name of the property.
+  name: string
+
+  # The value to assign to the property. Must be one of: float, vec2, vec3, or
+  # vec4.
+  value: Var
+}
 
 struct RenderDef {
   # The shading model to apply to the Entity.
   shading_model: string
+
+  # Material properties (e.g. BaseColor) for the Entity.
+  properties: [RenderPropertyDef]
+
+  # Textures for the Entity.
+  textures: [RenderTextureDef]
 }

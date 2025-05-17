@@ -16,7 +16,15 @@ limitations under the License.
 
 #include "redux/engines/animation/processor/rig_processor.h"
 
+#include <stddef.h>
+
+#include <algorithm>
+#include <memory>
+#include <vector>
+
+#include "absl/log/check.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/animation_clip.h"
 #include "redux/engines/animation/animation_engine.h"
 #include "redux/modules/base/logging.h"

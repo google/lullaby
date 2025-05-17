@@ -1,0 +1,71 @@
+cc_library(
+  name = "ar",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/ar/*.cpp"])
+  hdrs = glob(["pxr/usd/ar/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "gf",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/gf/*.cpp"])
+  hdrs = glob(["pxr/usd/gf/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "plug",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/plug/*.cpp"])
+  hdrs = glob(["pxr/usd/plug/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "sdf",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/sdf/*.cpp"])
+  hdrs = glob(["pxr/usd/sdf/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "tf",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/tf/*.cpp"])
+  hdrs = glob(["pxr/usd/tf/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "usd",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/usd/*.cpp"])
+  hdrs = glob(["pxr/usd/usd/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "usdGeom",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/usdGeom/*.cpp"])
+  hdrs = glob(["pxr/usd/usdGeom/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "usdShade",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/usdShade/*.cpp"])
+  hdrs = glob(["pxr/usd/usdShade/*.h"])
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "vt",
+  includes = [".", "pxr"],
+  srcs = glob(["pxr/usd/vt/*.cpp"])
+  hdrs = glob(["pxr/usd/vt/*.h"])
+  visibility = ["//visibility:public"],
+)

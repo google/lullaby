@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/modules/var/var.h"
 
+#include <cstddef>
+#include <string>
+#include <utility>
+
+#include "absl/log/check.h"
 #include "redux/modules/var/var_array.h"
 #include "redux/modules/var/var_table.h"
 

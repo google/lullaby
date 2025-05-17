@@ -16,8 +16,25 @@ limitations under the License.
 
 #include "redux/systems/light/light_system.h"
 
+#include <array>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
+#include "redux/engines/render/render_engine.h"
+#include "redux/engines/render/texture.h"
 #include "redux/engines/render/texture_factory.h"
 #include "redux/modules/base/choreographer.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/ecs/entity.h"
+#include "redux/modules/ecs/system.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
 #include "redux/systems/transform/transform_system.h"
 
 namespace redux {
@@ -79,9 +96,12 @@ void LightSystem::SetFromEnvLightDef(Entity entity, const EnvLightDef& def) {
   auto texture_factory = registry_->Get<TextureFactory>();
   CHECK(texture_factory);
 
+  TextureParams params;
+  params.target = TextureTarget::CubeMap;
+
   TexturePtr reflections;
   if (!def.reflections.empty()) {
-    reflections = texture_factory->LoadTexture(def.reflections, {});
+    reflections = texture_factory->LoadTexture(def.reflections, params);
   } else {
     reflections = texture_factory->DefaultEnvReflectionTexture();
   }
@@ -89,42 +109,32 @@ void LightSystem::SetFromEnvLightDef(Entity entity, const EnvLightDef& def) {
 
   TexturePtr irradiance;
   if (!def.irradiance.empty()) {
-    reflections = texture_factory->LoadTexture(def.reflections, {});
+    irradiance = texture_factory->LoadTexture(def.irradiance, params);
   }
 
-  AddEnvironmentalLight(entity, reflections, irradiance);
+  CreateIndirectLight(entity, reflections, irradiance, def.spherical_harmonics,
+                      std::nullopt);
+  SetIntensity(entity, def.intensity);
 }
 
 void LightSystem::AddEnvironmentalLight(Entity entity,
                                         const TexturePtr& reflections,
                                         std::optional<HashValue> scene) {
-  AddEnvironmentalLight(entity, reflections, nullptr, scene);
+  CreateIndirectLight(entity, reflections, nullptr, {}, scene);
 }
 
 void LightSystem::AddEnvironmentalLight(Entity entity,
                                         const TexturePtr& reflections,
                                         const TexturePtr& irradiance,
                                         std::optional<HashValue> scene) {
-  LightComponent& c = lights_[entity];
-  CHECK(c.light == nullptr);
-  CHECK(c.indirect_light == nullptr);
+  CreateIndirectLight(entity, reflections, irradiance, {}, scene);
+}
 
-  c.indirect_light = engine_->CreateIndirectLight(reflections, irradiance);
-  CHECK(c.indirect_light);
-
-  RenderScenePtr scene_ptr;
-  if (scene) {
-    if (scene.has_value()) {
-      scene_ptr = engine_->GetRenderScene(scene.value());
-      CHECK(scene_ptr);
-    }
-  } else {
-    scene_ptr = engine_->GetDefaultRenderScene();
-    CHECK(scene_ptr);
-  }
-  if (scene_ptr) {
-    scene_ptr->Add(*c.indirect_light);
-  }
+void LightSystem::AddEnvironmentalLight(
+    Entity entity, const TexturePtr& reflections,
+    absl::Span<const float> spherical_harmonics,
+    std::optional<HashValue> scene) {
+  CreateIndirectLight(entity, reflections, nullptr, spherical_harmonics, scene);
 }
 
 void LightSystem::AddDirectionalLight(Entity entity,
@@ -232,6 +242,8 @@ void LightSystem::SetIntensity(Entity entity, float intensity) {
   }
   if (iter->second.light) {
     iter->second.light->SetIntensity(intensity);
+  } else if (iter->second.indirect_light) {
+    iter->second.indirect_light->SetIntensity(intensity);
   }
 }
 
@@ -257,7 +269,7 @@ void LightSystem::SetSpotLightCone(Entity entity, float inner_angle,
 }
 
 void LightSystem::CreateLight(Entity entity, Light::Type type,
-                              std::optional<HashValue> scene) {
+                              std::optional<HashValue> scene_name) {
   LightComponent& c = lights_[entity];
   CHECK(c.light == nullptr);
   CHECK(c.indirect_light == nullptr);
@@ -265,19 +277,32 @@ void LightSystem::CreateLight(Entity entity, Light::Type type,
   c.light = engine_->CreateLight(type);
   CHECK(c.light);
 
-  RenderScenePtr scene_ptr;
-  if (scene) {
-    if (scene.has_value()) {
-      scene_ptr = engine_->GetRenderScene(scene.value());
-      CHECK(scene_ptr);
-    }
-  } else {
-    scene_ptr = engine_->GetDefaultRenderScene();
-    CHECK(scene_ptr);
+  if (!scene_name.has_value()) {
+    scene_name = engine_->GetDefaultRenderSceneName();
   }
-  if (scene_ptr) {
-    scene_ptr->Add(*c.light);
+  RenderScenePtr scene_ptr = engine_->GetRenderScene(scene_name.value());
+  CHECK(scene_ptr);
+  scene_ptr->Add(*c.light);
+}
+
+void LightSystem::CreateIndirectLight(
+    Entity entity, const TexturePtr& reflections, const TexturePtr& irradiance,
+    absl::Span<const float> spherical_harmonics,
+    std::optional<HashValue> scene_name) {
+  LightComponent& c = lights_[entity];
+  CHECK(c.light == nullptr);
+  CHECK(c.indirect_light == nullptr);
+
+  c.indirect_light = engine_->CreateIndirectLight(reflections, irradiance,
+                                                  spherical_harmonics);
+  CHECK(c.indirect_light);
+
+  if (!scene_name.has_value()) {
+    scene_name = engine_->GetDefaultRenderSceneName();
   }
+  RenderScenePtr scene_ptr = engine_->GetRenderScene(scene_name.value());
+  CHECK(scene_ptr);
+  scene_ptr->Add(*c.indirect_light);
 }
 
 }  // namespace redux

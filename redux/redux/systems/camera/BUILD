@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -23,13 +24,12 @@ cc_library(
     deps = [
         ":camera_def",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "//redux/engines/platform:device_manager",
         "//redux/engines/render",
         "//redux/modules/base:choreographer",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/modules/graphics:camera_ops",
-        "//redux/modules/math",
         "//redux/modules/math:bounds",
         "//redux/modules/math:matrix",
         "//redux/modules/math:ray",

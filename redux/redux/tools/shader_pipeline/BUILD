@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -11,10 +12,12 @@ cc_library(
     srcs = ["shader_pipeline.cc"],
     hdrs = ["shader_pipeline.h"],
     deps = [
+        "@absl//absl/container:flat_hash_map",
+        "@absl//absl/container:flat_hash_set",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
-        "@filament//:filabridge",
         "@filament//:filamat",
-        "@filament//:utils",
         "@filament//:utils_hdrs",
         "//redux/data/asset_defs:shader_asset_def_fbs",
         "//redux/modules/base:data_builder",
@@ -35,6 +38,7 @@ cc_binary(
         ":shader_pipeline_lib",
         "@absl//absl/flags:flag",
         "@absl//absl/flags:parse",
+        "@absl//absl/log:check",
         "//redux/modules/base:filepath",
         "//redux/modules/base:logging",
         "//redux/tools/common:file_utils",

@@ -16,9 +16,13 @@ limitations under the License.
 
 #include "redux/modules/datafile/datafile_reader.h"
 
+#include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux::detail {

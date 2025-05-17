@@ -17,8 +17,13 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_CHOREOGRAPHER_H_
 #define REDUX_MODULES_BASE_CHOREOGRAPHER_H_
 
+#include <stddef.h>
+
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 

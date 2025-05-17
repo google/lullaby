@@ -19,7 +19,7 @@ limitations under the License.
 
 #include <memory>
 
-#include "redux/modules/graphics/enums.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
 #include "redux/modules/graphics/image_data.h"
 
 namespace redux {

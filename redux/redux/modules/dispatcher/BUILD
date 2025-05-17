@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -13,6 +14,7 @@ cc_library(
     deps = [
         ":message",
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
         "//redux/modules/base:function_traits",
         "//redux/modules/base:typeid",
     ],
@@ -32,6 +34,7 @@ cc_library(
     srcs = ["message.cc"],
     hdrs = ["message.h"],
     deps = [
+        "@absl//absl/log:check",
         "@absl//absl/types:any",
         "//redux/modules/base:logging",
         "//redux/modules/base:serialize",

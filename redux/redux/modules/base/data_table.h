@@ -17,13 +17,15 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_DATA_TABLE_H_
 #define REDUX_MODULES_BASE_DATA_TABLE_H_
 
-#include <tuple>
+#include <cstddef>
+#include <iterator>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "redux/modules/base/logging.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/ref_tuple.h"
 
 namespace redux {

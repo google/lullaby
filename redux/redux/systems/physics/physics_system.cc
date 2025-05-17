@@ -16,10 +16,28 @@ limitations under the License.
 
 #include "redux/systems/physics/physics_system.h"
 
+#include <memory>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/time/time.h"
+#include "redux/engines/physics/collision_data.h"
+#include "redux/engines/physics/collision_shape.h"
+#include "redux/engines/physics/physics_engine.h"
+#include "redux/engines/physics/physics_enums_generated.h"
 #include "redux/modules/base/choreographer.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/ecs/entity.h"
+#include "redux/modules/ecs/system.h"
+#include "redux/modules/math/quaternion.h"
+#include "redux/modules/math/transform.h"
+#include "redux/modules/math/vector.h"
 #include "redux/systems/physics/events.h"
+#include "redux/systems/dispatcher/dispatcher_system.h"
+#include "redux/systems/physics/rigid_body_def_generated.h"
+#include "redux/systems/physics/trigger_def_generated.h"
 #include "redux/systems/transform/transform_system.h"
 
 namespace redux {
@@ -37,12 +55,14 @@ void PhysicsSystem::OnRegistryInitialize() {
   dispatcher_system_ = registry_->Get<DispatcherSystem>();
 
   if (dispatcher_system_) {
-    engine_->SetOnEnterCollisionCallback([=](Entity entity_a, Entity entity_b) {
-      OnCollisionEnter(entity_a, entity_b);
-    });
-    engine_->SetOnExitCollisionCallback([=](Entity entity_a, Entity entity_b) {
-      OnCollisionExit(entity_a, entity_b);
-    });
+    engine_->SetOnEnterCollisionCallback(
+        [=, this](Entity entity_a, Entity entity_b) {
+          OnCollisionEnter(entity_a, entity_b);
+        });
+    engine_->SetOnExitCollisionCallback(
+        [=, this](Entity entity_a, Entity entity_b) {
+          OnCollisionExit(entity_a, entity_b);
+        });
   }
 
   auto choreo = registry_->Get<Choreographer>();
@@ -75,26 +95,33 @@ void PhysicsSystem::SetShape(Entity entity, CollisionShapePtr shape) {
   }
 }
 
-void PhysicsSystem::SetRigidBodyParams(Entity entity, RigidBodyParams params) {
+void PhysicsSystem::SetRigidBody(Entity entity, const RigidBodyConfig& config,
+                                 const CollisionFlags& flags) {
   if (entity == kNullEntity) {
     return;
   }
-  CHECK(params.entity == entity || params.entity == kNullEntity);
+
   RigidBodyComponent& c = rigid_bodies_[entity];
-  c.params = std::move(params);
-  c.params.entity = entity;
+  c.params.type = config.type;
+  c.params.mass = config.mass;
+  c.params.restitution = config.restitution;
+  c.params.sliding_friction = config.sliding_friction;
+  c.params.rolling_friction = config.rolling_friction;
+  c.params.spinning_friction = config.spinning_friction;
+  c.params.collision_filter = flags.collision_filter;
+  c.params.collision_group = flags.collision_group;
   TryCreateRigidBody(entity);
 }
 
-void PhysicsSystem::SetTriggerVolumeParams(Entity entity,
-                                           TriggerVolumeParams params) {
+void PhysicsSystem::SetTriggerVolume(Entity entity,
+                                     const CollisionFlags& flags) {
   if (entity == kNullEntity) {
     return;
   }
-  CHECK(params.entity == entity || params.entity == kNullEntity);
+
   TriggerVolumeComponent& c = trigger_volumes_[entity];
-  c.params = std::move(params);
-  c.params.entity = entity;
+  c.params.collision_filter = flags.collision_filter;
+  c.params.collision_group = flags.collision_group;
   TryCreateTriggerVolume(entity);
 }
 
@@ -102,6 +129,33 @@ void PhysicsSystem::OnDestroy(Entity entity) {
   trigger_volumes_.erase(entity);
   rigid_bodies_.erase(entity);
   shapes_.erase(entity);
+}
+
+void PhysicsSystem::SetRigidBodyMotionType(Entity entity,
+                                           RigidBodyMotionType motion_type) {
+  auto iter = rigid_bodies_.find(entity);
+  if (iter == rigid_bodies_.end()) {
+    LOG(FATAL) << "Entity is not a rigid body.";
+  }
+
+  iter->second.params.type = motion_type;
+  if (iter->second.rigid_body) {
+    iter->second.rigid_body->SetMotionType(motion_type);
+  }
+}
+
+void PhysicsSystem::SetCollisionFlags(Entity entity,
+                                      const CollisionFlags& flags) {
+  if (auto iter = rigid_bodies_.find(entity); iter != rigid_bodies_.end()) {
+    iter->second.params.collision_group = flags.collision_group;
+    iter->second.params.collision_filter = flags.collision_filter;
+    if (iter->second.rigid_body) {
+      iter->second.rigid_body->SetCollisionState(flags.collision_group,
+                                                 flags.collision_filter);
+    }
+    return;
+  }
+
 }
 
 void PhysicsSystem::PrePhysics(absl::Duration timestep) {
@@ -217,12 +271,12 @@ void PhysicsSystem::TryCreateTriggerVolume(Entity entity) {
 
 void PhysicsSystem::SetFromRigidBodyDef(Entity entity,
                                         const RigidBodyDef& def) {
-  RigidBodyParams params;
-  params.type = def.motion_type;
-  params.mass = def.mass;
-  params.restitution = def.restitution;
-  params.sliding_friction = def.friction;
-  SetRigidBodyParams(entity, params);
+  RigidBodyConfig config;
+  config.type = def.motion_type;
+  config.mass = def.mass;
+  config.restitution = def.restitution;
+  config.sliding_friction = def.friction;
+  SetRigidBody(entity, config, CollisionFlags());
 }
 
 void PhysicsSystem::SetFromBoxTriggerDef(Entity entity,
@@ -230,7 +284,7 @@ void PhysicsSystem::SetFromBoxTriggerDef(Entity entity,
   CollisionDataPtr shape = std::make_shared<CollisionData>();
   shape->AddBox(vec3::Zero(), quat::Identity(), def.half_extents);
   SetShape(entity, shape);
-  SetTriggerVolumeParams(entity, {});
+  SetTriggerVolume(entity, CollisionFlags());
 }
 
 void PhysicsSystem::SetFromSphereTriggerDef(Entity entity,
@@ -238,7 +292,7 @@ void PhysicsSystem::SetFromSphereTriggerDef(Entity entity,
   CollisionDataPtr shape = std::make_shared<CollisionData>();
   shape->AddSphere(vec3::Zero(), def.radius);
   SetShape(entity, shape);
-  SetTriggerVolumeParams(entity, {});
+  SetTriggerVolume(entity, CollisionFlags());
 }
 
 }  // namespace redux

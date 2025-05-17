@@ -16,18 +16,42 @@ limitations under the License.
 
 #include "redux/engines/audio/resonance/resonance_audio_engine.h"
 
-#include "redux/engines/audio/resonance/audio_stream_renderer.h"
+#include <stddef.h>
+#include <stdint.h>
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <ostream>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "redux/engines/audio/resonance/audio_asset_stream.h"
+#include "redux/engines/audio/resonance/audio_stream_renderer.h"
 #include "redux/engines/audio/resonance/resonance_sound.h"
 #include "redux/engines/audio/resonance/resonance_utils.h"
 #include "redux/engines/platform/device_manager.h"
 #include "redux/modules/base/choreographer.h"
 #include "redux/modules/base/static_registry.h"
+#include "resonance_audio/api/resonance_audio_api.h"
+#include "resonance_audio/base/audio_buffer.h"
+#include "resonance_audio/base/channel_view.h"
+#include "resonance_audio/base/constants_and_types.h"
 #include "resonance_audio/dsp/channel_converter.h"
 #include "resonance_audio/graph/resonance_audio_api_impl.h"
 #include "platforms/common/room_effects_utils.h"
+#include "resonance_audio/utils/lockless_task_queue.h"
 #include "resonance_audio/utils/planar_interleaved_conversion.h"
 #include "resonance_audio/utils/sample_type_conversion.h"
+#include "resonance_audio/utils/semi_lockless_fifo.h"
 
 namespace redux {
 
@@ -101,7 +125,7 @@ void ResonanceAudioEngine::Start() {
   auto device_manager = registry_->Get<DeviceManager>();
   device_manager->SetFillAudioBufferFn([=](Speaker::HwBuffer hw_buffer) {
     const size_t size = speaker_profile_->num_channels *
-                        speaker_profile_->frames_per_buffer * sizeof(uint16);
+                        speaker_profile_->frames_per_buffer * sizeof(uint16_t);
     CHECK_EQ(hw_buffer.size(), size);
     auto data_ptr = reinterpret_cast<int16_t*>(hw_buffer.data());
     OnMoreData(data_ptr, speaker_profile_->num_channels,

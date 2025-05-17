@@ -16,32 +16,47 @@ limitations under the License.
 
 #include "redux/engines/render/filament/filament_renderable.h"
 
+#include <stdint.h>
+
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
+#include "filament/Box.h"
+#include "filament/Material.h"
 #include "filament/RenderableManager.h"
+#include "filament/Scene.h"
 #include "filament/TransformManager.h"
+#include "math/mat3.h"
+#include "math/mat4.h"
+#include "math/vec3.h"
 #include "utils/EntityManager.h"
 #include "redux/engines/render/filament/filament_mesh.h"
 #include "redux/engines/render/filament/filament_render_engine.h"
+#include "redux/engines/render/filament/filament_render_scene.h"
 #include "redux/engines/render/filament/filament_shader.h"
 #include "redux/engines/render/filament/filament_texture.h"
 #include "redux/engines/render/filament/filament_utils.h"
+#include "redux/engines/render/mesh.h"
+#include "redux/engines/render/renderable.h"
+#include "redux/engines/render/shader.h"
+#include "redux/engines/render/texture.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
+#include "redux/modules/graphics/enums.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/texture_usage.h"
+#include "redux/modules/math/matrix.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
-
-static constexpr HashValue kRootPart = HashValue(0);
-
-static filament::RenderableManager::PrimitiveType ToFilament(
-    MeshPrimitiveType type) {
-  switch (type) {
-    case MeshPrimitiveType::Triangles:
-      return filament::RenderableManager::PrimitiveType::TRIANGLES;
-    case MeshPrimitiveType::Points:
-      return filament::RenderableManager::PrimitiveType::POINTS;
-    case MeshPrimitiveType::Lines:
-      return filament::RenderableManager::PrimitiveType::LINES;
-    default:
-      LOG(FATAL) << "Unsupported primitive type: " << ToString(type);
-  }
-}
 
 static MaterialPropertyType MaterialPropertyTypeFromTextureTarget(
     TextureTarget target) {
@@ -59,95 +74,105 @@ FilamentRenderable::FilamentRenderable(Registry* registry) {
   fengine_ = GetFilamentEngine(registry);
 }
 
-FilamentRenderable::~FilamentRenderable() { DestroyParts(); }
+FilamentRenderable::~FilamentRenderable() { DestroyFilamentEntity(); }
 
 void FilamentRenderable::PrepareToRender(const mat4& transform) {
   auto& tm = fengine_->getTransformManager();
   auto& rm = fengine_->getRenderableManager();
 
-  const uint8_t global_visbility = IsHidden(kRootPart) ? 0x00 : 0xff;
   const auto mx = ToFilament(transform);
-  for (auto& iter : parts_) {
-    auto ti = tm.getInstance(iter.second.fentity);
-    auto ri = rm.getInstance(iter.second.fentity);
-    tm.setTransform(ti, mx);
+  auto ti = tm.getInstance(fentity_);
+  auto ri = rm.getInstance(fentity_);
+  tm.setTransform(ti, mx);
 
-    const uint8_t local_visibility = IsHidden(iter.first) ? 0x00 : 0xff;
-    const uint8_t visibility = global_visbility & local_visibility;
-    rm.setLayerMask(ri, 0xff, visibility);
+  const uint8_t visibility_mask = visible_ ? 0xff : 0x00;
+  rm.setLayerMask(ri, 0xff, visibility_mask);
 
-    if (iter.second.finstance) {
-      const bool updated = ApplyProperties(iter.first, iter.second);
-      if (updated) {
-        rm.setMaterialInstanceAt(ri, 0, iter.second.finstance.get());
-      }
+  if (finstance_) {
+    const bool updated = ApplyProperties();
+    if (updated || rm.getMaterialInstanceAt(ri, 0) == nullptr) {
+      rm.setMaterialInstanceAt(ri, 0, finstance_.get());
     }
   }
 }
 
-bool FilamentRenderable::ApplyProperties(HashValue part_name,
-                                         PartInstance& part) {
+bool FilamentRenderable::ApplyProperties() {
   bool updated = false;
+  auto& rm = fengine_->getRenderableManager();
+  auto ri = rm.getInstance(fentity_);
 
   if (is_skinned_) {
-    const MaterialProperty* bones =
-        GetMaterialProperty(kRootPart, ConstHash("Bones"));
+    const MaterialProperty* bones = GetMaterialProperty(ConstHash("Bones"));
     if (bones) {
       CHECK(bones->type == MaterialPropertyType::Float4x4);
       const auto bytes = bones->data.GetByteSpan();
       const auto* data =
           reinterpret_cast<const filament::math::mat4f*>(bytes.data());
       const size_t num_bones = bytes.size() / sizeof(filament::math::mat4f);
-      auto& rm = fengine_->getRenderableManager();
-      auto ri = rm.getInstance(part.fentity);
       rm.setBones(ri, data, num_bones);
     }
   }
   {
     const MaterialProperty* property =
-        GetMaterialProperty(part_name, ConstHash("Scissor"));
+        GetMaterialProperty(ConstHash("Scissor"));
     if (property) {
       CHECK(property->type == MaterialPropertyType::Int4);
       const vec4i* scissor =
           reinterpret_cast<const vec4i*>(property->data.GetByteSpan().data());
       if (scissor->x < 0 || scissor->y < 0 || scissor->z < 0 ||
           scissor->w < 0) {
-        part.finstance->unsetScissor();
+        finstance_->unsetScissor();
       } else {
-        part.finstance->setScissor(scissor->x, scissor->y, scissor->z,
-                                   scissor->w);
+        finstance_->setScissor(scissor->x, scissor->y, scissor->z, scissor->w);
       }
     }
   }
   {
     const MaterialProperty* property =
-        GetMaterialProperty(part_name, ConstHash("PolygonOffset"));
+        GetMaterialProperty(ConstHash("PolygonOffset"));
     if (property) {
       CHECK(property->type == MaterialPropertyType::Float2);
       const vec2* offset =
           reinterpret_cast<const vec2*>(property->data.GetByteSpan().data());
-      part.finstance->setPolygonOffset(offset->x, offset->y);
+      finstance_->setPolygonOffset(offset->x, offset->y);
+    }
+  }
+  {
+    const MaterialProperty* property =
+        GetMaterialProperty(ConstHash("BaseTransform"));
+    if (property) {
+      CHECK(property->type == MaterialPropertyType::Float4x4);
+      if (property->generation !=
+          property_generations_[ConstHash("BaseTransform")]) {
+        const float* arr =
+            reinterpret_cast<const float*>(property->data.GetByteSpan().data());
+        filament::math::mat3f transform(arr[0], arr[1], arr[2],
+                                        arr[4], arr[5], arr[6],
+                                        arr[8], arr[9], arr[10]);
+        filament::math::float3 translate(arr[12], arr[13], arr[14]);
+        const auto aabb = filament::Box::transform(transform, translate, aabb_);
+        rm.setAxisAlignedBoundingBox(ri, aabb);
+      }
     }
   }
 
-  FilamentShader* shader = static_cast<FilamentShader*>(part.shader.get());
-  shader->ForEachParameter(
-      part.variant_id, [&](const FilamentShader::ParameterInfo& param) {
-        const MaterialProperty* property =
-            GetMaterialProperty(part_name, param.key);
+  FilamentShader* fshader = static_cast<FilamentShader*>(shader_.get());
+  fshader->ForEachParameter(
+      variant_id_, [&](const FilamentShader::ParameterInfo& param) {
+        const MaterialProperty* property = GetMaterialProperty(param.key);
         if (property == nullptr) {
           return;
         }
-        if (property->generation == part.property_generations[param.key]) {
+        if (property->generation == property_generations_[param.key]) {
           return;
         }
 
-        part.property_generations[param.key] = property->generation;
+        property_generations_[param.key] = property->generation;
         if (property->texture) {
-          FilamentShader::SetParameter(part.finstance.get(), param.name.c_str(),
+          FilamentShader::SetParameter(finstance_.get(), param.name.c_str(),
                                        property->type, property->texture);
         } else {
-          FilamentShader::SetParameter(part.finstance.get(), param.name.c_str(),
+          FilamentShader::SetParameter(finstance_.get(), param.name.c_str(),
                                        property->type,
                                        property->data.GetByteSpan());
         }
@@ -160,8 +185,8 @@ void FilamentRenderable::AddToScene(FilamentRenderScene* scene) const {
   auto fscene = scene->GetFilamentScene();
   if (!scenes_.contains(fscene)) {
     scenes_.emplace(fscene);
-    for (auto& part : parts_) {
-      fscene->addEntity(part.second.fentity);
+    if (!fentity_.isNull()) {
+      fscene->addEntity(fentity_);
     }
   }
 }
@@ -169,102 +194,83 @@ void FilamentRenderable::AddToScene(FilamentRenderScene* scene) const {
 void FilamentRenderable::RemoveFromScene(FilamentRenderScene* scene) const {
   auto fscene = scene->GetFilamentScene();
   if (scenes_.contains(fscene)) {
-    for (auto& part : parts_) {
-      fscene->remove(part.second.fentity);
+    if (!fentity_.isNull()) {
+      fscene->remove(fentity_);
     }
     scenes_.erase(fscene);
   }
 }
 
-MeshPtr FilamentRenderable::GetMesh() const { return mesh_; }
-
-void FilamentRenderable::SetMesh(MeshPtr mesh) {
+void FilamentRenderable::SetMesh(MeshPtr mesh, size_t part_index) {
   if (mesh_ != mesh) {
     mesh_ = mesh;
-    CreateParts();
+    part_index_ = part_index;
+    CreateFilamentEntity();
     RebuildConditions();
   }
 }
 
-void FilamentRenderable::CreateParts() {
-  DestroyParts();
+void FilamentRenderable::CreateFilamentEntity() {
+  DestroyFilamentEntity();
   if (mesh_ == nullptr) {
     return;
   }
 
   FilamentMesh* impl = static_cast<FilamentMesh*>(mesh_.get());
-  const auto vbuffer = impl->GetFilamentVertexBuffer();
-  const auto ibuffer = impl->GetFilamentIndexBuffer();
 
-  const size_t count = mesh_->GetNumSubmeshes();
-  for (size_t i = 0; i < count; ++i) {
-    const Mesh::SubmeshData& submesh = mesh_->GetSubmeshData(i);
-    CHECK(count == 1 || submesh.name.get()) << "Submeshes must have names.";
+  filament::RenderableManager::Builder builder(1);
+  impl->PreparePartRenderable(part_index_, builder);
 
-    // Ensure we always have a material for every part.
-    materials_[submesh.name];
+  builder.castShadows(true);
+  builder.receiveShadows(true);
 
-    is_skinned_ |= submesh.vertex_format.GetAttributeWithUsage(
-                       VertexUsage::BoneWeights) != nullptr;
+  is_skinned_ = false;
+  for (VertexUsage usage : impl->GetVertexUsages()) {
+    is_skinned_ |= (usage == VertexUsage::BoneWeights);
+  }
+  if (is_skinned_) {
+    builder.skinning(255);
+  }
 
-    // Create a filament Renderable for each part.
-    PartInstance& part = parts_[submesh.name];
-    filament::RenderableManager::Builder builder(1);
-    const auto type = ToFilament(submesh.primitive_type);
-    builder.boundingBox(ToFilament(submesh.box));
-    builder.geometry(0, type, vbuffer, ibuffer, submesh.range_start,
-                     submesh.range_end - submesh.range_start);
+  fentity_ = utils::EntityManager::get().create();
+  builder.build(*fengine_, fentity_);
 
-    if (is_skinned_) {
-      builder.skinning(255);
-    }
+  auto& rm = fengine_->getRenderableManager();
+  auto ri = rm.getInstance(fentity_);
+  aabb_ = rm.getAxisAlignedBoundingBox(ri);
 
-    part.fentity = utils::EntityManager::get().create();
-    builder.build(*fengine_, part.fentity);
-
-    // Add the part to all the scenes to which this belongs.
-    for (filament::Scene* scene : scenes_) {
-      scene->addEntity(part.fentity);
-    }
+  for (filament::Scene* scene : scenes_) {
+    scene->addEntity(fentity_);
   }
 }
 
-void FilamentRenderable::DestroyParts() {
+void FilamentRenderable::DestroyFilamentEntity() {
+  if (fentity_.isNull()) {
+    return;
+  }
+
   auto& tm = fengine_->getTransformManager();
   auto& rm = fengine_->getRenderableManager();
-  for (auto& iter : parts_) {
-    for (filament::Scene* scene : scenes_) {
-      scene->remove(iter.second.fentity);
-    }
-    rm.destroy(iter.second.fentity);
-    tm.destroy(iter.second.fentity);
-    utils::EntityManager::get().destroy(iter.second.fentity);
+  for (filament::Scene* scene : scenes_) {
+    scene->remove(fentity_);
   }
-  parts_.clear();
-  is_skinned_ = false;
+  rm.destroy(fentity_);
+  tm.destroy(fentity_);
+  utils::EntityManager::get().destroy(fentity_);
+  fentity_ = utils::Entity();
 }
 
-void FilamentRenderable::SetShader(ShaderPtr shader,
-                                   std::optional<HashValue> part) {
-  Material& material = materials_[part ? part.value() : kRootPart];
-  material.shader = std::move(shader);
-  ReacquireInstance(part ? part.value() : kRootPart);
+void FilamentRenderable::SetShader(ShaderPtr shader) {
+  shader_ = std::move(shader);
+  variant_id_ = FilamentShader::kInvalidVariant;
+  ReacquireInstance();
 }
 
-void FilamentRenderable::Show(std::optional<HashValue> part) {
-  Material& material = materials_[part ? part.value() : kRootPart];
-  material.visible = true;
-}
+void FilamentRenderable::Show() { visible_ = true; }
 
-void FilamentRenderable::Hide(std::optional<HashValue> part) {
-  Material& material = materials_[part ? part.value() : kRootPart];
-  material.visible = false;
-}
+void FilamentRenderable::Hide() { visible_ = false; }
 
-bool FilamentRenderable::IsHidden(std::optional<HashValue> part) const {
-  auto iter = materials_.find(part ? part.value() : kRootPart);
-  return iter != materials_.end() ? !iter->second.visible : true;
-}
+bool FilamentRenderable::IsHidden() const { return visible_; }
 
 void FilamentRenderable::EnableVertexAttribute(VertexUsage usage) {
   disabled_vertices_.erase(usage);
@@ -283,43 +289,38 @@ bool FilamentRenderable::IsVertexAttributeEnabled(VertexUsage usage) const {
 void FilamentRenderable::SetTexture(TextureUsage usage,
                                     const TexturePtr& texture) {
   HashValue key = usage.Hash();
-  Material& material = materials_[kRootPart];
-  MaterialProperty& property = material.properties[key];
+  MaterialProperty& property = properties_[key];
   property.data.Clear();
-  property.texture = texture;
-  property.type = MaterialPropertyTypeFromTextureTarget(texture->GetTarget());
+  if (texture) {
+    property.texture = texture;
+    property.type = MaterialPropertyTypeFromTextureTarget(texture->GetTarget());
 
-  FilamentTexture* impl = static_cast<FilamentTexture*>(texture.get());
-  impl->OnReady([=]() { RebuildConditions(); });
+    FilamentTexture* impl = static_cast<FilamentTexture*>(texture.get());
+    impl->OnReady([this]() { RebuildConditions(); });
+  }
+  RebuildConditions();
   ++property.generation;
 }
 
 TexturePtr FilamentRenderable::GetTexture(TextureUsage usage) const {
   const HashValue key = usage.Hash();
-  const MaterialProperty* property = GetMaterialProperty(kRootPart, key);
+  const MaterialProperty* property = GetMaterialProperty(key);
   return property ? property->texture : nullptr;
 }
 
 void FilamentRenderable::SetProperty(HashValue name, MaterialPropertyType type,
                                      absl::Span<const std::byte> data) {
-  SetProperty(name, kRootPart, type, data);
-}
-
-void FilamentRenderable::SetProperty(HashValue name, HashValue part,
-                                     MaterialPropertyType type,
-                                     absl::Span<const std::byte> data) {
-  Material& material = materials_[part];
   if (type == MaterialPropertyType::Feature) {
     CHECK(data.size() == sizeof(bool));
     const bool enable = *reinterpret_cast<const bool*>(data.data());
     if (enable) {
-      material.features.emplace(name);
+      features_.emplace(name);
     } else {
-      material.features.erase(name);
+      features_.erase(name);
     }
-    ReacquireInstance(part);
+    ReacquireInstance();
   } else {
-    MaterialProperty& property = material.properties[name];
+    MaterialProperty& property = properties_[name];
     property.texture = nullptr;
     property.data.Assign(data);
     property.type = type;
@@ -327,46 +328,34 @@ void FilamentRenderable::SetProperty(HashValue name, HashValue part,
   }
 }
 
+void FilamentRenderable::InheritProperties(const Renderable& other) {
+  const auto* frenderable = static_cast<const FilamentRenderable*>(&other);
+  this->shader_ = frenderable->shader_;
+  this->visible_ = frenderable->visible_;
+  this->conditions_ = frenderable->conditions_;
+  this->disabled_vertices_ = frenderable->disabled_vertices_;
+  this->properties_ = frenderable->properties_;
+}
+
 const FilamentRenderable::MaterialProperty*
-FilamentRenderable::GetMaterialProperty(HashValue part, HashValue name) const {
-  bool is_root = part == kRootPart;
-  auto part_iter = materials_.find(part);
-  if (part_iter == materials_.end()) {
-    is_root = true;
-    part_iter = materials_.find(kRootPart);
-  }
-  if (part_iter == materials_.end()) {
-    return nullptr;
-  }
-
-  const Material* material = &part_iter->second;
-  auto property_iter = material->properties.find(name);
-  if (property_iter == material->properties.end() && !is_root) {
-    is_root = true;
-    part_iter = materials_.find(kRootPart);
-    material = &part_iter->second;
-    property_iter = material->properties.find(name);
-  }
-
-  return property_iter != material->properties.end() ? &property_iter->second
-                                                     : nullptr;
+FilamentRenderable::GetMaterialProperty(HashValue name) const {
+  auto iter = properties_.find(name);
+  return iter != properties_.end() ? &iter->second : nullptr;
 }
 
 void FilamentRenderable::RebuildConditions() {
   conditions_.clear();
-  if (mesh_ == nullptr || mesh_->GetNumSubmeshes() == 0) {
+  if (mesh_ == nullptr) {
     return;
   }
 
-  const VertexFormat& format = mesh_->GetSubmeshData(0).vertex_format;
-  for (size_t i = 0; i < format.GetNumAttributes(); ++i) {
-    const VertexAttribute* attrib = format.GetAttributeAt(i);
-    if (!disabled_vertices_.contains(attrib->usage)) {
-      conditions_.insert(Hash(attrib->usage));
+  FilamentMesh* fmesh = static_cast<FilamentMesh*>(mesh_.get());
+  for (VertexUsage usage : fmesh->GetVertexUsages()) {
+    if (!disabled_vertices_.contains(usage)) {
+      conditions_.insert(Hash(usage));
     }
   }
-  const Material& root_material = materials_[kRootPart];
-  for (const auto& iter : root_material.properties) {
+  for (const auto& iter : properties_) {
     if (iter.second.texture != nullptr) {
       FilamentTexture* impl =
           static_cast<FilamentTexture*>(iter.second.texture.get());
@@ -375,64 +364,27 @@ void FilamentRenderable::RebuildConditions() {
       }
     }
   }
-  for (const auto& iter : parts_) {
-    ReacquireInstance(iter.first);
-  }
+  variant_id_ = FilamentShader::kInvalidVariant;
+  ReacquireInstance();
 }
 
-void FilamentRenderable::ReacquireInstance(HashValue part) {
-  auto part_iter = parts_.find(part);
-  auto material_iter = materials_.find(part);
-  if (part_iter == parts_.end() || material_iter == materials_.end()) {
+void FilamentRenderable::ReacquireInstance() {
+  if (shader_ == nullptr) {
     return;
   }
 
-  Material& part_material = material_iter->second;
-  Material& root_material = materials_[kRootPart];
+  // Find a shader material instance that fulfills the requirements.
+  FilamentShader* impl = static_cast<FilamentShader*>(shader_.get());
+  const auto variant = impl->DetermineVariantId(conditions_, features_);
 
-  // Use the root shader if the part does not have its own shader specified.
-  ShaderPtr shader = part_material.shader;
-  if (shader == nullptr) {
-    shader = root_material.shader;
-  }
+  // If the updated set of requirements requires a new variant instance,
+  // abandon the old one and create a new one.
+  if (variant_id_ != variant) {
+    variant_id_ = variant;
+    property_generations_.clear();
 
-  // Acquire the material instance from the shader.
-  if (shader) {
-    // Combine the features from the root and part into a single set.
-    absl::btree_set<HashValue> features;
-    for (auto& f : part_material.features) {
-      features.emplace(f);
-    }
-    for (auto& f : root_material.features) {
-      features.emplace(f);
-    }
-
-    // Find a shader material instance that fulfills the requirements.
-    FilamentShader* impl = static_cast<FilamentShader*>(shader.get());
-    const auto variant = impl->DetermineVariantId(conditions_, features);
-
-    // If the updated set of requirements requires a new variant instance,
-    // abandon the old one and create a new one.
-    PartInstance& part_instance = part_iter->second;
-    if (part_instance.variant_id != variant) {
-      part_instance.shader = shader;
-      part_instance.variant_id = variant;
-      part_instance.property_generations.clear();
-
-      const filament::Material* fmaterial = impl->GetFilamentMaterial(variant);
-      filament::MaterialInstance* finstance = fmaterial->createInstance();
-      part_instance.finstance = MakeFilamentResource(finstance, fengine_);
-    }
-  }
-
-  // If we're changing the root shader, then we also need to update any parts
-  // that don't have their own shader, but instead use the root shader.
-  if (part == kRootPart) {
-    for (const auto& iter : materials_) {
-      if (iter.first != kRootPart && iter.second.shader == nullptr) {
-        ReacquireInstance(iter.first);
-      }
-    }
+    const filament::Material* fmaterial = impl->GetFilamentMaterial(variant);
+    finstance_ = MakeFilamentResource(fmaterial->createInstance(), fengine_);
   }
 }
 

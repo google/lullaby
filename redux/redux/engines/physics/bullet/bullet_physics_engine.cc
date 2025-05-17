@@ -16,8 +16,17 @@ limitations under the License.
 
 #include "redux/engines/physics/bullet/bullet_physics_engine.h"
 
-#include <algorithm>
+#include <stddef.h>
 
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "btBulletDynamicsCommon.h"
 #include "redux/engines/physics/bullet/bullet_collision_shape.h"
 #include "redux/engines/physics/bullet/bullet_rigid_body.h"

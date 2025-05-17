@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -22,16 +23,15 @@ cc_library(
     hdrs = ["transform_system.h"],
     deps = [
         ":transform_def",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/engines/script:function_binder",
         "//redux/modules/base:bits",
         "//redux/modules/base:data_table",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/modules/math:bounds",
-        "//redux/modules/math:matrix",
-        "//redux/modules/math:quaternion",
         "//redux/modules/math:transform",
-        "//redux/modules/math:vector",
     ],
 )
 

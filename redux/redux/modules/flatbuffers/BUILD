@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -75,12 +76,13 @@ cc_library(
     srcs = ["var.cc"],
     hdrs = ["var.h"],
     deps = [
-        ":common",
         ":math",
         ":var_fbs",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/modules/base:data_buffer",
         "//redux/modules/base:logging",
-        "//redux/modules/math:vector",
         "//redux/modules/var",
     ],
 )

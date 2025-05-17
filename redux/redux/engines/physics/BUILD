@@ -8,6 +8,7 @@ load(
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -25,13 +26,15 @@ cc_library(
     ],
     deps = [
         ":enums",
+        ":physics_enums_fbs",
+        "@absl//absl/log:check",
         "@absl//absl/time",
+        "@absl//absl/types:span",
         "//redux/modules/base:bits",
         "//redux/modules/base:data_container",
         "//redux/modules/base:registry",
         "//redux/modules/base:resource_manager",
         "//redux/modules/ecs:entity",
-        "//redux/modules/math:bounds",
         "//redux/modules/math:quaternion",
         "//redux/modules/math:transform",
         "//redux/modules/math:vector",

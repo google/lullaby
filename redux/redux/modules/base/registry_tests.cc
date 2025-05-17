@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <functional>
+#include <memory>
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "redux/modules/base/registry.h"

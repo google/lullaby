@@ -17,8 +17,12 @@ limitations under the License.
 #ifndef REDUX_MODULES_AUDIO_OPUS_READER_H_
 #define REDUX_MODULES_AUDIO_OPUS_READER_H_
 
+#include <stdint.h>
+
+#include <cstddef>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "opusfile.h"
 #include "redux/modules/audio/audio_reader.h"
 #include "redux/modules/base/data_reader.h"

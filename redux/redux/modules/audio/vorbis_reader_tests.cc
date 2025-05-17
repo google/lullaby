@@ -14,10 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
+#include <cstdio>
+#include <memory>
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "redux/modules/testing/testing.h"
+#include "absl/types/span.h"
 #include "redux/modules/audio/vorbis_reader.h"
+#include "redux/modules/testing/testing.h"
 
 namespace redux {
 namespace {

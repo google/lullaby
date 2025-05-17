@@ -14,6 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <array>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "assimp/DefaultIOSystem.h"
 #include "assimp/DefaultLogger.hpp"

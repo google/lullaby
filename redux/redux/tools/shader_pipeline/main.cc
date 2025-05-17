@@ -15,12 +15,13 @@ limitations under the License.
 */
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/check.h"
 #include "redux/modules/base/filepath.h"
-#include "redux/modules/base/logging.h"
 #include "redux/tools/common/file_utils.h"
 #include "redux/tools/common/json_utils.h"
 #include "redux/tools/common/jsonnet_utils.h"
@@ -34,10 +35,12 @@ namespace {
 
 struct ShaderList {
   std::vector<ShaderAsset> shaders;
+  std::vector<std::vector<std::string>> variants;
 
   template <typename Archive>
   void Serialize(Archive archive) {
     archive(shaders, ConstHash("shaders"));
+    archive(variants, ConstHash("variants"));
   }
 };
 
@@ -47,7 +50,7 @@ int RunShaderPipeline() {
   const std::string json = JsonnetToJson(jsonnet.c_str(), src.c_str());
   const std::string name = std::string(RemoveDirectoryAndExtension(src));
   ShaderList shaders = ReadJson<ShaderList>(json.c_str());
-  DataContainer data = BuildShader(name, shaders.shaders);
+  DataContainer data = BuildShader(name, shaders.shaders, shaders.variants);
 
   const std::string& out_file = absl::GetFlag(FLAGS_out);
   CHECK(SaveFile(data.GetBytes(), data.GetNumBytes(), out_file.c_str(), true))

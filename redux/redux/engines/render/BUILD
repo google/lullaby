@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -15,6 +16,7 @@ cc_library(
         "mesh_factory.h",
         "render_engine.h",
         "render_layer.h",
+        "render_layer_options.h",
         "render_scene.h",
         "render_target.h",
         "render_target_factory.h",
@@ -25,22 +27,17 @@ cc_library(
         "texture_factory.h",
     ],
     deps = [
-        "@absl//absl/container:flat_hash_map",
-        "@absl//absl/container:flat_hash_set",
+        "@absl//absl/types:span",
         "//redux/modules/base:bits",
-        "//redux/modules/base:data_buffer",
-        "//redux/modules/base:data_container",
         "//redux/modules/base:hash",
         "//redux/modules/base:registry",
         "//redux/modules/base:resource_manager",
         "//redux/modules/base:typeid",
         "//redux/modules/graphics:color",
-        "//redux/modules/graphics:enums",
+        "//redux/modules/graphics:graphics_enums_fbs",
         "//redux/modules/graphics:image_data",
-        "//redux/modules/graphics:material_data",
         "//redux/modules/graphics:mesh_data",
         "//redux/modules/graphics:texture_usage",
-        "//redux/modules/graphics:vertex_format",
         "//redux/modules/math:bounds",
         "//redux/modules/math:matrix",
         "//redux/modules/math:vector",

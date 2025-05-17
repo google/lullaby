@@ -17,6 +17,10 @@ limitations under the License.
 #ifndef REDUX_TOOLS_COMMON_AXIS_SYSTEM_
 #define REDUX_TOOLS_COMMON_AXIS_SYSTEM_
 
+#include <stddef.h>
+
+#include <string_view>
+
 #include "redux/tools/common/axis_system_generated.h"
 
 namespace redux::tool {

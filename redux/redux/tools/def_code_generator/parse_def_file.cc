@@ -16,9 +16,17 @@ limitations under the License.
 
 #include "redux/tools/def_code_generator/parse_def_file.h"
 
-#include <string>
-#include <utility>
+#include <stddef.h>
 
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "redux/modules/base/logging.h"
@@ -345,7 +353,14 @@ void DefParser::ParseStruct(std::string_view* txt) {
       status_ = absl::InternalError(
           absl::StrCat("Expected a type for field: ", name));
       return;
-    } else if (!IsValidName(type)) {
+    }
+
+    if (type.front() == '[' && type.back() == ']') {
+      type = type.substr(1, type.length() - 2);
+      f.attributes[FieldMetadata::kIsArray] = "true";
+    }
+
+    if (!IsValidName(type)) {
       status_ = absl::InternalError(absl::StrCat("Invalid type name: ", type));
       return;
     }
@@ -362,7 +377,7 @@ void DefParser::ParseStruct(std::string_view* txt) {
         return;
       }
 
-      f.attributes[FieldMetadata::kDefaulValue] = std::string(value);
+      f.attributes[FieldMetadata::kDefaultValue] = std::string(value);
     }
     info.fields.push_back(f);
   }

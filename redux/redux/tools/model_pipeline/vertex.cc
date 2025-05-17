@@ -16,6 +16,11 @@ limitations under the License.
 
 #include "redux/tools/model_pipeline/vertex.h"
 
+#include <string_view>
+
+#include "absl/log/log.h"
+#include "absl/types/span.h"
+
 namespace redux::tool {
 
 Vertex::Attrib Vertex::BuildAttrib(std::string_view str) {

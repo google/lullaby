@@ -16,7 +16,12 @@ limitations under the License.
 
 #include "redux/tools/def_code_generator/code_builder.h"
 
+#include <stddef.h>
+
+#include <ostream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/str_split.h"

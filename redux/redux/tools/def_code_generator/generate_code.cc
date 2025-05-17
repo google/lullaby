@@ -17,11 +17,15 @@ limitations under the License.
 #include "redux/tools/def_code_generator/generate_code.h"
 
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
-#include "redux/tools/def_code_generator/code_builder.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "redux/modules/base/filepath.h"
+#include "redux/tools/def_code_generator/code_builder.h"
 
 namespace redux::tool {
 
@@ -45,19 +49,26 @@ static std::string GetFullyQualifiedName(const TypeMetadata& info) {
 
 static std::string GetFieldType(const FieldMetadata& info,
                                 const DefDocument& doc) {
+  std::string type = info.type;
   if (info.type == "string") {
-    return "std::string";
+    type = "std::string";
   } else if (info.type == "hash") {
-    return "redux::HashValue";
+    type = "redux::HashValue";
+  }
+
+  if (info.attributes.contains(FieldMetadata::kIsArray)) {
+    return "std::vector<" + type + ">";
   } else {
-    return info.type;
+    return type;
   }
 }
 
 static std::string GetDefaultValue(const FieldMetadata& info) {
-  if (auto iter = info.attributes.find(FieldMetadata::kDefaulValue);
+  if (auto iter = info.attributes.find(FieldMetadata::kDefaultValue);
       iter != info.attributes.end()) {
     return iter->second;
+  } else if (info.attributes.contains(FieldMetadata::kIsArray)) {
+    return "";
   } else if (info.type == "vec2") {
     return "vec2::Zero()";
   } else if (info.type == "vec3") {

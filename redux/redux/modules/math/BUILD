@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,6 +13,7 @@ cc_library(
     deps = [
         ":math",
         ":vector",
+        "@absl//absl/log:check",
         "@absl//absl/types:span",
         "//redux/modules/base:logging",
         "//redux/modules/base:typeid",
@@ -68,6 +70,7 @@ cc_library(
     hdrs = ["math.h"],
     deps = [
         ":constants",
+        "@absl//absl/log:check",
         "//redux/modules/base:logging",
     ],
 )
@@ -91,6 +94,7 @@ cc_library(
     deps = [
         ":constants",
         ":vector",
+        "@absl//absl/log:check",
         "//redux/modules/base:logging",
         "//redux/modules/base:typeid",
         "@vectorial//:vectorial",
@@ -168,6 +172,7 @@ cc_library(
         ":quaternion",
         ":vector",
         "@gtest//:gtest",
+        "@absl//absl/log:check",
     ],
 )
 

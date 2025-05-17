@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "redux/engines/platform/sdl2/sdl2_mouse.h"
 
+#include <memory>
+#include <optional>
+
 #include "SDL_events.h"
 #include "redux/engines/platform/device_manager.h"
 
@@ -58,7 +61,7 @@ void Sdl2Mouse::HandleEvent(SDL_Event event) {
       mouse_->SetButton(button.value(), Mouse::kReleased);
     }
   } else if (event.type == SDL_MOUSEWHEEL) {
-    mouse_->SetScrollDelta(event.wheel.x);
+    mouse_->SetScrollDelta(event.wheel.y);
   }
 }
 

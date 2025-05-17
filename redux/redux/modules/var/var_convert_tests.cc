@@ -14,10 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <memory>
+#include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "redux/modules/var/var_convert.h"
 
 namespace redux {

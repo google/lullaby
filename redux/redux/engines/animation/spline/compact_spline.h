@@ -17,10 +17,15 @@ limitations under the License.
 #ifndef REDUX_ENGINES_ANIMATION_SPLINE_COMPACT_SPLINE_H_
 #define REDUX_ENGINES_ANIMATION_SPLINE_COMPACT_SPLINE_H_
 
+#include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <functional>
 #include <memory>
+#include <new>
 
 #include "absl/base/attributes.h"
+#include "absl/log/check.h"
 #include "redux/engines/animation/spline/compact_spline_node.h"
 #include "redux/engines/animation/spline/cubic_curve.h"
 #include "redux/modules/math/bounds.h"
@@ -118,6 +123,7 @@ struct UncompressedNode {
 };
 
 class CompactSpline;
+
 using CompactSplinePtr =
     std::unique_ptr<CompactSpline, std::function<void(CompactSpline*)>>;
 

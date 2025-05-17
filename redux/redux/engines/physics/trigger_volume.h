@@ -22,7 +22,9 @@ limitations under the License.
 #include "redux/engines/physics/collision_shape.h"
 #include "redux/modules/base/bits.h"
 #include "redux/modules/ecs/entity.h"
+#include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/transform.h"
+#include "redux/modules/math/vector.h"
 
 namespace redux {
 
@@ -59,6 +61,9 @@ class TriggerVolume {
 
   // Returns true if the trigger volume is active.
   bool IsActive() const;
+
+  // Changes the collision state for the trigger volume.
+  void SetCollisionState(Bits32 collision_group, Bits32 collision_filter);
 
   // Sets the trigger volume's transform.
   void SetTransform(const Transform& transform);

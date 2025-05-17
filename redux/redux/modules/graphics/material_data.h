@@ -20,7 +20,6 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include "redux/modules/graphics/enums.h"
 #include "redux/modules/graphics/texture_usage.h"
 #include "redux/modules/var/var_table.h"
 
@@ -33,7 +32,7 @@ struct MaterialData {
   // Textures and their intended usages.
   struct TextureData {
     TextureUsage usage;
-    std::string texture;
+    std::string name;
   };
 
   std::string shading_model;

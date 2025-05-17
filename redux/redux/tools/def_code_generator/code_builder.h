@@ -20,6 +20,7 @@ limitations under the License.
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "fmt/format.h"
 

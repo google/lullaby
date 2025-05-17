@@ -16,7 +16,12 @@ limitations under the License.
 
 #include "redux/modules/codecs/encode_webp.h"
 
-#include "webp/encode.h"
+#include <stdint.h>
+
+#include <cstddef>
+
+#include "absl/log/log.h"
+#include "src/webp/encode.h"
 #include "redux/modules/graphics/image_utils.h"
 
 namespace redux {

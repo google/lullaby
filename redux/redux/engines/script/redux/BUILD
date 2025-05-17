@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -11,10 +12,10 @@ cc_library(
     srcs = ["script_engine.cc"],
     deps = [
         ":script_env",
-        "@absl//absl/status",
+        "@absl//absl/log:check",
+        "@absl//absl/types:span",
         "//redux/engines/script",
         "//redux/modules/base:asset_loader",
-        "//redux/modules/base:registry",
         "//redux/modules/base:static_registry",
         "//redux/modules/ecs:entity",
         "//redux/modules/math:matrix",
@@ -77,8 +78,11 @@ cc_library(
     ],
     deps = [
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log",
+        "@absl//absl/log:check",
         "@absl//absl/status",
         "@absl//absl/strings",
+        "@absl//absl/time",
         "@absl//absl/types:span",
         "//redux/engines/script:call_native_function",
         "//redux/modules/base:function_traits",
@@ -118,12 +122,14 @@ cc_test(
         ":script_env",
         ":testing",
         "@gtest//:gtest_main",
+        "@absl//absl/types:span",
     ],
 )
 
 cc_test(
     name = "script_parser_tests",
     srcs = ["script_parser_tests.cc"],
+    tags = ["noautofuzz"],
     deps = [
         ":script_env",
         ":testing",
@@ -202,6 +208,7 @@ cc_test(
         ":script_env",
         ":testing",
         "@gtest//:gtest_main",
+        "@absl//absl/time",
     ],
 )
 

@@ -17,7 +17,13 @@ limitations under the License.
 #include "redux/systems/rig/rig_system.h"
 
 #include <cstddef>
+#include <string_view>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "redux/modules/base/logging.h"
 
 namespace redux {

@@ -17,11 +17,14 @@ limitations under the License.
 #include "redux/systems/animation/animation_system.h"
 
 #include <functional>
+#include <memory>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/time/time.h"
 #include "redux/engines/animation/motivator/spline_motivator.h"
 #include "redux/modules/base/choreographer.h"
-#include "redux/modules/math/interpolation.h"
 #include "redux/systems/rig/rig_system.h"
 
 namespace redux {

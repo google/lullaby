@@ -16,8 +16,17 @@ limitations under the License.
 
 #include "redux/systems/tween/tween_system.h"
 
-#include <utility>
+#include <stddef.h>
 
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "redux/engines/animation/animation_engine.h"
 #include "redux/engines/animation/motivator/spline_motivator.h"
 #include "redux/modules/base/choreographer.h"

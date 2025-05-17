@@ -16,6 +16,18 @@ limitations under the License.
 
 #include "redux/engines/audio/resonance/audio_stream_manager.h"
 
+#include <stddef.h>
+
+#include <atomic>
+#include <memory>
+#include <ostream>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "resonance_audio/utils/task_thread_pool.h"
 #include "resonance_audio/utils/threadsafe_fifo.h"
 

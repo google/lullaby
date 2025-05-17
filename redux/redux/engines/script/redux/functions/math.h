@@ -17,6 +17,9 @@ limitations under the License.
 #ifndef REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_MATH_H_
 #define REDUX_ENGINES_SCRIPT_REDUX_FUNCTIONS_MATH_H_
 
+#include <type_traits>
+
+#include "absl/log/check.h"
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/modules/math/quaternion.h"
 #include "redux/modules/math/vector.h"

@@ -17,7 +17,12 @@ limitations under the License.
 #ifndef REDUX_TOOLS_MODEL_PIPELINE_MODEL_H_
 #define REDUX_TOOLS_MODEL_PIPELINE_MODEL_H_
 
+#include <stddef.h>
+
+#include <functional>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

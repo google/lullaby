@@ -17,6 +17,7 @@ limitations under the License.
 #ifndef REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_LIGHT_H_
 #define REDUX_ENGINES_RENDER_FILAMENT_FILAMENT_LIGHT_H_
 
+#include "absl/container/flat_hash_set.h"
 #include "filament/Engine.h"
 #include "filament/LightManager.h"
 #include "utils/Entity.h"

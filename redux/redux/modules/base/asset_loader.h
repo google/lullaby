@@ -20,8 +20,11 @@ limitations under the License.
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "redux/modules/base/async_processor.h"
@@ -51,6 +54,9 @@ class AssetLoader {
   AssetLoader& operator=(const AssetLoader& rhs) = delete;
 
   void OnRegistryInitialize();
+
+  static constexpr int kLowPriority = std::numeric_limits<int>::min();
+  static constexpr int kHighPriority = std::numeric_limits<int>::max();
 
   // DataContainer returned by Load operations.
   using StatusOrData = absl::StatusOr<DataContainer>;
@@ -93,15 +99,14 @@ class AssetLoader {
   int FinalizeAll();
   int Finalize(int max_num_assets_to_finalize);
 
+  using MatchFn = std::function<bool(std::string_view uri)>;
   using OpenFn = std::function<StatusOrReader(std::string_view uri)>;
 
   // Sets the function that will be used to open assets.
-  void SetOpenFunction(OpenFn open_fn);
+  void SetOpenFunction(MatchFn match_fn, OpenFn open_fn, int priority = 0);
 
-  // Returns the function set in `SetOpenFunction`.
-  OpenFn GetOpenFunction() const;
-
-  // Returns the default open function.
+  // Returns the default open function. This function will be used when all
+  // other possible functions are rejected.
   static OpenFn GetDefaultOpenFunction(Registry* registry = nullptr);
 
   // Starts opening and loading assets asynchronously. This is done
@@ -116,6 +121,17 @@ class AssetLoader {
 
  private:
   using OpenFnPtr = std::shared_ptr<OpenFn>;
+
+  struct OpenFnEntry {
+    OpenFnEntry(int priority, MatchFn match_fn, OpenFnPtr open_fn)
+        : priority(priority),
+          match_fn(std::move(match_fn)),
+          open_fn(std::move(open_fn)) {}
+
+    int priority;
+    MatchFn match_fn;
+    OpenFnPtr open_fn;
+  };
 
   class RequestBase {
    public:
@@ -151,11 +167,13 @@ class AssetLoader {
     std::packaged_task<StatusOrT()> finalize_task_;
   };
 
+  OpenFnPtr GetOpenFn(std::string_view uri);
   void ScheduleRequest(RequestPtr request);
 
   Registry* registry_ = nullptr;
   AsyncProcessor<RequestPtr> processor_;
-  OpenFnPtr open_fn_ = nullptr;
+  std::vector<OpenFnEntry> open_fns_;
+  OpenFnPtr default_open_fn_;
   int pending_requests_ = 0;
 };
 

@@ -17,11 +17,12 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_REF_TUPLE_H_
 #define REDUX_MODULES_BASE_REF_TUPLE_H_
 
+#include <cstddef>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
-#include "redux/modules/base/logging.h"
+#include "absl/log/check.h"
 
 namespace redux {
 

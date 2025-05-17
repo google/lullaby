@@ -16,12 +16,23 @@ limitations under the License.
 
 #include "redux/modules/graphics/mesh_data.h"
 
-#include <algorithm>
-#include <limits>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <utility>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "redux/modules/base/data_container.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/math/bounds.h"
+#include "redux/modules/graphics/enums.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/vertex_format.h"
 
 namespace redux {
 
-static size_t GetIndexSize(MeshIndexType index_type) {
+size_t GetMeshIndexTypeSize(MeshIndexType index_type) {
   switch (index_type) {
     case MeshIndexType::U16:
       return sizeof(std::uint16_t);
@@ -33,47 +44,70 @@ static size_t GetIndexSize(MeshIndexType index_type) {
   }
 }
 
+void MeshData::SetName(HashValue name) { name_ = name; }
+
 void MeshData::SetVertexData(const VertexFormat& vertex_format,
-                             DataContainer vertex_data, Box bounds) {
+                             DataContainer vertex_data,
+                             std::size_t num_vertices, Box bounds) {
   vertex_format_ = vertex_format;
   vertex_data_ = std::move(vertex_data);
+  num_vertices_ = num_vertices;
   bounds_ = bounds;
+
+  CHECK_GE(vertex_data_.GetNumBytes(),
+           vertex_format_.GetVertexSize() * num_vertices_);
+}
+
+void MeshData::SetVertexData(const VertexFormat& vertex_format,
+                             DataContainer vertex_data, Box bounds) {
+  const std::size_t num_vertices =
+      vertex_data.GetNumBytes() / vertex_format.GetVertexSize();
+  SetVertexData(vertex_format, std::move(vertex_data), num_vertices, bounds);
 }
 
 void MeshData::SetIndexData(MeshIndexType index_type,
-                            DataContainer index_data) {
+                            MeshPrimitiveType primitive_type,
+                            DataContainer index_data, std::size_t num_indices) {
   index_type_ = index_type;
+  primitive_type_ = primitive_type;
   index_data_ = std::move(index_data);
+  num_indices_ = num_indices;
+
+  CHECK_GE(index_data_.GetNumBytes(),
+           GetMeshIndexTypeSize(index_type_) * num_indices_);
 }
 
-void MeshData::SetParts(DataContainer part_data) {
-  parts_ = std::move(part_data);
-}
-
-bool MeshData::IsValid() const {
-  CHECK_GT(vertex_data_.GetNumBytes(), 0);
-  CHECK_GT(parts_.GetNumBytes(), 0);
-  CHECK_EQ(vertex_data_.GetNumBytes() % vertex_format_.GetVertexSize(), 0);
-  CHECK_EQ(index_data_.GetNumBytes() % GetIndexSize(index_type_), 0);
-  CHECK_EQ(parts_.GetNumBytes() % sizeof(PartData), 0);
-  return true;
-}
-
-std::size_t MeshData::GetNumVertices() const {
-  const std::size_t size = vertex_format_.GetVertexSize();
-  return size > 0 ? vertex_data_.GetNumBytes() / size : 0;
-}
-
-std::size_t MeshData::GetNumIndices() const {
-  const std::size_t size = GetIndexSize(index_type_);
-  return size > 0 ? index_data_.GetNumBytes() / size : 0;
+void MeshData::SetIndexData(MeshIndexType index_type,
+                            MeshPrimitiveType primitive_type,
+                            DataContainer index_data) {
+  const std::size_t num_indices =
+      index_data.GetNumBytes() / GetMeshIndexTypeSize(index_type);
+  SetIndexData(index_type, primitive_type, std::move(index_data), num_indices);
 }
 
 MeshData MeshData::Clone() const {
   MeshData clone;
-  clone.SetVertexData(vertex_format_, vertex_data_.Clone(), bounds_);
-  clone.SetIndexData(index_type_, index_data_.Clone());
-  clone.SetParts(parts_.Clone());
+  clone.SetVertexData(vertex_format_, vertex_data_.Clone(), num_vertices_,
+                      bounds_);
+  clone.SetIndexData(index_type_, primitive_type_, index_data_.Clone(),
+                     num_indices_);
+  return clone;
+}
+
+MeshData MeshData::WrapDataInSharedPtr(const std::shared_ptr<MeshData>& other) {
+  MeshData clone;
+  clone.SetName(other->GetName());
+
+  DataContainer vertices =
+      DataContainer::WrapDataInSharedPtr(other->GetVertexData(), other);
+  clone.SetVertexData(other->GetVertexFormat(), std::move(vertices),
+                      other->GetNumVertices(), other->GetBoundingBox());
+  if (!other->GetIndexData().empty()) {
+    DataContainer indices =
+        DataContainer::WrapDataInSharedPtr(other->GetIndexData(), other);
+    clone.SetIndexData(other->GetMeshIndexType(), other->GetPrimitiveType(),
+                       std::move(indices), other->GetNumIndices());
+  }
   return clone;
 }
 

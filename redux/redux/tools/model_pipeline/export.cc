@@ -16,6 +16,21 @@ limitations under the License.
 
 #include "redux/tools/model_pipeline/export.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <functional>
+#include <limits>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "redux/data/asset_defs/model_asset_def_generated.h"
 #include "redux/data/asset_defs/texture_asset_def_generated.h"
 #include "redux/modules/flatbuffers/common.h"
@@ -343,6 +358,9 @@ void ExportModelInstance(const Model& model, ModelInstanceAssetDefT* out) {
     }
 
     auto part = std::make_unique<ModelInstancePartAssetDefT>();
+    if (model.GetDrawables().size() > 1) {
+      part->name = MakeName(drawable.material.name);
+    }
 
     const uint32_t start = range_index;
     const uint32_t end = start + drawable.indices.size();

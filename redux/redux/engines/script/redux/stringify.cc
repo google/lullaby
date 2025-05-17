@@ -14,7 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stdint.h>
+
 #include <sstream>
+#include <string>
 
 #include "redux/engines/script/redux/script_env.h"
 #include "redux/engines/script/redux/script_frame.h"

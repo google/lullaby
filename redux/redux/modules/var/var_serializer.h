@@ -19,6 +19,7 @@ limitations under the License.
 
 #include <vector>
 
+#include "absl/log/check.h"
 #include "redux/modules/var/var.h"
 #include "redux/modules/var/var_convert.h"
 #include "redux/modules/var/var_table.h"

@@ -20,8 +20,13 @@ limitations under the License.
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "redux/engines/platform/device_profiles.h"
 #include "redux/engines/platform/display.h"
 #include "redux/engines/platform/keyboard.h"

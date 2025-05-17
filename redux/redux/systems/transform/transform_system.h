@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_SYSTEMS_TRANSFORM_TRANSFORM_SYSTEM_H_
 #define REDUX_SYSTEMS_TRANSFORM_TRANSFORM_SYSTEM_H_
 
+#include <stdint.h>
+
 #include <limits>
 
 #include "redux/engines/script/function_binder.h"

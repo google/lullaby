@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PLATFORM_DEVICE_PROFILES_H_
 #define REDUX_ENGINES_PLATFORM_DEVICE_PROFILES_H_
 
+#include <stddef.h>
+
 #include <optional>
 
 #include "absl/container/flat_hash_map.h"

@@ -3,6 +3,7 @@
 licenses(["notice"])
 
 package(
+    
     default_visibility = ["//redux:visibility"],
 )
 
@@ -12,10 +13,11 @@ cc_library(
     hdrs = ["animation_system.h"],
     deps = [
         "@absl//absl/container:flat_hash_map",
+        "@absl//absl/log:check",
+        "@absl//absl/time",
         "//redux/engines/animation",
         "//redux/engines/animation/spline:compact_spline",
         "//redux/modules/base:choreographer",
-        "//redux/modules/base:typeid",
         "//redux/modules/ecs",
         "//redux/modules/math:interpolation",
         "//redux/systems/rig",

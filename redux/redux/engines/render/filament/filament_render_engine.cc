@@ -16,15 +16,43 @@ limitations under the License.
 
 #include "redux/engines/render/filament/filament_render_engine.h"
 
+#include <cstddef>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "filament/Fence.h"
+#include "filament/Renderer.h"
+#include "filament/Texture.h"
 #include "redux/engines/platform/device_manager.h"
 #include "redux/engines/render/filament/filament_indirect_light.h"
 #include "redux/engines/render/filament/filament_light.h"
+#include "redux/engines/render/filament/filament_render_layer.h"
+#include "redux/engines/render/filament/filament_render_scene.h"
 #include "redux/engines/render/filament/filament_render_target.h"
 #include "redux/engines/render/filament/filament_renderable.h"
+#include "redux/engines/render/indirect_light.h"
+#include "redux/engines/render/light.h"
 #include "redux/engines/render/renderable.h"
+#include "redux/engines/render/render_engine.h"
+#include "redux/engines/render/render_layer.h"
+#include "redux/engines/render/render_scene.h"
+#include "redux/engines/render/render_target.h"
+#include "redux/engines/render/render_target_factory.h"
+#include "redux/engines/render/texture.h"
 #include "redux/modules/base/choreographer.h"
+#include "redux/modules/base/data_container.h"
+#include "redux/modules/base/hash.h"
+#include "redux/modules/base/registry.h"
 #include "redux/modules/base/static_registry.h"
+#include "redux/modules/math/vector.h"
+#include "redux/modules/graphics/graphics_enums_generated.h"
+#include "redux/modules/graphics/image_data.h"
 #include "redux/modules/graphics/image_utils.h"
 
 namespace redux {
@@ -99,13 +127,18 @@ void FilamentRenderEngine::OnRegistryInitialize() {
 
   auto display = registry_->Get<DeviceManager>()->Display();
   void* native_window = display.GetProfile()->native_window;
+  const vec2i size = display.GetProfile()->display_size;
 
   fengine_ = filament::Engine::create(kFilamentBackend);
   frenderer_ = fengine_->createRenderer();
-  fswapchain_ = fengine_->createSwapChain(native_window);
+  if (native_window) {
+    fswapchain_ = fengine_->createSwapChain(native_window);
+  } else {
+    fswapchain_ = fengine_->createSwapChain(size.x, size.y);
+  }
 
   filament::Renderer::ClearOptions clear_options;
-  clear_options.clearColor = {0.f, 0.f, 0.f, 1.f};
+  clear_options.clearColor = {0.05f, 0.05f, 0.05f, 1.f};
   clear_options.clear = true;
   clear_options.discard = true;
   frenderer_->setClearOptions(clear_options);
@@ -133,8 +166,8 @@ RenderLayerPtr FilamentRenderEngine::GetRenderLayer(HashValue name) {
   return iter != layers_.end() ? iter->second : nullptr;
 }
 
-RenderLayerPtr FilamentRenderEngine::GetDefaultRenderLayer() {
-  return GetRenderLayer(kDefaultName);
+HashValue FilamentRenderEngine::GetDefaultRenderLayerName() {
+  return kDefaultName;
 }
 
 RenderScenePtr FilamentRenderEngine::CreateRenderScene(HashValue name) {
@@ -150,8 +183,8 @@ RenderScenePtr FilamentRenderEngine::GetRenderScene(HashValue name) {
   return scenes_[name];
 }
 
-RenderScenePtr FilamentRenderEngine::GetDefaultRenderScene() {
-  return GetRenderScene(kDefaultName);
+HashValue FilamentRenderEngine::GetDefaultRenderSceneName() {
+  return kDefaultName;
 }
 
 RenderablePtr FilamentRenderEngine::CreateRenderable() {
@@ -165,9 +198,10 @@ LightPtr FilamentRenderEngine::CreateLight(Light::Type type) {
 }
 
 IndirectLightPtr FilamentRenderEngine::CreateIndirectLight(
-    const TexturePtr& reflection, const TexturePtr& irradiance) {
-  auto light = std::make_shared<FilamentIndirectLight>(registry_, reflection,
-                                                       irradiance);
+    const TexturePtr& reflection, const TexturePtr& irradiance,
+    absl::Span<const float> spherical_harmonics) {
+  auto light = std::make_shared<FilamentIndirectLight>(
+      registry_, reflection, irradiance, spherical_harmonics);
   return std::static_pointer_cast<IndirectLight>(light);
 }
 
@@ -234,7 +268,7 @@ ImageData FilamentRenderEngine::ReadPixels(FilamentRenderTarget* target) {
 
   SyncWait();
   if (!frenderer_->beginFrame(fswapchain_)) {
-    LOG(FATAL) << "Unable to prepare renderer for reading pixels.";
+    LOG(ERROR) << "Unable to begin frame for reading pixels; reading anyway.";
   }
 
   frenderer_->readPixels(target->GetFilamentRenderTarget(), 0, 0, width,
@@ -245,7 +279,7 @@ ImageData FilamentRenderEngine::ReadPixels(FilamentRenderTarget* target) {
 }
 
 void FilamentRenderEngine::SyncWait() {
-  filament::Fence::waitAndDestroy(fengine_->createFence());
+  fengine_->flushAndWait();
 }
 
 void RenderEngine::Create(Registry* registry) {

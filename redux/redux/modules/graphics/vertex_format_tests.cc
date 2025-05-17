@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <stddef.h>
+
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "redux/modules/graphics/vertex_format.h"
@@ -60,19 +64,6 @@ TEST(VertexFormat, Basics) {
   EXPECT_THAT(format.GetAttributeAt(2)->type, Eq(VertexType::Vec4f));
   EXPECT_THAT(format.GetAttributeAt(2)->usage, Eq(VertexUsage::Color0));
   EXPECT_THAT(format.GetAttributeAt(3), Eq(nullptr));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Position)->type,
-              Eq(VertexType::Vec3f));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Position)->usage,
-              Eq(VertexUsage::Position));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Normal)->type,
-              Eq(VertexType::Vec3f));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Normal)->usage,
-              Eq(VertexUsage::Normal));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Color0)->type,
-              Eq(VertexType::Vec4f));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Color0)->usage,
-              Eq(VertexUsage::Color0));
-  EXPECT_THAT(format.GetAttributeWithUsage(VertexUsage::Color1), Eq(nullptr));
 }
 
 TEST(VertexFormat, Append) {
@@ -91,7 +82,7 @@ TEST(VertexFormat, Append) {
   EXPECT_THAT(format.GetAttributeAt(3), Eq(nullptr));
 }
 
-TEST(VertexFormat, GetAttributeOffsetAt) {
+TEST(VertexFormat, GetAttributeDefaultOffsets) {
   const VertexFormat format({
       {VertexUsage::Position, VertexType::Vec3f},
       {VertexUsage::Color0, VertexType::Vec4ub},
@@ -100,21 +91,74 @@ TEST(VertexFormat, GetAttributeOffsetAt) {
       {VertexUsage::TexCoord1, VertexType::Vec2f},
   });
 
-  size_t offset = 0;
-  EXPECT_THAT(format.GetAttributeOffsetAt(0), Eq(offset));
+  const std::size_t expected_offsets[] = {
+      0,
+      3 * sizeof(float),
+      4 * sizeof(unsigned char),
+      4 * sizeof(float),
+      2 * sizeof(float),
+  };
 
-  offset += 3 * sizeof(float);
-  EXPECT_THAT(format.GetAttributeOffsetAt(1), Eq(offset));
-
-  offset += 4 * sizeof(unsigned char);
-  EXPECT_THAT(format.GetAttributeOffsetAt(2), Eq(offset));
-
-  offset += 4 * sizeof(float);
-  EXPECT_THAT(format.GetAttributeOffsetAt(3), Eq(offset));
-
-  offset += 2 * sizeof(float);
-  EXPECT_THAT(format.GetAttributeOffsetAt(4), Eq(offset));
+  std::size_t offset = 0;
+  for (int i = 0; i < format.GetNumAttributes(); ++i) {
+    offset += expected_offsets[i];
+    EXPECT_THAT(format.GetOffsetOfAttributeAt(i), Eq(offset));
+  }
 }
+
+TEST(VertexFormat, GetAttributeDefaultStrides) {
+  const VertexFormat format({
+      {VertexUsage::Position, VertexType::Vec3f},
+      {VertexUsage::Color0, VertexType::Vec4ub},
+      {VertexUsage::Orientation, VertexType::Vec4f},
+      {VertexUsage::TexCoord0, VertexType::Vec2f},
+      {VertexUsage::TexCoord1, VertexType::Vec2f},
+  });
+
+  const std::size_t expected_stride =
+      3 * sizeof(float) + 4 * sizeof(unsigned char) + 4 * sizeof(float) +
+      2 * sizeof(float) + 2 * sizeof(float);
+
+  for (int i = 0; i < format.GetNumAttributes(); ++i) {
+    EXPECT_THAT(format.GetStrideOfAttributeAt(i), Eq(expected_stride));
+  }
+}
+
+TEST(VertexFormat, GetAttributeExplicitOffsets) {
+  VertexFormat format;
+  // The actual values assigned to the stride and offset do not matter for the
+  // purposes of this test, but we pick reasonable(ish) values anyway.
+  format.AppendAttribute({VertexUsage::Position, VertexType::Vec3f}, 0, 128);
+  format.AppendAttribute({VertexUsage::Color0, VertexType::Vec4ub}, 16, 128);
+  format.AppendAttribute({VertexUsage::Orientation, VertexType::Vec4f}, 32,
+                         128);
+  format.AppendAttribute({VertexUsage::TexCoord0, VertexType::Vec2f}, 48, 128);
+  format.AppendAttribute({VertexUsage::TexCoord1, VertexType::Vec2f}, 64, 128);
+
+  std::size_t offset = 0;
+  for (int i = 0; i < format.GetNumAttributes(); ++i) {
+    EXPECT_THAT(format.GetOffsetOfAttributeAt(i), Eq(offset));
+    offset += 16;
+  }
+}
+
+TEST(VertexFormat, GetAttributeExplicitStrides) {
+  VertexFormat format;
+  // The actual values assigned to the stride and offset do not matter for the
+  // purposes of this test, but we pick reasonable(ish) values anyway.
+  format.AppendAttribute({VertexUsage::Position, VertexType::Vec3f}, 0, 128);
+  format.AppendAttribute({VertexUsage::Color0, VertexType::Vec4ub}, 16, 128);
+  format.AppendAttribute({VertexUsage::Orientation, VertexType::Vec4f}, 32,
+                         128);
+  format.AppendAttribute({VertexUsage::TexCoord0, VertexType::Vec2f}, 48, 128);
+  format.AppendAttribute({VertexUsage::TexCoord1, VertexType::Vec2f}, 64, 128);
+
+  for (int i = 0; i < format.GetNumAttributes(); ++i) {
+    EXPECT_THAT(format.GetStrideOfAttributeAt(i), Eq(128));
+  }
+}
+
+
 
 TEST(VertexFormat, Compare) {
   const VertexFormat format1({

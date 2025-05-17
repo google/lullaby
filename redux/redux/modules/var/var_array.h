@@ -17,8 +17,12 @@ limitations under the License.
 #ifndef REDUX_MODULES_VAR_VAR_ARRAY_H_
 #define REDUX_MODULES_VAR_VAR_ARRAY_H_
 
+#include <stddef.h>
+
+#include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "redux/modules/base/logging.h"
 #include "redux/modules/var/var.h"
 

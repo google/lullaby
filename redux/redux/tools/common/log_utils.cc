@@ -16,6 +16,10 @@ limitations under the License.
 
 #include "redux/tools/common/log_utils.h"
 
+#include <cstdio>
+#include <sstream>
+#include <string>
+
 namespace redux::tool {
 
 Logger::Logger(const LoggerOptions& opts) : opts_(opts) {

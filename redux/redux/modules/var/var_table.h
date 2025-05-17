@@ -17,6 +17,10 @@ limitations under the License.
 #ifndef REDUX_MODULES_VAR_VAR_TABLE_H_
 #define REDUX_MODULES_VAR_VAR_TABLE_H_
 
+#include <stddef.h>
+
+#include <utility>
+
 #include "absl/container/flat_hash_map.h"
 #include "redux/modules/var/var.h"
 

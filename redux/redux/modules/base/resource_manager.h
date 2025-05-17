@@ -17,10 +17,14 @@ limitations under the License.
 #ifndef REDUX_MODULES_BASE_RESOURCE_MANAGER_H_
 #define REDUX_MODULES_BASE_RESOURCE_MANAGER_H_
 
+#include <stdint.h>
+
+#include <algorithm>
 #include <functional>
 #include <list>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "redux/modules/base/hash.h"
@@ -102,6 +106,7 @@ class ResourceManager {
   void Reset();
 
   class ResourceGroupStub;
+
   using ResourceGroup = ResourceGroupStub*;
 
   // Creates and attaches a new ResourceGroup.  All resource allocations from

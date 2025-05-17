@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef REDUX_ENGINES_PHYSICS_COLLISION_DATA_H_
 #define REDUX_ENGINES_PHYSICS_COLLISION_DATA_H_
 
+#include <stddef.h>
+
 #include <memory>
 #include <vector>
 
